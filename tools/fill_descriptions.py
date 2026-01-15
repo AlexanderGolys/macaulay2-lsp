@@ -59,7 +59,8 @@ def main():
     for i, item in enumerate(data):
         # Process if we haven't extracted full docs yet
         # We check for 'headline' as a marker of full extraction
-        if "headline" not in item:
+        # Also check if 'full_doc' is missing (for updates)
+        if "headline" not in item or "full_doc" not in item:
             to_process.append((i, item["name"]))
     
     print(f"Found {len(to_process)} items to process.")

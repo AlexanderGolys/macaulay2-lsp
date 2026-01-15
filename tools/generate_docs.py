@@ -295,6 +295,13 @@ kind: {kind}
     if parent:
         content += f"- [{parent}]({get_link(parent)}) (parent type)\n"
     
+    # Full Documentation
+    if item.get("full_doc"):
+        content += "## Full Documentation\n\n"
+        content += "```macaulay2\n"
+        content += str(item["full_doc"]) + "\n"
+        content += "```\n\n"
+
     return frontmatter + content
 
 def generate_option_table(data, all_items_dict):
