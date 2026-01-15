@@ -5,19 +5,29 @@ kind: Instance
 
 # endl
 
-:::warning[Stub Documentation]
-This is a placeholder documentation entry. The full documentation for this instance needs to be extracted from Macaulay2.
-:::
+**endl  -- end an output line**
 
 **Type:** [Manipulator](../Type/Manipulator.mdx)
 
 ## Description
 
-An instance of the type [Manipulator](../Type/Manipulator.mdx).
+`f << endl`  -- ends the line currently being put out to the file `f` . It is an essential portable programming practice to use `endl`  always for writing newline characters (see [newline](../Instance/newline.mdx) ) to a file will not terminate a line containing nets properly and it will not flush the output buffer.
 
-## Examples
+## Debug info
 
-*No examples available yet. Please contribute!*
-
-## See Also
-
+```python
+{
+    "obj_type": "Instance",
+    "name": "endl",
+    "safe_name": "op_Coredollar_endl",
+    "type": "Manipulator",
+    "description": "`f << endl`  -- ends the line currently being put out to the file `f` . It is an essential portable ...",
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$endl",
+        "full_doc": "... (1494 bytes) ...",
+        "stub": true,
+        "parsed_headline": "endl  -- end an output line"
+    }
+}
+```

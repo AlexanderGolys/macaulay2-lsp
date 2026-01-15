@@ -5,34 +5,55 @@ kind: Function
 
 # applicationDirectory
 
-**Type:** `Function`
+**applicationDirectory  -- the path to the user's application directory**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-applicationDirectory, -- the path to the user's application directory, class => element, Usage: , applicationDirectory(), class => language-macaulay2, Outputs:, a , Macaulay2Doc :: String, string, , , the path to the user's application directory, Description, The function , Macaulay2Doc :: installPackage, , by default, installs packages under the application directory. At program startup, unless the , -q, option is provided on the command line, an entry will be added to the , Macaulay2Doc :: path, so packages can be loaded from there by , Macaulay2Doc :: loadPackage, and , Macaulay2Doc :: needsPackage, . Moreover, the , Macaulay2Doc :: initialization file, , if found there, will be run., The function , Macaulay2Doc :: applicationDirectorySuffix, determines the value of , applicationDirectory, , and can be modified by the user., class => examples, i1 : applicationDirectory()
-
-o1 = /home/m2user/.Macaulay2/, class => language-macaulay2, class => waystouse, Code, ../../m2/startup.m2.in:221:28-231:11: --source code:
- applicationDirectory = () -> (
- if getenv "HOME" =!= ""
- then (
- getenv "HOME" | "/" |
- -- we allow the user to change applicationDirectorySuffix to a string or a function
- if instance(applicationDirectorySuffix, Function)
- then applicationDirectorySuffix()
- else applicationDirectorySuffix
- )
- else error "environment variable HOME not set"
- );, class => language-macaulay2, See also, Macaulay2Doc :: applicationDirectorySuffix, class => waystouse, For the programmer, The object , Macaulay2Doc :: applicationDirectory, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1836:0, .
+The function [installPackage](../Method/installPackage.mdx)  by default installs packages under the application directory.  At program startup unless the `-q`  option is provided on the command line an entry will be added to the [path](../Instance/path.mdx)  so packages can be loaded from there by [loadPackage](../Method/loadPackage.mdx)  and [needsPackage](../Method/op_Coredollar_needsPackage.mdx) .  Moreover the [initialization file](../Instance/initialization file.mdx)  if found there will be run.The function [applicationDirectorySuffix](../Instance/applicationDirectorySuffix.mdx)  determines the value of `applicationDirectory`  and can be modified by the user.
 
 ## Examples
 
 ```macaulay2
-i1 : applicationDirectory()
-
-o1 = /home/m2user/.Macaulay2/
+applicationDirectory()
 ```
 
-## See Also
+```macaulay2
+applicationDirectory()
 
+```
+
+```text
+/home/m2user/.Macaulay2/
+```
+
+## Additional Information
+
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) the path to the user's application directory
+
+
+### See also
+
+
+- Macaulay2Doc:: applicationDirectorySuffix
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "applicationDirectory",
+    "safe_name": "applicationDirectory",
+    "type": "FunctionClosure",
+    "description": "The function [installPackage](../Method/installPackage.mdx)  by default installs packages under the ...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "applicationDirectory",
+        "full_doc": "... (2106 bytes) ...",
+        "parsed_headline": "applicationDirectory  -- the path to the user's application directory"
+    }
+}
+```

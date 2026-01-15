@@ -5,46 +5,70 @@ kind: Function
 
 # applyKeys
 
-**Type:** `Function`
+**applyKeys  -- apply a function to each key in a hash table**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-applyKeys, -- apply a function to each key in a hash table, class => element, Usage: , applyKeys(H, f), class => language-macaulay2, applyKeys(H, f, g), class => language-macaulay2, Inputs:, H, , , a , Macaulay2Doc :: HashTable, hash table, , , f, , , a , Macaulay2Doc :: Function, function, , , of one argument, g, , , a , Macaulay2Doc :: Function, function, , , of two arguments, for collision handling, Outputs:, a , Macaulay2Doc :: HashTable, hash table, , , obtained by applying , f, to each key in , H, , Description, class => examples, i1 : H = new HashTable from {1 => 10, 2 => 15, 3 => 20
-
-o1 = HashTable{1 => 10
- 2 => 15
- 3 => 20
-
-o1 : HashTable, class => language-macaulay2, i2 : applyKeys(H, k -> k + 100)
-
-o2 = HashTable{101 => 10
- 102 => 15
- 103 => 20
-
-o2 : HashTable, class => language-macaulay2, i3 : applyKeys(H, k -> k//2, max)
-
-o3 = HashTable{0 => 10
- 1 => 20
-
-o3 : HashTable, class => language-macaulay2, i4 : applyKeys(H, k -> k//2, plus)
-
-o4 = HashTable{0 => 10
- 1 => 35
-
-o4 : HashTable, class => language-macaulay2, Caveat, It is an error for the function , f, to return two pairs with the same key. When this is a possibility, use the function , g, to specify how the two pairs should be reconciled., See also, Macaulay2Doc :: hash tables, Macaulay2Doc :: applyPairs, Macaulay2Doc :: applyValues, Macaulay2Doc :: keys, Macaulay2Doc :: scanKeys, class => waystouse, Ways to use , applyKeys, :, applyKeys(HashTable,Function), applyKeys(HashTable,Function,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: applyKeys, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/applyKeys-doc.m2:40:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `applyKeys(HashTable, Function)`
-- `applyKeys(HashTable, Function, Function)`
+applyKeys  -- apply a function to each key in a hash table
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+applyKeys(H f)
+applyKeys(H f g)
+```
 
-## See Also
+```macaulay2
+applyKeys(H
+```
 
+```macaulay2
+applyKeys(H k -> k//2
+```
+
+```macaulay2
+applyKeys(H k -> k//2
+```
+
+## Additional Information
+
+- Inputs:
+- `H` a [ hash table](../Type/op_Coredollar_HashTable.mdx)
+- `f` a [ function](../Type/Function.mdx) of one argument
+- `g` a [ function](../Type/Function.mdx) of two arguments for collision handling
+- Outputs:
+- a [ hash table](../Type/op_Coredollar_HashTable.mdx) obtained by applying `f` to each key in `H`
+
+
+### Caveat
+
+It is an error for the function `f`  to return two pairs with the same key. When this is a possibility use the function `g`  to specify how the two pairs should be reconciled.
+### See also
+
+
+- Macaulay2Doc:: hash tables
+- Macaulay2Doc:: applyPairs
+- Macaulay2Doc:: applyValues
+- Macaulay2Doc:: keys
+- Macaulay2Doc:: scanKeys
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "applyKeys",
+    "safe_name": "applyKeys",
+    "type": "CompiledFunction",
+    "description": "applyKeys  -- apply a function to each key in a hash table...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "applyKeys",
+        "full_doc": "... (2314 bytes) ...",
+        "parsed_headline": "applyKeys  -- apply a function to each key in a hash table"
+    }
+}
+```

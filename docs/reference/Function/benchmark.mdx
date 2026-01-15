@@ -5,27 +5,53 @@ kind: Function
 
 # benchmark
 
-**Type:** `Function`
+**benchmark  -- accurate timing of execution**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-benchmark, -- accurate timing of execution, class => element, Usage: , benchmark s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, , , a string containing Macaulay2 code, Outputs:, a , Macaulay2Doc :: RR, real number, , , the number of seconds it takes to evaluate the code in , s, Description, Produces an accurate timing for the code contained in the string , s, . The value returned is the number of seconds., class => examples, i1 : benchmark "sqrt 2p100000"
-
-o1 = .0002988441948638351
-
-o1 : RR (of precision 53), class => language-macaulay2, The snippet of code provided will be run enough times to register meaningfully on the clock, and the garbage collector will be called beforehand., class => waystouse, For the programmer, The object , Macaulay2Doc :: benchmark, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_debugging.m2:537:0, .
+ Produces an accurate timing for the code contained in the string `s` .  The value returned is the number of seconds. The snippet of code provided will be run enough times to register meaningfully on the clock and the garbage collector will be called beforehand.
 
 ## Examples
 
 ```macaulay2
-i1 : benchmark "sqrt 2p100000"
-
-o1 = .0002988441948638351
-
-o1 : RR (of precision 53)
+benchmark s
 ```
 
-## See Also
+```macaulay2
+benchmark "sqrt 2p100000"
 
+```
+
+```text
+.0002988441948638351
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ string](../Type/op_Coredollar_String.mdx) a string containing Macaulay2 code
+- Outputs:
+- a [ real number](../Type/op_x226_x132_x157.mdx) the number of seconds it takes to evaluate the code in `s`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "benchmark",
+    "safe_name": "op_Coredollar_benchmark",
+    "type": "FunctionClosure",
+    "description": " Produces an accurate timing for the code contained in the string `s` .  The value returned is the n...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$benchmark",
+        "full_doc": "... (1178 bytes) ...",
+        "parsed_headline": "benchmark  -- accurate timing of execution"
+    }
+}
+```

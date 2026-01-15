@@ -1,217 +1,524 @@
 ---
 title: "Holder"
 kind: Type
-parent: Expression
 ---
 
 # Holder
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [WrapperType](../Type/WrapperType.mdx)
+**Holder  -- the class of all holder expressions**
 
 ## Description
 
-An instance of the type [WrapperType](../Type/WrapperType.mdx).
-
-## Parent Type
-
-[Expression](../Type/Expression.mdx)
-
-## Subtypes
-
-Direct subtypes of this type:
-
-- [Describe](../Type/Describe.mdx)
-- [OneExpression](../Type/OneExpression.mdx)
-- [Parenthesize](../Type/Parenthesize.mdx)
-- [ZeroExpression](../Type/ZeroExpression.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `!=`
-
-- `!=(Expression, Holder)`
-- `!=(Holder, Expression)`
-
-### `%`
-
-- `%(Expression, Holder)`
-
-### `&`
-
-- `&(Expression, Holder)`
-- `&(Holder, Expression)`
-
-### `*`
-
-- `*(Holder, Product)`
-- `*(Product, Holder)`
-
-### `**`
-
-- `**(Holder, TensorProduct)`
-- `**(TensorProduct, Holder)`
-
-### `+`
-
-- `+(Holder, Sum)`
-- `+(Sum, Holder)`
-
-### `++`
-
-- `++(Holder, DirectSum)`
-- `++(DirectSum, Holder)`
-
-### `-`
-
-- `-(Holder)`
-- `-(Expression, Holder)`
-
-### `..`
-
-- `..(Expression, Holder)`
-
-### `..<`
-
-- `..<(Expression, Holder)`
-
-### `/`
-
-- `/(Holder, OneExpression)`
-- `/(Expression, Holder)`
-
-### `:`
-
-- `:(Expression, Holder)`
-- `:(Holder, Expression)`
-
-### `<==`
-
-- `<==(Expression, Holder)`
-
-### `<===`
-
-- `<===(Expression, Holder)`
-
-### `<==>`
-
-- `<==>(Expression, Holder)`
-
-### `==`
-
-- `==(Holder, Equation)`
-- `==(Equation, Holder)`
-
-### `===>`
-
-- `===>(Expression, Holder)`
-
-### `==>`
-
-- `==>(Expression, Holder)`
-
-### `@`
-
-- `@(Expression, Holder)`
-- `@(Holder, Expression)`
-
-### `@@`
-
-- `@@(Expression, Holder)`
-
-### `SPACE`
-
-- `SPACE(Expression, Holder)`
-
-### `^`
-
-- `^(Holder, OneExpression)`
-- `^(Holder, ZeroExpression)`
-- `^(ZeroExpression, Holder)`
-- `^(Expression, Holder)`
-
-### `^**`
-
-- `^**(Expression, Holder)`
-
-### `^^`
-
-- `^^(Expression, Holder)`
-
-### `_`
-
-- `_(Expression, Holder)`
-
-### `and`
-
-- `and(Expression, Holder)`
-- `and(Holder, Expression)`
-
-### `html`
-
-- `html(Holder)`
-
-### `net`
-
-- `net(Holder)`
-
-### `or`
-
-- `or(Expression, Holder)`
-
-### `texMath`
-
-- `texMath(Holder)`
-
-
-*Showing 50 of 98 methods*
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [!=](../Operator/op_bang_eq.mdx)
-- [%](../Operator/op_percent.mdx)
-- [&](../Operator/op_amp.mdx)
-- [*](../Operator/op_star.mdx)
-- [**](../Operator/op_star_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [++](../Operator/op_plus_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [..](../Operator/op_dot_dot.mdx)
-- [..<](../Operator/op_dot_dot_lt.mdx)
-- [/](../Operator/op_slash.mdx)
-- [:](../Operator/op_colon.mdx)
-- [<==](../Operator/op_lt_eq_eq.mdx)
-- [<===](../Operator/op_lt_eq_eq_eq.mdx)
-- [<==>](../Operator/op_lt_eq_eq_gt.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [===>](../Operator/op_eq_eq_eq_gt.mdx)
-- [==>](../Operator/op_eq_eq_gt.mdx)
-- [@](../Operator/op_at.mdx)
-- [@@](../Operator/op_at_at.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [^](../Operator/op_caret.mdx)
-- [^**](../Operator/op_caret_star_star.mdx)
-- [^^](../Operator/op_caret_caret.mdx)
-- [_](../Operator/_.mdx)
-- [and](../Operator/and.mdx)
-- [baseName](../Function/baseName.mdx)
-- [html](../Function/html.mdx)
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-
-*... and 6 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Expression](../Type/Expression.mdx) (parent type)
+ This type of expression is a container for a single arbitrary thing that is basic enough that the correct method for printing does not depend on its neighbors in the containing expression.  A negative number would not be basic enough for this purpose since as a member of a sum it would require special treatment.
+
+## Additional Information
+
+[Describe](../Type/Describe.mdx)[OneExpression](../Type/op_Coredollar_OneExpression.mdx)[Parenthesize](../Type/Parenthesize.mdx)[ZeroExpression](../Type/op_Coredollar_ZeroExpression.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "Holder",
+    "safe_name": "Holder",
+    "type": null,
+    "description": " This type of expression is a container for a single arbitrary thing that is basic enough that the c...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Holder",
+        "parent": "Expression",
+        "methods": [
+            [
+                "texMath",
+                "Holder"
+            ],
+            [
+                "html",
+                "Holder"
+            ],
+            [
+                "net",
+                "Holder"
+            ],
+            [
+                "**",
+                "Holder",
+                "TensorProduct"
+            ],
+            [
+                "==",
+                "Holder",
+                "Equation"
+            ],
+            [
+                "*",
+                "Holder",
+                "Product"
+            ],
+            [
+                "++",
+                "Holder",
+                "DirectSum"
+            ],
+            [
+                "+",
+                "Holder",
+                "Sum"
+            ],
+            [
+                "+",
+                "Sum",
+                "Holder"
+            ],
+            [
+                "++",
+                "DirectSum",
+                "Holder"
+            ],
+            [
+                "*",
+                "Product",
+                "Holder"
+            ],
+            [
+                "**",
+                "TensorProduct",
+                "Holder"
+            ],
+            [
+                "==",
+                "Equation",
+                "Holder"
+            ],
+            [
+                "-",
+                "Holder"
+            ],
+            [
+                "/",
+                "Holder",
+                "OneExpression"
+            ],
+            [
+                "^",
+                "Holder",
+                "OneExpression"
+            ],
+            [
+                "^",
+                "Holder",
+                "ZeroExpression"
+            ],
+            [
+                "^",
+                "ZeroExpression",
+                "Holder"
+            ],
+            [
+                "||",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "|",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "..<",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "<===",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "or",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "^",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "==>",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "&",
+                "Expression",
+                "Holder"
+            ],
+            [
+                ":",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "!=",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "@",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "%",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "@@",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "|-",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "^**",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "/",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "-",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "..",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "^^",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "and",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "<==",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "_",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "<==>",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "SPACE",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "===>",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "xor",
+                "Expression",
+                "Holder"
+            ],
+            [
+                "and",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "@",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "!=",
+                "Holder",
+                "Expression"
+            ],
+            [
+                ":",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "&",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "xor",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "^**",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "<==",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "@@",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "^",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "<===",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "or",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "||",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "|",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "..<",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "==>",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "SPACE",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "%",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "/",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "-",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "===>",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "<==>",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "|-",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "_",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "..",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "^^",
+                "Holder",
+                "Expression"
+            ],
+            [
+                "@@",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "-",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "SPACE",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "<==>",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "%",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "==>",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "_",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "^**",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "||",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "|",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "..<",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "&",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "or",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "<===",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "^",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "xor",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "and",
+                "Holder",
+                "Holder"
+            ],
+            [
+                ":",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "<==",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "!=",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "@",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "===>",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "..",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "^^",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "|-",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "/",
+                "Holder",
+                "Holder"
+            ],
+            [
+                "mathML",
+                "Holder"
+            ],
+            [
+                "baseName",
+                "Holder"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1178 bytes) ...",
+        "parsed_headline": "Holder  -- the class of all holder expressions"
+    }
+}
+```

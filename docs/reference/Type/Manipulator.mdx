@@ -1,98 +1,119 @@
 ---
 title: "Manipulator"
 kind: Type
-parent: BasicList
 ---
 
 # Manipulator
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Manipulator  -- the class of all file manipulators**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[BasicList](../Type/BasicList.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `flush`
-- `closeIn`
-- `closeOut`
-- `close`
-- `endl`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `<<`
-
-- `<<(File, Manipulator)`
-- `<<(NetFile, Manipulator)`
-- `<<(Nothing, Manipulator)`
-
-### `NewFromMethod`
-
-- `NewFromMethod(Manipulator, Function)`
-
-### `SPACE`
-
-- `SPACE(Manipulator, NetFile)`
-- `SPACE(Manipulator, File)`
-- `SPACE(Manipulator, Database)`
-- `SPACE(Manipulator, Nothing)`
-
-### `html`
-
-- `html(Manipulator)`
-
-### `hypertext`
-
-- `hypertext(Manipulator)`
-
-### `methods`
-
-- `methods(Manipulator)`
-
-### `net`
-
-- `net(Manipulator)`
-
-### `toExternalString`
-
-- `toExternalString(Manipulator)`
-
-### `toString`
-
-- `toString(Manipulator)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [<<](../Operator/op_lt_lt.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [html](../Function/html.mdx)
-- [hypertext](../Function/hypertext.mdx)
-- [methods](../Function/methods.mdx)
-- [net](../Function/net.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-- [toString](../Function/toString.mdx)
+ A file manipulator is a type of list that when put out to a file with [<<](../Method/op_Coredollar_lt_lt.mdx)  causes a chosen function to be applied to the file.  Alternatively a manipulator can be used the way a function is used.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+f = new Manipulator from identity
 
-## See Also
+```
 
-- [BasicList](../Type/BasicList.mdx) (parent type)
+```text
+f
+
+Manipulator
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "Manipulator",
+    "safe_name": "Manipulator",
+    "type": null,
+    "description": " A file manipulator is a type of list that when put out to a file with [<<](../Method/op_Coredollar_...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Manipulator",
+        "parent": "BasicList",
+        "methods": [
+            [
+                "html",
+                "Manipulator"
+            ],
+            [
+                "methods",
+                "Manipulator"
+            ],
+            [
+                "hypertext",
+                "Manipulator"
+            ],
+            [
+                "toExternalString",
+                "Manipulator"
+            ],
+            [
+                "toString",
+                "Manipulator"
+            ],
+            [
+                "NewFromMethod",
+                "Manipulator",
+                "Function"
+            ],
+            [
+                "SPACE",
+                "Manipulator",
+                "NetFile"
+            ],
+            [
+                "SPACE",
+                "Manipulator",
+                "File"
+            ],
+            [
+                "SPACE",
+                "Manipulator",
+                "Database"
+            ],
+            [
+                "SPACE",
+                "Manipulator",
+                "Nothing"
+            ],
+            [
+                "<<",
+                "File",
+                "Manipulator"
+            ],
+            [
+                "<<",
+                "NetFile",
+                "Manipulator"
+            ],
+            [
+                "<<",
+                "Nothing",
+                "Manipulator"
+            ],
+            [
+                "net",
+                "Manipulator"
+            ]
+        ],
+        "instances": [
+            "flush",
+            "closeIn",
+            "closeOut",
+            "close",
+            "endl"
+        ],
+        "full_doc": "... (1895 bytes) ...",
+        "parsed_headline": "Manipulator  -- the class of all file manipulators"
+    }
+}
+```

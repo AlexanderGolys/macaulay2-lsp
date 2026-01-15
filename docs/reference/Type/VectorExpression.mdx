@@ -1,48 +1,66 @@
 ---
 title: "VectorExpression"
 kind: Type
-parent: Expression
 ---
 
 # VectorExpression
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [HeaderType](../Type/HeaderType.mdx)
+**VectorExpression  -- the class of all vector expressions**
 
 ## Description
 
-An instance of the type [HeaderType](../Type/HeaderType.mdx).
-
-## Parent Type
-
-[Expression](../Type/Expression.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `net`
-
-- `net(VectorExpression)`
-
-### `texMath`
-
-- `texMath(VectorExpression)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [net](../Function/net.mdx)
-- [texMath](../Function/texMath.mdx)
+`VectorExpression`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a vector.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+VectorExpression {a,b,c}
 
-## See Also
+```
 
-- [Expression](../Type/Expression.mdx) (parent type)
+```text
+| a |
+     | b |
+     | c |
+
+Expression of class VectorExpression
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: MatrixExpression
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "VectorExpression",
+    "safe_name": "VectorExpression",
+    "type": null,
+    "description": "`VectorExpression`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "VectorExpression",
+        "parent": "Expression",
+        "methods": [
+            [
+                "net",
+                "VectorExpression"
+            ],
+            [
+                "texMath",
+                "VectorExpression"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (895 bytes) ...",
+        "parsed_headline": "VectorExpression  -- the class of all vector expressions"
+    }
+}
+```

@@ -1,0 +1,59 @@
+---
+title: "scanLines"
+kind: Method
+---
+
+# scanLines
+
+**scanLines  -- apply a function to each line of a file**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+The file is read and processed one block at a time making this procedure potentially much better at conserving memory than `scan(lines get fnf)`  when the file is very large.
+
+## Installed For
+
+### scanLines([Function](../Type/Function.mdx), [List](../Type/List.mdx))
+
+### scanLines([Function](../Type/Function.mdx), [String](../Type/String.mdx))
+
+## Examples
+
+```macaulay2
+scanLines(ffn)
+```
+
+## Additional Information
+
+- Inputs:
+- `f`
+- `fn` the name of a file or a list of names of files
+- Outputs:
+- returns [null](../Instance/null.mdx) unless the function uses `break x` with a non-null value for `x` in which case scanning stops and `x` is returned immediately
+- Consequences:
+- applies `f` to each line of the file(s)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "scanLines",
+    "safe_name": "scanLines",
+    "type": "MethodFunction",
+    "description": "The file is read and processed one block at a time making this procedure potentially much better at ...",
+    "installations": [
+        "<Installation scanLines(Function, String)>",
+        "<Installation scanLines(Function, List)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "scanLines",
+        "full_doc": "... (1215 bytes) ...",
+        "parsed_headline": "scanLines  -- apply a function to each line of a file"
+    }
+}
+```

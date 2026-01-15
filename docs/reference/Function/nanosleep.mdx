@@ -5,25 +5,48 @@ kind: Function
 
 # nanosleep
 
-**Type:** `Function`
+**nanosleep  -- sleep for a given number of nanoseconds**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-nanosleep, -- sleep for a given number of nanoseconds, Description, nanosleep n, -- sleeps for , n, nanoseconds., class => examples, i1 : elapsedTime nanosleep 500000000
- -- .500061s elapsed
-
-o1 = 0, class => language-macaulay2, See also, Macaulay2Doc :: sleep, class => waystouse, For the programmer, The object , Macaulay2Doc :: nanosleep, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:883:0, .
+`nanosleep n`  -- sleeps for `n`  nanoseconds.
 
 ## Examples
 
 ```macaulay2
-i1 : elapsedTime nanosleep 500000000
+elapsedTime nanosleep 500000000
  -- .500061s elapsed
 
-o1 = 0
 ```
 
-## See Also
+```text
+0
+```
 
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: sleep
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "nanosleep",
+    "safe_name": "op_Coredollar_nanosleep",
+    "type": "CompiledFunction",
+    "description": "`nanosleep n`  -- sleeps for `n`  nanoseconds....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$nanosleep",
+        "full_doc": "... (651 bytes) ...",
+        "parsed_headline": "nanosleep  -- sleep for a given number of nanoseconds"
+    }
+}
+```

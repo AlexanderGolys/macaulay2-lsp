@@ -5,21 +5,40 @@ kind: Function
 
 # print
 
-**Type:** `Function`
+**print  -- print something**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-print, -- print something, class => element, Usage: , print x, class => language-macaulay2, Description, print x, prints , x, on the standard output followed by a new line., class => examples, i1 : print "Hello world!"
-Hello world!, class => language-macaulay2, The return value is , Macaulay2Doc :: null, ., class => waystouse, For the programmer, The object , Macaulay2Doc :: print, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_strings.m2:468:0, .
+`print x`  prints `x`  on the standard output followed by a new line. The return value is [null](../Instance/null.mdx) .
 
 ## Examples
 
 ```macaulay2
-i1 : print "Hello world!"
+print x
+```
+
+```macaulay2
+print "Hello world!"
 Hello world!
 ```
 
-## See Also
+## Debug info
 
+```python
+{
+    "obj_type": "Function",
+    "name": "print",
+    "safe_name": "print",
+    "type": "FunctionClosure",
+    "description": "`print x`  prints `x`  on the standard output followed by a new line. The return value is [null](../...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "print",
+        "full_doc": "... (696 bytes) ...",
+        "parsed_headline": "print  -- print something"
+    }
+}
+```

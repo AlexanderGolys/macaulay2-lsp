@@ -5,17 +5,52 @@ kind: Function
 
 # setIOExclusive
 
-**Type:** `Function`
+**setIOExclusive  -- exclusive I/O for the current thread**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-setIOExclusive, -- exclusive I/O for the current thread, class => element, Usage: , setIOExclusive(), class => language-macaulay2, setIOExclusive f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: File, file, , , Consequences:, the current thread becomes the only one permitted to use the file , f, , or if no file is given, the files , Macaulay2Doc :: stdio, and , Macaulay2Doc :: stderr, ., empty documentation body, See also, Macaulay2Doc :: parallel programming with threads and tasks, Macaulay2Doc :: setIOUnSynchronized, Macaulay2Doc :: setIOSynchronized, Macaulay2Doc :: getIOThreadMode, class => waystouse, For the programmer, The object , Macaulay2Doc :: setIOExclusive, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
+setIOExclusive  -- exclusive I/O for the current thread
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+setIOExclusive()
+setIOExclusive f
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `f` a [ file](../Type/op_Coredollar_File.mdx)
+- Consequences:
+- the current thread becomes the only one permitted to use the file f or if no file is given the files [stdio](../Instance/op_Coredollar_stdio.mdx) and [stderr](../Instance/stderr.mdx).
+
+empty documentation body
+### See also
+
+
+- Macaulay2Doc:: parallel programming with threads and tasks
+- Macaulay2Doc:: setIOUnSynchronized
+- Macaulay2Doc:: setIOSynchronized
+- Macaulay2Doc:: getIOThreadMode
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "setIOExclusive",
+    "safe_name": "setIOExclusive",
+    "type": "CompiledFunction",
+    "description": "setIOExclusive  -- exclusive I/O for the current thread...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "setIOExclusive",
+        "full_doc": "... (1118 bytes) ...",
+        "parsed_headline": "setIOExclusive  -- exclusive I/O for the current thread"
+    }
+}
+```

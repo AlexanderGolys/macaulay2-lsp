@@ -1,0 +1,120 @@
+---
+title: "hypertext"
+kind: Method
+---
+
+# hypertext
+
+**hypertext  -- prepare hypertext for display**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+ Here is a list of some of the transformations that are performed.
+- occurrences of `null` such as those that might have been produced by the insertion of an extra comma are removed
+- [ sequences](../Type/Sequence.mdx) such as those produced by extra sets of parentheses are [ spliced](../Function/op_Coredollar_splice.mdx) into the lists containing them
+- the contents of lists and sequences are merged into the mark-up lists containing them
+- mark-up lists of type [TO](../Instance/TO.mdx) occurring a mark-up list of type [UL](../Instance/UL.mdx) are converted to lists of type [TOH](../Instance/TOH.mdx) so the headlines of the items will appear in the resulting menu
+- the targets of the links in mark-up lists of type TO TOH and TO2 are converted into [ document tags](../Type/DocumentTag.mdx)
+- mark-up types such as [PARA](../Instance/PARA.mdx) are converted into lists of length 0 of that type
+- strings spanning multiple lines are wrapped into one long line after appropriately trimming the spaces at the beginning and end of each line
+- an error message is produced if something not recognizable as documentation is encountered
+
+ We may phase out this function in favor of performing the listed transformations automatically when hypertext elements are created.
+
+## Installed For
+
+### hypertext([Boolean](../Type/Boolean.mdx))
+
+### hypertext([Command](../Type/Command.mdx))
+
+### hypertext([Descent](../Type/Descent.mdx))
+
+### hypertext([Dictionary](../Type/Dictionary.mdx))
+
+### hypertext([File](../Type/File.mdx))
+
+### hypertext([FilePosition](../Type/FilePosition.mdx))
+
+### hypertext([Function](../Type/Function.mdx))
+
+### hypertext([FunctionBody](../Type/FunctionBody.mdx))
+
+### hypertext([IndeterminateNumber](../Type/IndeterminateNumber.mdx))
+
+### hypertext([Manipulator](../Type/Manipulator.mdx))
+
+### hypertext([Net](../Type/Net.mdx))
+
+### hypertext([Nothing](../Type/Nothing.mdx))
+
+### hypertext([NumberedVerticalList](../Type/NumberedVerticalList.mdx))
+
+### hypertext([Package](../Type/Package.mdx))
+
+### hypertext([String](../Type/String.mdx))
+
+### hypertext([Time](../Type/Time.mdx))
+
+### hypertext([Type](../Type/Type.mdx))
+
+### hypertext([VerticalList](../Type/VerticalList.mdx))
+
+## Examples
+
+```macaulay2
+hypertext x
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ list](../Type/op_Coredollar_List.mdx) a list of strings and hypertext mark-up lists
+- Outputs:
+- a [ markup list](../Instance/Hypertext.mdx) a new list of mark-up lists obtained from the old by making the format more suitable for ultimate display
+
+
+### See also
+
+
+- Text:: Hypertext
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "hypertext",
+    "safe_name": "op_Coredollar_hypertext",
+    "type": "MethodFunctionSingle",
+    "description": " Here is a list of some of the transformations that are performed.\n- occurrences of `null` such as t...",
+    "installations": [
+        "<Installation hypertext(Descent)>",
+        "<Installation hypertext(Time)>",
+        "<Installation hypertext(String)>",
+        "<Installation hypertext(IndeterminateNumber)>",
+        "<Installation hypertext(Boolean)>",
+        "<Installation hypertext(Type)>",
+        "<Installation hypertext(Package)>",
+        "<Installation hypertext(Nothing)>",
+        "<Installation hypertext(Dictionary)>",
+        "<Installation hypertext(Manipulator)>",
+        "<Installation hypertext(File)>",
+        "<Installation hypertext(FunctionBody)>",
+        "<Installation hypertext(Command)>",
+        "<Installation hypertext(Function)>",
+        "<Installation hypertext(Net)>",
+        "<Installation hypertext(FilePosition)>",
+        "<Installation hypertext(VerticalList)>",
+        "<Installation hypertext(NumberedVerticalList)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$hypertext",
+        "full_doc": "... (2188 bytes) ...",
+        "parsed_headline": "hypertext  -- prepare hypertext for display"
+    }
+}
+```

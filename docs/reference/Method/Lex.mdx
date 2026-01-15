@@ -1,0 +1,42 @@
+---
+title: "Lex"
+kind: Method
+---
+
+# Lex
+
+**Lex  -- lexicographical monomial ordering**
+
+**Type:** [Symbol](../Type/Symbol.mdx)
+
+## Description
+
+ The lexicographic order is defined by: $x^A > x^B$ if the FIRST non-zero entry of the vector of integers `A-B`  is POSITIVE. The largest possible exponent of variables in `Lex`  order is 2^31-1.  For efficiency reasons the size of the exponents of variables may be restricted.  Then instead of `Lex`  one can use ``  which allows maximal exponent 2^15-1 or ``  which allows maximal exponent 2^7-1. Any of these versions of `Lex`  order may be combined for example with a weight order given by a weight vector: x^A > x^B if weight(x^A) > weight(x^B) or if weight(x^A) = weight(x^B) and if the FIRST non-zero entry of the vector of integers A-B is POSITIVE.
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: Weights
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "Lex",
+    "safe_name": "op_Coredollar_Lex",
+    "type": "Symbol",
+    "description": " The lexicographic order is defined by: $x^A > x^B$ if the FIRST non-zero entry of the vector of int...",
+    "installations": [],
+    "options": null,
+    "extra": {
+        "isSymbol": true,
+        "codeName": "Core$Lex",
+        "full_doc": "... (2178 bytes) ...",
+        "stub": true,
+        "parsed_headline": "Lex  -- lexicographical monomial ordering"
+    }
+}
+```

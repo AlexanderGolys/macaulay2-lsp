@@ -5,68 +5,96 @@ kind: Function
 
 # toCC
 
-**Type:** `Function`
+**toCC  -- convert to high-precision complex number**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-toCC, -- convert to high-precision complex number, Description, Synopsis, class => element, Usage: , toCC(prec,x,y), class => language-macaulay2, toCC(prec,x), class => language-macaulay2, Inputs:, prec, , , an , Macaulay2Doc :: ZZ, integer, , , the number of bits of precision desired, x, , , an , Macaulay2Doc :: ZZ, integer, , , a , Macaulay2Doc :: QQ, rational number, , or , a , Macaulay2Doc :: RR, real number, y, , , an , Macaulay2Doc :: ZZ, integer, , , a , Macaulay2Doc :: QQ, rational number, , or , a , Macaulay2Doc :: RR, real number, Outputs:, a , Macaulay2Doc :: CC, complex number, , , the complex number with real part , x, and complex part , y, . If , y, is omitted, the imaginary part is zero., class => examples, i1 : toCC(200,7)
 
-o1 = 7
+### Synopsis
 
-o1 : CC (of precision 200), class => language-macaulay2, i2 : toCC(100,7,3.)
 
-o2 = 7+3*ii
+- Inputs:
+- `prec` an [ integer](../Type/ZZ.mdx) the number of bits of precision desired
+- `x` an [ integer](../Type/ZZ.mdx) a [ rational number](../Type/op_x226_x132_x154.mdx) or a [ real number](../Type/op_x226_x132_x157.mdx)
+- `y` an [ integer](../Type/ZZ.mdx) a [ rational number](../Type/op_x226_x132_x154.mdx) or a [ real number](../Type/op_x226_x132_x157.mdx)
+- Outputs:
+- a [ complex number](../Type/op_x226_x132_x130.mdx) the complex number with real part `x` and complex part `y`. If `y` is omitted the imaginary part is zero.
 
-o2 : CC (of precision 100), class => language-macaulay2, Synopsis, class => element, Usage: , toCC(x,y), class => language-macaulay2, toCC x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: RR, real number, y, , , a , Macaulay2Doc :: RR, real number, Outputs:, a , Macaulay2Doc :: CC, complex number, , , the complex number with real part , x, and complex part , y, . If , y, is omitted, the imaginary part is zero. The precision of the result is the minimum precision of the arguments., class => examples, i3 : toCC(3.,4.)
 
-o3 = 3+4*ii
+### Synopsis
 
-o3 : CC (of precision 53), class => language-macaulay2, i4 : toCC(3.p100,4.p200)
 
-o4 = 3+4*ii
+- Inputs:
+- `x` a [ real number](../Type/op_x226_x132_x157.mdx)
+- `y` a [ real number](../Type/op_x226_x132_x157.mdx)
+- Outputs:
+- a [ complex number](../Type/op_x226_x132_x130.mdx) the complex number with real part `x` and complex part `y`. If `y` is omitted the imaginary part is zero. The precision of the result is the minimum precision of the arguments.
 
-o4 : CC (of precision 100), class => language-macaulay2, class => waystouse, Ways to use , toCC, :, toCC(CC), toCC(QQ), toCC(RR), toCC(RR,RR), toCC(ZZ), toCC(ZZ,CC), toCC(ZZ,QQ), toCC(ZZ,QQ,QQ), toCC(ZZ,QQ,RR), toCC(ZZ,QQ,ZZ), toCC(ZZ,RR), toCC(ZZ,RR,QQ), toCC(ZZ,RR,RR), toCC(ZZ,RR,ZZ), toCC(ZZ,ZZ), toCC(ZZ,ZZ,QQ), toCC(ZZ,ZZ,RR), toCC(ZZ,ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: toCC, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_rings.m2:396:0, .
 
-## Installations
-
-Type signatures for this function:
-
-- `toCC(RR)`
-- `toCC(CC)`
-- `toCC(QQ)`
-- `toCC(ZZ)`
-- `toCC(RR, RR)`
-- `toCC(ZZ, CC)`
-- `toCC(ZZ, RR)`
-- `toCC(ZZ, QQ)`
-- `toCC(ZZ, ZZ)`
-- `toCC(ZZ, RR, RR)`
-- `toCC(ZZ, RR, QQ)`
-- `toCC(ZZ, QQ, RR)`
-- `toCC(ZZ, ZZ, RR)`
-- `toCC(ZZ, RR, ZZ)`
-- `toCC(ZZ, QQ, QQ)`
-- `toCC(ZZ, QQ, ZZ)`
-- `toCC(ZZ, ZZ, QQ)`
-- `toCC(ZZ, ZZ, ZZ)`
 
 ## Examples
 
 ```macaulay2
-i1 : toCC(200,7)
+toCC(2007)
 
-o1 = 7
-
-o1 : CC (of precision 200)
-
-i2 : toCC(100,7,3.)
-
-o2 = 7+3*ii
-
-o2 : CC (of precision 100)
 ```
 
-## See Also
+```text
+7
 
+CC (of precision 200)
+```
+
+```macaulay2
+toCC(10073.)
+
+```
+
+```text
+7+3*ii
+
+CC (of precision 100)
+```
+
+```macaulay2
+toCC(3.4.)
+
+```
+
+```text
+3+4*ii
+
+CC (of precision 53)
+```
+
+```macaulay2
+toCC(3.p1004.p200)
+
+```
+
+```text
+3+4*ii
+
+CC (of precision 100)
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "toCC",
+    "safe_name": "op_Coredollar_toCC",
+    "type": "CompiledFunction",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `prec` an [ integer](../Type/ZZ.mdx) the number of bits of precision des...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$toCC",
+        "full_doc": "... (2816 bytes) ...",
+        "parsed_headline": "toCC  -- convert to high-precision complex number"
+    }
+}
+```

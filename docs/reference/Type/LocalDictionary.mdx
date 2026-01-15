@@ -1,43 +1,48 @@
 ---
 title: "LocalDictionary"
 kind: Type
-parent: Dictionary
 ---
 
 # LocalDictionary
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**LocalDictionary  -- the class of all local dictionaries**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ A local dictionary is one used in connection with a local scope such as one that is bounded by the body of a function closure. A local dictionary is created on the fly by the interpreter and after the scope has been closed the dictionary can be enlarged no further. Accessing local dictionaries can be a useful debugging tool.  The local dictionaries accessible to the user come with frames so their symbols have values; thus they may be referred to as dictionary closures.
 
-## Parent Type
+## Additional Information
 
-[Dictionary](../Type/Dictionary.mdx)
+### See also
 
-## Methods
 
-Methods that can be used with this type:
+- Macaulay2Doc:: localDictionaries
+- Macaulay2Doc:: GlobalDictionary
 
-### `debug`
+## Debug info
 
-- `debug(LocalDictionary)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [debug](../Function/debug.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Dictionary](../Type/Dictionary.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "LocalDictionary",
+    "safe_name": "LocalDictionary",
+    "type": null,
+    "description": " A local dictionary is one used in connection with a local scope such as one that is bounded by the ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "LocalDictionary",
+        "parent": "Dictionary",
+        "methods": [
+            [
+                "debug",
+                "LocalDictionary"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1204 bytes) ...",
+        "parsed_headline": "LocalDictionary  -- the class of all local dictionaries"
+    }
+}
+```

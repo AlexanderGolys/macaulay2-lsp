@@ -1,60 +1,65 @@
 ---
 title: "RealField"
 kind: Type
-parent: InexactField
 ---
 
 # RealField
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**RealField  -- the class of all real fields**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+A real number ring is a ring whose elements are real numbers of variable precision.
 
-## Parent Type
+## Debug info
 
-[InexactField](../Type/InexactField.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `NewOfFromMethod`
-
-- `NewOfFromMethod(RealField, Nothing, ZZ)`
-
-### `_`
-
-- `_(ZZ, RealField)`
-- `_(QQ, RealField)`
-- `_(RR, RealField)`
-
-### `expression`
-
-- `expression(RealField)`
-
-### `toString`
-
-- `toString(RealField)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [NewOfFromMethod](../Option/NewOfFromMethod.mdx)
-- [_](../Operator/_.mdx)
-- [expression](../Function/expression.mdx)
-- [toString](../Function/toString.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [InexactField](../Type/InexactField.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "RealField",
+    "safe_name": "op_Coredollar_RealField",
+    "type": null,
+    "description": "A real number ring is a ring whose elements are real numbers of variable precision....",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$RealField",
+        "parent": "InexactField",
+        "methods": [
+            [
+                "_",
+                "ZZ",
+                "RealField"
+            ],
+            [
+                "_",
+                "QQ",
+                "RealField"
+            ],
+            [
+                "_",
+                "RR",
+                "RealField"
+            ],
+            [
+                "toString",
+                "RealField"
+            ],
+            [
+                "expression",
+                "RealField"
+            ],
+            [
+                "NewOfFromMethod",
+                "RealField",
+                "Nothing",
+                "ZZ"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (744 bytes) ...",
+        "parsed_headline": "RealField  -- the class of all real fields"
+    }
+}
+```

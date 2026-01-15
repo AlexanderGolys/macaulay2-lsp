@@ -5,50 +5,55 @@ kind: Function
 
 # createTask
 
-**Type:** `Function`
+**createTask  -- create a task**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-createTask, -- create a task, class => element, Usage: , createTask(f,x), class => language-macaulay2, createTask f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Function, function, , , x, , , a , Macaulay2Doc :: Thing, thing, , , Outputs:, a , Macaulay2Doc :: Task, task, , , which when scheduled, will apply the function , f, to the argument , x, . In the second form, where , x, is not specified, it is take to be , (), ., Description, class => examples, i1 : f = x -> 2^x
-
-o1 = f
-
-o1 : FunctionClosure, class => language-macaulay2, i2 : t = createTask(f,3)
-
-o2 = <<task, created>>
-
-o2 : Task, class => language-macaulay2, i3 : schedule t
-
-o3 = <<task, created>>
-
-o3 : Task, class => language-macaulay2, i4 : taskResult t
-
-o4 = 8, class => language-macaulay2, class => waystouse, Ways to use , createTask, :, createTask(Function), createTask(Function,Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: createTask, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `createTask(Function)`
-- `createTask(Function, Thing)`
+createTask  -- create a task
 
 ## Examples
 
 ```macaulay2
-i1 : f = x -> 2^x
-
-o1 = f
-
-o1 : FunctionClosure
-
-i2 : t = createTask(f,3)
-
-o2 = <<task, created>>
-
-o2 : Task
+createTask(fx)
+createTask f
 ```
 
-## See Also
+```macaulay2
+t = createTask(f3)
 
+```
+
+```text
+<<task created>>
+
+Task
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx)
+- `x` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- a [ task](../Type/op_Coredollar_Task.mdx) which when scheduled will apply the function `f` to the argument `x`. In the second form where `x` is not specified it is take to be `()`.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "createTask",
+    "safe_name": "op_Coredollar_createTask",
+    "type": "CompiledFunction",
+    "description": "createTask  -- create a task...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$createTask",
+        "full_doc": "... (1480 bytes) ...",
+        "parsed_headline": "createTask  -- create a task"
+    }
+}
+```

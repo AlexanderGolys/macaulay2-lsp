@@ -1,0 +1,93 @@
+---
+title: "Schubert"
+kind: Method
+---
+
+# Schubert
+
+**Schubert  -- compute the Plücker ideal of a Schubert variety**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+Given natural numbers $k \le{} n$ this routine finds the ideal of the Schubert variety indexed by sigma in the Grassmannian of projective $k$-planes in $P^n$.For example the ideal of the Schubert variety indexed by $\{1,2,4\}$ in the Grassmannian of projective planes in $P^4$ is displayed in the following example.
+
+## Installed For
+
+### Schubert([ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx), [VisibleList](../Type/VisibleList.mdx))
+
+## Options
+
+- [Variable](../Option/Variable.mdx) => p
+- [CoefficientRing](../Option/CoefficientRing.mdx) => ZZ
+
+## Examples
+
+```macaulay2
+Schubert(knsigma)
+```
+
+```macaulay2
+I = Schubert(24{1,2,4} p      p      p     p      - p     p      p     p     
+             234   134   034   123 024    023 124   123 014
+     ------------------------------------------------------------------------
+     - p     p      p     p      - p     p     )
+        013 124   023 014    013 024
+
+```
+
+```text
+Ideal of QQ[p     ..p      p      p      p      p      p      p      p      p     ]
+                  012   013   023   123   014   024   124   034   134   234
+```
+
+## Additional Information
+
+- Inputs:
+- `k`
+- `n`
+- `sigma` a subset of `0..n` of size `k+1` that indexes the Schubert variety
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `CoefficientRing```a [ ring](../Type/Ring.mdx) default value ZZ the coefficient ring for the polynomial ring to be made
+- `Variable```a [ symbol](../Type/op_Coredollar_Symbol.mdx) default value "p" the base symbol for the indexed variables to be used. The subscripts are the elements of `subsets(n+1k+1)` converted to sequences and if `k` is 0 converted to integers.
+- Outputs:
+- an [ ideal](../Type/op_Coredollar_Ideal.mdx) the ideal of the Schubert variety indexed by sigma
+
+
+### See also
+
+
+- Macaulay2Doc:: Grassmannian
+- Macaulay2Doc:: pfaffians
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "Schubert",
+    "safe_name": "Schubert",
+    "type": "MethodFunctionWithOptions",
+    "description": "Given natural numbers $k \\le{} n$ this routine finds the ideal of the Schubert variety indexed by si...",
+    "installations": [
+        "<Installation Schubert(ZZ, ZZ, VisibleList)>"
+    ],
+    "options": [
+        {
+            "name": "Variable",
+            "default": "p"
+        },
+        {
+            "name": "CoefficientRing",
+            "default": "ZZ"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Schubert",
+        "full_doc": "... (3125 bytes) ...",
+        "parsed_headline": "Schubert  -- compute the Pl\u00fccker ideal of a Schubert variety"
+    }
+}
+```

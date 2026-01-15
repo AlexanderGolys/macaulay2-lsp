@@ -1,0 +1,69 @@
+---
+title: "reshape"
+kind: Method
+---
+
+# reshape
+
+**reshape  -- reshape a matrix**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+Currently it is assumed that `f` and the result both have the same number of entries. The resulting map has the same degree that `f` has but it is easy to spoil homogeneity by giving incorrect free modules.
+
+## Installed For
+
+### reshape([Module](../Type/Module.mdx), [Module](../Type/Module.mdx), [Matrix](../Type/Matrix.mdx)) -> [Matrix](../Type/Matrix.mdx)
+
+## Examples
+
+```macaulay2
+reshape(F G f)
+```
+
+```macaulay2
+reshape(ZZ^3ZZ^4f)
+
+```
+
+```text
+| 1 4 7 10 |
+     | 2 5 8 11 |
+     | 3 6 9 12 |
+
+              3       4
+Matrix ZZ  <-- ZZ
+```
+
+## Additional Information
+
+- Inputs:
+- `F` a [ module](../Type/op_Coredollar_Module.mdx) a free module;
+- `G` a [ module](../Type/op_Coredollar_Module.mdx) a free module;
+- `f` a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- Outputs:
+- a [ matrix](../Type/op_Coredollar_Matrix.mdx) `F <-- G` obtained from `f` by taking elements from the first column of `f` then the second and so on filling them into the result column by column.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "reshape",
+    "safe_name": "op_Coredollar_reshape",
+    "type": "MethodFunction",
+    "description": "Currently it is assumed that `f` and the result both have the same number of entries. The resulting ...",
+    "installations": [
+        "<Installation reshape(Module, Module, Matrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$reshape",
+        "full_doc": "... (1763 bytes) ...",
+        "parsed_headline": "reshape  -- reshape a matrix"
+    }
+}
+```

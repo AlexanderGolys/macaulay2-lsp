@@ -1,0 +1,98 @@
+---
+title: "isWellDefined"
+kind: Method
+---
+
+# isWellDefined
+
+**isWellDefined  -- whether a map is well defined**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ In order to check whether a matrix whose source module is not free is well defined then a Gröbner basis computation will probably be required. In order to check whether a ring map is well defined it is often necessary to check that the image of an ideal under a related ring map is zero.  This often requires a Gröbner basis as well.
+
+## Installed For
+
+### isWellDefined([Matrix](../Type/Matrix.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+### isWellDefined([RingMap](../Type/RingMap.mdx))
+
+## Examples
+
+```macaulay2
+isWellDefined f
+```
+
+```macaulay2
+isWellDefined f
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isWellDefined map(coker vars R R^1 {{1_R}})
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isWellDefined map(AB)
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isWellDefined map(BA)
+
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ matrix](../Type/op_Coredollar_Matrix.mdx) or a [ ring map](../Type/op_Coredollar_RingMap.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `f` is a well-defined map
+
+
+### See also
+
+
+- Macaulay2Doc:: map
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isWellDefined",
+    "safe_name": "op_Coredollar_isWellDefined",
+    "type": "MethodFunction",
+    "description": " In order to check whether a matrix whose source module is not free is well defined then a Gr\u00f6bner b...",
+    "installations": [
+        "<Installation isWellDefined(Matrix)>",
+        "<Installation isWellDefined(RingMap)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isWellDefined",
+        "full_doc": "... (2820 bytes) ...",
+        "parsed_headline": "isWellDefined  -- whether a map is well defined"
+    }
+}
+```

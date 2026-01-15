@@ -5,37 +5,42 @@ kind: Function
 
 # uncurry
 
-**Type:** `Function`
+**uncurry  -- uncurry a function**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-uncurry, -- uncurry a function, Description, uncurry(f, (a,b)), -- computes , ((f a) b), ., , uncurry(f, (a,b,c)), -- computes , (((f a) b) c), ., , uncurry(f, (a,b,c,d)), -- computes , ((((f a) b) c) d), ., , ... and so on., class => examples, i1 : f = a -> b -> c -> [a,b,c]
-
-o1 = f
-
-o1 : FunctionClosure, class => language-macaulay2, i2 : uncurry(f, (1,2,3))
-
-o2 = [1, 2, 3]
-
-o2 : Array, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: uncurry, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_debugging.m2:391:0, .
+`uncurry(f (ab))`      -- computes `((f a) b)` .`uncurry(f (abc))`    -- computes `(((f a) b) c)` .`uncurry(f (abcd))`  -- computes `((((f a) b) c) d)` . ... and so on.
 
 ## Examples
 
 ```macaulay2
-i1 : f = a -> b -> c -> [a,b,c]
+uncurry(f (123))
 
-o1 = f
-
-o1 : FunctionClosure
-
-i2 : uncurry(f, (1,2,3))
-
-o2 = [1, 2, 3]
-
-o2 : Array
 ```
 
-## See Also
+```text
+[1 2 3]
 
+Array
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "uncurry",
+    "safe_name": "op_Coredollar_uncurry",
+    "type": "CompiledFunction",
+    "description": "`uncurry(f (ab))`      -- computes `((f a) b)` .`uncurry(f (abc))`    -- computes `(((f a) b) c)` .`...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$uncurry",
+        "full_doc": "... (837 bytes) ...",
+        "parsed_headline": "uncurry  -- uncurry a function"
+    }
+}
+```

@@ -5,17 +5,55 @@ kind: Function
 
 # toRRi
 
-**Type:** `Function`
+**toRRi  -- construct an interval**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-toRRi, -- construct an interval, class => element, Usage: , I = toRRi(n), class => language-macaulay2, I = toRRi(l,r), class => language-macaulay2, I = toRRi(prec,l,r), class => language-macaulay2, Inputs:, n, , , a , Macaulay2Doc :: Number, number, , , l, , , a , Macaulay2Doc :: Number, number, , , r, , , a , Macaulay2Doc :: Number, number, , , prec, , , an , Macaulay2Doc :: ZZ, integer, , , Outputs:, I, , , a , Macaulay2Doc :: RRi, real interval, , , Description, Returns an interval as small as possible containing , n, or from , l, to , r, . Note that if , l, is to the right of , r, , the constructed interval is empty. This is a more low-level function and , Macaulay2Doc :: interval, or span should be used instead., See also, Macaulay2Doc :: span(List), Macaulay2Doc :: span(Sequence), Macaulay2Doc :: interval, class => waystouse, For the programmer, The object , Macaulay2Doc :: toRRi, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_intervals.m2:298:0, .
+Returns an interval as small as possible containing `n`  or from `l`  to `r` .  Note that if `l`  is to the right of `r`  the constructed interval is empty.  This is a more low-level function and [interval](../Method/interval.mdx) or span should be used instead.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+I = toRRi(n)
+I = toRRi(lr)
+I = toRRi(preclr)
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `n` a [ number](../Type/op_Coredollar_Number.mdx)
+- `l` a [ number](../Type/op_Coredollar_Number.mdx)
+- `r` a [ number](../Type/op_Coredollar_Number.mdx)
+- `prec` an [ integer](../Type/ZZ.mdx)
+- Outputs:
+- `I` a [ real interval](../Type/RRi.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: span(List)
+- Macaulay2Doc:: span(Sequence)
+- Macaulay2Doc:: interval
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "toRRi",
+    "safe_name": "toRRi",
+    "type": "CompiledFunction",
+    "description": "Returns an interval as small as possible containing `n`  or from `l`  to `r` .  Note that if `l`  is...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "toRRi",
+        "full_doc": "... (1433 bytes) ...",
+        "parsed_headline": "toRRi  -- construct an interval"
+    }
+}
+```

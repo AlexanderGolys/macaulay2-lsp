@@ -1,231 +1,620 @@
 ---
 title: "Type"
 kind: Type
-parent: MutableHashTable
 ---
 
 # Type
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Type  -- the class of all mutable types**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[MutableHashTable](../Type/MutableHashTable.mdx)
-
-## Subtypes
-
-Direct subtypes of this type:
-
-- [HeaderType](../Type/HeaderType.mdx)
-- [Monoid](../Type/Monoid.mdx)
-- [Ring](../Type/Ring.mdx)
-- [RingFamily](../Type/RingFamily.mdx)
-- [SelfInitializingType](../Type/SelfInitializingType.mdx)
-- [WrapperType](../Type/WrapperType.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `Hybrid`
-- `NumberedVerticalList`
-- `LowerBound`
-- `AngleBarList`
-- `RRi'`
-- `QQ`
-- `GeneralOrderedMonoid`
-- `FunctionClosure`
-- `Package`
-- `Variety`
-- `RRi`
-- `Command`
-- `MonomialIdeal`
-- `Sum`
-- `SheafExpression`
-- `SumOfTwists`
-- `String`
-- `Ideal`
-- `TensorProduct`
-- `SheafOfRings`
-
-*... and 140 more*
-
-## Methods
-
-Methods that can be used with this type:
-
-### `(%,=)`
-
-- `(%,=)(Type, Type)`
-
-### `(&,=)`
-
-- `(&,=)(Type, Type)`
-
-### `(*,=)`
-
-- `(*,=)(Type, Type)`
-
-### `(++,=)`
-
-- `(++,=)(Type, Type)`
-
-### `(-,=)`
-
-- `(-,=)(Type, Type)`
-
-### `(..,=)`
-
-- `(..,=)(Type, Type)`
-
-### `(//,=)`
-
-- `(//,=)(Type, Type)`
-
-### `(:,=)`
-
-- `(:,=)(Type, Type)`
-
-### `(<<,=)`
-
-- `(<<,=)(Type, Type)`
-
-### `(<==,=)`
-
-- `(<==,=)(Type, Type)`
-
-### `(<===,=)`
-
-- `(<===,=)(Type, Type)`
-
-### `(==,=)`
-
-- `(==,=)(Type, Type)`
-
-### `(===>,=)`
-
-- `(===>,=)(Type, Type)`
-
-### `(==>,=)`
-
-- `(==>,=)(Type, Type)`
-
-### `(>>,=)`
-
-- `(>>,=)(Type, Type)`
-
-### `(??,=)`
-
-- `(??,=)(Type, Type)`
-
-### `(@,=)`
-
-- `(@,=)(Type, Type)`
-
-### `(@@,=)`
-
-- `(@@,=)(Type, Type)`
-
-### `(\,=)`
-
-- `(\,=)(Type, Type)`
-
-### `(\\,=)`
-
-- `(\\,=)(Type, Type)`
-
-### `(^**,=)`
-
-- `(^**,=)(Type, Type)`
-
-### `(^,=)`
-
-- `(^,=)(Type, Type)`
-
-### `(^<,=)`
-
-- `(^<,=)(Type, Type)`
-
-### `(^<=,=)`
-
-- `(^<=,=)(Type, Type)`
-
-### `(^>,=)`
-
-- `(^>,=)(Type, Type)`
-
-### `(^>=,=)`
-
-- `(^>=,=)(Type, Type)`
-
-### `(^^,=)`
-
-- `(^^,=)(Type, Type)`
-
-### `(_,=)`
-
-- `(_,=)(Type, Type)`
-
-### `(_<=,=)`
-
-- `(_<=,=)(Type, Type)`
-
-### `(_>,=)`
-
-- `(_>,=)(Type, Type)`
-
-
-*Showing 50 of 91 methods*
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [!](../Operator/op_bang.mdx)
-- [%](../Operator/op_percent.mdx)
-- [&](../Operator/op_amp.mdx)
-- [(!,=)](../Type/(!,=).mdx)
-- [(%,=)](../Type/(%,=).mdx)
-- [(&,=)](../Type/(&,=).mdx)
-- [((*),=)](../Type/((*),=).mdx)
-- [(*)](../Operator/op_x40_star_x41.mdx)
-- [(**,=)](../Type/(**,=).mdx)
-- [(*,=)](../Type/(*,=).mdx)
-- [(++,=)](../Type/(++,=).mdx)
-- [(+,=)](../Type/(+,=).mdx)
-- [(-,=)](../Type/(-,=).mdx)
-- [(..,=)](../Type/(..,=).mdx)
-- [(..<,=)](../Type/(..<,=).mdx)
-- [(/,=)](../Type/(/,=).mdx)
-- [(//,=)](../Type/(//,=).mdx)
-- [(:,=)](../Type/(:,=).mdx)
-- [(<,=)](../Type/(<,=).mdx)
-- [(<<,=)](../Type/(<<,=).mdx)
-- [(<=,=)](../Type/(<=,=).mdx)
-- [(<==,=)](../Type/(<==,=).mdx)
-- [(<===,=)](../Type/(<===,=).mdx)
-- [(<==>,=)](../Type/(<==>,=).mdx)
-- [(==,=)](../Type/(==,=).mdx)
-- [(===>,=)](../Type/(===>,=).mdx)
-- [(==>,=)](../Type/(==>,=).mdx)
-- [(>,=)](../Type/(>,=).mdx)
-- [(>=,=)](../Type/(>=,=).mdx)
-- [(>>,=)](../Type/(>>,=).mdx)
-
-*... and 20 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [MutableHashTable](../Type/MutableHashTable.mdx) (parent type)
+ Everything in the system is classified and the class that a thing belongs to is a type.  A type is implemented as a [ mutable hash table](../Type/MutableHashTable.mdx)  containing method functions for its instances. The list of types known to the system is displayed below.
+
+## Additional Information
+
+mathematical mutable types[Monoid](../Type/op_Coredollar_Monoid.mdx)[Ring](../Type/Ring.mdx)[RingFamily](../Type/op_Coredollar_RingFamily.mdx) other mutable types[SelfInitializingType](../Type/SelfInitializingType.mdx)[WrapperType](../Type/WrapperType.mdx)[HeaderType](../Type/op_Coredollar_HeaderType.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "Type",
+    "safe_name": "op_Coredollar_Type",
+    "type": null,
+    "description": " Everything in the system is classified and the class that a thing belongs to is a type.  A type is ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Type",
+        "parent": "MutableHashTable",
+        "methods": [
+            [
+                "html",
+                "Type"
+            ],
+            [
+                "methods",
+                "Type"
+            ],
+            [
+                "instances",
+                "Type"
+            ],
+            [
+                "ofClass",
+                "Type"
+            ],
+            [
+                "expression",
+                "Type"
+            ],
+            [
+                "?",
+                "Type"
+            ],
+            [
+                "about",
+                "Type"
+            ],
+            [
+                "hypertext",
+                "Type"
+            ],
+            [
+                "mathML",
+                "Type"
+            ],
+            [
+                "random",
+                "Type"
+            ],
+            [
+                "(|-,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(*,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(\u22a0,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(-,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(%,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(:,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(??,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(//,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(^,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(_>=,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(<==,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(..,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(^^,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(>>,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(&,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(|_,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(<===,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(\u00b7,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(^>,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(===>,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(@@,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(_>,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(\u29e2,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(==,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(xor,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(^**,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(or,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(_<=,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(^<,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(==>,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(and,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(^<=,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(_,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(++,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(^>=,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(\\,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(<<,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(||,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(\\\\,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(@,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(**,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(@@?,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(<==>,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(SPACE,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(?,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(/,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(+,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(..<,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(|,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(_<,=)",
+                "Type",
+                "Type"
+            ],
+            [
+                "(?,=)",
+                "Type"
+            ],
+            [
+                "(|-,=)",
+                "Type"
+            ],
+            [
+                "(-,=)",
+                "Type"
+            ],
+            [
+                "(+,=)",
+                "Type"
+            ],
+            [
+                "(<<,=)",
+                "Type"
+            ],
+            [
+                "(<===,=)",
+                "Type"
+            ],
+            [
+                "(*,=)",
+                "Type"
+            ],
+            [
+                "(not,=)",
+                "Type"
+            ],
+            [
+                "(<,=)",
+                "Type"
+            ],
+            [
+                "(>=,=)",
+                "Type"
+            ],
+            [
+                "(>,=)",
+                "Type"
+            ],
+            [
+                "(<=,=)",
+                "Type"
+            ],
+            [
+                "(<==,=)",
+                "Type"
+            ],
+            [
+                "(??,=)",
+                "Type"
+            ],
+            [
+                "(^*,=)",
+                "Type"
+            ],
+            [
+                "(!,=)",
+                "Type"
+            ],
+            [
+                "(_!,=)",
+                "Type"
+            ],
+            [
+                "(^!,=)",
+                "Type"
+            ],
+            [
+                "(^~,=)",
+                "Type"
+            ],
+            [
+                "(_*,=)",
+                "Type"
+            ],
+            [
+                "(~,=)",
+                "Type"
+            ],
+            [
+                "((*),=)",
+                "Type"
+            ],
+            [
+                "(_~,=)",
+                "Type"
+            ],
+            [
+                "toString",
+                "Type"
+            ],
+            [
+                "net",
+                "Type"
+            ],
+            [
+                "select",
+                "BasicList",
+                "Type"
+            ],
+            [
+                "isQuotientOf",
+                "Type",
+                "Ring"
+            ],
+            [
+                "isQuotientOf",
+                "Type",
+                "QuotientRing"
+            ],
+            [
+                "ancestor",
+                "Type",
+                "Type"
+            ],
+            [
+                "instance",
+                "Thing",
+                "Type"
+            ],
+            [
+                "validate",
+                "Type",
+                "BasicList"
+            ]
+        ],
+        "instances": [
+            "Hybrid",
+            "NumberedVerticalList",
+            "LowerBound",
+            "AngleBarList",
+            "RRi'",
+            "QQ",
+            "GeneralOrderedMonoid",
+            "FunctionClosure",
+            "Package",
+            "Variety",
+            "RRi",
+            "Command",
+            "MonomialIdeal",
+            "Sum",
+            "SheafExpression",
+            "SumOfTwists",
+            "String",
+            "Ideal",
+            "TensorProduct",
+            "SheafOfRings",
+            "TestInput",
+            "FunctionApplication",
+            "OptionTable",
+            "Array",
+            "GroebnerBasisOptions",
+            "MethodFunctionWithOptions",
+            "HashTable",
+            "RR",
+            "ZZ",
+            "InexactField",
+            "LocalDictionary",
+            "VirtualTally",
+            "Set",
+            "Cone",
+            "GradedModuleMap",
+            "PolynomialRing",
+            "ProjectiveHilbertPolynomial",
+            "BinaryOperation",
+            "ComplexField",
+            "Tally",
+            "WrapperType",
+            "URL",
+            "Minus",
+            "Ring",
+            "CompiledFunctionClosure",
+            "GaloisField",
+            "VerticalList",
+            "Polyhedron",
+            "MatrixExpression",
+            "GradedModule",
+            "MethodFunctionBinary",
+            "Type",
+            "QuotientRing",
+            "VectorExpression",
+            "Monoid",
+            "DocumentTag",
+            "CC",
+            "IndexedVariableTable",
+            "Adjacent",
+            "Vector",
+            "Program",
+            "BettiTally",
+            "MutableMatrix",
+            "SheafMap",
+            "Number",
+            "Equation",
+            "IndexedVariable",
+            "p",
+            "SymbolBody",
+            "Net",
+            "OneExpression",
+            "ZeroExpression",
+            "PolyhedralObject",
+            "DirectSum",
+            "HeaderType",
+            "ProgramRun",
+            "RingElement",
+            "CacheTable",
+            "Module",
+            "Iterator",
+            "Manipulator",
+            "Option",
+            "NetFile",
+            "Divide",
+            "Descent",
+            "Database",
+            "SparseVectorExpression",
+            "File",
+            "InfiniteNumber",
+            "MethodFunctionSingle",
+            "AtomicInt",
+            "Task",
+            "AssociativeExpression",
+            "CompiledFunction",
+            "MultigradedBettiTally",
+            "Nothing",
+            "Table",
+            "PolyhedralComplex",
+            "EngineRing",
+            "CoherentSheaf",
+            "SelfInitializingType",
+            "Dictionary",
+            "Expression",
+            "Symbol",
+            "GlobalDictionary",
+            "FunctionBody",
+            "ImmutableType",
+            "List",
+            "MonoidElement",
+            "ProductOrder",
+            "InexactNumber",
+            "GroebnerBasis",
+            "InexactNumber'",
+            "IndeterminateNumber",
+            "MutableList",
+            "Constant",
+            "InexactFieldFamily",
+            "CC'",
+            "Parenthesize",
+            "Keyword",
+            "AffineVariety",
+            "Partition",
+            "Pseudocode",
+            "BasicList",
+            "Resolution",
+            "Holder",
+            "Thing",
+            "ChainComplex",
+            "Product",
+            "RingFamily",
+            "RealField",
+            "Sequence",
+            "Matrix",
+            "FilePosition",
+            "SparseMonomialVectorExpression",
+            "Power",
+            "Superscript",
+            "RR'",
+            "Bag",
+            "ScriptedFunctor",
+            "Describe",
+            "CompiledFunctionBody",
+            "Subscript",
+            "OrderedMonoid",
+            "RingMap",
+            "Time",
+            "PseudocodeClosure",
+            "RowExpression",
+            "Fan",
+            "MapExpression",
+            "Function",
+            "FractionField",
+            "MethodFunction",
+            "MutableHashTable",
+            "Eliminate",
+            "Boolean",
+            "ProjectiveVariety",
+            "ChainComplexMap",
+            "VisibleList"
+        ],
+        "full_doc": "... (6802 bytes) ...",
+        "parsed_headline": "Type  -- the class of all mutable types"
+    }
+}
+```

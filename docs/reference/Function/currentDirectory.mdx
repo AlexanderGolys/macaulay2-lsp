@@ -5,25 +5,56 @@ kind: Function
 
 # currentDirectory
 
-**Type:** `Function`
+**currentDirectory  -- current working directory**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-currentDirectory, -- current working directory, class => element, Usage: , currentDirectory(), class => language-macaulay2, Outputs:, the complete path to the current directory, together with an extra slash, Description, class => examples, i1 : currentDirectory()
-
-o1 = /usr/share/Macaulay2/
- Macaulay2Doc-temporary/, class => language-macaulay2, If a component of the path to the current directory no longer exist, an error will be signalled., See also, Macaulay2Doc :: changeDirectory, class => waystouse, For the programmer, The object , Macaulay2Doc :: currentDirectory, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:691:0, .
+If a component of the path to the current directory no longer exist an error will be signalled.
 
 ## Examples
 
 ```macaulay2
-i1 : currentDirectory()
+currentDirectory()
+```
 
-o1 = /usr/share/Macaulay2/
+```macaulay2
+currentDirectory()
+
+```
+
+```text
+/usr/share/Macaulay2/
      Macaulay2Doc-temporary/
 ```
 
-## See Also
+## Additional Information
 
+- Outputs:
+- the complete path to the current directory together with an extra slash
+
+
+### See also
+
+
+- Macaulay2Doc:: changeDirectory
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "currentDirectory",
+    "safe_name": "currentDirectory",
+    "type": "CompiledFunction",
+    "description": "If a component of the path to the current directory no longer exist an error will be signalled....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "currentDirectory",
+        "full_doc": "... (928 bytes) ...",
+        "parsed_headline": "currentDirectory  -- current working directory"
+    }
+}
+```

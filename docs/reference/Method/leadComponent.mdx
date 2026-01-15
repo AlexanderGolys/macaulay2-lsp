@@ -1,0 +1,106 @@
+---
+title: "leadComponent"
+kind: Method
+---
+
+# leadComponent
+
+**leadComponent  -- the leading component(s) of a vector or matrix**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+*Leading*  appears to be a bit of a misnomer here since the index/indices return are the last not the first corresponding to nonzero elements.This command also works with vectors and matrices that contain polynomial ring elements.
+
+## Installed For
+
+### leadComponent([Matrix](../Type/Matrix.mdx))
+
+### leadComponent([Vector](../Type/Vector.mdx)) -> [ZZ](../Type/ZZ.mdx)
+
+## Examples
+
+```macaulay2
+leadComponent v
+```
+
+```macaulay2
+leadComponent vector{0,0,1,0,1}
+
+```
+
+```text
+4
+```
+
+```macaulay2
+leadComponent vector{0,0,1,2,3,4,0}
+
+```
+
+```text
+5
+```
+
+```macaulay2
+leadComponent matrix{{0,0,1}, {0,1,0}, {1,0,0}}
+
+```
+
+```text
+{2, 1, 0}
+
+List
+```
+
+```macaulay2
+R = ZZ/5[abc]; leadComponent vector{a*b^2,3*b*c^3,0}
+
+```
+
+```text
+1
+```
+
+## Additional Information
+
+- Inputs:
+- `v` a [ vector](../Type/op_Coredollar_Vector.mdx) or [Matrix](../Type/op_Coredollar_Matrix.mdx)
+- Outputs:
+- an [ integer](../Type/ZZ.mdx) or [List](../Type/op_Coredollar_List.mdx) of integers the largest index of a nonzero element of `v`
+
+
+### See also
+
+
+- Macaulay2Doc:: leadCoefficient
+- Macaulay2Doc:: leadMonomial
+- Macaulay2Doc:: leadTerm
+- Macaulay2Doc:: position
+- Macaulay2Doc:: positions
+- Macaulay2Doc:: select
+- Macaulay2Doc:: support
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "leadComponent",
+    "safe_name": "op_Coredollar_leadComponent",
+    "type": "MethodFunction",
+    "description": "*Leading*  appears to be a bit of a misnomer here since the index/indices return are the last not th...",
+    "installations": [
+        "<Installation leadComponent(Matrix)>",
+        "<Installation leadComponent(Vector)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$leadComponent",
+        "full_doc": "... (2012 bytes) ...",
+        "parsed_headline": "leadComponent  -- the leading component(s) of a vector or matrix"
+    }
+}
+```

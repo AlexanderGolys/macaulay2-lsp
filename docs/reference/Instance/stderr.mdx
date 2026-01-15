@@ -5,19 +5,46 @@ kind: Instance
 
 # stderr
 
-:::warning[Stub Documentation]
-This is a placeholder documentation entry. The full documentation for this instance needs to be extracted from Macaulay2.
-:::
+**stderr  -- the standard error output file**
 
 **Type:** [File](../Type/File.mdx)
 
 ## Description
 
-An instance of the type [File](../Type/File.mdx).
+Macaulay2 uses this file to display error messages on the user's screen.  In unix it corresponds to file descriptor 2.  The user may use this file to display warning messages.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+stderr
+```
 
-## See Also
+## Additional Information
 
+- Outputs:
+- the standard error output file
+
+
+### See also
+
+
+- Macaulay2Doc:: stdio
+
+## Debug info
+
+```python
+{
+    "obj_type": "Instance",
+    "name": "stderr",
+    "safe_name": "stderr",
+    "type": "File",
+    "description": "Macaulay2 uses this file to display error messages on the user's screen.  In unix it corresponds to ...",
+    "extra": {
+        "isSymbol": false,
+        "codeName": "stderr",
+        "full_doc": "... (748 bytes) ...",
+        "stub": true,
+        "parsed_headline": "stderr  -- the standard error output file"
+    }
+}
+```

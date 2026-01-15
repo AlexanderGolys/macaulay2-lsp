@@ -1,0 +1,84 @@
+---
+title: "moveFile"
+kind: Method
+---
+
+# moveFile
+
+**moveFile**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+moveFile
+
+## Installed For
+
+### moveFile([String](../Type/String.mdx))
+
+### moveFile([String](../Type/String.mdx), [String](../Type/String.mdx))
+
+## Options
+
+- [Verbose](../Method/Verbose.mdx) => false
+
+## Examples
+
+```macaulay2
+moveFile(srcdst)
+```
+
+```macaulay2
+moveFile(srcdst
+```
+
+```macaulay2
+bak = moveFile(dst
+```
+
+## Additional Information
+
+- Inputs:
+- `src` a [ string](../Type/op_Coredollar_String.mdx) the filename or path to an existing file
+- `dst` a [ string](../Type/op_Coredollar_String.mdx) the new filename or path to a location (on the same file system). Omit this argument and an appropriately numbered backup filename will be invented.
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `Verbose```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to report individual file operations
+- Outputs:
+- the name of the backup file if one was created or [null](../Instance/null.mdx)
+- Consequences:
+- the file will be moved by creating a new link to the file and removing the old one
+
+
+### See also
+
+
+- Macaulay2Doc:: copyFile
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "moveFile",
+    "safe_name": "moveFile",
+    "type": "MethodFunctionWithOptions",
+    "description": "moveFile...",
+    "installations": [
+        "<Installation moveFile(String, String)>",
+        "<Installation moveFile(String)>"
+    ],
+    "options": [
+        {
+            "name": "Verbose",
+            "default": "false"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "moveFile",
+        "full_doc": "... (2317 bytes) ...",
+        "parsed_headline": "moveFile"
+    }
+}
+```

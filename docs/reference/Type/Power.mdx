@@ -1,58 +1,53 @@
 ---
 title: "Power"
 kind: Type
-parent: Expression
 ---
 
 # Power
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [HeaderType](../Type/HeaderType.mdx)
+**Power  -- the class of all power expressions**
 
 ## Description
 
-An instance of the type [HeaderType](../Type/HeaderType.mdx).
+`Power`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a power. Normally power expressions with an exponent equal to 1 will not be produced.  But it is desirable for [factor](../Method/factor.mdx)  to return a product of powers and some of them will have 1 as exponent.  The routines for printing of expressions will take this into account suppress exponents equal to 1 and arrange for parenthesization correctly.
 
-## Parent Type
+## Debug info
 
-[Expression](../Type/Expression.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `mathML`
-
-- `mathML(Power)`
-
-### `net`
-
-- `net(Power)`
-
-### `substitute`
-
-- `substitute(Power, Thing)`
-
-### `texMath`
-
-- `texMath(Power)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-- [substitute](../Function/substitute.mdx)
-- [texMath](../Function/texMath.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Expression](../Type/Expression.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Power",
+    "safe_name": "Power",
+    "type": null,
+    "description": "`Power`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a power. Norm...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Power",
+        "parent": "Expression",
+        "methods": [
+            [
+                "net",
+                "Power"
+            ],
+            [
+                "texMath",
+                "Power"
+            ],
+            [
+                "mathML",
+                "Power"
+            ],
+            [
+                "substitute",
+                "Power",
+                "Thing"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (960 bytes) ...",
+        "parsed_headline": "Power  -- the class of all power expressions"
+    }
+}
+```

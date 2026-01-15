@@ -1,0 +1,92 @@
+---
+title: "headlines"
+kind: Method
+---
+
+# headlines
+
+**headlines  -- display a table of documentation headlines**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+This method displays a table of documentation headlines for the input list.If the input is a list of documentation nodes generated using the function [about](../Method/op_Coredollar_about.mdx) the method [help(ZZ)](../Instance/help(ZZ).mdx) can be used to select and open one of the documentation nodes.This is also true for a list of symbols generated using the function [apropos](../Method/op_Coredollar_apropos.mdx).If the input was a list of method keys generated using [methods](../Method/op_Coredollar_methods.mdx) then in addition the method [code(ZZ)](../Instance/code(ZZ).mdx) can be used to view the source code for the selected entry.
+
+## Installed For
+
+### headlines([List](../Type/List.mdx))
+
+## Examples
+
+```macaulay2
+headlines about s
+headlines apropos p
+headlines methods f
+```
+
+```macaulay2
+headlines about firstFunction
+
+```
+
+```text
+0.  "FirstPackage :: firstFunction"       -- a silly first function
+     1.  "FirstPackage :: firstFunction(ZZ)"   -- a silly first function
+```
+
+```macaulay2
+headlines apropos "hilbert"
+
+```
+
+```text
+0.  "Polyhedra :: hilbertBasis"           -- computes the Hilbert basis of a Cone
+     1.  "Macaulay2Doc :: hilbertFunction"     -- the Hilbert function                
+     2.  "Macaulay2Doc :: hilbertPolynomial"   -- compute the Hilbert polynomial      
+     3.  "Macaulay2Doc :: hilbertSeries"       -- compute the Hilbert series
+```
+
+```macaulay2
+headlines methods syz
+
+```
+
+```text
+0.  "Macaulay2Doc :: syz(GroebnerBasis)"   -- retrieve the syzygy matrix
+     1.  "Macaulay2Doc :: syz(Matrix)"          -- compute the syzygy matrix
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: help
+- Macaulay2Doc:: viewHelp
+- Macaulay2Doc:: about
+- Macaulay2Doc:: apropos
+- Macaulay2Doc:: methods
+- Macaulay2Doc:: code(ZZ)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "headlines",
+    "safe_name": "op_Coredollar_headlines",
+    "type": "MethodFunction",
+    "description": "This method displays a table of documentation headlines for the input list.If the input is a list of...",
+    "installations": [
+        "<Installation headlines(List)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$headlines",
+        "full_doc": "... (4284 bytes) ...",
+        "parsed_headline": "headlines  -- display a table of documentation headlines"
+    }
+}
+```

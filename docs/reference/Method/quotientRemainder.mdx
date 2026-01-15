@@ -1,0 +1,110 @@
+---
+title: "quotientRemainder"
+kind: Method
+---
+
+# quotientRemainder
+
+**quotientRemainder  -- matrix quotient and remainder**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ The equation `g*q+r == f`  will hold.  The source of `f`  should be a free module.
+
+## Installed For
+
+### quotientRemainder([InexactNumber](../Type/InexactNumber.mdx), [RingElement](../Type/RingElement.mdx))
+
+### quotientRemainder([Matrix](../Type/Matrix.mdx), [GroebnerBasis](../Type/GroebnerBasis.mdx))
+
+### quotientRemainder([Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx))
+
+### quotientRemainder([Number](../Type/Number.mdx), [RingElement](../Type/RingElement.mdx))
+
+### quotientRemainder([RingElement](../Type/RingElement.mdx), [InexactNumber](../Type/InexactNumber.mdx))
+
+### quotientRemainder([RingElement](../Type/RingElement.mdx), [Number](../Type/Number.mdx))
+
+### quotientRemainder([RingElement](../Type/RingElement.mdx), [RingElement](../Type/RingElement.mdx))
+
+### quotientRemainder([ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+(qr) = quotientRemainder(fg)
+```
+
+```macaulay2
+(qr) = quotientRemainder(fg)
+
+```
+
+```text
+({1} | 8 8 | 0)
+      {1} | 1 3 |
+      {1} | 3 3 |
+      {1} | 7 7 |
+
+Sequence
+```
+
+```macaulay2
+(qr) = quotientRemainder(fg)
+
+```
+
+```text
+({1} | 8 8 | | 1 0 |)
+      {1} | 1 3 |  | 0 1 |
+      {1} | 3 3 |
+      {1} | 7 7 |
+
+Sequence
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- `g` a [ Gröbner basis](../Type/op_Coredollar_GroebnerBasis.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx) with the same target as `f`
+- Outputs:
+- `q` the quotient of `f` upon division by `g`
+- `r` the remainder of `f` upon division by `g`
+
+
+### See also
+
+
+- Macaulay2Doc:: quotientRemainder'
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "quotientRemainder",
+    "safe_name": "quotientRemainder",
+    "type": "MethodFunction",
+    "description": " The equation `g*q+r == f`  will hold.  The source of `f`  should be a free module....",
+    "installations": [
+        "<Installation quotientRemainder(RingElement, InexactNumber)>",
+        "<Installation quotientRemainder(Number, RingElement)>",
+        "<Installation quotientRemainder(RingElement, Number)>",
+        "<Installation quotientRemainder(InexactNumber, RingElement)>",
+        "<Installation quotientRemainder(RingElement, RingElement)>",
+        "<Installation quotientRemainder(Matrix, GroebnerBasis)>",
+        "<Installation quotientRemainder(Matrix, Matrix)>",
+        "<Installation quotientRemainder(ZZ, ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "quotientRemainder",
+        "full_doc": "... (3157 bytes) ...",
+        "parsed_headline": "quotientRemainder  -- matrix quotient and remainder"
+    }
+}
+```

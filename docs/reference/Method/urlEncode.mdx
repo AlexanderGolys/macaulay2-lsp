@@ -1,0 +1,65 @@
+---
+title: "urlEncode"
+kind: Method
+---
+
+# urlEncode
+
+**urlEncode  -- URL encoding**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+Encode all of the characters in a URL except for "/" ":" "#" and the "unreserved characters" specified by https://www.rfc-editor.org/rfc/rfc3986.html RFC 3986 i.e. the alphanumeric characters "-" "." "_" and "~" using https://en.wikipedia.org/wiki/percent-encoding percent-encoding a "%" followed by two hexadecimal digits representing the ASCII encoding of the character.
+
+## Installed For
+
+### urlEncode([Nothing](../Type/Nothing.mdx))
+
+### urlEncode([String](../Type/String.mdx)) -> [String](../Type/String.mdx)
+
+## Examples
+
+```macaulay2
+urlEncode s
+```
+
+```macaulay2
+urlEncode "https://en.wikipedia.org/wiki/Gröbner basis"
+
+```
+
+```text
+https://en.wikipedia.org/wiki/Gr%C3%B6bner%20basis
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "urlEncode",
+    "safe_name": "op_Coredollar_urlEncode",
+    "type": "MethodFunction",
+    "description": "Encode all of the characters in a URL except for \"/\" \":\" \"#\" and the \"unreserved characters\" specifi...",
+    "installations": [
+        "<Installation urlEncode(String)>",
+        "<Installation urlEncode(Nothing)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$urlEncode",
+        "full_doc": "... (1392 bytes) ...",
+        "parsed_headline": "urlEncode  -- URL encoding"
+    }
+}
+```

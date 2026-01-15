@@ -1,66 +1,71 @@
 ---
 title: "OptionTable"
 kind: Type
-parent: HashTable
 ---
 
 # OptionTable
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**OptionTable  -- the class of hash tables for optional arguments**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+OptionTable  -- the class of hash tables for optional arguments
 
-## Parent Type
+## Additional Information
 
-[HashTable](../Type/HashTable.mdx)
+empty documentation body[OptionTable >> Function](../Instance/OptionTable >> Function.mdx)[OptionTable ++ OptionTable](../Instance/OptionTable ++ OptionTable.mdx)
 
-## Subtypes
+## Debug info
 
-Direct subtypes of this type:
-
-- [GroebnerBasisOptions](../Type/GroebnerBasisOptions.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `++`
-
-- `++(OptionTable, OptionTable)`
-- `++(OptionTable, List)`
-
-### `>>`
-
-- `>>(OptionTable, Function)`
-
-### `NewFromMethod`
-
-- `NewFromMethod(GroebnerBasis, Matrix, GroebnerBasisOptions, OptionTable)`
-- `NewFromMethod(OptionTable, List)`
-
-### `mathML`
-
-- `mathML(OptionTable)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [++](../Operator/op_plus_plus.mdx)
-- [>>](../Operator/op_gt_gt.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [mathML](../Function/mathML.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [HashTable](../Type/HashTable.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "OptionTable",
+    "safe_name": "OptionTable",
+    "type": null,
+    "description": "OptionTable  -- the class of hash tables for optional arguments...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "OptionTable",
+        "parent": "HashTable",
+        "methods": [
+            [
+                "NewFromMethod",
+                "GroebnerBasis",
+                "Matrix",
+                "GroebnerBasisOptions",
+                "OptionTable"
+            ],
+            [
+                "mathML",
+                "OptionTable"
+            ],
+            [
+                "NewFromMethod",
+                "OptionTable",
+                "List"
+            ],
+            [
+                ">>",
+                "OptionTable",
+                "Function"
+            ],
+            [
+                "++",
+                "OptionTable",
+                "OptionTable"
+            ],
+            [
+                "++",
+                "OptionTable",
+                "List"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1223 bytes) ...",
+        "parsed_headline": "OptionTable  -- the class of hash tables for optional arguments"
+    }
+}
+```

@@ -1,162 +1,717 @@
 ---
 title: "QQ"
 kind: Type
-parent: Number
 ---
 
 # QQ
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Ring](../Type/Ring.mdx)
+**QQ  -- the class of all rational numbers**
 
 ## Description
 
-An instance of the type [Ring](../Type/Ring.mdx).
+QQ  -- the class of all rational numbers
 
-## Parent Type
+## Debug info
 
-[Number](../Type/Number.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `*`
-
-- `*(QQ, BettiTally)`
-- `*(InfiniteNumber, QQ)`
-
-### `^`
-
-- `^(InfiniteNumber, QQ)`
-- `^(QQ, InfiniteNumber)`
-
-### `expression`
-
-- `expression(QQ)`
-
-### `factor`
-
-- `factor(QQ)`
-
-### `gcd`
-
-- `gcd(ZZ, QQ)`
-- `gcd(QQ, ZZ)`
-- `gcd(QQ, QQ)`
-
-### `interval`
-
-- `interval(QQ)`
-- `interval(RR, QQ)`
-- `interval(QQ, RR)`
-- `interval(ZZ, QQ)`
-- `interval(QQ, ZZ)`
-- *... and 1 more signatures*
-
-### `isMember`
-
-- `isMember(QQ, RRi)`
-
-### `lcm`
-
-- `lcm(QQ, QQ)`
-- `lcm(QQ, ZZ)`
-- `lcm(ZZ, QQ)`
-
-### `lift`
-
-- `lift(Ideal, QQ)`
-- `lift(Matrix, QQ, QQ)`
-- `lift(Matrix, CC_*, QQ)`
-- `lift(Matrix, RR_*, QQ)`
-- `lift(Matrix, RRi_*, QQ)`
-- *... and 3 more signatures*
-
-### `liftable`
-
-- `liftable(QQ, ZZ)`
-
-### `mathML`
-
-- `mathML(QQ)`
-
-### `net`
-
-- `net(QQ)`
-
-### `promote`
-
-- `promote(QQ, RingElement)`
-- `promote(List, QQ, QQ)`
-- `promote(Matrix, QQ, QQ)`
-- `promote(Matrix, QQ, RRi_*)`
-- `promote(Matrix, ZZ, QQ)`
-- *... and 11 more signatures*
-
-### `round`
-
-- `round(QQ)`
-
-### `span`
-
-- `span(QQ)`
-
-### `texMath`
-
-- `texMath(QQ)`
-
-### `toString`
-
-- `toString(QQ)`
-
-
-*Showing 50 of 136 methods*
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [!](../Operator/op_bang.mdx)
-- [%](../Operator/op_percent.mdx)
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [/](../Operator/op_slash.mdx)
-- [//](../Operator/op_slash_slash.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [^](../Operator/op_caret.mdx)
-- [_](../Operator/_.mdx)
-- [abs](../Function/abs.mdx)
-- [crossPolytope](../Type/crossPolytope.mdx)
-- [denominator](../Function/denominator.mdx)
-- [expression](../Function/expression.mdx)
-- [factor](../Function/factor.mdx)
-- [gcd](../Function/gcd.mdx)
-- [hypercube](../Type/hypercube.mdx)
-- [imaginaryPart](../Function/imaginaryPart.mdx)
-- [interval](../Function/interval.mdx)
-- [isMember](../Function/isMember.mdx)
-- [isReal](../Function/isReal.mdx)
-- [lcm](../Function/lcm.mdx)
-- [lift](../Function/lift.mdx)
-- [liftable](../Function/liftable.mdx)
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-- [numerator](../Function/numerator.mdx)
-- [promote](../Function/promote.mdx)
-- [random](../Function/random.mdx)
-- [realPart](../Function/realPart.mdx)
-
-*... and 6 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Number](../Type/Number.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "QQ",
+    "safe_name": "op_x226_x132_x154",
+    "type": null,
+    "description": "QQ  -- the class of all rational numbers...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "\u211a",
+        "parent": "Number",
+        "methods": [
+            [
+                "*",
+                "QQ",
+                "BettiTally"
+            ],
+            [
+                "promote",
+                "QQ",
+                "RingElement"
+            ],
+            [
+                "factor",
+                "QQ"
+            ],
+            [
+                "gcd",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "gcd",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "gcd",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "lcm",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "lcm",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "lcm",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "interval",
+                "QQ"
+            ],
+            [
+                "interval",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "interval",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "interval",
+                "QQ",
+                "RR"
+            ],
+            [
+                "interval",
+                "RR",
+                "QQ"
+            ],
+            [
+                "interval",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "isMember",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "mathML",
+                "QQ"
+            ],
+            [
+                "lift",
+                "Ideal",
+                "QQ"
+            ],
+            [
+                "*",
+                "InfiniteNumber",
+                "QQ"
+            ],
+            [
+                "^",
+                "InfiniteNumber",
+                "QQ"
+            ],
+            [
+                "^",
+                "QQ",
+                "InfiniteNumber"
+            ],
+            [
+                "promote",
+                "List",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "promote",
+                "Matrix",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "lift",
+                "Matrix",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "promote",
+                "Matrix",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "promote",
+                "Matrix",
+                "QQ",
+                "RR_*"
+            ],
+            [
+                "promote",
+                "Matrix",
+                "QQ",
+                "RRi_*"
+            ],
+            [
+                "promote",
+                "List",
+                "QQ",
+                "RRi_*"
+            ],
+            [
+                "promote",
+                "List",
+                "QQ",
+                "RR_*"
+            ],
+            [
+                "promote",
+                "List",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "promote",
+                "List",
+                "QQ",
+                "CC_*"
+            ],
+            [
+                "lift",
+                "Matrix",
+                "CC_*",
+                "QQ"
+            ],
+            [
+                "lift",
+                "Matrix",
+                "RR_*",
+                "QQ"
+            ],
+            [
+                "lift",
+                "Matrix",
+                "RRi_*",
+                "QQ"
+            ],
+            [
+                "lift",
+                "Matrix",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "promote",
+                "Matrix",
+                "QQ",
+                "CC_*"
+            ],
+            [
+                "span",
+                "QQ"
+            ],
+            [
+                "round",
+                "QQ"
+            ],
+            [
+                "promote",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "promote",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "expression",
+                "QQ"
+            ],
+            [
+                "toString",
+                "QQ"
+            ],
+            [
+                "net",
+                "QQ"
+            ],
+            [
+                "texMath",
+                "QQ"
+            ],
+            [
+                "lift",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "liftable",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "lift",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "promote",
+                "QQ",
+                "RR_*"
+            ],
+            [
+                "promote",
+                "QQ",
+                "CC_*"
+            ],
+            [
+                "promote",
+                "QQ",
+                "RRi_*"
+            ],
+            [
+                "_",
+                "QQ",
+                "RealField"
+            ],
+            [
+                "_",
+                "QQ",
+                "ComplexField"
+            ],
+            [
+                "lift",
+                "RR",
+                "QQ"
+            ],
+            [
+                "lift",
+                "CC",
+                "QQ"
+            ],
+            [
+                "promote",
+                "RR",
+                "QQ"
+            ],
+            [
+                "liftable",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "lift",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "//",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "%",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "//",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "%",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "//",
+                "CC",
+                "QQ"
+            ],
+            [
+                "//",
+                "RR",
+                "QQ"
+            ],
+            [
+                "%",
+                "RR",
+                "QQ"
+            ],
+            [
+                "%",
+                "CC",
+                "QQ"
+            ],
+            [
+                "random",
+                "QQ"
+            ],
+            [
+                "isReal",
+                "QQ"
+            ],
+            [
+                "toCC",
+                "QQ"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "QQ",
+                "RR"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "RR",
+                "QQ"
+            ],
+            [
+                "+",
+                "QQ"
+            ],
+            [
+                "-",
+                "QQ"
+            ],
+            [
+                "==",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "==",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "==",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "*",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "*",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "==",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "==",
+                "QQ",
+                "RR"
+            ],
+            [
+                "/",
+                "QQ",
+                "CC"
+            ],
+            [
+                "/",
+                "CC",
+                "QQ"
+            ],
+            [
+                "/",
+                "QQ",
+                "RR"
+            ],
+            [
+                "-",
+                "CC",
+                "QQ"
+            ],
+            [
+                "-",
+                "QQ",
+                "CC"
+            ],
+            [
+                "-",
+                "QQ",
+                "RR"
+            ],
+            [
+                "/",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "+",
+                "CC",
+                "QQ"
+            ],
+            [
+                "+",
+                "QQ",
+                "CC"
+            ],
+            [
+                "+",
+                "QQ",
+                "RR"
+            ],
+            [
+                "==",
+                "CC",
+                "QQ"
+            ],
+            [
+                "/",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "-",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "-",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "+",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "==",
+                "QQ",
+                "CC"
+            ],
+            [
+                "+",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "*",
+                "QQ",
+                "RR"
+            ],
+            [
+                "==",
+                "RR",
+                "QQ"
+            ],
+            [
+                "*",
+                "CC",
+                "QQ"
+            ],
+            [
+                "+",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "*",
+                "QQ",
+                "CC"
+            ],
+            [
+                "*",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "*",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "==",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "-",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "/",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "+",
+                "RR",
+                "QQ"
+            ],
+            [
+                "/",
+                "RR",
+                "QQ"
+            ],
+            [
+                "-",
+                "RR",
+                "QQ"
+            ],
+            [
+                "*",
+                "RR",
+                "QQ"
+            ],
+            [
+                "-",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "-",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "+",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "+",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "*",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "/",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "/",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "*",
+                "QQ",
+                "Polyhedron"
+            ],
+            [
+                "hypercube",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "hypercube",
+                "ZZ",
+                "QQ",
+                "QQ"
+            ],
+            [
+                "hypercube",
+                "ZZ",
+                "QQ",
+                "ZZ"
+            ],
+            [
+                "hypercube",
+                "ZZ",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "crossPolytope",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "simplex",
+                "ZZ",
+                "QQ"
+            ],
+            [
+                "numerator",
+                "QQ"
+            ],
+            [
+                "!",
+                "QQ"
+            ],
+            [
+                "denominator",
+                "QQ"
+            ],
+            [
+                "imaginaryPart",
+                "QQ"
+            ],
+            [
+                "realPart",
+                "QQ"
+            ],
+            [
+                "lcm",
+                "QQ"
+            ],
+            [
+                "gcd",
+                "QQ"
+            ],
+            [
+                "abs",
+                "QQ"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (6932 bytes) ...",
+        "parsed_headline": "QQ  -- the class of all rational numbers"
+    }
+}
+```

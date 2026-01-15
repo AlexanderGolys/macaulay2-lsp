@@ -1,0 +1,97 @@
+---
+title: "copyDirectory"
+kind: Method
+---
+
+# copyDirectory
+
+**copyDirectory**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ Now we remove the files and directories we created.
+
+## Installed For
+
+### copyDirectory([String](../Type/String.mdx), [String](../Type/String.mdx))
+
+## Options
+
+- [UpdateOnly](../Method/UpdateOnly.mdx) => false
+- [FollowLinks](../Option/FollowLinks.mdx) => false
+- [Exclude](../Method/Exclude.mdx) => \.~[0-9.]+~$
+- [Verbose](../Method/Verbose.mdx) => false
+
+## Examples
+
+```macaulay2
+copyDirectory(srcdst)
+```
+
+```macaulay2
+copyDirectory(srcdst
+```
+
+```macaulay2
+copyDirectory(srcdst
+```
+
+## Additional Information
+
+- Inputs:
+- `src` a [ string](../Type/op_Coredollar_String.mdx)
+- `dst` a [ string](../Type/op_Coredollar_String.mdx)
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `Exclude````...` default value "\\.~[0-9.]+~$" a string containing a regular expression or a list of such strings. If the base part of the name of a file in the source tree matches one of the regular expressions then no link to it is created
+- `UpdateOnly```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to copy files only if the target file does not exist or is older than the source file
+- `FollowLinks```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to follow symbolic links in the source tree to directories
+- `Verbose```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to report individual file operations
+- Consequences:
+- a copy of the directory tree rooted at `src` is created rooted at `dst`
+
+
+### See also
+
+
+- Macaulay2Doc:: symlinkDirectory
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "copyDirectory",
+    "safe_name": "op_Coredollar_copyDirectory",
+    "type": "MethodFunctionWithOptions",
+    "description": " Now we remove the files and directories we created....",
+    "installations": [
+        "<Installation copyDirectory(String, String)>"
+    ],
+    "options": [
+        {
+            "name": "UpdateOnly",
+            "default": "false"
+        },
+        {
+            "name": "FollowLinks",
+            "default": "false"
+        },
+        {
+            "name": "Exclude",
+            "default": "\\.~[0-9.]+~$"
+        },
+        {
+            "name": "Verbose",
+            "default": "false"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$copyDirectory",
+        "full_doc": "... (4551 bytes) ...",
+        "parsed_headline": "copyDirectory"
+    }
+}
+```

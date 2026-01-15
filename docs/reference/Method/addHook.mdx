@@ -1,0 +1,80 @@
+---
+title: "addHook"
+kind: Method
+---
+
+# addHook
+
+**addHook  -- add a hook function to an object for later processing**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+For an explanation and examples of hooks see [using hooks](../Instance/using hooks.mdx).
+
+## Installed For
+
+### addHook([MutableHashTable](../Type/MutableHashTable.mdx), [Thing](../Type/Thing.mdx), [Function](../Type/Function.mdx))
+
+### addHook([Sequence](../Type/Sequence.mdx), [Function](../Type/Function.mdx))
+
+### addHook([Symbol](../Type/Symbol.mdx), [Function](../Type/Function.mdx))
+
+## Options
+
+- [Strategy](../Option/Strategy.mdx) => null
+
+## Examples
+
+```macaulay2
+addHook(key hook)
+addHook(store key hook)
+```
+
+## Additional Information
+
+- Inputs:
+- `key` a [ sequence](../Type/Sequence.mdx) or a [ symbol](../Type/op_Coredollar_Symbol.mdx)
+- `hook` a [ function](../Type/Function.mdx)
+- `store` a [ mutable hash table](../Type/MutableHashTable.mdx)
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `Strategy```a [ thing](../Type/Thing.mdx) default value null specifies the name for the hook
+- Consequences:
+- the function `hook` is added to the (possibly absent) hash table of hooks which is either stored in the mutable hash table `store` or under the [youngest](../Function/youngest.mdx)[Type](../Type/op_Coredollar_Type.mdx)`T` listed in the [method](../Function/op_Coredollar_method.mdx) key `key`. In the latter case the hash table is either stored in `T.Hooks#key` if `T` is mutable or in `T.cache.Hooks#key` otherwise. If no appropriate object is found or if `key` is a [Symbol](../Type/op_Coredollar_Symbol.mdx) then the hook is stored under the hash table `GlobalHookStore`
+
+
+### See also
+
+
+- Macaulay2Doc:: hooks
+- Macaulay2Doc:: runHooks
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "addHook",
+    "safe_name": "op_Coredollar_addHook",
+    "type": "MethodFunctionWithOptions",
+    "description": "For an explanation and examples of hooks see [using hooks](../Instance/using hooks.mdx)....",
+    "installations": [
+        "<Installation addHook(Symbol, Function)>",
+        "<Installation addHook(Sequence, Function)>",
+        "<Installation addHook(MutableHashTable, Thing, Function)>"
+    ],
+    "options": [
+        {
+            "name": "Strategy",
+            "default": "null"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$addHook",
+        "full_doc": "... (3124 bytes) ...",
+        "parsed_headline": "addHook  -- add a hook function to an object for later processing"
+    }
+}
+```

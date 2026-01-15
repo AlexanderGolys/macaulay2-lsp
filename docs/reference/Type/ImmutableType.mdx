@@ -1,54 +1,53 @@
 ---
 title: "ImmutableType"
 kind: Type
-parent: HashTable
 ---
 
 # ImmutableType
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**ImmutableType  -- the class of all immutable types**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ All types are implemented as hash tables.  Most types are mutable so that additional methods for handling their instances can be added at any time.  However if a type has an ancestor where the methods can be stored then mutability is not needed. When a type is used to represent a mathematical object then immutability is desirable in order to make the strict equality operator work on it.  For example a module `M`  is a type with its elements are its instances but we would like to be able to compare two modules quickly and form sets of modules.  This is possible because we have implemented modules as immutable types and we have put the methods for adding and subtracting elements of `M`  into the class [Vector](../Type/op_Coredollar_Vector.mdx) . Another advantage of immutability of modules is that there is no particular reason aside from efficiency to avoid creating a given module multiple times as one copy of the module is as good as another.
 
-## Parent Type
+## Additional Information
 
-[HashTable](../Type/HashTable.mdx)
+### See also
 
-## Subtypes
 
-Direct subtypes of this type:
+- Macaulay2Doc:: showStructure
+- Macaulay2Doc:: parent
+- Macaulay2Doc:: class
 
-- [Module](../Type/Module.mdx)
+## Debug info
 
-## Methods
-
-Methods that can be used with this type:
-
-### `mathML`
-
-- `mathML(ImmutableType)`
-
-### `ofClass`
-
-- `ofClass(ImmutableType)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [mathML](../Function/mathML.mdx)
-- [ofClass](../Function/ofClass.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [HashTable](../Type/HashTable.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "ImmutableType",
+    "safe_name": "op_Coredollar_ImmutableType",
+    "type": null,
+    "description": " All types are implemented as hash tables.  Most types are mutable so that additional methods for ha...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$ImmutableType",
+        "parent": "HashTable",
+        "methods": [
+            [
+                "ofClass",
+                "ImmutableType"
+            ],
+            [
+                "mathML",
+                "ImmutableType"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (3171 bytes) ...",
+        "parsed_headline": "ImmutableType  -- the class of all immutable types"
+    }
+}
+```

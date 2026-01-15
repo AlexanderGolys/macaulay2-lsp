@@ -1,200 +1,486 @@
 ---
 title: "Vector"
 kind: Type
-parent: BasicList
 ---
 
 # Vector
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Vector  -- the class of all elements of modules that are handled by the engine**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[BasicList](../Type/BasicList.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `%`
-
-- `%(Vector, Ideal)`
-
-### `*`
-
-- `*(Matrix, Vector)`
-
-### `+`
-
-- `+(Vector, Number)`
-- `+(Vector, RingElement)`
-- `+(Number, Vector)`
-- `+(RingElement, Vector)`
-
-### `-`
-
-- `-(Vector, RingElement)`
-- `-(Vector, Number)`
-- `-(Number, Vector)`
-- `-(RingElement, Vector)`
-
-### `==`
-
-- `==(Number, Vector)`
-- `==(RingElement, Vector)`
-- `==(Vector, Matrix)`
-- `==(Matrix, Vector)`
-- `==(Vector, Number)`
-- *... and 1 more signatures*
-
-### `NewFromMethod`
-
-- `NewFromMethod(Matrix, Vector)`
-- `NewFromMethod(Vector, Matrix)`
-
-### `SPACE`
-
-- `SPACE(Matrix, Vector)`
-
-### `_`
-
-- `_(Vector, ZZ)`
-
-### `contract`
-
-- `contract(Vector, RingElement)`
-- `contract(RingElement, Vector)`
-- `contract(Vector, Vector)`
-- `contract(Matrix, Vector)`
-- `contract(Vector, Matrix)`
-- *... and 2 more signatures*
-
-### `degree`
-
-- `degree(Vector)`
-
-### `describe`
-
-- `describe(Vector)`
-
-### `diff`
-
-- `diff(Vector, RingElement)`
-- `diff(RingElement, Vector)`
-- `diff(Vector, Vector)`
-- `diff(Matrix, Vector)`
-- `diff(Vector, Matrix)`
-
-### `entries`
-
-- `entries(Vector)`
-
-### `expression`
-
-- `expression(Vector)`
-
-### `homogenize`
-
-- `homogenize(Vector, RingElement, List)`
-- `homogenize(Vector, RingElement)`
-
-### `homomorphism`
-
-- `homomorphism(Vector)`
-
-### `leadComponent`
-
-- `leadComponent(Vector)`
-
-### `leadTerm`
-
-- `leadTerm(Vector)`
-- `leadTerm(ZZ, Vector)`
-
-### `matrix`
-
-- `matrix(Vector)`
-
-### `module`
-
-- `module(Vector)`
-
-### `net`
-
-- `net(Vector)`
-
-### `norm`
-
-- `norm(Vector)`
-
-### `ring`
-
-- `ring(Vector)`
-
-### `texMath`
-
-- `texMath(Vector)`
-
-### `toExternalString`
-
-- `toExternalString(Vector)`
-
-### `toString`
-
-- `toString(Vector)`
-
-
-*Showing 50 of 92 methods*
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [%](../Operator/op_percent.mdx)
-- [*](../Operator/op_star.mdx)
-- [**](../Operator/op_star_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [/](../Operator/op_slash.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [^](../Operator/op_caret.mdx)
-- [_](../Operator/_.mdx)
-- [contract](../Function/contract.mdx)
-- [degree](../Function/degree.mdx)
-- [describe](../Function/describe.mdx)
-- [diff](../Function/diff.mdx)
-- [entries](../Function/entries.mdx)
-- [expression](../Function/expression.mdx)
-- [homogenize](../Function/homogenize.mdx)
-- [homomorphism](../Function/homomorphism.mdx)
-- [isHomogeneous](../Function/isHomogeneous.mdx)
-- [leadComponent](../Function/leadComponent.mdx)
-- [leadTerm](../Function/leadTerm.mdx)
-- [lift](../Function/lift.mdx)
-- [matrix](../Function/matrix.mdx)
-- [module](../Function/module.mdx)
-- [net](../Function/net.mdx)
-- [norm](../Function/norm.mdx)
-- [numeric](../Function/numeric.mdx)
-- [promote](../Function/promote.mdx)
-- [ring](../Function/ring.mdx)
-
-*... and 9 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [BasicList](../Type/BasicList.mdx) (parent type)
+ If `R`  is a ring handled by the engine and `M`  is a module over `R`  then M is a subclass of Vector.
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: RingElement
+- Macaulay2Doc:: Module
+- Macaulay2Doc:: Matrix
+
+[vector](../Method/op_Coredollar_vector.mdx)[entries(Vector)](../Instance/entries(Vector).mdx)[Vector ** Vector](../Instance/Vector ** Vector.mdx)[Vector || Vector](../Instance/Vector || Vector.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "Vector",
+    "safe_name": "op_Coredollar_Vector",
+    "type": null,
+    "description": " If `R`  is a ring handled by the engine and `M`  is a module over `R`  then M is a subclass of Vect...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Vector",
+        "parent": "BasicList",
+        "methods": [
+            [
+                "toExternalString",
+                "Vector"
+            ],
+            [
+                "homomorphism",
+                "Vector"
+            ],
+            [
+                "==",
+                "Number",
+                "Vector"
+            ],
+            [
+                "==",
+                "RingElement",
+                "Vector"
+            ],
+            [
+                "==",
+                "Vector",
+                "Matrix"
+            ],
+            [
+                "==",
+                "Matrix",
+                "Vector"
+            ],
+            [
+                "==",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "==",
+                "Vector",
+                "Number"
+            ],
+            [
+                "+",
+                "Vector",
+                "Number"
+            ],
+            [
+                "+",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "+",
+                "RingElement",
+                "Vector"
+            ],
+            [
+                "+",
+                "Number",
+                "Vector"
+            ],
+            [
+                "-",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "-",
+                "Vector",
+                "Number"
+            ],
+            [
+                "-",
+                "RingElement",
+                "Vector"
+            ],
+            [
+                "-",
+                "Number",
+                "Vector"
+            ],
+            [
+                "*",
+                "Matrix",
+                "Vector"
+            ],
+            [
+                "SPACE",
+                "Matrix",
+                "Vector"
+            ],
+            [
+                "diff",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "diff",
+                "RingElement",
+                "Vector"
+            ],
+            [
+                "diff",
+                "Vector",
+                "Vector"
+            ],
+            [
+                "diff",
+                "Matrix",
+                "Vector"
+            ],
+            [
+                "diff",
+                "Vector",
+                "Matrix"
+            ],
+            [
+                "contract",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "contract",
+                "RingElement",
+                "Vector"
+            ],
+            [
+                "contract",
+                "Vector",
+                "Vector"
+            ],
+            [
+                "contract",
+                "Matrix",
+                "Vector"
+            ],
+            [
+                "contract",
+                "Vector",
+                "Matrix"
+            ],
+            [
+                "contract",
+                "Vector",
+                "Number"
+            ],
+            [
+                "contract",
+                "Number",
+                "Vector"
+            ],
+            [
+                "leadComponent",
+                "Vector"
+            ],
+            [
+                "%",
+                "Vector",
+                "Ideal"
+            ],
+            [
+                "homogenize",
+                "Vector",
+                "RingElement",
+                "List"
+            ],
+            [
+                "homogenize",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "_",
+                "Vector",
+                "ZZ"
+            ],
+            [
+                "entries",
+                "Vector"
+            ],
+            [
+                "norm",
+                "Vector"
+            ],
+            [
+                "expression",
+                "Vector"
+            ],
+            [
+                "net",
+                "Vector"
+            ],
+            [
+                "describe",
+                "Vector"
+            ],
+            [
+                "toString",
+                "Vector"
+            ],
+            [
+                "texMath",
+                "Vector"
+            ],
+            [
+                "ring",
+                "Vector"
+            ],
+            [
+                "module",
+                "Vector"
+            ],
+            [
+                "leadTerm",
+                "Vector"
+            ],
+            [
+                "leadTerm",
+                "ZZ",
+                "Vector"
+            ],
+            [
+                "degree",
+                "Vector"
+            ],
+            [
+                "matrix",
+                "Vector"
+            ],
+            [
+                "NewFromMethod",
+                "Matrix",
+                "Vector"
+            ],
+            [
+                "NewFromMethod",
+                "Vector",
+                "Matrix"
+            ],
+            [
+                "super",
+                "Vector"
+            ],
+            [
+                "||",
+                "Vector",
+                "Vector"
+            ],
+            [
+                "^",
+                "Vector",
+                "List"
+            ],
+            [
+                "promote",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "promote",
+                "Vector",
+                "InexactNumber"
+            ],
+            [
+                "promote",
+                "Vector",
+                "Number"
+            ],
+            [
+                "promote",
+                "Vector",
+                "InexactNumber'"
+            ],
+            [
+                "numeric",
+                "Vector"
+            ],
+            [
+                "numeric",
+                "ZZ",
+                "Vector"
+            ],
+            [
+                "lift",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "lift",
+                "Vector",
+                "InexactNumber'"
+            ],
+            [
+                "lift",
+                "Vector",
+                "InexactNumber"
+            ],
+            [
+                "lift",
+                "Vector",
+                "Number"
+            ],
+            [
+                "-",
+                "Vector"
+            ],
+            [
+                "*",
+                "Number",
+                "Vector"
+            ],
+            [
+                "*",
+                "RingElement",
+                "Vector"
+            ],
+            [
+                "*",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "*",
+                "Vector",
+                "Number"
+            ],
+            [
+                "/",
+                "Vector",
+                "Number"
+            ],
+            [
+                "/",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "+",
+                "Vector",
+                "Vector"
+            ],
+            [
+                "-",
+                "Vector",
+                "Vector"
+            ],
+            [
+                "**",
+                "Vector",
+                "Vector"
+            ],
+            [
+                "==",
+                "Vector",
+                "Vector"
+            ],
+            [
+                "*",
+                "Ring",
+                "Vector"
+            ],
+            [
+                "isHomogeneous",
+                "Vector"
+            ],
+            [
+                "*",
+                "Ideal",
+                "Vector"
+            ],
+            [
+                "/",
+                "Module",
+                "Vector"
+            ],
+            [
+                "solve",
+                "Matrix",
+                "Vector"
+            ],
+            [
+                "SPACE",
+                "RingMap",
+                "Vector"
+            ],
+            [
+                "substitute",
+                "Vector",
+                "Matrix"
+            ],
+            [
+                "substitute",
+                "Vector",
+                "Ring"
+            ],
+            [
+                "substitute",
+                "Vector",
+                "RingFamily"
+            ],
+            [
+                "substitute",
+                "Vector",
+                "List"
+            ],
+            [
+                "substitute",
+                "Vector",
+                "Option"
+            ],
+            [
+                "saturate",
+                "Vector",
+                "Ideal"
+            ],
+            [
+                "saturate",
+                "Vector",
+                "Number"
+            ],
+            [
+                "saturate",
+                "Vector",
+                "RingElement"
+            ],
+            [
+                "saturate",
+                "Vector"
+            ],
+            [
+                "saturate",
+                "Vector",
+                "List"
+            ],
+            [
+                "vector",
+                "Vector"
+            ],
+            [
+                "+",
+                "Vector"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (6571 bytes) ...",
+        "parsed_headline": "Vector  -- the class of all elements of modules that are handled by the engine"
+    }
+}
+```

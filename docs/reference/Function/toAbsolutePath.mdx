@@ -5,25 +5,64 @@ kind: Function
 
 # toAbsolutePath
 
-**Type:** `Function`
+**toAbsolutePath  -- the absolute path version of a file name**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-toAbsolutePath, -- the absolute path version of a file name, class => element, Usage: , toAbsolutePath filename, class => language-macaulay2, Inputs:, filename, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: String, string, , , the absolute (real) path name of , filename, Description, class => examples, i1 : toAbsolutePath "a/b.m2"
-
-o1 = /usr/share/Macaulay2/
- Macaulay2Doc-temporary/a/b.m2, class => language-macaulay2, Paths of the form , foo/x/../bar, , are shortened to , foo/bar, without checking the file system to see whether , x, is a symbolic link. For the other behavior, see , Macaulay2Doc :: realpath, ., See also, Macaulay2Doc :: File, Macaulay2Doc :: minimizeFilename, Macaulay2Doc :: relativizeFilename, Macaulay2Doc :: baseFilename, Macaulay2Doc :: path, Macaulay2Doc :: rootPath, Macaulay2Doc :: rootURI, class => waystouse, For the programmer, The object , Macaulay2Doc :: toAbsolutePath, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1351:0, .
+Paths of the form `foo/x/../bar`  are shortened to `foo/bar`  without checking the file system to see whether `x`  is a symbolic link.  For the other behavior see [realpath](../Function/realpath.mdx) .
 
 ## Examples
 
 ```macaulay2
-i1 : toAbsolutePath "a/b.m2"
+toAbsolutePath filename
+```
 
-o1 = /usr/share/Macaulay2/
+```macaulay2
+toAbsolutePath "a/b.m2"
+
+```
+
+```text
+/usr/share/Macaulay2/
      Macaulay2Doc-temporary/a/b.m2
 ```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `filename` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) the absolute (real) path name of `filename`
+
+
+### See also
+
+
+- Macaulay2Doc:: File
+- Macaulay2Doc:: minimizeFilename
+- Macaulay2Doc:: relativizeFilename
+- Macaulay2Doc:: baseFilename
+- Macaulay2Doc:: path
+- Macaulay2Doc:: rootPath
+- Macaulay2Doc:: rootURI
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "toAbsolutePath",
+    "safe_name": "toAbsolutePath",
+    "type": "FunctionClosure",
+    "description": "Paths of the form `foo/x/../bar`  are shortened to `foo/bar`  without checking the file system to se...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "toAbsolutePath",
+        "full_doc": "... (1405 bytes) ...",
+        "parsed_headline": "toAbsolutePath  -- the absolute path version of a file name"
+    }
+}
+```

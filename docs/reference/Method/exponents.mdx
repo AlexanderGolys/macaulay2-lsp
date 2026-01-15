@@ -1,0 +1,88 @@
+---
+title: "exponents"
+kind: Method
+---
+
+# exponents
+
+**exponents  -- the exponents of a polynomial**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+exponents  -- the exponents of a polynomial
+
+## Installed For
+
+### exponents([MonoidElement](../Type/MonoidElement.mdx))
+
+### exponents([RingElement](../Type/RingElement.mdx)) -> [List](../Type/List.mdx)
+
+## Examples
+
+```macaulay2
+exponents m
+```
+
+```macaulay2
+exponents (f = x^2 - 7 + x*y*z^11 + y)
+
+```
+
+```text
+{{1, 1, 11}, {2, 0, 0}, {0, 1, 0}, {0, 0, 0}}
+
+List
+```
+
+```macaulay2
+exponents leadMonomial f
+
+```
+
+```text
+{{1, 1, 11}}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `m` a [ ring element](../Type/RingElement.mdx) or a [ monoid element](../Type/op_Coredollar_MonoidElement.mdx) a monomial
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) for a monomial provides the list of exponents; for a polynomial provides a list whose elements are the lists of exponents of the terms of `f`
+
+
+### See also
+
+
+- Macaulay2Doc:: content
+- Macaulay2Doc:: coefficients
+- Macaulay2Doc:: listForm
+- Macaulay2Doc:: standardForm
+- Macaulay2Doc:: monomials
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "exponents",
+    "safe_name": "exponents",
+    "type": "MethodFunction",
+    "description": "exponents  -- the exponents of a polynomial...",
+    "installations": [
+        "<Installation exponents(MonoidElement)>",
+        "<Installation exponents(RingElement)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "exponents",
+        "full_doc": "... (1897 bytes) ...",
+        "parsed_headline": "exponents  -- the exponents of a polynomial"
+    }
+}
+```

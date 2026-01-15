@@ -1,0 +1,176 @@
+---
+title: "Grassmannian"
+kind: Method
+---
+
+# Grassmannian
+
+**Grassmannian  -- compute the ideal of the Grassmannian of linear subspaces of a vector space**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ If a polynomial ring `R`  is given as the third argument then the resulting ideal is moved to that ring. The variables of the ring are based on the symbol provided but assignments are not made until the ring or the ideal is assigned to a global variable or is submitted to [use](../Method/op_Coredollar_use.mdx)  as follows. In many ways more natural than returning an ideal would be to return the corresponding quotient ring or variety but creating a quotient ring involves computing a Gröbner basis which might impose a heavy computational burden that the user would prefer to avoid.
+
+## Installed For
+
+### Grassmannian([ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx))
+
+### Grassmannian([ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx), [PolynomialRing](../Type/PolynomialRing.mdx))
+
+## Options
+
+- [Variable](../Option/Variable.mdx) => p
+- [CoefficientRing](../Option/CoefficientRing.mdx) => ZZ
+
+## Examples
+
+```macaulay2
+Grassmannian(kr)
+Grassmannian(krR)
+```
+
+```macaulay2
+Grassmannian(13)
+
+```
+
+```text
+ideal(p   p    - p   p    + p   p   )
+            12 03    02 13    01 23
+
+Ideal of ZZ[p   ..p    p    p    p    p   ]
+                  01   02   12   03   13   23
+```
+
+```macaulay2
+J = Grassmannian(25 T     T      -
+             235 145    135 245    125 345   234 145  
+     ------------------------------------------------------------------------
+     T     T      + T     T      T     T      - T     T      + T     T     
+      134 245    124 345   235 045    035 245    025 345 
+     ------------------------------------------------------------------------
+     T     T      - T     T      + T     T      T     T      - T     T     
+      135 045    035 145    015 345   125 045    025 145
+     ------------------------------------------------------------------------
+     + T     T      T     T      - T     T      + T     T      T     T     
+        015 245   234 045    034 245    024 345   134 045
+     ------------------------------------------------------------------------
+     - T     T      + T     T      T     T      - T     T      +
+        034 145    014 345   124 045    024 145  
+     ------------------------------------------------------------------------
+     T     T      T     T      - T     T      + T     T      - T     T     
+      014 245   123 045    023 145    013 245    012 345 
+     ------------------------------------------------------------------------
+     T     T      - T     T      + T     T      T     T      - T     T     
+      234 135    134 235    123 345   125 035    025 135
+     ------------------------------------------------------------------------
+     + T     T      T     T      - T     T      + T     T      T     T     
+        015 235   234 035    034 235    023 345   134 035
+     ------------------------------------------------------------------------
+     - T     T      + T     T      T     T      - T     T      +
+        034 135    013 345   124 035    024 135  
+     ------------------------------------------------------------------------
+     T     T      + T     T      T     T      - T     T      + T     T     
+      014 235    012 345   123 035    023 135    013 235 
+     ------------------------------------------------------------------------
+     T     T      - T     T      + T     T      T     T      - T     T     
+      234 125    124 235    123 245   134 125    124 135
+     ------------------------------------------------------------------------
+     + T     T      T     T      - T     T      + T     T      +
+        123 145   034 125    024 135    014 235  
+     ------------------------------------------------------------------------
+     T     T      - T     T      + T     T      T     T      - T     T     
+      023 145    013 245    012 345   234 025    024 235
+     ------------------------------------------------------------------------
+     + T     T      T     T      - T     T      + T     T      +
+        023 245   134 025    024 135    023 145  
+     ------------------------------------------------------------------------
+     T     T      T     T      - T     T      + T     T      T     T      -
+      012 345   034 025    024 035    023 045   124 025  
+     ------------------------------------------------------------------------
+     T     T      + T     T      T     T      - T     T      + T     T     
+      024 125    012 245   123 025    023 125    012 235 
+     ------------------------------------------------------------------------
+     T     T      - T     T      + T     T      - T     T      T     T     
+      234 015    014 235    013 245    012 345   134 015
+     ------------------------------------------------------------------------
+     - T     T      + T     T      T     T      - T     T      +
+        014 135    013 145   034 015    014 035  
+     ------------------------------------------------------------------------
+     T     T      T     T      - T     T      + T     T      T     T      -
+      013 045   124 015    014 125    012 145   024 015  
+     ------------------------------------------------------------------------
+     T     T      + T     T      T     T      - T     T      + T     T     
+      014 025    012 045   123 015    013 125    012 135 
+     ------------------------------------------------------------------------
+     T     T      - T     T      + T     T      T     T      - T     T     
+      023 015    013 025    012 035   124 034    024 134
+     ------------------------------------------------------------------------
+     + T     T      T     T      - T     T      + T     T      T     T     
+        014 234   123 034    023 134    013 234   123 024
+     ------------------------------------------------------------------------
+     - T     T      + T     T      T     T      - T     T      +
+        023 124    012 234   123 014    013 124  
+     ------------------------------------------------------------------------
+     T     T      T     T      - T     T      + T     T     )
+      012 134   023 014    013 024    012 034
+
+              ZZ
+```
+
+```text
+Ideal of --[T     ..T      T      T      T      T      T      T      T      T      T      T      T      T      T      T      T      T      T      T     ]
+              31  012   013   023   123   014   024   124   034   134   234   015   025   125   035   135   235   045   145   245   345
+```
+
+## Additional Information
+
+- Inputs:
+- `k`
+- `r`
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `CoefficientRing```a [ ring](../Type/Ring.mdx) default value ZZ the coefficient ring for the polynomial ring to be made
+- `Variable```a [ symbol](../Type/op_Coredollar_Symbol.mdx) default value "p" the base symbol for the indexed variables to be used. The subscripts are the elements of `subsets(n+1k+1)` converted to sequences and if `k` is 0 converted to integers.
+- Outputs:
+- the ideal of the Grassmannian variety of all projective `k` -planes in P^{r}
+
+
+### See also
+
+
+- Macaulay2Doc:: Schubert
+- Macaulay2Doc:: pfaffians
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "Grassmannian",
+    "safe_name": "Grassmannian",
+    "type": "MethodFunctionWithOptions",
+    "description": " If a polynomial ring `R`  is given as the third argument then the resulting ideal is moved to that ...",
+    "installations": [
+        "<Installation Grassmannian(ZZ, ZZ)>",
+        "<Installation Grassmannian(ZZ, ZZ, PolynomialRing)>"
+    ],
+    "options": [
+        {
+            "name": "Variable",
+            "default": "p"
+        },
+        {
+            "name": "CoefficientRing",
+            "default": "ZZ"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Grassmannian",
+        "full_doc": "... (9314 bytes) ...",
+        "parsed_headline": "Grassmannian  -- compute the ideal of the Grassmannian of linear subspaces of a vector space"
+    }
+}
+```

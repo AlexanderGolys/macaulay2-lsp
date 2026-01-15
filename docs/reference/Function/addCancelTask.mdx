@@ -5,23 +5,45 @@ kind: Function
 
 # addCancelTask
 
-**Type:** `Function`
+**addCancelTask  -- specify that the completion of one task triggers the cancellation of another**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-addCancelTask, -- specify that the completion of one task triggers the cancellation of another, class => element, Usage: , addCancelTask(t,u), class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: Task, task, , , u, , , a , Macaulay2Doc :: Task, task, , , Consequences:, when the task , t, is finished, then the task , u, will be cancelled, empty documentation body, class => waystouse, Ways to use , addCancelTask, :, Macaulay2Doc :: addCancelTask(Task,Task), class => waystouse, For the programmer, The object , Macaulay2Doc :: addCancelTask, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `addCancelTask(Task, Task)`
+addCancelTask  -- specify that the completion of one task triggers the cancellation of another
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+addCancelTask(tu)
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `t` a [ task](../Type/op_Coredollar_Task.mdx)
+- `u` a [ task](../Type/op_Coredollar_Task.mdx)
+- Consequences:
+- when the task `t` is finished then the task `u` will be cancelled
+
+empty documentation body
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "addCancelTask",
+    "safe_name": "op_Coredollar_addCancelTask",
+    "type": "CompiledFunction",
+    "description": "addCancelTask  -- specify that the completion of one task triggers the cancellation of another...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$addCancelTask",
+        "full_doc": "... (950 bytes) ...",
+        "parsed_headline": "addCancelTask  -- specify that the completion of one task triggers the cancellation of another"
+    }
+}
+```

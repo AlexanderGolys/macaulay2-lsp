@@ -1,113 +1,134 @@
 ---
 title: "Option"
 kind: Type
-parent: BasicList
 ---
 
 # Option
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Option**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+Such pairs are used as optional arguments for functions.There is also a way to make new [ hash tables](../Type/op_Coredollar_HashTable.mdx) from lists of key-value pairs.These pairs are implemented as lists so that if `z`  is ``  then `x`  is `z#0`  and `y`  is `z#1` .
 
-## Parent Type
+## Additional Information
 
-[BasicList](../Type/BasicList.mdx)
+### See also
 
-## Methods
 
-Methods that can be used with this type:
+- Macaulay2Doc:: new HashTable from List
 
-### `**`
+[options](../Method/op_Coredollar_options.mdx)
 
-- `**(Option, Option)`
+## Debug info
 
-### `++`
-
-- `++(Option, Option)`
-
-### `?`
-
-- `?(Option, Option)`
-
-### `directSum`
-
-- `directSum(Option)`
-
-### `expression`
-
-- `expression(Option)`
-
-### `installAssignmentMethod`
-
-- `installAssignmentMethod(Symbol, HashTable, HashTable, Option)`
-- `installAssignmentMethod(Symbol, HashTable, Option)`
-
-### `mathML`
-
-- `mathML(Option)`
-
-### `net`
-
-- `net(Option)`
-
-### `package`
-
-- `package(Option)`
-
-### `substitute`
-
-- `substitute(Matrix, Option)`
-- `substitute(Module, Option)`
-- `substitute(Ideal, Option)`
-- `substitute(Vector, Option)`
-- `substitute(RingElement, Option)`
-
-### `texMath`
-
-- `texMath(Option)`
-
-### `toExternalString`
-
-- `toExternalString(Option)`
-
-### `toString`
-
-- `toString(Option)`
-
-### `validate`
-
-- `validate(Option)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [**](../Operator/op_star_star.mdx)
-- [++](../Operator/op_plus_plus.mdx)
-- [?](../Operator/op_question.mdx)
-- [directSum](../Function/directSum.mdx)
-- [expression](../Function/expression.mdx)
-- [installAssignmentMethod](../Function/installAssignmentMethod.mdx)
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-- [package](../Function/package.mdx)
-- [substitute](../Function/substitute.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-- [toString](../Function/toString.mdx)
-- [validate](../Type/validate.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [BasicList](../Type/BasicList.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Option",
+    "safe_name": "Option",
+    "type": null,
+    "description": "Such pairs are used as optional arguments for functions.There is also a way to make new [ hash table...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Option",
+        "parent": "BasicList",
+        "methods": [
+            [
+                "net",
+                "Option"
+            ],
+            [
+                "toString",
+                "Option"
+            ],
+            [
+                "texMath",
+                "Option"
+            ],
+            [
+                "expression",
+                "Option"
+            ],
+            [
+                "?",
+                "Option",
+                "Option"
+            ],
+            [
+                "mathML",
+                "Option"
+            ],
+            [
+                "directSum",
+                "Option"
+            ],
+            [
+                "toExternalString",
+                "Option"
+            ],
+            [
+                "installAssignmentMethod",
+                "Symbol",
+                "HashTable",
+                "HashTable",
+                "Option"
+            ],
+            [
+                "installAssignmentMethod",
+                "Symbol",
+                "HashTable",
+                "Option"
+            ],
+            [
+                "**",
+                "Option",
+                "Option"
+            ],
+            [
+                "package",
+                "Option"
+            ],
+            [
+                "substitute",
+                "Matrix",
+                "Option"
+            ],
+            [
+                "substitute",
+                "Module",
+                "Option"
+            ],
+            [
+                "substitute",
+                "Ideal",
+                "Option"
+            ],
+            [
+                "substitute",
+                "Vector",
+                "Option"
+            ],
+            [
+                "substitute",
+                "RingElement",
+                "Option"
+            ],
+            [
+                "validate",
+                "Option"
+            ],
+            [
+                "++",
+                "Option",
+                "Option"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (2931 bytes) ...",
+        "parsed_headline": "Option"
+    }
+}
+```

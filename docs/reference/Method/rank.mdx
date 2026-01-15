@@ -1,0 +1,86 @@
+---
+title: "rank"
+kind: Method
+---
+
+# rank
+
+**rank  -- compute the rank**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+rank  -- compute the rank
+
+## Installed For
+
+### rank([Matrix](../Type/Matrix.mdx))
+
+### rank([Module](../Type/Module.mdx))
+
+### rank([MutableMatrix](../Type/MutableMatrix.mdx))
+
+## Examples
+
+```macaulay2
+rank M
+```
+
+```macaulay2
+rank kernel p
+
+```
+
+```text
+2
+```
+
+```macaulay2
+rank cokernel p
+
+```
+
+```text
+0
+```
+
+```macaulay2
+rank C
+
+```
+
+```text
+0
+```
+
+## Additional Information
+
+- Inputs:
+- `M` a [ module](../Type/op_Coredollar_Module.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- Outputs:
+- the rank of `M`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "rank",
+    "safe_name": "op_Coredollar_rank",
+    "type": "MethodFunction",
+    "description": "rank  -- compute the rank...",
+    "installations": [
+        "<Installation rank(Matrix)>",
+        "<Installation rank(Module)>",
+        "<Installation rank(MutableMatrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$rank",
+        "full_doc": "... (1564 bytes) ...",
+        "parsed_headline": "rank  -- compute the rank"
+    }
+}
+```

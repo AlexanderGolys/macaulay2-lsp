@@ -1,196 +1,397 @@
 ---
 title: "Constant"
 kind: Type
-parent: Number
 ---
 
 # Constant
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Constant**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+A constant is a symbolic entity that can be approximated by a real or complex number to any desired accuracy.  It is converted to a numeric value of the correct precision when necessary.
 
-## Parent Type
+## Additional Information
 
-[Number](../Type/Number.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `EulerConstant`
-- `ii`
-- `pi`
-- `CatalanConstant`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `*`
-
-- `*(Constant, Constant)`
-- `*(Constant, RingElement)`
-- `*(Constant, InexactNumber)`
-- `*(InexactNumber, Constant)`
-- `*(RingElement, Constant)`
-
-### `+`
-
-- `+(Constant, Constant)`
-- `+(Constant, RingElement)`
-- `+(Constant, InexactNumber)`
-- `+(RingElement, Constant)`
-- `+(InexactNumber, Constant)`
-- *... and 1 more signatures*
-
-### `-`
-
-- `-(Constant, Constant)`
-- `-(Constant, RingElement)`
-- `-(Constant, InexactNumber)`
-- `-(InexactNumber, Constant)`
-- `-(RingElement, Constant)`
-
-### `/`
-
-- `/(Constant, Constant)`
-- `/(Constant, InexactNumber)`
-- `/(Constant, RingElement)`
-- `/(RingElement, Constant)`
-- `/(InexactNumber, Constant)`
-
-### `==`
-
-- `==(Constant, Constant)`
-- `==(Constant, InexactNumber)`
-- `==(Constant, RingElement)`
-- `==(RingElement, Constant)`
-- `==(InexactNumber, Constant)`
-
-### `^`
-
-- `^(Constant, Constant)`
-- `^(Constant, InexactNumber)`
-- `^(InexactNumber, Constant)`
-
-### `abs`
-
-- `abs(Constant)`
-
-### `conjugate`
-
-- `conjugate(Constant)`
-
-### `floor`
-
-- `floor(Constant)`
-
-### `isFinite`
-
-- `isFinite(Constant)`
-
-### `isInfinite`
-
-- `isInfinite(Constant)`
-
-### `isReal`
-
-- `isReal(Constant)`
-
-### `isc`
-
-- `isc(Constant)`
-
-### `net`
-
-- `net(Constant)`
-
-### `numeric`
-
-- `numeric(Constant)`
-- `numeric(ZZ, Constant)`
-- `numeric(InfiniteNumber, Constant)`
-
-### `numericInterval`
-
-- `numericInterval(Constant)`
-- `numericInterval(ZZ, Constant)`
-
-### `peek'`
-
-- `peek'(ZZ, Constant)`
-
-### `promote`
-
-- `promote(Constant, RingElement)`
-- `promote(Constant, InexactNumber')`
-
-### `ring`
-
-- `ring(Constant)`
-
-### `sign`
-
-- `sign(Constant)`
-
-### `texMath`
-
-- `texMath(Constant)`
-
-### `toExternalString`
-
-- `toExternalString(Constant)`
-
-### `toString`
-
-- `toString(Constant)`
+### See also
 
 
-*Showing 50 of 73 methods*
+- Macaulay2Doc:: numeric
+- Macaulay2Doc:: defaultPrecision
 
-## Used In
+[isConstant](../Method/op_Coredollar_isConstant.mdx)[ii](../Instance/ii.mdx)[pi](../Instance/pi.mdx)[EulerConstant](../Instance/op_Coredollar_EulerConstant.mdx)[CatalanConstant](../Instance/CatalanConstant.mdx)
 
-This type is used in the following methods/operators:
+## Debug info
 
-- [!](../Operator/op_bang.mdx)
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [/](../Operator/op_slash.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [?](../Operator/op_question.mdx)
-- [^](../Operator/op_caret.mdx)
-- [_](../Operator/_.mdx)
-- [abs](../Function/abs.mdx)
-- [conjugate](../Function/conjugate.mdx)
-- [expression](../Function/expression.mdx)
-- [floor](../Function/floor.mdx)
-- [isFinite](../Function/isFinite.mdx)
-- [isInfinite](../Function/isInfinite.mdx)
-- [isReal](../Function/isReal.mdx)
-- [isc](../Type/isc.mdx)
-- [net](../Function/net.mdx)
-- [numeric](../Function/numeric.mdx)
-- [numericInterval](../Function/numericInterval.mdx)
-- [peek'](../Function/op_peekx39.mdx)
-- [promote](../Function/promote.mdx)
-- [ring](../Function/ring.mdx)
-- [sign](../Function/sign.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-- [toString](../Function/toString.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Number](../Type/Number.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Constant",
+    "safe_name": "Constant",
+    "type": null,
+    "description": "A constant is a symbolic entity that can be approximated by a real or complex number to any desired ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Constant",
+        "parent": "Number",
+        "methods": [
+            [
+                "sign",
+                "Constant"
+            ],
+            [
+                "isc",
+                "Constant"
+            ],
+            [
+                "isInfinite",
+                "Constant"
+            ],
+            [
+                "abs",
+                "Constant"
+            ],
+            [
+                "floor",
+                "Constant"
+            ],
+            [
+                "conjugate",
+                "Constant"
+            ],
+            [
+                "ring",
+                "Constant"
+            ],
+            [
+                "isReal",
+                "Constant"
+            ],
+            [
+                "peek'",
+                "ZZ",
+                "Constant"
+            ],
+            [
+                "promote",
+                "Constant",
+                "RingElement"
+            ],
+            [
+                "promote",
+                "Constant",
+                "InexactNumber'"
+            ],
+            [
+                "isFinite",
+                "Constant"
+            ],
+            [
+                "net",
+                "Constant"
+            ],
+            [
+                "toString",
+                "Constant"
+            ],
+            [
+                "toExternalString",
+                "Constant"
+            ],
+            [
+                "numeric",
+                "Constant"
+            ],
+            [
+                "numeric",
+                "ZZ",
+                "Constant"
+            ],
+            [
+                "numeric",
+                "InfiniteNumber",
+                "Constant"
+            ],
+            [
+                "numericInterval",
+                "Constant"
+            ],
+            [
+                "numericInterval",
+                "ZZ",
+                "Constant"
+            ],
+            [
+                "texMath",
+                "Constant"
+            ],
+            [
+                "+",
+                "Constant",
+                "Constant"
+            ],
+            [
+                "+",
+                "Constant",
+                "RingElement"
+            ],
+            [
+                "+",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "+",
+                "RingElement",
+                "Constant"
+            ],
+            [
+                "+",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "+",
+                "Constant"
+            ],
+            [
+                "-",
+                "Constant",
+                "Constant"
+            ],
+            [
+                "-",
+                "Constant",
+                "RingElement"
+            ],
+            [
+                "-",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "-",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "-",
+                "RingElement",
+                "Constant"
+            ],
+            [
+                "*",
+                "Constant",
+                "Constant"
+            ],
+            [
+                "*",
+                "Constant",
+                "RingElement"
+            ],
+            [
+                "*",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "*",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "*",
+                "RingElement",
+                "Constant"
+            ],
+            [
+                "/",
+                "Constant",
+                "Constant"
+            ],
+            [
+                "/",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "/",
+                "Constant",
+                "RingElement"
+            ],
+            [
+                "/",
+                "RingElement",
+                "Constant"
+            ],
+            [
+                "/",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "^",
+                "Constant",
+                "Constant"
+            ],
+            [
+                "^",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "^",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "==",
+                "Constant",
+                "Constant"
+            ],
+            [
+                "==",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "==",
+                "Constant",
+                "RingElement"
+            ],
+            [
+                "==",
+                "RingElement",
+                "Constant"
+            ],
+            [
+                "==",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "?",
+                "Constant",
+                "Constant"
+            ],
+            [
+                "?",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "?",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "_",
+                "Constant",
+                "Ring"
+            ],
+            [
+                "_",
+                "Constant",
+                "RingFamily"
+            ],
+            [
+                "^",
+                "Constant",
+                "RingFamily"
+            ],
+            [
+                "+",
+                "Constant",
+                "Number"
+            ],
+            [
+                "+",
+                "Number",
+                "Constant"
+            ],
+            [
+                "-",
+                "Constant"
+            ],
+            [
+                "-",
+                "Constant",
+                "Number"
+            ],
+            [
+                "-",
+                "Number",
+                "Constant"
+            ],
+            [
+                "*",
+                "Constant",
+                "Number"
+            ],
+            [
+                "*",
+                "Number",
+                "Constant"
+            ],
+            [
+                "/",
+                "Constant",
+                "Number"
+            ],
+            [
+                "/",
+                "Number",
+                "Constant"
+            ],
+            [
+                "^",
+                "Constant",
+                "Number"
+            ],
+            [
+                "^",
+                "Number",
+                "Constant"
+            ],
+            [
+                "==",
+                "Constant",
+                "Number"
+            ],
+            [
+                "==",
+                "Number",
+                "Constant"
+            ],
+            [
+                "?",
+                "Constant",
+                "Number"
+            ],
+            [
+                "?",
+                "Number",
+                "Constant"
+            ],
+            [
+                "!",
+                "Constant"
+            ],
+            [
+                "expression",
+                "Constant"
+            ]
+        ],
+        "instances": [
+            "EulerConstant",
+            "ii",
+            "pi",
+            "CatalanConstant"
+        ],
+        "full_doc": "... (4629 bytes) ...",
+        "parsed_headline": "Constant"
+    }
+}
+```

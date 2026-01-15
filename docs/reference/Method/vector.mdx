@@ -1,0 +1,249 @@
+---
+title: "vector"
+kind: Method
+---
+
+# vector
+
+**vector  -- make a vector**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+For any $R$-module $M$ there exists an isomorphism between $\operatorname{Hom}(RM)$ and $M$ given by $f\mapsto f(1)$. Therefore internally all [Vector](../Type/op_Coredollar_Vector.mdx) objects representing elements of $M$ correspond to matrices with source $R^1$ and target $M$.  A vector may be constructed from such a matrix using vector.Alternatively $M$ may be specified if it differs from the target of the matrix.If the matrix would have only one element then that element may be given instead.  If the module is not provided then the result will be an element of the free module of rank one of the ring of the given element.Alternatively a list of elements may be provided.  If the module is not specified then the vector will be an element of a free module over a ring containing all the elements of the list.Alternatively the ring $R$ may be provided instead of $M$ and the resulting vector will be an element of the appropriate free module over $R$.
+
+## Installed For
+
+### vector([List](../Type/List.mdx))
+
+### vector([Matrix](../Type/Matrix.mdx))
+
+### vector([Module](../Type/Module.mdx), [List](../Type/List.mdx)) -> [Vector](../Type/Vector.mdx)
+
+### vector([Module](../Type/Module.mdx), [Matrix](../Type/Matrix.mdx))
+
+### vector([Module](../Type/Module.mdx), [Number](../Type/Number.mdx))
+
+### vector([Module](../Type/Module.mdx), [RingElement](../Type/RingElement.mdx))
+
+### vector([Number](../Type/Number.mdx))
+
+### vector([Ring](../Type/Ring.mdx), [List](../Type/List.mdx))
+
+### vector([Ring](../Type/Ring.mdx), [Matrix](../Type/Matrix.mdx))
+
+### vector([Ring](../Type/Ring.mdx), [Number](../Type/Number.mdx))
+
+### vector([Ring](../Type/Ring.mdx), [RingElement](../Type/RingElement.mdx))
+
+### vector([RingElement](../Type/RingElement.mdx))
+
+### vector([RingFamily](../Type/RingFamily.mdx), [List](../Type/List.mdx))
+
+### vector([RingFamily](../Type/RingFamily.mdx), [Matrix](../Type/Matrix.mdx))
+
+### vector([RingFamily](../Type/RingFamily.mdx), [Number](../Type/Number.mdx))
+
+### vector([RingFamily](../Type/RingFamily.mdx), [RingElement](../Type/RingElement.mdx))
+
+### vector([Vector](../Type/Vector.mdx))
+
+## Examples
+
+```macaulay2
+vector(M x)
+vector x
+```
+
+```macaulay2
+vector f
+
+```
+
+```text
+| x |
+     | y |
+     | z |
+
+      3
+R
+```
+
+```macaulay2
+vector(R^3 g)
+
+```
+
+```text
+| 1 |
+     | 2 |
+     | 3 |
+
+      3
+R
+```
+
+```macaulay2
+vector 2
+
+```
+
+```text
+| 2 |
+
+       1
+ZZ
+```
+
+```macaulay2
+vector x
+
+```
+
+```text
+| x |
+
+      1
+R
+```
+
+```macaulay2
+vector(R^1 2)
+
+```
+
+```text
+| 2 |
+
+      1
+R
+```
+
+```macaulay2
+vector {1, 2, 3}
+
+```
+
+```text
+| 1 |
+     | 2 |
+     | 3 |
+
+       3
+ZZ
+```
+
+```macaulay2
+vector {1, x, y}
+
+```
+
+```text
+| 1 |
+      | x |
+      | y |
+
+       3
+R
+```
+
+```macaulay2
+vector(R^3 {1, 2, 3})
+
+```
+
+```text
+| 1 |
+      | 2 |
+      | 3 |
+
+       3
+R
+```
+
+```macaulay2
+vector(QQ {1, 2, 3})
+
+```
+
+```text
+| 1 |
+      | 2 |
+      | 3 |
+
+        3
+QQ
+```
+
+```macaulay2
+vector(R {1, 2, 3})
+
+```
+
+```text
+| 1 |
+      | 2 |
+      | 3 |
+
+       3
+R
+```
+
+```macaulay2
+vector(R 2)
+
+```
+
+```text
+| 2 |
+
+       1
+R
+```
+
+## Additional Information
+
+- Inputs:
+- `M` a [ module](../Type/op_Coredollar_Module.mdx)
+- `x` a [ list](../Type/op_Coredollar_List.mdx) a [ matrix](../Type/op_Coredollar_Matrix.mdx) a [ number](../Type/op_Coredollar_Number.mdx) or a [ ring element](../Type/RingElement.mdx)
+- Outputs:
+- a [ vector](../Type/op_Coredollar_Vector.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "vector",
+    "safe_name": "op_Coredollar_vector",
+    "type": "MethodFunction",
+    "description": "For any $R$-module $M$ there exists an isomorphism between $\\operatorname{Hom}(RM)$ and $M$ given by...",
+    "installations": [
+        "<Installation vector(Matrix)>",
+        "<Installation vector(List)>",
+        "<Installation vector(RingElement)>",
+        "<Installation vector(Number)>",
+        "<Installation vector(Module, Matrix)>",
+        "<Installation vector(Module, List)>",
+        "<Installation vector(Module, Number)>",
+        "<Installation vector(Module, RingElement)>",
+        "<Installation vector(RingFamily, Matrix)>",
+        "<Installation vector(Ring, Matrix)>",
+        "<Installation vector(RingFamily, List)>",
+        "<Installation vector(Ring, List)>",
+        "<Installation vector(Ring, RingElement)>",
+        "<Installation vector(Ring, Number)>",
+        "<Installation vector(RingFamily, RingElement)>",
+        "<Installation vector(RingFamily, Number)>",
+        "<Installation vector(Vector)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$vector",
+        "full_doc": "... (4396 bytes) ...",
+        "parsed_headline": "vector  -- make a vector"
+    }
+}
+```

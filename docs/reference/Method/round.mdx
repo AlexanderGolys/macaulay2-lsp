@@ -1,0 +1,136 @@
+---
+title: "round"
+kind: Method
+---
+
+# round
+
+**round  -- round a number**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+
+### Synopsis
+
+
+- Inputs:
+- `x` a number
+- Outputs:
+- the integer nearest to `x`
+
+
+### Synopsis
+
+
+- Inputs:
+- `n` an [ integer](../Type/ZZ.mdx)
+- `x` a [ real number](../Type/op_x226_x132_x157.mdx)
+- Outputs:
+- the real number with just n decimal digits to the right of the decimal point nearest to `x`
+
+
+
+## Installed For
+
+### round([Number](../Type/Number.mdx))
+
+### round([QQ](../Type/QQ.mdx))
+
+### round([ZZ](../Type/ZZ.mdx))
+
+### round([ZZ](../Type/ZZ.mdx), [CC](../Type/CC.mdx))
+
+### round([ZZ](../Type/ZZ.mdx), [Number](../Type/Number.mdx))
+
+### round([ZZ](../Type/ZZ.mdx), [RR](../Type/RR.mdx))
+
+### round([ZZ](../Type/ZZ.mdx), [RRi](../Type/RRi.mdx))
+
+## Examples
+
+```macaulay2
+round(-2.3)
+
+```
+
+```text
+-2
+```
+
+```macaulay2
+round(-2.3+5*ii)
+
+```
+
+```text
+-2
+```
+
+```macaulay2
+round(2/3)
+
+```
+
+```text
+1
+```
+
+```macaulay2
+round(21234.5678)
+
+```
+
+```text
+1234.57
+
+RR (of precision 53)
+```
+
+```macaulay2
+round(-21234.5678)
+
+```
+
+```text
+1200
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: floor
+- Macaulay2Doc:: ceiling
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "round",
+    "safe_name": "round",
+    "type": "MethodFunction",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `x` a number\n- Outputs:\n- the integer nearest to `x`\n\n\n### Synopsis\n\n\n- ...",
+    "installations": [
+        "<Installation round(Number)>",
+        "<Installation round(QQ)>",
+        "<Installation round(ZZ, RR)>",
+        "<Installation round(ZZ, CC)>",
+        "<Installation round(ZZ, RRi)>",
+        "<Installation round(ZZ, Number)>",
+        "<Installation round(ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "round",
+        "full_doc": "... (1806 bytes) ...",
+        "parsed_headline": "round  -- round a number"
+    }
+}
+```

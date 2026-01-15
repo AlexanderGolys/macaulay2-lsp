@@ -1,0 +1,69 @@
+---
+title: "directSum"
+kind: Method
+---
+
+# directSum
+
+**directSum  -- direct sum of modules or maps**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+`directSum(MN...)`  -- forms the direct sum of matrices or modules.The components can be recovered later with [components](../Method/op_Coredollar_components.mdx)  or with [formation](../Method/op_Coredollar_formation.mdx) . Projection and inclusion maps for direct sums:
+- Macaulay2Doc:: Module ^ Array
+- Macaulay2Doc:: Module _ Array
+- Macaulay2Doc:: Matrix ^ List
+- Macaulay2Doc:: Matrix _ List
+
+ It sometimes happens that the user has indices for the components of a direct sum preferable to the usual consecutive small integers.  In this case the preferred indices can be specified with code like `...)`  as in the following example. Similar syntax works with [++](../Method/op_Coredollar_plus_plus.mdx) .
+
+## Installed For
+
+### directSum([List](../Type/List.mdx))
+
+### directSum([Matrix](../Type/Matrix.mdx))
+
+### directSum([Module](../Type/Module.mdx))
+
+### directSum([Option](../Type/Option.mdx))
+
+### directSum([Sequence](../Type/Sequence.mdx))
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: ++
+- Macaulay2Doc:: indices
+- Macaulay2Doc:: formation
+
+[isDirectSum](../Method/isDirectSum.mdx)[components](../Method/op_Coredollar_components.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "directSum",
+    "safe_name": "op_Coredollar_directSum",
+    "type": "MethodFunctionSingle",
+    "description": "`directSum(MN...)`  -- forms the direct sum of matrices or modules.The components can be recovered l...",
+    "installations": [
+        "<Installation directSum(Matrix)>",
+        "<Installation directSum(Module)>",
+        "<Installation directSum(Sequence)>",
+        "<Installation directSum(List)>",
+        "<Installation directSum(Option)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$directSum",
+        "full_doc": "... (2604 bytes) ...",
+        "parsed_headline": "directSum  -- direct sum of modules or maps"
+    }
+}
+```

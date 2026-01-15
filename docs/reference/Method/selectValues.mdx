@@ -1,0 +1,67 @@
+---
+title: "selectValues"
+kind: Method
+---
+
+# selectValues
+
+**selectValues  -- select part of a hash table by values**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ The hash table `v`  should be immutable: to scan the values in a mutable hash table use `scan(values x f)` .
+
+## Installed For
+
+### selectValues([HashTable](../Type/HashTable.mdx), [Function](../Type/Function.mdx))
+
+### selectValues([ZZ](../Type/ZZ.mdx), [HashTable](../Type/HashTable.mdx), [Function](../Type/Function.mdx))
+
+## Examples
+
+```macaulay2
+selectValues(vf)
+selectValues(nvf)
+```
+
+## Additional Information
+
+- Inputs:
+- `n` an [ integer](../Type/ZZ.mdx)
+- `v` a [ hash table](../Type/op_Coredollar_HashTable.mdx)
+- `f` returning either [true](../Instance/op_Coredollar_true.mdx) or [false](../Instance/op_Coredollar_blockMatrixForm.mdx)
+- Outputs:
+- whose pairs are those key-value pairs `(kw)` of the hash table `v` that yield `true` when the function `f` is applied to the value `w`. If `n` is provided at most `n` pairs will be selected.
+
+
+### See also
+
+
+- Macaulay2Doc:: partition
+- Macaulay2Doc:: selectKeys
+- Macaulay2Doc:: selectPairs
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "selectValues",
+    "safe_name": "selectValues",
+    "type": "MethodFunction",
+    "description": " The hash table `v`  should be immutable: to scan the values in a mutable hash table use `scan(value...",
+    "installations": [
+        "<Installation selectValues(ZZ, HashTable, Function)>",
+        "<Installation selectValues(HashTable, Function)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "selectValues",
+        "full_doc": "... (1965 bytes) ...",
+        "parsed_headline": "selectValues  -- select part of a hash table by values"
+    }
+}
+```

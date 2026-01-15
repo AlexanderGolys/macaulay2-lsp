@@ -1,53 +1,57 @@
 ---
 title: "PseudocodeClosure"
 kind: Type
-parent: Pseudocode
 ---
 
 # PseudocodeClosure
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**PseudocodeClosure  -- the class of pseudocodes**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ The Macaulay2 interpreter compiles its language into pseudocode which is evaluated later step by step.  At each step the evaluator is considering a pseudocode item.  These pseudocode items are normally not available to the user but the internal function [pseudocode](../Function/op_Coredollar_pseudocode.mdx)  can convert a function closure to pseudocode and display their contents the function [value](../Method/value.mdx)  can evaluate it (bindings of values to local symbols are enclosed with the pseudocode) the operator [===](../Method/op_Coredollar_eq_eq_eq.mdx)  can be used for equality testing and when the debugger is activated after an error the variable [current](../Instance/current.mdx)  contains the pseudocode step whose execution produced the error.
 
-## Parent Type
+## Additional Information
 
-[Pseudocode](../Type/Pseudocode.mdx)
+### See also
 
-## Methods
 
-Methods that can be used with this type:
+- Macaulay2Doc:: disassemble
 
-### `disassemble`
+[value(Pseudocode)](../Instance/value(Pseudocode).mdx)
 
-- `disassemble(PseudocodeClosure)`
+## Debug info
 
-### `frames`
-
-- `frames(PseudocodeClosure)`
-
-### `localDictionaries`
-
-- `localDictionaries(PseudocodeClosure)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [disassemble](../Function/disassemble.mdx)
-- [frames](../Function/frames.mdx)
-- [localDictionaries](../Function/localDictionaries.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Pseudocode](../Type/Pseudocode.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "PseudocodeClosure",
+    "safe_name": "PseudocodeClosure",
+    "type": null,
+    "description": " The Macaulay2 interpreter compiles its language into pseudocode which is evaluated later step by st...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "PseudocodeClosure",
+        "parent": "Pseudocode",
+        "methods": [
+            [
+                "disassemble",
+                "PseudocodeClosure"
+            ],
+            [
+                "localDictionaries",
+                "PseudocodeClosure"
+            ],
+            [
+                "frames",
+                "PseudocodeClosure"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1869 bytes) ...",
+        "parsed_headline": "PseudocodeClosure  -- the class of pseudocodes"
+    }
+}
+```

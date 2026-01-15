@@ -1,0 +1,76 @@
+---
+title: "submatrix'"
+kind: Method
+---
+
+# submatrix'
+
+**submatrix'  -- exclude rows and/or columns of a matrix**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ Each list of integers may contain ranges and repetitions as in `{3, 5..7, 3:0}` .  Excluding a row or column more than once is allowed but has no extra effect.
+
+## Installed For
+
+### submatrix'([Matrix](../Type/Matrix.mdx), [Nothing](../Type/Nothing.mdx), [Nothing](../Type/Nothing.mdx))
+
+### submatrix'([Matrix](../Type/Matrix.mdx), [Nothing](../Type/Nothing.mdx), [VisibleList](../Type/VisibleList.mdx))
+
+### submatrix'([Matrix](../Type/Matrix.mdx), [VisibleList](../Type/VisibleList.mdx))
+
+### submatrix'([Matrix](../Type/Matrix.mdx), [VisibleList](../Type/VisibleList.mdx), [Nothing](../Type/Nothing.mdx))
+
+### submatrix'([Matrix](../Type/Matrix.mdx), [VisibleList](../Type/VisibleList.mdx), [VisibleList](../Type/VisibleList.mdx))
+
+## Examples
+
+```macaulay2
+submatrix'(f rows cols)
+submatrix'(fcols)
+submatrix'(fcols)
+submatrix'(frows)
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a map between free modules
+- `rows` a [ visible list](../Type/VisibleList.mdx) a list of integers denoting the choice of rows to exclude. If omitted exclude no rows
+- `cols` a [ visible list](../Type/VisibleList.mdx) a list of integers denoting the choice of columns to exclude. If omitted exclude no columns
+- Outputs:
+- a [ matrix](../Type/op_Coredollar_Matrix.mdx) the submatrix of `f` with `rows` and `cols` left out
+
+
+### See also
+
+
+- Macaulay2Doc:: submatrix
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "submatrix'",
+    "safe_name": "op_Coredollar_submatrixprime",
+    "type": "MethodFunction",
+    "description": " Each list of integers may contain ranges and repetitions as in `{3, 5..7, 3:0}` .  Excluding a row ...",
+    "installations": [
+        "<Installation submatrix'(Matrix, VisibleList, VisibleList)>",
+        "<Installation submatrix'(Matrix, VisibleList, Nothing)>",
+        "<Installation submatrix'(Matrix, VisibleList)>",
+        "<Installation submatrix'(Matrix, Nothing, VisibleList)>",
+        "<Installation submatrix'(Matrix, Nothing, Nothing)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$submatrix'",
+        "full_doc": "... (2952 bytes) ...",
+        "parsed_headline": "submatrix'  -- exclude rows and/or columns of a matrix"
+    }
+}
+```

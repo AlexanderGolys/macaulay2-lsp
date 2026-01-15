@@ -1,0 +1,129 @@
+---
+title: "regularity"
+kind: Method
+---
+
+# regularity
+
+**regularity  -- compute the Castelnuovo-Mumford regularity**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+For a free chain complex `C` the regularity `r` is the smallest number so that each basis element of `C_i` has degree at most `i+r`. For an ideal `I` regularity is one plus the regularity of the minimal free resolution of the quotient of the ambient ring by `I`. For a module `M` regularity is the regularity of a minimal free resolution of `M`.The regularity is the label of the last row in the [ Betti diagram](../Method/op_Coredollar_betti.mdx) of a chain complex. However this depends on the total degree weights in the Betti tally which are computed based on the [ heft vector](../Instance/heft vectors.mdx) of the underlying ring. To adjust this vector a vector `w` whose length is the same as the [ degree length](../Method/degreeLength.mdx) of the ring can be provided using the option `Weights`. The dot products of `w` with the multidegrees in the tally will be used in the resulting computation.
+
+## Installed For
+
+### regularity([BettiTally](../Type/BettiTally.mdx))
+
+### regularity([Ideal](../Type/Ideal.mdx))
+
+### regularity([Module](../Type/Module.mdx))
+
+## Options
+
+- [Weights](../Method/Weights.mdx) => null
+
+## Examples
+
+```macaulay2
+r = regularity C
+r = regularity(C
+```
+
+```macaulay2
+regularity C
+
+```
+
+```text
+398
+```
+
+```macaulay2
+regularity comodule I
+
+```
+
+```text
+398
+```
+
+```macaulay2
+regularity I
+
+```
+
+```text
+399
+```
+
+```macaulay2
+regularity module I
+
+```
+
+```text
+399
+```
+
+```macaulay2
+regularity C
+
+```
+
+```text
+6
+```
+
+```macaulay2
+regularity(C
+```
+
+## Additional Information
+
+- Inputs:
+- `C` an Ideal a Module or a ChainComplex;
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `Weights```a [ list](../Type/op_Coredollar_List.mdx) default value null a weight vector `w` see [betti(...](../Instance/betti(....mdx);
+- Outputs:
+- `r` an [ integer](../Type/ZZ.mdx)
+
+
+### See also
+
+
+- OldChainComplexes:: resolution
+- Macaulay2Doc:: betti
+- Macaulay2Doc:: comodule
+- VirtualResolutions:: multigradedRegularity
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "regularity",
+    "safe_name": "op_Coredollar_regularity",
+    "type": "MethodFunctionWithOptions",
+    "description": "For a free chain complex `C` the regularity `r` is the smallest number so that each basis element of...",
+    "installations": [
+        "<Installation regularity(BettiTally)>",
+        "<Installation regularity(Ideal)>",
+        "<Installation regularity(Module)>"
+    ],
+    "options": [
+        {
+            "name": "Weights",
+            "default": "null"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$regularity",
+        "full_doc": "... (4436 bytes) ...",
+        "parsed_headline": "regularity  -- compute the Castelnuovo-Mumford regularity"
+    }
+}
+```

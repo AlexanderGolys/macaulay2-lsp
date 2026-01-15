@@ -1,0 +1,72 @@
+---
+title: "getWWW"
+kind: Method
+---
+
+# getWWW
+
+**getWWW  -- get a web page**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+
+### Synopsis
+
+
+- Inputs:
+- `URL` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- the contents of the web page together with the http headers at the address given by `URL`
+
+
+### Synopsis
+
+
+- Inputs:
+- `URL` a [ string](../Type/op_Coredollar_String.mdx)
+- `TEXT` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- obtain the contents of the web page addressed by `URL` from an http server using the POST method provided with `TEXT`
+
+Accessing a secure web site (whose URL begins with `https:` ) depends on your having installed `openssl`  on your system.
+
+## Installed For
+
+### getWWW([String](../Type/String.mdx))
+
+### getWWW([String](../Type/String.mdx), [Nothing](../Type/Nothing.mdx))
+
+### getWWW([String](../Type/String.mdx), [String](../Type/String.mdx))
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: splitWWW
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "getWWW",
+    "safe_name": "getWWW",
+    "type": "MethodFunction",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `URL` a [ string](../Type/op_Coredollar_String.mdx)\n- Outputs:\n- the con...",
+    "installations": [
+        "<Installation getWWW(String)>",
+        "<Installation getWWW(String, String)>",
+        "<Installation getWWW(String, Nothing)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "getWWW",
+        "full_doc": "... (1492 bytes) ...",
+        "parsed_headline": "getWWW  -- get a web page"
+    }
+}
+```

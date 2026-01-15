@@ -5,23 +5,51 @@ kind: Function
 
 # toUpper
 
-**Type:** `Function`
+**toUpper  -- convert to upper case**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-toUpper, -- convert to upper case, class => element, Usage: , toUpper s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: String, string, , , the string produced from , s, by converting its characters to lower case, Description, class => examples, i1 : toUpper "A b C d E f"
-
-o1 = A B C D E F, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: toUpper, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_strings.m2:456:0, .
+toUpper  -- convert to upper case
 
 ## Examples
 
 ```macaulay2
-i1 : toUpper "A b C d E f"
-
-o1 = A B C D E F
+toUpper s
 ```
 
-## See Also
+```macaulay2
+toUpper "A b C d E f"
 
+```
+
+```text
+A B C D E F
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) the string produced from `s` by converting its characters to lower case
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "toUpper",
+    "safe_name": "op_Coredollar_toUpper",
+    "type": "FunctionClosure",
+    "description": "toUpper  -- convert to upper case...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$toUpper",
+        "full_doc": "... (827 bytes) ...",
+        "parsed_headline": "toUpper  -- convert to upper case"
+    }
+}
+```

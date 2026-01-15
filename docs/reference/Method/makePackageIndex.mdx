@@ -1,0 +1,60 @@
+---
+title: "makePackageIndex"
+kind: Method
+---
+
+# makePackageIndex
+
+**makePackageIndex  -- create an index of installed packages**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+This command may need to be run after installing a package via [installPackage](../Method/installPackage.mdx).This command is run each time the program is started updating the index file. Thus one can simply restart Macaulay2 to obtain the same consequence.
+
+## Installed For
+
+### makePackageIndex([List](../Type/List.mdx))
+
+### makePackageIndex([Sequence](../Type/Sequence.mdx))
+
+## Examples
+
+```macaulay2
+makePackageIndex()
+```
+
+## Additional Information
+
+- Consequences:
+- Creates a file `index.html` in the `~/.Macaulay2` directory containing links to the documentation for Macaulay2 and all installed packages.
+
+
+### See also
+
+
+- Macaulay2Doc:: packages
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "makePackageIndex",
+    "safe_name": "op_Coredollar_makePackageIndex",
+    "type": "MethodFunctionSingle",
+    "description": "This command may need to be run after installing a package via [installPackage](../Method/installPac...",
+    "installations": [
+        "<Installation makePackageIndex(Sequence)>",
+        "<Installation makePackageIndex(List)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$makePackageIndex",
+        "full_doc": "... (1243 bytes) ...",
+        "parsed_headline": "makePackageIndex  -- create an index of installed packages"
+    }
+}
+```

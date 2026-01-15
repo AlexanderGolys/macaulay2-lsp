@@ -1,0 +1,100 @@
+---
+title: "commonRing"
+kind: Method
+---
+
+# commonRing
+
+**commonRing  -- find smallest containing ring**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+commonRing  -- find smallest containing ring
+
+## Installed For
+
+### commonRing([List](../Type/List.mdx))
+
+## Examples
+
+```macaulay2
+commonRing v
+```
+
+```macaulay2
+commonRing {1,2/3}
+
+```
+
+```text
+QQ
+
+Ring
+```
+
+```macaulay2
+commonRing {1,2.}
+
+```
+
+```text
+RR
+       53
+
+RealField
+```
+
+```macaulay2
+commonRing {1,2p100,matrix{{3p200}}}
+
+```
+
+```text
+RR
+       100
+
+RealField
+```
+
+```macaulay2
+commonRing {1,2p100,matrix{{3p200}},0_R}
+
+```
+
+```text
+R
+
+PolynomialRing
+```
+
+## Additional Information
+
+- Inputs:
+- `v` a list of numbers ring elements matrices or things with rings see
+- [ring](../Method/op_Coredollar_ring.mdx)
+- Outputs:
+- a [ ring](../Type/Ring.mdx) the smallest ring to which all members of the list can be promoted
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "commonRing",
+    "safe_name": "op_Coredollar_commonRing",
+    "type": "MethodFunction",
+    "description": "commonRing  -- find smallest containing ring...",
+    "installations": [
+        "<Installation commonRing(List)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$commonRing",
+        "full_doc": "... (1419 bytes) ...",
+        "parsed_headline": "commonRing  -- find smallest containing ring"
+    }
+}
+```

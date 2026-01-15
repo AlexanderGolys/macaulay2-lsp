@@ -5,47 +5,77 @@ kind: Function
 
 # recursionDepth
 
-**Type:** `Function`
+**recursionDepth  -- the current recursion depth**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-recursionDepth, -- the current recursion depth, class => element, Usage: , recursionDepth(), class => language-macaulay2, Outputs:, an , Macaulay2Doc :: ZZ, integer, , , the current depth of recursion in the interpreter, Description, class => examples, i1 : recursionDepth()
-
-o1 = 14, class => language-macaulay2, i2 : f = x -> recursionDepth()
-
-o2 = f
-
-o2 : FunctionClosure, class => language-macaulay2, i3 : f()
-
-o3 = 15, class => language-macaulay2, i4 : g = x -> f()
-
-o4 = g
-
-o4 : FunctionClosure, class => language-macaulay2, i5 : g()
-
-o5 = 16, class => language-macaulay2, Tail recursion optimization may be in effect, so there the answer may not always be what you expect., class => examples, i6 : r = i -> if i == 100 then recursionDepth() else r(i+1)
-
-o6 = r
-
-o6 : FunctionClosure, class => language-macaulay2, i7 : r 0
-
-o7 = 15, class => language-macaulay2, See also, Macaulay2Doc :: recursionLimit, class => waystouse, For the programmer, The object , Macaulay2Doc :: recursionDepth, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_debugging.m2:360:0, .
+ Tail recursion optimization may be in effect so there the answer may not always be what you expect.
 
 ## Examples
 
 ```macaulay2
-i1 : recursionDepth()
-
-o1 = 14
-
-i2 : f = x -> recursionDepth()
-
-o2 = f
-
-o2 : FunctionClosure
+recursionDepth()
 ```
 
-## See Also
+```macaulay2
+recursionDepth()
 
+```
+
+```text
+14
+```
+
+```macaulay2
+f = x -> recursionDepth()
+
+```
+
+```text
+f
+
+FunctionClosure
+```
+
+```macaulay2
+r = i -> if i == 100 then recursionDepth() else r(i+1)
+
+```
+
+```text
+r
+
+FunctionClosure
+```
+
+## Additional Information
+
+- Outputs:
+- an [ integer](../Type/ZZ.mdx) the current depth of recursion in the interpreter
+
+
+### See also
+
+
+- Macaulay2Doc:: recursionLimit
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "recursionDepth",
+    "safe_name": "op_Coredollar_recursionDepth",
+    "type": "CompiledFunction",
+    "description": " Tail recursion optimization may be in effect so there the answer may not always be what you expect....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$recursionDepth",
+        "full_doc": "... (1473 bytes) ...",
+        "parsed_headline": "recursionDepth  -- the current recursion depth"
+    }
+}
+```

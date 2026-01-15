@@ -5,63 +5,67 @@ kind: Function
 
 # disassemble
 
-**Type:** `Function`
+**disassemble  -- disassemble a pseudocode or function**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-disassemble, -- disassemble a pseudocode or function, class => element, Usage: , disassemble c, class => language-macaulay2, Inputs:, c, , , a , Macaulay2Doc :: Function, function, or , an instance of the type , Macaulay2Doc :: Pseudocode, Outputs:, a , Macaulay2Doc :: String, string, , , the disassembled form of , c, Description, class => examples, i1 : disassemble (() -> 1/(1-1))
-
-o1 = (function restargs: false numparms: 0 framesize: 0 frameID: 12878 (2-OP
- / 1 (2-OP - 1 1))), class => language-macaulay2, i2 : disassemble functionBody (() -> 1/(1-1))
-
-o2 = (2-OP / 1 (2-OP - 1 1)), class => language-macaulay2, It may be useful to disassemble code during debugging, as in the following demonstration., class => examples, i3 : load "Macaulay2Doc/demos/demo1.m2", class => language-macaulay2, i4 : code g
-
-o4 = /usr/share/Macaulay2/
- Macaulay2Doc/demos/demo1.m2:11:4-14:9: --source code:
- g = y -> (
- c := f(y-1);
- d := f(y-2);
- c+d), class => language-macaulay2, i5 : g 2
-/usr/share/Macaulay2/Macaulay2Doc/demos/demo1.m2:8:11:(3):[2]: error: division by zero
-/usr/share/Macaulay2/Macaulay2Doc/demos/demo1.m2:8:11:(3): entering debugger (enter 'help' to see commands)
-/usr/share/Macaulay2/Macaulay2Doc/
-demos/demo1.m2:8:10-8:13: --source code:
- b := 1/x;, class => language-macaulay2, ii6 : code current
-
-oo6 = /usr/share/Macaulay2/
- Macaulay2Doc/demos/demo1.m2:8:10-8:13: --source code:
- b := 1/x;, class => language-macaulay2, ii7 : disassemble current
-
-oo7 = (2-OP / 1 (local-fetch 0 0)), class => language-macaulay2, ii8 : current
-
-oo8 = 2-OP / 1
- local-fetch 0 0
-
-oo8 : PseudocodeClosure, class => language-macaulay2, See also, Macaulay2Doc :: pseudocode, class => waystouse, Ways to use , disassemble, :, disassemble(FunctionBody), disassemble(FunctionClosure), disassemble(Pseudocode), disassemble(PseudocodeClosure), class => waystouse, For the programmer, The object , Macaulay2Doc :: disassemble, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:1053:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `disassemble(PseudocodeClosure)`
-- `disassemble(FunctionBody)`
-- `disassemble(FunctionClosure)`
-- `disassemble(Pseudocode)`
+It may be useful to disassemble code during debugging as in the following demonstration.
 
 ## Examples
 
 ```macaulay2
-i1 : disassemble (() -> 1/(1-1))
-
-o1 = (function restargs: false numparms: 0 framesize: 0 frameID: 12878 (2-OP
-     / 1 (2-OP - 1 1)))
-
-i2 : disassemble functionBody (() -> 1/(1-1))
-
-o2 = (2-OP / 1 (2-OP - 1 1))
+disassemble c
 ```
 
-## See Also
+```macaulay2
+disassemble (() -> 1/(1-1))
 
+```
+
+```text
+(function restargs: false numparms: 0 framesize: 0 frameID: 12878 (2-OP
+     / 1 (2-OP - 1 1)))
+```
+
+```macaulay2
+disassemble functionBody (() -> 1/(1-1))
+
+```
+
+```text
+(2-OP / 1 (2-OP - 1 1))
+```
+
+## Additional Information
+
+- Inputs:
+- `c` a [ function](../Type/Function.mdx) or an instance of the type [Pseudocode](../Type/op_Coredollar_Pseudocode.mdx)
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) the disassembled form of `c`
+
+
+### See also
+
+
+- Macaulay2Doc:: pseudocode
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "disassemble",
+    "safe_name": "disassemble",
+    "type": "CompiledFunction",
+    "description": "It may be useful to disassemble code during debugging as in the following demonstration....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "disassemble",
+        "full_doc": "... (2588 bytes) ...",
+        "parsed_headline": "disassemble  -- disassemble a pseudocode or function"
+    }
+}
+```

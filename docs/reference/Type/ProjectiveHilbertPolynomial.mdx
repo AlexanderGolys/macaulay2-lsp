@@ -1,117 +1,145 @@
 ---
 title: "ProjectiveHilbertPolynomial"
 kind: Type
-parent: HashTable
 ---
 
 # ProjectiveHilbertPolynomial
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**ProjectiveHilbertPolynomial  -- the class of all Hilbert polynomials**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ For convenience these polynomials are expressed in terms of the Hilbert polynomials of projective space. The functions [degree](../Method/op_Coredollar_degree.mdx)  and [dim](../Method/op_Coredollar_dim.mdx)  are designed so they correspond the degree and dimension of the algebraic variety that may have been used to produce the Hilbert polynomial.
 
-## Parent Type
+## Additional Information
 
-[HashTable](../Type/HashTable.mdx)
+[ProjectiveHilbertPolynomial ZZ](../Instance/ProjectiveHilbertPolynomial ZZ.mdx)[degree(ProjectiveHilbertPolynomial)](../Instance/degree(ProjectiveHilbertPolynomial).mdx)[dim(ProjectiveHilbertPolynomial)](../Instance/dim(ProjectiveHilbertPolynomial).mdx)[euler(ProjectiveHilbertPolynomial)](../Instance/euler(ProjectiveHilbertPolynomial).mdx)[hilbertSeries(ProjectiveHilbertPolynomial)](../Instance/hilbertSeries(ProjectiveHilbertPolynomial).mdx)
 
-## Methods
+## Debug info
 
-Methods that can be used with this type:
-
-### `*`
-
-- `*(ZZ, ProjectiveHilbertPolynomial)`
-- `*(ProjectiveHilbertPolynomial, ZZ)`
-
-### `+`
-
-- `+(ProjectiveHilbertPolynomial, ProjectiveHilbertPolynomial)`
-- `+(ProjectiveHilbertPolynomial, ZZ)`
-- `+(ZZ, ProjectiveHilbertPolynomial)`
-
-### `-`
-
-- `-(ProjectiveHilbertPolynomial, ProjectiveHilbertPolynomial)`
-- `-(ProjectiveHilbertPolynomial)`
-- `-(ProjectiveHilbertPolynomial, ZZ)`
-- `-(ZZ, ProjectiveHilbertPolynomial)`
-
-### `==`
-
-- `==(ProjectiveHilbertPolynomial, ProjectiveHilbertPolynomial)`
-- `==(ProjectiveHilbertPolynomial, ZZ)`
-- `==(ZZ, ProjectiveHilbertPolynomial)`
-
-### `SPACE`
-
-- `SPACE(ProjectiveHilbertPolynomial, ZZ)`
-
-### `degree`
-
-- `degree(ProjectiveHilbertPolynomial)`
-
-### `diff`
-
-- `diff(ProjectiveHilbertPolynomial, ZZ)`
-- `diff(ProjectiveHilbertPolynomial)`
-
-### `dim`
-
-- `dim(ProjectiveHilbertPolynomial)`
-
-### `euler`
-
-- `euler(ProjectiveHilbertPolynomial)`
-
-### `expression`
-
-- `expression(ProjectiveHilbertPolynomial)`
-
-### `hilbertSeries`
-
-- `hilbertSeries(ProjectiveHilbertPolynomial)`
-
-### `mathML`
-
-- `mathML(ProjectiveHilbertPolynomial)`
-
-### `net`
-
-- `net(ProjectiveHilbertPolynomial)`
-
-### `texMath`
-
-- `texMath(ProjectiveHilbertPolynomial)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [degree](../Function/degree.mdx)
-- [diff](../Function/diff.mdx)
-- [dim](../Function/dim.mdx)
-- [euler](../Function/euler.mdx)
-- [expression](../Function/expression.mdx)
-- [hilbertSeries](../Function/hilbertSeries.mdx)
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-- [texMath](../Function/texMath.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [HashTable](../Type/HashTable.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "ProjectiveHilbertPolynomial",
+    "safe_name": "ProjectiveHilbertPolynomial",
+    "type": null,
+    "description": " For convenience these polynomials are expressed in terms of the Hilbert polynomials of projective s...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "ProjectiveHilbertPolynomial",
+        "parent": "HashTable",
+        "methods": [
+            [
+                "net",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "texMath",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "expression",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "==",
+                "ProjectiveHilbertPolynomial",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "+",
+                "ProjectiveHilbertPolynomial",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "-",
+                "ProjectiveHilbertPolynomial",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "-",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "*",
+                "ZZ",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "*",
+                "ProjectiveHilbertPolynomial",
+                "ZZ"
+            ],
+            [
+                "+",
+                "ProjectiveHilbertPolynomial",
+                "ZZ"
+            ],
+            [
+                "+",
+                "ZZ",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "-",
+                "ProjectiveHilbertPolynomial",
+                "ZZ"
+            ],
+            [
+                "-",
+                "ZZ",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "==",
+                "ProjectiveHilbertPolynomial",
+                "ZZ"
+            ],
+            [
+                "==",
+                "ZZ",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "SPACE",
+                "ProjectiveHilbertPolynomial",
+                "ZZ"
+            ],
+            [
+                "euler",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "dim",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "degree",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "diff",
+                "ProjectiveHilbertPolynomial",
+                "ZZ"
+            ],
+            [
+                "diff",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "hilbertSeries",
+                "ProjectiveHilbertPolynomial"
+            ],
+            [
+                "mathML",
+                "ProjectiveHilbertPolynomial"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (2286 bytes) ...",
+        "parsed_headline": "ProjectiveHilbertPolynomial  -- the class of all Hilbert polynomials"
+    }
+}
+```

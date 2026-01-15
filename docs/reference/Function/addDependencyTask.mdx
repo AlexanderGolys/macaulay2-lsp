@@ -5,35 +5,47 @@ kind: Function
 
 # addDependencyTask
 
-**Type:** `Function`
+**addDependencyTask  -- schedule a task but ensure that it will not run until another task finishes**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-addDependencyTask, -- schedule a task, but ensure that it will not run until another task finishes, class => element, Usage: , addDependencyTask(t,u), class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: Task, task, , , u, , , a , Macaulay2Doc :: Task, task, , , Consequences:, the task , t, will be scheduled for execution, but execution will not begin until the task , u, finishes, Description, class => examples, i1 : for i to 5 do t_i = createTask(() -> i), class => language-macaulay2, i2 : for i from 1 to 5 do addDependencyTask(t_i, t_(i - 1)), class => language-macaulay2, i3 : schedule t_0
-
-o3 = <<task, created>>
-
-o3 : Task, class => language-macaulay2, i4 : sleep 1
-
-o4 = 0, class => language-macaulay2, i5 : taskResult t_5
-
-o5 = 5, class => language-macaulay2, class => waystouse, Ways to use , addDependencyTask, :, Macaulay2Doc :: addDependencyTask(Task,Task), class => waystouse, For the programmer, The object , Macaulay2Doc :: addDependencyTask, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `addDependencyTask(Task, Task)`
+addDependencyTask  -- schedule a task but ensure that it will not run until another task finishes
 
 ## Examples
 
 ```macaulay2
-i1 : for i to 5 do t_i = createTask(() -> i)
-
-i2 : for i from 1 to 5 do addDependencyTask(t_i, t_(i - 1))
+addDependencyTask(tu)
 ```
 
-## See Also
+```macaulay2
+for i from 1 to 5 do addDependencyTask(t_i t_(i - 1))
+```
 
+## Additional Information
+
+- Inputs:
+- `t` a [ task](../Type/op_Coredollar_Task.mdx)
+- `u` a [ task](../Type/op_Coredollar_Task.mdx)
+- Consequences:
+- the task `t` will be scheduled for execution but execution will not begin until the task `u` finishes
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "addDependencyTask",
+    "safe_name": "addDependencyTask",
+    "type": "CompiledFunction",
+    "description": "addDependencyTask  -- schedule a task but ensure that it will not run until another task finishes...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "addDependencyTask",
+        "full_doc": "... (1471 bytes) ...",
+        "parsed_headline": "addDependencyTask  -- schedule a task but ensure that it will not run until another task finishes"
+    }
+}
+```

@@ -1,0 +1,73 @@
+---
+title: "clean"
+kind: Method
+---
+
+# clean
+
+**clean  -- set to zero elements that are approximately zero**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+If the input is a [ matrix](../Type/op_Coredollar_Matrix.mdx)  or a [ ring element](../Type/RingElement.mdx)  then the result has the same type where each real or complex number coefficient that is less than `epsilon`  in absolute value is replaced with zero. Cleaning a polynomial is a way to get rid of small terms.
+
+## Installed For
+
+### clean([RR](../Type/RR.mdx), [Matrix](../Type/Matrix.mdx)) -> [Matrix](../Type/Matrix.mdx)
+
+### clean([RR](../Type/RR.mdx), [MutableMatrix](../Type/MutableMatrix.mdx))
+
+### clean([RR](../Type/RR.mdx), [Number](../Type/Number.mdx))
+
+### clean([RR](../Type/RR.mdx), [RingElement](../Type/RingElement.mdx))
+
+## Examples
+
+```macaulay2
+clean(epsilonM)
+clean_epsilon M
+```
+
+## Additional Information
+
+- Inputs:
+- `epsilon` a [ real number](../Type/op_x226_x132_x157.mdx)
+- `M` a [ matrix](../Type/op_Coredollar_Matrix.mdx) or a a [ ring element](../Type/RingElement.mdx)
+- Outputs:
+- a [ matrix](../Type/op_Coredollar_Matrix.mdx) or a [ ring element](../Type/RingElement.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: norm
+- Macaulay2Doc:: RR
+- Macaulay2Doc:: CC
+- Macaulay2Doc:: fillMatrix
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "clean",
+    "safe_name": "clean",
+    "type": "MethodFunction",
+    "description": "If the input is a [ matrix](../Type/op_Coredollar_Matrix.mdx)  or a [ ring element](../Type/RingElem...",
+    "installations": [
+        "<Installation clean(RR, Number)>",
+        "<Installation clean(RR, RingElement)>",
+        "<Installation clean(RR, Matrix)>",
+        "<Installation clean(RR, MutableMatrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "clean",
+        "full_doc": "... (3258 bytes) ...",
+        "parsed_headline": "clean  -- set to zero elements that are approximately zero"
+    }
+}
+```

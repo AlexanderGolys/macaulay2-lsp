@@ -5,41 +5,89 @@ kind: Function
 
 # powermod
 
-**Type:** `Function`
+**powermod  -- powers of integers mod N**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-powermod, -- powers of integers mod N, class => element, Usage: , powermod(x,i,N), class => language-macaulay2, Inputs:, x, , , an , Macaulay2Doc :: ZZ, integer, i, , , an , Macaulay2Doc :: ZZ, integer, N, , , an , Macaulay2Doc :: ZZ, integer, Outputs:, an , Macaulay2Doc :: ZZ, integer, , , the , i, -th power of , x, modulo , N, Description, class => examples, i1 : powermod(2,3,10)
-
-o1 = 8, class => language-macaulay2, i2 : powermod(2,4,10)
-
-o2 = 6, class => language-macaulay2, i3 : powermod(2,30000,100000)
-
-o3 = 9376, class => language-macaulay2, i4 : powermod(2,30000,100000000000000000000)
-
-o4 = 35833790694215909376, class => language-macaulay2, i5 : powermod(2,3331333,3331333)
-
-o5 = 2, class => language-macaulay2, class => waystouse, Ways to use , powermod, :, powermod(ZZ,ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: powermod, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators.m2:38:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `powermod(ZZ, ZZ, ZZ)`
+powermod  -- powers of integers mod N
 
 ## Examples
 
 ```macaulay2
-i1 : powermod(2,3,10)
-
-o1 = 8
-
-i2 : powermod(2,4,10)
-
-o2 = 6
+powermod(xiN)
 ```
 
-## See Also
+```macaulay2
+powermod(2310)
 
+```
+
+```text
+8
+```
+
+```macaulay2
+powermod(2410)
+
+```
+
+```text
+6
+```
+
+```macaulay2
+powermod(230000100000)
+
+```
+
+```text
+9376
+```
+
+```macaulay2
+powermod(230000100000000000000000000)
+
+```
+
+```text
+35833790694215909376
+```
+
+```macaulay2
+powermod(233313333331333)
+
+```
+
+```text
+2
+```
+
+## Additional Information
+
+- Inputs:
+- `x` an [ integer](../Type/ZZ.mdx)
+- `i` an [ integer](../Type/ZZ.mdx)
+- `N` an [ integer](../Type/ZZ.mdx)
+- Outputs:
+- an [ integer](../Type/ZZ.mdx) the `i` -th power of `x` modulo `N`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "powermod",
+    "safe_name": "powermod",
+    "type": "CompiledFunction",
+    "description": "powermod  -- powers of integers mod N...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "powermod",
+        "full_doc": "... (1402 bytes) ...",
+        "parsed_headline": "powermod  -- powers of integers mod N"
+    }
+}
+```

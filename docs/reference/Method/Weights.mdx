@@ -1,0 +1,55 @@
+---
+title: "Weights"
+kind: Method
+---
+
+# Weights
+
+**Weights  -- assigning weights to the variables**
+
+**Type:** [Symbol](../Type/Symbol.mdx)
+
+## Description
+
+ Given a list L of n integers the weight order on a polynomial ring in n variables is defined by: x^A > x^B if A_1 L_1 + ... + A_n L_n > B_1 L_1 + ... + B_n L_n. The leading component of a polynomial under a weight order need not be a monomial.  When two monomials have the same weight by default they are further distinguished with the GRevLex order. However we can retrieve the entire leading component with the command `leadTerm(1f)` . The plain `leadTerm f`  is in this case the same as `leadTerm(2f)` : they both use the full specification of the monomial ordering first by weight and then by the `GRevLex`  order.  In contrast `leadTerm(1f)` only distinguishes monomials by the first i.e. weight specification. The weight order may be combined with further ordering elements to break ties. In the following example we use a second weight vector to break ties under first weight vector.`leadTerm(3 ideal(f))`  uses both the specified weights and the `GRevLex`  order to calculate the leading component. When the number of weights is smaller than the number of variables the remaining variables are given weight 0. In the following example `c`  and `d`  have weight 0.
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: leadTerm
+
+
+### Functions with optional argument named `Weights`:
+
+
+- betti(... -- see Macaulay2Doc:: betti(BettiTally)
+- minimalBetti(... -- see Macaulay2Doc:: minimalBetti
+- Macaulay2Doc:: monoid(...
+- newRing(... -- see Macaulay2Doc:: newRing
+- regularity(... -- see Macaulay2Doc:: regularity
+- symmetricAlgebra(... -- see Macaulay2Doc:: symmetricAlgebra
+- tensor(MonoidMonoid -- see Macaulay2Doc:: tensor(MonoidMonoid)
+- tensor(RingRing -- see Macaulay2Doc:: tensor(MonoidMonoid)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "Weights",
+    "safe_name": "op_Coredollar_Weights",
+    "type": "Symbol",
+    "description": " Given a list L of n integers the weight order on a polynomial ring in n variables is defined by: x^...",
+    "installations": [],
+    "options": null,
+    "extra": {
+        "isSymbol": true,
+        "codeName": "Core$Weights",
+        "full_doc": "... (4028 bytes) ...",
+        "stub": true,
+        "parsed_headline": "Weights  -- assigning weights to the variables"
+    }
+}
+```

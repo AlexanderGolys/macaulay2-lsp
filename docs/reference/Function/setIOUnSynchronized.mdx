@@ -5,17 +5,52 @@ kind: Function
 
 # setIOUnSynchronized
 
-**Type:** `Function`
+**setIOUnSynchronized  -- unsynchronized I/O for threads**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-setIOUnSynchronized, -- unsynchronized I/O for threads, class => element, Usage: , setIOUnSynchronized(), class => language-macaulay2, setIOUnSynchronized f, class => language-macaulay2, getIOThreadMode, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: File, file, , , Consequences:, threads are permitted to use the file , f, , or if no file is given, , Macaulay2Doc :: stdio, and , Macaulay2Doc :: stderr, , in an unregulated manner, empty documentation body, See also, Macaulay2Doc :: parallel programming with threads and tasks, Macaulay2Doc :: setIOSynchronized, Macaulay2Doc :: setIOExclusive, class => waystouse, For the programmer, The object , Macaulay2Doc :: setIOUnSynchronized, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
+setIOUnSynchronized  -- unsynchronized I/O for threads
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+setIOUnSynchronized()
+setIOUnSynchronized f
+getIOThreadMode
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `f` a [ file](../Type/op_Coredollar_File.mdx)
+- Consequences:
+- threads are permitted to use the file f or if no file is given[stdio](../Instance/op_Coredollar_stdio.mdx) and [stderr](../Instance/stderr.mdx) in an unregulated manner
+
+empty documentation body
+### See also
+
+
+- Macaulay2Doc:: parallel programming with threads and tasks
+- Macaulay2Doc:: setIOSynchronized
+- Macaulay2Doc:: setIOExclusive
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "setIOUnSynchronized",
+    "safe_name": "setIOUnSynchronized",
+    "type": "CompiledFunction",
+    "description": "setIOUnSynchronized  -- unsynchronized I/O for threads...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "setIOUnSynchronized",
+        "full_doc": "... (1128 bytes) ...",
+        "parsed_headline": "setIOUnSynchronized  -- unsynchronized I/O for threads"
+    }
+}
+```

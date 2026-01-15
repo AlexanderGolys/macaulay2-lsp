@@ -1,78 +1,82 @@
 ---
 title: "Database"
 kind: Type
-parent: Thing
 ---
 
 # Database
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Database  -- the class of all database files**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ A database file is just like a hash table except both the keys and values have to be strings.  In this example we create a database file store a few entries remove an entry with [remove](../Function/remove.mdx)  close the file and then remove the file.
 
-## Parent Type
+## Additional Information
 
-[Thing](../Type/Thing.mdx)
+### See also
 
-## Methods
 
-Methods that can be used with this type:
+- Macaulay2Doc:: HashTable
+- Macaulay2Doc:: String
+- Macaulay2Doc:: removeFile
 
-### `#`
+## Debug info
 
-- `#(Database, String)`
-
-### `#?`
-
-- `#?(Database, String)`
-
-### `SPACE`
-
-- `SPACE(Manipulator, Database)`
-
-### `isOpen`
-
-- `isOpen(Database)`
-
-### `keys`
-
-- `keys(Database)`
-
-### `net`
-
-- `net(Database)`
-
-### `remove`
-
-- `remove(Database, String)`
-
-### `scanKeys`
-
-- `scanKeys(Database, Function)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [#](../Operator/op_hash.mdx)
-- [#?](../Operator/op_hash_question.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [isOpen](../Function/isOpen.mdx)
-- [keys](../Function/keys.mdx)
-- [net](../Function/net.mdx)
-- [remove](../Function/remove.mdx)
-- [scanKeys](../Function/scanKeys.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Thing](../Type/Thing.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Database",
+    "safe_name": "Database",
+    "type": null,
+    "description": " A database file is just like a hash table except both the keys and values have to be strings.  In t...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Database",
+        "parent": "Thing",
+        "methods": [
+            [
+                "scanKeys",
+                "Database",
+                "Function"
+            ],
+            [
+                "SPACE",
+                "Manipulator",
+                "Database"
+            ],
+            [
+                "keys",
+                "Database"
+            ],
+            [
+                "#?",
+                "Database",
+                "String"
+            ],
+            [
+                "#",
+                "Database",
+                "String"
+            ],
+            [
+                "isOpen",
+                "Database"
+            ],
+            [
+                "remove",
+                "Database",
+                "String"
+            ],
+            [
+                "net",
+                "Database"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (2573 bytes) ...",
+        "parsed_headline": "Database  -- the class of all database files"
+    }
+}
+```

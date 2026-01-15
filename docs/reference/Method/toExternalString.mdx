@@ -1,0 +1,178 @@
+---
+title: "toExternalString"
+kind: Method
+---
+
+# toExternalString
+
+**toExternalString  -- convert to a readable string**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+ See also [toString](../Method/toString.mdx)  which simply converts `x`  to a string that can be displayed meaningfully. Matrices and ring elements are linearized
+
+## Installed For
+
+### toExternalString([Array](../Type/Array.mdx))
+
+### toExternalString([BasicList](../Type/BasicList.mdx))
+
+### toExternalString([Boolean](../Type/Boolean.mdx))
+
+### toExternalString([CC](../Type/CC.mdx))
+
+### toExternalString([Command](../Type/Command.mdx))
+
+### toExternalString([Constant](../Type/Constant.mdx))
+
+### toExternalString([DocumentTag](../Type/DocumentTag.mdx))
+
+### toExternalString([FilePosition](../Type/FilePosition.mdx))
+
+### toExternalString([Function](../Type/Function.mdx))
+
+### toExternalString([HashTable](../Type/HashTable.mdx))
+
+### toExternalString([Ideal](../Type/Ideal.mdx))
+
+### toExternalString([IndeterminateNumber](../Type/IndeterminateNumber.mdx))
+
+### toExternalString([InfiniteNumber](../Type/InfiniteNumber.mdx))
+
+### toExternalString([Keyword](../Type/Keyword.mdx))
+
+### toExternalString([Manipulator](../Type/Manipulator.mdx))
+
+### toExternalString([Matrix](../Type/Matrix.mdx))
+
+### toExternalString([Module](../Type/Module.mdx))
+
+### toExternalString([Monoid](../Type/Monoid.mdx))
+
+### toExternalString([MonoidElement](../Type/MonoidElement.mdx))
+
+### toExternalString([MonomialIdeal](../Type/MonomialIdeal.mdx))
+
+### toExternalString([MutableHashTable](../Type/MutableHashTable.mdx))
+
+### toExternalString([MutableList](../Type/MutableList.mdx))
+
+### toExternalString([MutableMatrix](../Type/MutableMatrix.mdx))
+
+### toExternalString([Net](../Type/Net.mdx))
+
+### toExternalString([Nothing](../Type/Nothing.mdx))
+
+### toExternalString([Number](../Type/Number.mdx))
+
+### toExternalString([Option](../Type/Option.mdx))
+
+### toExternalString([RR](../Type/RR.mdx))
+
+### toExternalString([RRi](../Type/RRi.mdx))
+
+### toExternalString([Ring](../Type/Ring.mdx))
+
+
+*... and 7 more*
+
+## Examples
+
+```macaulay2
+toExternalString x
+```
+
+```macaulay2
+toExternalString R
+
+```
+
+```text
+QQ[x_1..x_5
+```
+
+```macaulay2
+toExternalString oo
+
+```
+
+```text
+x_1^3-(3/4)*x_3*x_5
+```
+
+## Additional Information
+
+- Inputs:
+- `x` any Macaulay2 object
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) a string representation of `x` which can be used in conjunction with [value](../Method/value.mdx) to read the object back into the program later
+
+
+### Caveat
+
+ Not everything can be converted to a string in such a way that it can be read back into the program later.
+### See also
+
+
+- Macaulay2Doc:: toString
+- Macaulay2Doc:: value
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "toExternalString",
+    "safe_name": "op_Coredollar_toExternalString",
+    "type": "MethodFunctionSingle",
+    "description": " See also [toString](../Method/toString.mdx)  which simply converts `x`  to a string that can be dis...",
+    "installations": [
+        "<Installation toExternalString(MonoidElement)>",
+        "<Installation toExternalString(RingMap)>",
+        "<Installation toExternalString(Vector)>",
+        "<Installation toExternalString(Ring)>",
+        "<Installation toExternalString(Monoid)>",
+        "<Installation toExternalString(FilePosition)>",
+        "<Installation toExternalString(DocumentTag)>",
+        "<Installation toExternalString(RingElement)>",
+        "<Installation toExternalString(RRi)>",
+        "<Installation toExternalString(Matrix)>",
+        "<Installation toExternalString(Ideal)>",
+        "<Installation toExternalString(InfiniteNumber)>",
+        "<Installation toExternalString(IndeterminateNumber)>",
+        "<Installation toExternalString(Keyword)>",
+        "<Installation toExternalString(Symbol)>",
+        "<Installation toExternalString(Thing)>",
+        "<Installation toExternalString(Option)>",
+        "<Installation toExternalString(Module)>",
+        "<Installation toExternalString(MonomialIdeal)>",
+        "<Installation toExternalString(Command)>",
+        "<Installation toExternalString(Function)>",
+        "<Installation toExternalString(Manipulator)>",
+        "<Installation toExternalString(Net)>",
+        "<Installation toExternalString(MutableMatrix)>",
+        "<Installation toExternalString(MutableHashTable)>",
+        "<Installation toExternalString(MutableList)>",
+        "<Installation toExternalString(HashTable)>",
+        "<Installation toExternalString(BasicList)>",
+        "<Installation toExternalString(Array)>",
+        "<Installation toExternalString(Sequence)>",
+        "<Installation toExternalString(Constant)>",
+        "<Installation toExternalString(String)>",
+        "<Installation toExternalString(Boolean)>",
+        "<Installation toExternalString(Nothing)>",
+        "<Installation toExternalString(Number)>",
+        "<Installation toExternalString(RR)>",
+        "<Installation toExternalString(CC)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$toExternalString",
+        "full_doc": "... (2146 bytes) ...",
+        "parsed_headline": "toExternalString  -- convert to a readable string"
+    }
+}
+```

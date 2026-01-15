@@ -5,23 +5,46 @@ kind: Function
 
 # taskResult
 
-**Type:** `Function`
+**taskResult  -- retrieve the value returned by a task**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-taskResult, -- retrieve the value returned by a task, class => element, Usage: , taskResult t, class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: Task, task, , , Outputs:, the value returned by the function provided to , Macaulay2Doc :: schedule(Function), when the task was started. , Macaulay2Doc :: taskResult(Task), will first wait for the task to finish if necessary. If the task is cancelled, an error will be signaled., Consequences:, The field in , t, where the return value is stored is set to , Macaulay2Doc :: null, , and the task is considered to have completely terminated. Attempting to fetch the return value a second time will signal an error., empty documentation body, class => waystouse, Ways to use , taskResult, :, Macaulay2Doc :: taskResult(Task), class => waystouse, For the programmer, The object , Macaulay2Doc :: taskResult, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `taskResult(Task)`
+taskResult  -- retrieve the value returned by a task
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+taskResult t
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `t` a [ task](../Type/op_Coredollar_Task.mdx)
+- Outputs:
+- the value returned by the function provided to [schedule(Function)](../Instance/schedule(Function).mdx) when the task was started. [taskResult(Task)](../Instance/taskResult(Task).mdx) will first wait for the task to finish if necessary. If the task is cancelled an error will be signaled.
+- Consequences:
+- The field in `t` where the return value is stored is set to [null](../Instance/null.mdx) and the task is considered to have completely terminated. Attempting to fetch the return value a second time will signal an error.
+
+empty documentation body
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "taskResult",
+    "safe_name": "op_Coredollar_taskResult",
+    "type": "CompiledFunction",
+    "description": "taskResult  -- retrieve the value returned by a task...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$taskResult",
+        "full_doc": "... (1283 bytes) ...",
+        "parsed_headline": "taskResult  -- retrieve the value returned by a task"
+    }
+}
+```

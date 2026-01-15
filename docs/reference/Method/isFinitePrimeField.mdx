@@ -1,0 +1,74 @@
+---
+title: "isFinitePrimeField"
+kind: Method
+---
+
+# isFinitePrimeField
+
+**isFinitePrimeField  -- whether a ring is a finite prime field**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isFinitePrimeField  -- whether a ring is a finite prime field
+
+## Installed For
+
+### isFinitePrimeField([GaloisField](../Type/GaloisField.mdx))
+
+### isFinitePrimeField([Ring](../Type/Ring.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+## Examples
+
+```macaulay2
+isFinitePrimeField R
+```
+
+```macaulay2
+isFinitePrimeField QQ
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isFinitePrimeField (ZZ/101)
+
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `R` a [ ring](../Type/Ring.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether R is a finite prime field
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isFinitePrimeField",
+    "safe_name": "op_Coredollar_isFinitePrimeField",
+    "type": "MethodFunction",
+    "description": "isFinitePrimeField  -- whether a ring is a finite prime field...",
+    "installations": [
+        "<Installation isFinitePrimeField(GaloisField)>",
+        "<Installation isFinitePrimeField(Ring)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isFinitePrimeField",
+        "full_doc": "... (1097 bytes) ...",
+        "parsed_headline": "isFinitePrimeField  -- whether a ring is a finite prime field"
+    }
+}
+```

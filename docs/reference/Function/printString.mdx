@@ -5,27 +5,42 @@ kind: Function
 
 # printString
 
-**Type:** `Function`
+**printString  -- lowlevel function to print a string net or symbol**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-printString, -- lowlevel function to print a string, net, or symbol, Description, printString(o,s), -- send the string , s, to the output file , o, ., , This function is intended for internal use only., , The argument , s, may also be a sequence or list, in which case its elements are printed. If an integer is encountered, then it specifies a number of spaces to be printed. If a symbol or indeterminate is encountered, its name is printed. If , Macaulay2Doc :: null, is encountered, nothing is printed., , class => examples, i1 : printString(stdio, (a,10,"b",20,c))
-a b c
-o1 = stdio
-
-o1 : File, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: printString, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1067:0, .
+`printString(os)`  -- send the string `s`  to the output file `o` . This function is intended for internal use only. The argument `s`  may also be a sequence or list in which case its elements are printed.  If an integer is encountered then it specifies a number of spaces to be printed.  If a symbol or indeterminate is encountered its name is printed.  If [null](../Instance/null.mdx)  is encountered nothing is printed.
 
 ## Examples
 
 ```macaulay2
-i1 : printString(stdio, (a,10,"b",20,c))
+printString(stdio (a10"b"20c))
 a          b                    c
-o1 = stdio
-
-o1 : File
 ```
 
-## See Also
+```text
+stdio
 
+File
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "printString",
+    "safe_name": "printString",
+    "type": "CompiledFunction",
+    "description": "`printString(os)`  -- send the string `s`  to the output file `o` . This function is intended for in...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "printString",
+        "full_doc": "... (1055 bytes) ...",
+        "parsed_headline": "printString  -- lowlevel function to print a string net or symbol"
+    }
+}
+```

@@ -1,133 +1,185 @@
 ---
 title: "RingFamily"
 kind: Type
-parent: Type
 ---
 
 # RingFamily
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**RingFamily**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ This family is used to contain classes that correspond to a family of similar rings with a default member.
 
-## Parent Type
+## Additional Information
 
-[Type](../Type/Type.mdx)
+[InexactFieldFamily](../Type/InexactFieldFamily.mdx)[default](../Method/op_Coredollar_default.mdx)
 
-## Subtypes
+## Debug info
 
-Direct subtypes of this type:
-
-- [InexactFieldFamily](../Type/InexactFieldFamily.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `CC`
-- `RR`
-- `RRi`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `(_*,=)`
-
-- `(_*,=)(RingFamily)`
-
-### `^`
-
-- `^(RingFamily, ZZ)`
-- `^(RingFamily, List)`
-- `^(Constant, RingFamily)`
-- `^(Number, RingFamily)`
-
-### `_`
-
-- `_(Number, RingFamily)`
-- `_(Constant, RingFamily)`
-
-### `_*`
-
-- `_*(RingFamily)`
-
-### `diagonalMatrix`
-
-- `diagonalMatrix(RingFamily, ZZ, ZZ, List)`
-- `diagonalMatrix(RingFamily, List)`
-
-### `html`
-
-- `html(RingFamily)`
-
-### `map`
-
-- `map(RingFamily, Thing, Thing)`
-- `map(Thing, RingFamily, Thing)`
-
-### `matrix`
-
-- `matrix(RingFamily, List)`
-
-### `mutableIdentity`
-
-- `mutableIdentity(RingFamily, ZZ)`
-
-### `mutableMatrix`
-
-- `mutableMatrix(RingFamily, List)`
-- `mutableMatrix(RingFamily, ZZ, ZZ)`
-
-### `random`
-
-- `random(RingFamily)`
-
-### `substitute`
-
-- `substitute(Matrix, RingFamily)`
-- `substitute(Module, RingFamily)`
-- `substitute(Ideal, RingFamily)`
-- `substitute(Vector, RingFamily)`
-- `substitute(Number, RingFamily)`
-- *... and 1 more signatures*
-
-### `vector`
-
-- `vector(RingFamily, Matrix)`
-- `vector(RingFamily, List)`
-- `vector(RingFamily, RingElement)`
-- `vector(RingFamily, Number)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [(_*,=)](../Type/(_*,=).mdx)
-- [=](../Operator/op_eq.mdx)
-- [^](../Operator/op_caret.mdx)
-- [_](../Operator/_.mdx)
-- [_*](../Operator/op_underscore_star.mdx)
-- [diagonalMatrix](../Function/diagonalMatrix.mdx)
-- [html](../Function/html.mdx)
-- [map](../Function/map.mdx)
-- [matrix](../Function/matrix.mdx)
-- [mutableIdentity](../Function/mutableIdentity.mdx)
-- [mutableMatrix](../Function/mutableMatrix.mdx)
-- [random](../Function/random.mdx)
-- [substitute](../Function/substitute.mdx)
-- [vector](../Function/vector.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Type](../Type/Type.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "RingFamily",
+    "safe_name": "op_Coredollar_RingFamily",
+    "type": null,
+    "description": " This family is used to contain classes that correspond to a family of similar rings with a default ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$RingFamily",
+        "parent": "Type",
+        "methods": [
+            [
+                "html",
+                "RingFamily"
+            ],
+            [
+                "matrix",
+                "RingFamily",
+                "List"
+            ],
+            [
+                "diagonalMatrix",
+                "RingFamily",
+                "ZZ",
+                "ZZ",
+                "List"
+            ],
+            [
+                "diagonalMatrix",
+                "RingFamily",
+                "List"
+            ],
+            [
+                "vector",
+                "RingFamily",
+                "Matrix"
+            ],
+            [
+                "vector",
+                "RingFamily",
+                "List"
+            ],
+            [
+                "vector",
+                "RingFamily",
+                "RingElement"
+            ],
+            [
+                "vector",
+                "RingFamily",
+                "Number"
+            ],
+            [
+                "^",
+                "RingFamily",
+                "List"
+            ],
+            [
+                "^",
+                "RingFamily",
+                "ZZ"
+            ],
+            [
+                "mutableMatrix",
+                "RingFamily",
+                "List"
+            ],
+            [
+                "mutableMatrix",
+                "RingFamily",
+                "ZZ",
+                "ZZ"
+            ],
+            [
+                "mutableIdentity",
+                "RingFamily",
+                "ZZ"
+            ],
+            [
+                "_*",
+                "RingFamily"
+            ],
+            [
+                "(_*,=)",
+                "RingFamily"
+            ],
+            [
+                "random",
+                "RingFamily"
+            ],
+            [
+                "_",
+                "Constant",
+                "RingFamily"
+            ],
+            [
+                "_",
+                "Number",
+                "RingFamily"
+            ],
+            [
+                "^",
+                "Constant",
+                "RingFamily"
+            ],
+            [
+                "^",
+                "Number",
+                "RingFamily"
+            ],
+            [
+                "map",
+                "RingFamily",
+                "Thing",
+                "Thing"
+            ],
+            [
+                "map",
+                "Thing",
+                "RingFamily",
+                "Thing"
+            ],
+            [
+                "substitute",
+                "Matrix",
+                "RingFamily"
+            ],
+            [
+                "substitute",
+                "Module",
+                "RingFamily"
+            ],
+            [
+                "substitute",
+                "Ideal",
+                "RingFamily"
+            ],
+            [
+                "substitute",
+                "Vector",
+                "RingFamily"
+            ],
+            [
+                "substitute",
+                "RingElement",
+                "RingFamily"
+            ],
+            [
+                "substitute",
+                "Number",
+                "RingFamily"
+            ]
+        ],
+        "instances": [
+            "CC",
+            "RR",
+            "RRi"
+        ],
+        "full_doc": "... (2606 bytes) ...",
+        "parsed_headline": "RingFamily"
+    }
+}
+```

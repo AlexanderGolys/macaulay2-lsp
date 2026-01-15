@@ -1,0 +1,132 @@
+---
+title: "numeric"
+kind: Method
+---
+
+# numeric
+
+**numeric  -- convert to floating point**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+numeric  -- convert to floating point
+
+## Installed For
+
+### numeric([CC](../Type/CC.mdx))
+
+### numeric([Constant](../Type/Constant.mdx))
+
+### numeric([IndeterminateNumber](../Type/IndeterminateNumber.mdx))
+
+### numeric([InfiniteNumber](../Type/InfiniteNumber.mdx))
+
+### numeric([InfiniteNumber](../Type/InfiniteNumber.mdx), [Constant](../Type/Constant.mdx))
+
+### numeric([Matrix](../Type/Matrix.mdx))
+
+### numeric([Number](../Type/Number.mdx))
+
+### numeric([RR](../Type/RR.mdx))
+
+### numeric([RRi](../Type/RRi.mdx))
+
+### numeric([Vector](../Type/Vector.mdx))
+
+### numeric([VisibleList](../Type/VisibleList.mdx))
+
+### numeric([ZZ](../Type/ZZ.mdx), [CC](../Type/CC.mdx))
+
+### numeric([ZZ](../Type/ZZ.mdx), [Constant](../Type/Constant.mdx))
+
+### numeric([ZZ](../Type/ZZ.mdx), [IndeterminateNumber](../Type/IndeterminateNumber.mdx))
+
+### numeric([ZZ](../Type/ZZ.mdx), [InfiniteNumber](../Type/InfiniteNumber.mdx))
+
+### numeric([ZZ](../Type/ZZ.mdx), [Matrix](../Type/Matrix.mdx))
+
+### numeric([ZZ](../Type/ZZ.mdx), [Number](../Type/Number.mdx))
+
+### numeric([ZZ](../Type/ZZ.mdx), [RRi](../Type/RRi.mdx))
+
+### numeric([ZZ](../Type/ZZ.mdx), [Vector](../Type/Vector.mdx))
+
+### numeric([ZZ](../Type/ZZ.mdx), [VisibleList](../Type/VisibleList.mdx))
+
+## Examples
+
+```macaulay2
+numeric x
+numeric(precx)
+numeric_prec x
+```
+
+```macaulay2
+numeric oo
+
+```
+
+```text
+{1, .666667, 3.14159}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `x`
+- `prec` an [ integer](../Type/ZZ.mdx) the number of bits of precision to use in the computation
+- Outputs:
+- the expression obtained from `x` by converting the integers rational numbers and symbolic constants within it to double floating point numbers.
+
+
+### See also
+
+
+- Macaulay2Doc:: RR
+- Macaulay2Doc:: CC
+- Macaulay2Doc:: Constant
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "numeric",
+    "safe_name": "op_Coredollar_numeric",
+    "type": "MethodFunction",
+    "description": "numeric  -- convert to floating point...",
+    "installations": [
+        "<Installation numeric(ZZ, Matrix)>",
+        "<Installation numeric(Matrix)>",
+        "<Installation numeric(ZZ, IndeterminateNumber)>",
+        "<Installation numeric(IndeterminateNumber)>",
+        "<Installation numeric(Vector)>",
+        "<Installation numeric(ZZ, Vector)>",
+        "<Installation numeric(VisibleList)>",
+        "<Installation numeric(ZZ, VisibleList)>",
+        "<Installation numeric(Number)>",
+        "<Installation numeric(ZZ, RRi)>",
+        "<Installation numeric(InfiniteNumber)>",
+        "<Installation numeric(ZZ, InfiniteNumber)>",
+        "<Installation numeric(Constant)>",
+        "<Installation numeric(ZZ, Constant)>",
+        "<Installation numeric(InfiniteNumber, Constant)>",
+        "<Installation numeric(ZZ, CC)>",
+        "<Installation numeric(RR)>",
+        "<Installation numeric(RRi)>",
+        "<Installation numeric(ZZ, Number)>",
+        "<Installation numeric(CC)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$numeric",
+        "full_doc": "... (2269 bytes) ...",
+        "parsed_headline": "numeric  -- convert to floating point"
+    }
+}
+```

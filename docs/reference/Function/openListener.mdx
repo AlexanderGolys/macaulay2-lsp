@@ -5,23 +5,49 @@ kind: Function
 
 # openListener
 
-**Type:** `Function`
+**openListener  -- open a port for listening**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-openListener, -- open a port for listening, class => element, Usage: , f = openListener s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, , , of the form , "$interface:port", . Both parts are optional. If the port is omitted, the colon is optional., Outputs:, f, , , a , Macaulay2Doc :: File, file, , , an open listener on the specified interface of the local host at the specified service port. If the port is omitted, it is taken to be port 2500. If the interface is omitted, the listener accepts connections on all interfaces., Description, Use , openInOut f, to accept an incoming connection on the listener, returning a new input output file that serves as the connection. The function , Macaulay2Doc :: isReady, can be used to determine whether an incoming connection has arrived, without blocking., See also, Macaulay2Doc :: openInOut, Macaulay2Doc :: isReady, class => waystouse, Ways to use , openListener, :, Macaulay2Doc :: openListener(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: openListener, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:422:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `openListener(String)`
+Use `openInOut f`  to accept an incoming connection on the listener returning a new input output file that serves as the connection.  The function [isReady](../Function/op_Coredollar_isReady.mdx)  can be used to determine whether an incoming connection has arrived without blocking.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+f = openListener s
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `s` a [ string](../Type/op_Coredollar_String.mdx) of the form `"$interface:port"`. Both parts are optional. If the port is omitted the colon is optional.
+- Outputs:
+- `f` a [ file](../Type/op_Coredollar_File.mdx) an open listener on the specified interface of the local host at the specified service port. If the port is omitted it is taken to be port 2500. If the interface is omitted the listener accepts connections on all interfaces.
+
+
+### See also
+
+
+- Macaulay2Doc:: openInOut
+- Macaulay2Doc:: isReady
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "openListener",
+    "safe_name": "op_Coredollar_openListener",
+    "type": "CompiledFunction",
+    "description": "Use `openInOut f`  to accept an incoming connection on the listener returning a new input output fil...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$openListener",
+        "full_doc": "... (1503 bytes) ...",
+        "parsed_headline": "openListener  -- open a port for listening"
+    }
+}
+```

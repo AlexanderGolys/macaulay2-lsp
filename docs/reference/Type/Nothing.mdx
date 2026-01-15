@@ -1,202 +1,450 @@
 ---
 title: "Nothing"
 kind: Type
-parent: Thing
 ---
 
 # Nothing
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Nothing  -- the empty class**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ This class is useful for representing the class of an argument that is missing.  It is also used as the parent for those things that are not themselves types i.e. which do not have instances.
 
-## Parent Type
+## Additional Information
 
-[Thing](../Type/Thing.mdx)
+[null](../Instance/null.mdx)
 
-## Subtypes
+## Debug info
 
-Direct subtypes of this type:
-
-- [InexactNumber'](../Type/op_InexactNumberx39.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `null`
-- `lastMatch`
-- `opts`
-- `current`
-- `currentString`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `<<`
-
-- `<<(Nothing, Thing)`
-
-### `==`
-
-- `==(Nothing, Nothing)`
-
-### `getWWW`
-
-- `getWWW(String, Nothing)`
-
-### `html`
-
-- `html(Nothing)`
-
-### `hypertext`
-
-- `hypertext(Nothing)`
-
-### `inducedMap`
-
-- `inducedMap(Module, Nothing, Matrix)`
-- `inducedMap(Nothing, Module, Matrix)`
-- `inducedMap(Nothing, Nothing, Matrix)`
-
-### `inducesWellDefinedMap`
-
-- `inducesWellDefinedMap(Module, Nothing, Matrix)`
-- `inducesWellDefinedMap(Nothing, Module, Matrix)`
-- `inducesWellDefinedMap(Nothing, Nothing, Matrix)`
-
-### `map`
-
-- `map(Module, Nothing, RawMatrix)`
-- `map(Module, Nothing, Matrix)`
-- `map(Module, Nothing, List)`
-
-### `mathML`
-
-- `mathML(Nothing)`
-
-### `modulo`
-
-- `modulo(Matrix, Nothing)`
-- `modulo(Nothing, Matrix)`
-
-### `net`
-
-- `net(Nothing)`
-
-### `part`
-
-- `part(ZZ, Nothing, VisibleList, RingElement)`
-- `part(Nothing, ZZ, VisibleList, RingElement)`
-- `part(Nothing, Nothing, VisibleList, RingElement)`
-- `part(ZZ, Nothing, RingElement)`
-- `part(Nothing, ZZ, RingElement)`
-- *... and 1 more signatures*
-
-### `sublists`
-
-- `sublists(VisibleList, Function, Nothing)`
-- `sublists(VisibleList, Function, Function, Nothing)`
-- `sublists(VisibleList, Function, Nothing, Function)`
-- `sublists(VisibleList, Function, Nothing, Nothing)`
-
-### `submatrix`
-
-- `submatrix(Matrix, VisibleList, Nothing)`
-- `submatrix(Matrix, Nothing, VisibleList)`
-- `submatrix(Matrix, Nothing, Nothing)`
-- `submatrix(MutableMatrix, Nothing, VisibleList)`
-- `submatrix(MutableMatrix, VisibleList, Nothing)`
-- *... and 1 more signatures*
-
-### `submatrix'`
-
-- `submatrix'(Matrix, VisibleList, Nothing)`
-- `submatrix'(Matrix, Nothing, VisibleList)`
-- `submatrix'(Matrix, Nothing, Nothing)`
-
-### `subquotient`
-
-- `subquotient(Nothing, Matrix)`
-- `subquotient(Matrix, Nothing)`
-- `subquotient(Module, Nothing, Matrix)`
-- `subquotient(Module, Matrix, Nothing)`
-- `subquotient(Module, Nothing, Nothing)`
-
-### `symmetricAlgebra`
-
-- `symmetricAlgebra(Nothing, Nothing, Matrix)`
-- `symmetricAlgebra(Nothing, Ring, Matrix)`
-- `symmetricAlgebra(Ring, Nothing, Matrix)`
-
-### `tex`
-
-- `tex(Nothing)`
-
-### `texMath`
-
-- `texMath(Nothing)`
-
-### `truncate`
-
-- `truncate(Nothing, List, Matrix)`
-- `truncate(Nothing, ZZ, Matrix)`
-
-### `value`
-
-- `value(Nothing)`
-
-
-*Showing 50 of 73 methods*
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [#?](../Operator/op_hash_question.mdx)
-- [<<](../Operator/op_lt_lt.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [NewOfFromMethod](../Option/NewOfFromMethod.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [code](../Function/code.mdx)
-- [concatenate](../Function/concatenate.mdx)
-- [getWWW](../Function/getWWW.mdx)
-- [horizontalJoin](../Function/horizontalJoin.mdx)
-- [html](../Function/html.mdx)
-- [hypertext](../Function/hypertext.mdx)
-- [inducedMap](../Function/inducedMap.mdx)
-- [inducesWellDefinedMap](../Function/inducesWellDefinedMap.mdx)
-- [info](../Function/info.mdx)
-- [locate](../Function/locate.mdx)
-- [map](../Function/map.mdx)
-- [mathML](../Function/mathML.mdx)
-- [modulo](../Function/modulo.mdx)
-- [net](../Function/net.mdx)
-- [package](../Function/package.mdx)
-- [part](../Function/part.mdx)
-- [peek'](../Function/op_peekx39.mdx)
-- [promote](../Function/promote.mdx)
-- [stack](../Function/stack.mdx)
-- [sublists](../Function/sublists.mdx)
-- [submatrix](../Function/submatrix.mdx)
-- [submatrix'](../Function/op_submatrixx39.mdx)
-- [subquotient](../Function/subquotient.mdx)
-- [symmetricAlgebra](../Function/symmetricAlgebra.mdx)
-- [tex](../Function/tex.mdx)
-
-*... and 5 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Thing](../Type/Thing.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Nothing",
+    "safe_name": "Nothing",
+    "type": null,
+    "description": " This class is useful for representing the class of an argument that is missing.  It is also used as...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Nothing",
+        "parent": "Thing",
+        "methods": [
+            [
+                "texMath",
+                "Nothing"
+            ],
+            [
+                "html",
+                "Nothing"
+            ],
+            [
+                "tex",
+                "Nothing"
+            ],
+            [
+                "part",
+                "ZZ",
+                "Nothing",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "Nothing",
+                "ZZ",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "Nothing",
+                "Nothing",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "ZZ",
+                "Nothing",
+                "RingElement"
+            ],
+            [
+                "part",
+                "Nothing",
+                "ZZ",
+                "RingElement"
+            ],
+            [
+                "part",
+                "Nothing",
+                "Nothing",
+                "RingElement"
+            ],
+            [
+                "getWWW",
+                "String",
+                "Nothing"
+            ],
+            [
+                "hypertext",
+                "Nothing"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function",
+                "Nothing"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function",
+                "Function",
+                "Nothing"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function",
+                "Nothing",
+                "Function"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function",
+                "Nothing",
+                "Nothing"
+            ],
+            [
+                "mathML",
+                "Nothing"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "RawMatrix"
+            ],
+            [
+                "submatrix",
+                "Matrix",
+                "VisibleList",
+                "Nothing"
+            ],
+            [
+                "submatrix",
+                "Matrix",
+                "Nothing",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "Matrix",
+                "Nothing",
+                "Nothing"
+            ],
+            [
+                "submatrix'",
+                "Matrix",
+                "VisibleList",
+                "Nothing"
+            ],
+            [
+                "submatrix'",
+                "Matrix",
+                "Nothing",
+                "VisibleList"
+            ],
+            [
+                "submatrix'",
+                "Matrix",
+                "Nothing",
+                "Nothing"
+            ],
+            [
+                "inducedMap",
+                "Module",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "inducedMap",
+                "Nothing",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "inducedMap",
+                "Nothing",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "inducesWellDefinedMap",
+                "Module",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "inducesWellDefinedMap",
+                "Nothing",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "inducesWellDefinedMap",
+                "Nothing",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "List"
+            ],
+            [
+                "subquotient",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "subquotient",
+                "Matrix",
+                "Nothing"
+            ],
+            [
+                "subquotient",
+                "Module",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "subquotient",
+                "Module",
+                "Matrix",
+                "Nothing"
+            ],
+            [
+                "subquotient",
+                "Module",
+                "Nothing",
+                "Nothing"
+            ],
+            [
+                "modulo",
+                "Matrix",
+                "Nothing"
+            ],
+            [
+                "modulo",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "value",
+                "Nothing"
+            ],
+            [
+                "==",
+                "Nothing",
+                "Nothing"
+            ],
+            [
+                "symmetricAlgebra",
+                "Nothing",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "symmetricAlgebra",
+                "Nothing",
+                "Ring",
+                "Matrix"
+            ],
+            [
+                "symmetricAlgebra",
+                "Ring",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "Nothing",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "VisibleList",
+                "Nothing"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "Nothing",
+                "Nothing"
+            ],
+            [
+                "<<",
+                "Nothing",
+                "Thing"
+            ],
+            [
+                "net",
+                "Nothing"
+            ],
+            [
+                "truncate",
+                "Nothing",
+                "List",
+                "Matrix"
+            ],
+            [
+                "truncate",
+                "Nothing",
+                "InfiniteNumber",
+                "Matrix"
+            ],
+            [
+                "truncate",
+                "Nothing",
+                "ZZ",
+                "Matrix"
+            ],
+            [
+                "package",
+                "Nothing"
+            ],
+            [
+                "peek'",
+                "ZZ",
+                "Nothing"
+            ],
+            [
+                "NewOfFromMethod",
+                "ComplexField",
+                "Nothing",
+                "ZZ"
+            ],
+            [
+                "NewOfFromMethod",
+                "RealField",
+                "Nothing",
+                "ZZ"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "Nothing",
+                "RawMatrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "RingMap",
+                "RawMatrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "RingMap",
+                "Matrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "RingMap",
+                "List"
+            ],
+            [
+                "SPACE",
+                "Manipulator",
+                "Nothing"
+            ],
+            [
+                "<<",
+                "Nothing",
+                "Manipulator"
+            ],
+            [
+                "horizontalJoin",
+                "Nothing"
+            ],
+            [
+                "concatenate",
+                "Nothing"
+            ],
+            [
+                "stack",
+                "Nothing"
+            ],
+            [
+                "#?",
+                "Nothing",
+                "Thing"
+            ],
+            [
+                "map",
+                "CoherentSheaf",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "map",
+                "Nothing",
+                "CoherentSheaf",
+                "Matrix"
+            ],
+            [
+                "promote",
+                "SheafMap",
+                "Nothing"
+            ],
+            [
+                "code",
+                "Nothing"
+            ],
+            [
+                "urlEncode",
+                "Nothing"
+            ],
+            [
+                "locate",
+                "Nothing"
+            ],
+            [
+                "toExternalString",
+                "Nothing"
+            ],
+            [
+                "info",
+                "Nothing"
+            ]
+        ],
+        "instances": [
+            "null",
+            "lastMatch",
+            "opts",
+            "current",
+            "currentString"
+        ],
+        "full_doc": "... (6019 bytes) ...",
+        "parsed_headline": "Nothing  -- the empty class"
+    }
+}
+```

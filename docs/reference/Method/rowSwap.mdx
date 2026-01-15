@@ -1,0 +1,74 @@
+---
+title: "rowSwap"
+kind: Method
+---
+
+# rowSwap
+
+**rowSwap  -- interchange rows**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+rowSwap  -- interchange rows
+
+## Installed For
+
+### rowSwap([MutableMatrix](../Type/MutableMatrix.mdx), [ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+rowSwap(mij)
+```
+
+```macaulay2
+rowSwap(m01)
+
+```
+
+```text
+| 4 5 6 |
+     | 1 2 3 |
+
+MutableMatrix
+```
+
+## Additional Information
+
+- Inputs:
+- `m` a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx)
+- `i` an [ integer](../Type/ZZ.mdx)
+- `j` an [ integer](../Type/ZZ.mdx)
+- Consequences:
+- Interchanges the `i` th and `j` th rows of `m`
+
+
+### See also
+
+
+- Macaulay2Doc:: mutable matrices
+- Macaulay2Doc:: row and column operations
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "rowSwap",
+    "safe_name": "op_Coredollar_rowSwap",
+    "type": "MethodFunction",
+    "description": "rowSwap  -- interchange rows...",
+    "installations": [
+        "<Installation rowSwap(MutableMatrix, ZZ, ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$rowSwap",
+        "full_doc": "... (1429 bytes) ...",
+        "parsed_headline": "rowSwap  -- interchange rows"
+    }
+}
+```

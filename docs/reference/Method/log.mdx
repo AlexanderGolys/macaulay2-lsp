@@ -1,0 +1,120 @@
+---
+title: "log"
+kind: Method
+---
+
+# log
+
+**log  -- logarithm function**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+log  -- logarithm function
+
+## Installed For
+
+### log([CC](../Type/CC.mdx))
+
+### log([Number](../Type/Number.mdx))
+
+### log([Number](../Type/Number.mdx), [CC](../Type/CC.mdx))
+
+### log([Number](../Type/Number.mdx), [Number](../Type/Number.mdx))
+
+### log([Number](../Type/Number.mdx), [RR](../Type/RR.mdx))
+
+### log([Number](../Type/Number.mdx), [RRi](../Type/RRi.mdx))
+
+### log([RR](../Type/RR.mdx))
+
+### log([RR](../Type/RR.mdx), [CC](../Type/CC.mdx))
+
+### log([RR](../Type/RR.mdx), [Number](../Type/Number.mdx))
+
+### log([RR](../Type/RR.mdx), [RR](../Type/RR.mdx))
+
+### log([RR](../Type/RR.mdx), [RRi](../Type/RRi.mdx))
+
+### log([RRi](../Type/RRi.mdx))
+
+### log([RRi](../Type/RRi.mdx), [Number](../Type/Number.mdx))
+
+### log([RRi](../Type/RRi.mdx), [RR](../Type/RR.mdx))
+
+### log([RRi](../Type/RRi.mdx), [RRi](../Type/RRi.mdx))
+
+## Examples
+
+```macaulay2
+log x
+log(bx)
+log_b x
+log I
+log(bI)
+log_b I
+log(Jx)
+log_J x
+log(JI)
+log_J I
+```
+
+```macaulay2
+log 10
+
+```
+
+```text
+2.302585092994046
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ real number](../Type/op_x226_x132_x157.mdx)
+- `b` a [ real number](../Type/op_x226_x132_x157.mdx) the base for the logarithm
+- `I` a [ real interval](../Type/RRi.mdx)
+- `J` a [ real interval](../Type/RRi.mdx) an interval of bases for the logarithm
+- Outputs:
+- the logarithm of `x`
+- a [ real interval](../Type/RRi.mdx) an interval containing the logarithms of points of `I`
+- a [ real interval](../Type/RRi.mdx) an interval containing the logarithms for bases in `J`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "log",
+    "safe_name": "op_Coredollar_log",
+    "type": "MethodFunction",
+    "description": "log  -- logarithm function...",
+    "installations": [
+        "<Installation log(Number)>",
+        "<Installation log(Number, RR)>",
+        "<Installation log(Number, RRi)>",
+        "<Installation log(Number, CC)>",
+        "<Installation log(RR, Number)>",
+        "<Installation log(RRi, Number)>",
+        "<Installation log(Number, Number)>",
+        "<Installation log(RRi, RRi)>",
+        "<Installation log(RR, CC)>",
+        "<Installation log(RR, RR)>",
+        "<Installation log(RRi, RR)>",
+        "<Installation log(RR, RRi)>",
+        "<Installation log(CC)>",
+        "<Installation log(RR)>",
+        "<Installation log(RRi)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$log",
+        "full_doc": "... (2172 bytes) ...",
+        "parsed_headline": "log  -- logarithm function"
+    }
+}
+```

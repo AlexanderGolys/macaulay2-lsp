@@ -1,0 +1,62 @@
+---
+title: "homology"
+kind: Method
+---
+
+# homology
+
+**homology  -- general homology functor**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ Most applications of this functor are dispatched through `HH` . If it is intended that `i`  be of class [ZZ](../Type/ZZ.mdx)  `M`  be of class `A`  and `N`  be of class `B`  then the method for computing `HH_i(MN)`  can be installed with code of the following form.
+```
+     homology(ZZ A B) := opts -> (iMN) -> ...
+```
+
+
+## Installed For
+
+### homology([Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx))
+
+### homology([ZZ](../Type/ZZ.mdx))
+
+### homology([ZZ](../Type/ZZ.mdx))
+
+### homology([ZZ](../Type/ZZ.mdx), [Sequence](../Type/Sequence.mdx))
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: cohomology
+- Macaulay2Doc:: HH
+- Macaulay2Doc:: ScriptedFunctor
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "homology",
+    "safe_name": "homology",
+    "type": "MethodFunctionWithOptions",
+    "description": " Most applications of this functor are dispatched through `HH` . If it is intended that `i`  be of c...",
+    "installations": [
+        "<Installation homology(ZZ, Sequence)>",
+        "<Installation homology(Matrix, Matrix)>",
+        "<Installation homology(ZZ)>",
+        "<Installation homology(ZZ)>"
+    ],
+    "options": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "homology",
+        "full_doc": "... (1323 bytes) ...",
+        "parsed_headline": "homology  -- general homology functor"
+    }
+}
+```

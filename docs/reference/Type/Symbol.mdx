@@ -1,230 +1,680 @@
 ---
 title: "Symbol"
 kind: Type
-parent: Thing
 ---
 
 # Symbol
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Symbol  -- the class of all symbols**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[Thing](../Type/Thing.mdx)
-
-## Subtypes
-
-Direct subtypes of this type:
-
-- [Keyword](../Type/Keyword.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `TotalPairs`
-- `Format`
-- `DegreeLift`
-- `SizeLimit`
-- `Dynamic`
-- `_<=`
-- `!`
-- `Binary`
-- `UseCachedExampleOutput`
-- `#`
-- `LinearAlgebra`
-- `%`
-- `&`
-- `Left`
-- `(`
-- `Authors`
-- `)`
-- `*`
-- `NCLex`
-- `+`
-
-*... and 422 more*
-
-## Methods
-
-Methods that can be used with this type:
-
-### `(_,=)`
-
-- `(_,=)(Symbol, Thing)`
-
-### `..`
-
-- `..(Symbol, Symbol)`
-
-### `..<`
-
-- `..<(Symbol, Symbol)`
-
-### `<<`
-
-- `<<(File, Symbol)`
-
-### `==`
-
-- `==(Symbol, Symbol)`
-
-### `?`
-
-- `?(Symbol)`
-- `?(Symbol, IndexedVariable)`
-
-### `NewFromMethod`
-
-- `NewFromMethod(IndexedVariableTable, Symbol)`
-
-### `_`
-
-- `_(Symbol, Monoid)`
-- `_(Symbol, Ring)`
-- `_(Ring, Symbol)`
-- `_(Symbol, Thing)`
-
-### `about`
-
-- `about(Symbol)`
-
-### `addHook`
-
-- `addHook(Symbol, Function)`
-
-### `autoload`
-
-- `autoload(Symbol, String)`
-
-### `baseName`
-
-- `baseName(Symbol)`
-
-### `code`
-
-- `code(Symbol)`
-
-### `concatenate`
-
-- `concatenate(Symbol)`
-
-### `dictionary`
-
-- `dictionary(Symbol)`
-
-### `expression`
-
-- `expression(Symbol)`
-
-### `findSynonyms`
-
-- `findSynonyms(Symbol)`
-
-### `frames`
-
-- `frames(Symbol)`
-
-### `help`
-
-- `help(Symbol)`
-
-### `hooks`
-
-- `hooks(Symbol)`
-
-### `installAssignmentMethod`
-
-- `installAssignmentMethod(Symbol, HashTable, HashTable, Option)`
-- `installAssignmentMethod(Symbol, HashTable, HashTable, Function)`
-- `installAssignmentMethod(Symbol, HashTable, Option)`
-- `installAssignmentMethod(Symbol, HashTable, Function)`
-
-### `localDictionaries`
-
-- `localDictionaries(Symbol)`
-
-### `locate`
-
-- `locate(Symbol)`
-
-### `mathML`
-
-- `mathML(Symbol)`
-
-### `methodOptions`
-
-- `methodOptions(Symbol)`
-
-### `methods`
-
-- `methods(Symbol)`
-
-### `net`
-
-- `net(Symbol)`
-
-### `package`
-
-- `package(Symbol)`
-
-### `peek'`
-
-- `peek'(ZZ, Symbol)`
-
-### `runHooks`
-
-- `runHooks(Symbol, Thing)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [(_,=)](../Type/(_,=).mdx)
-- [..](../Operator/op_dot_dot.mdx)
-- [..<](../Operator/op_dot_dot_lt.mdx)
-- [<<](../Operator/op_lt_lt.mdx)
-- [=](../Operator/op_eq.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [?](../Operator/op_question.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [_](../Operator/_.mdx)
-- [about](../Function/about.mdx)
-- [addHook](../Function/addHook.mdx)
-- [autoload](../Function/autoload.mdx)
-- [baseName](../Function/baseName.mdx)
-- [code](../Function/code.mdx)
-- [concatenate](../Function/concatenate.mdx)
-- [dictionary](../Function/dictionary.mdx)
-- [expression](../Function/expression.mdx)
-- [findSynonyms](../Function/findSynonyms.mdx)
-- [frames](../Function/frames.mdx)
-- [help](../Instance/help.mdx)
-- [hooks](../Function/hooks.mdx)
-- [installAssignmentMethod](../Function/installAssignmentMethod.mdx)
-- [localDictionaries](../Function/localDictionaries.mdx)
-- [locate](../Function/locate.mdx)
-- [mathML](../Function/mathML.mdx)
-- [methodOptions](../Function/methodOptions.mdx)
-- [methods](../Function/methods.mdx)
-- [net](../Function/net.mdx)
-- [package](../Function/package.mdx)
-- [peek'](../Function/op_peekx39.mdx)
-
-*... and 5 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Thing](../Type/Thing.mdx) (parent type)
+ Symbols are entered as an alphabetic character followed by a sequence of alphanumeric characters; case is significant. The single symbol character ' is regarded as alphabetic so that symbols such as `x'`  may be used. Symbols are used as names for values to be preserved as indeterminates in polynomial rings and as keys in hash tables.  They may have global scope meaning they are visible from every line of code or local scope with visibility restricted to a single file or function body.
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:::=
+- Macaulay2Doc:: <-
+- Macaulay2Doc:: threadLocal
+
+[Keyword](../Type/op_Coredollar_Keyword.mdx)[SymbolBody](../Type/op_Coredollar_SymbolBody.mdx)[symbol](../Method/symbol.mdx)[global](../Method/op_Coredollar_global.mdx)[local](../Method/local.mdx)[getSymbol](../Function/getSymbol.mdx)[getGlobalSymbol](../Function/getGlobalSymbol.mdx)[isGlobalSymbol](../Function/isGlobalSymbol.mdx)[erase](../Function/erase.mdx)[protect](../Function/op_Coredollar_protect.mdx)[value(Symbol)](../Instance/value(Symbol).mdx)[findSynonyms(Symbol)](../Instance/findSynonyms(Symbol).mdx)[globalAssign](../Function/op_Coredollar_globalAssign.mdx)[globalAssignFunction](../Function/globalAssignFunction.mdx)[GlobalAssignHook](../Method/op_Coredollar_GlobalAssignHook.mdx)[globalAssignment](../Function/globalAssignment.mdx)[globalAssignmentHooks](../Instance/globalAssignmentHooks.mdx)[globalReleaseFunction](../Function/op_Coredollar_globalReleaseFunction.mdx)[GlobalReleaseHook](../Instance/GlobalReleaseHook.mdx)[Symbol _ Thing = Thing](../Instance/Symbol _ Thing = Thing.mdx)[Symbol .. Symbol](../Instance/Symbol .. Symbol.mdx)[Symbol ..< Symbol](../Instance/Symbol ..< Symbol.mdx)[Symbol _ Thing](../Instance/Symbol _ Thing.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "Symbol",
+    "safe_name": "op_Coredollar_Symbol",
+    "type": null,
+    "description": " Symbols are entered as an alphabetic character followed by a sequence of alphanumeric characters; c...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Symbol",
+        "parent": "Thing",
+        "methods": [
+            [
+                "autoload",
+                "Symbol",
+                "String"
+            ],
+            [
+                "texMath",
+                "Symbol"
+            ],
+            [
+                "code",
+                "Symbol"
+            ],
+            [
+                "methods",
+                "Symbol"
+            ],
+            [
+                "hooks",
+                "Symbol"
+            ],
+            [
+                "findSynonyms",
+                "Symbol"
+            ],
+            [
+                "expression",
+                "Symbol"
+            ],
+            [
+                "help",
+                "Symbol"
+            ],
+            [
+                "?",
+                "Symbol"
+            ],
+            [
+                "about",
+                "Symbol"
+            ],
+            [
+                "..",
+                "Symbol",
+                "Symbol"
+            ],
+            [
+                "..<",
+                "Symbol",
+                "Symbol"
+            ],
+            [
+                "mathML",
+                "Symbol"
+            ],
+            [
+                "methodOptions",
+                "Symbol"
+            ],
+            [
+                "toExternalString",
+                "Symbol"
+            ],
+            [
+                "dictionary",
+                "Symbol"
+            ],
+            [
+                "installAssignmentMethod",
+                "Symbol",
+                "HashTable",
+                "HashTable",
+                "Option"
+            ],
+            [
+                "installAssignmentMethod",
+                "Symbol",
+                "HashTable",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "installAssignmentMethod",
+                "Symbol",
+                "HashTable",
+                "Option"
+            ],
+            [
+                "installAssignmentMethod",
+                "Symbol",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "addHook",
+                "Symbol",
+                "Function"
+            ],
+            [
+                "_",
+                "Symbol",
+                "Monoid"
+            ],
+            [
+                "_",
+                "Symbol",
+                "Ring"
+            ],
+            [
+                "_",
+                "Ring",
+                "Symbol"
+            ],
+            [
+                "<<",
+                "File",
+                "Symbol"
+            ],
+            [
+                "runHooks",
+                "Symbol",
+                "Thing"
+            ],
+            [
+                "package",
+                "Symbol"
+            ],
+            [
+                "peek'",
+                "ZZ",
+                "Symbol"
+            ],
+            [
+                "frames",
+                "Symbol"
+            ],
+            [
+                "concatenate",
+                "Symbol"
+            ],
+            [
+                "localDictionaries",
+                "Symbol"
+            ],
+            [
+                "==",
+                "Symbol",
+                "Symbol"
+            ],
+            [
+                "NewFromMethod",
+                "IndexedVariableTable",
+                "Symbol"
+            ],
+            [
+                "?",
+                "Symbol",
+                "IndexedVariable"
+            ],
+            [
+                "_",
+                "Symbol",
+                "Thing"
+            ],
+            [
+                "(_,=)",
+                "Symbol",
+                "Thing"
+            ],
+            [
+                "net",
+                "Symbol"
+            ],
+            [
+                "locate",
+                "Symbol"
+            ],
+            [
+                "toString",
+                "Symbol"
+            ],
+            [
+                "value",
+                "Symbol"
+            ],
+            [
+                "baseName",
+                "Symbol"
+            ]
+        ],
+        "instances": [
+            "TotalPairs",
+            "Format",
+            "DegreeLift",
+            "SizeLimit",
+            "Dynamic",
+            "_<=",
+            "!",
+            "Binary",
+            "UseCachedExampleOutput",
+            "#",
+            "LinearAlgebra",
+            "%",
+            "&",
+            "Left",
+            "(",
+            "Authors",
+            ")",
+            "*",
+            "NCLex",
+            "+",
+            ",",
+            "-",
+            "UserMode",
+            ".",
+            "HomePage",
+            "DegreeLimit",
+            "/",
+            "minimalPresentationMapInv",
+            "Hermitian",
+            "UpdateOnly",
+            "PrimitiveElement",
+            "\u00b7",
+            "FlatMonoid",
+            "PackageExports",
+            "Radical",
+            ":",
+            ";",
+            "<",
+            "!=",
+            "\u29e2",
+            "@@=",
+            "Result",
+            "=",
+            ">",
+            "@@?",
+            "?",
+            "@",
+            "RunDirectory",
+            "Trim",
+            "Monomial",
+            "timing",
+            "Threshold",
+            "Algorithm",
+            "LengthLimit",
+            "GLex",
+            "Iterate",
+            "[",
+            "xor",
+            "\\",
+            "??=",
+            "RealQP",
+            "]",
+            "Precision",
+            "^",
+            "_>=",
+            "_",
+            "^<=",
+            "MinimalGenerators",
+            "Wrap",
+            "k",
+            "Torsion",
+            "SkewCommutative",
+            "Center",
+            "Bareiss",
+            "AfterEval",
+            "{",
+            "#?",
+            "|",
+            "}",
+            "^^=",
+            ">>=",
+            "RealRR",
+            "~",
+            "dd",
+            "do",
+            "Toric",
+            "Subnodes",
+            "TEST",
+            "Verify",
+            "Certification",
+            "Dispatch",
+            "^>=",
+            "===",
+            "==>",
+            "list",
+            "Caveat",
+            "attrs",
+            "MinimalMatrix",
+            "IgnoreExampleErrors",
+            "continue",
+            "Inhomogeneous",
+            "Test",
+            "Index",
+            "Givens",
+            "Version",
+            "\u22a0",
+            "%=",
+            "||=",
+            "\\\\=",
+            "<<=",
+            "MaxReductionCount",
+            "Down",
+            "StopBeforeComputation",
+            "SourceCode",
+            "Density",
+            "for",
+            "Configuration",
+            "&=",
+            "StopIteration",
+            "Weights",
+            "Cofactor",
+            "end",
+            "<==",
+            "PairLimit",
+            "Unmixed",
+            "CoefficientRing",
+            "elapsedTiming",
+            "SPACE",
+            "AdditionalPaths",
+            "TorsionFree",
+            "break",
+            "Undo",
+            "InfoDirSection",
+            "MinimumVersion",
+            "SourceRing",
+            "GTZ",
+            "ParallelF4",
+            "===>=",
+            "if",
+            "Range",
+            "MonomialOrder",
+            "in",
+            "OptionalComponentsPresent",
+            "GenerateAssertions",
+            "BaseRow",
+            "RealXD",
+            "Constants",
+            "return",
+            "BKZ",
+            "Jacobian",
+            "StartWithOneMinor",
+            "DegreeRank",
+            "=!=",
+            "else",
+            "|_=",
+            "OperatorAttributes",
+            "UseSyzygies",
+            "PairsRemaining",
+            "**",
+            "..<=",
+            "Height",
+            "Invertible",
+            "Position",
+            "Join",
+            "SubringLimit",
+            "NoPrint",
+            "*=",
+            "CohenTopLevel",
+            "Variables",
+            "StopWithMinimalGenerators",
+            "AllCodimensions",
+            "KeepZeroes",
+            "BasisElementLimit",
+            "++",
+            "idealSheafSequence",
+            "Verbose",
+            "pullbackMaps",
+            "WeylAlgebra",
+            "Monomials",
+            "TeXmacs",
+            "AuxiliaryFiles",
+            "+=",
+            "topLevelMode",
+            "CodimensionLimit",
+            "Usage",
+            "Hermite",
+            "Reduce",
+            "Truncate",
+            "indexComponents",
+            "DebuggingMode",
+            "symbol",
+            "<==>=",
+            "RaiseError",
+            "new",
+            "GRevLex",
+            "CohenEngine",
+            "profile",
+            "-=",
+            "Consequences",
+            "->",
+            "Generic",
+            "Reload",
+            "Exclude",
+            "GroupRevLex",
+            "try",
+            "Sort",
+            "..",
+            "fpLLL",
+            "Body",
+            "Alignment",
+            "GBDegrees",
+            "FindOne",
+            "Decompose",
+            ".?",
+            "KeepFiles",
+            "and",
+            "of",
+            "Acknowledgement",
+            "^**=",
+            "oo",
+            "//",
+            "Heading",
+            "or",
+            "embeddedToAbstract",
+            "BaseFunction",
+            "/=",
+            "Headline",
+            "pruningMap",
+            "Right",
+            "Lex",
+            "SyzygyLimit",
+            "GlobalReleaseHook",
+            "Inputs",
+            "yonedaSheafExtension",
+            "then",
+            "^**",
+            "Default",
+            "Bayer",
+            "Key",
+            "HardDegreeLimit",
+            "Complement",
+            "FileName",
+            "eulerSequence",
+            "WebApp",
+            "BeforePrint",
+            "AfterPrint",
+            "PrimaryTag",
+            "//=",
+            "MaximalRank",
+            "Engine",
+            "POSIX",
+            "PackageImports",
+            "FollowLinks",
+            "elapsedTime",
+            "Verbosity",
+            "SyzygyRows",
+            "Vasconcelos",
+            "SeparateExec",
+            "to",
+            "..<",
+            "..=",
+            "EisenbudHunekeVasconcelos",
+            "Options",
+            "NewMethod",
+            "CompleteIntersection",
+            "cotangentSurjection",
+            "\u22a0=",
+            "Quotient",
+            "Print",
+            "ooo",
+            "First",
+            "LongPolynomial",
+            "RHom",
+            "SyzygyMatrix",
+            "SeeAlso",
+            "Variable",
+            "RevLex",
+            "References",
+            "\u00b7=",
+            "Intersection",
+            "Heft",
+            "Name",
+            "pushoutMaps",
+            "CheckDocumentation",
+            "Prefix",
+            "Ascending",
+            "MakeHTML",
+            "Up",
+            "catch",
+            "argument",
+            "Minimize",
+            "PlaneCurveSingularities",
+            "Reverse",
+            "ExtLongExactSequence",
+            "CacheExampleOutput",
+            "NewFromMethod",
+            "step",
+            "time",
+            "DegreeMap",
+            "not",
+            "Syzygies",
+            "GlobalAssignHook",
+            "DividedPowers",
+            "Standard",
+            "++=",
+            "<===",
+            "<==>",
+            "throw",
+            "Strict",
+            "Degree",
+            "Homogeneous",
+            "ParallelizeByDegree",
+            "Base",
+            "DegreeGroup",
+            "ConductorElement",
+            "**=",
+            "Dense",
+            "Degrees",
+            "Citation",
+            "RealFP",
+            "subscript",
+            "VerticalSpace",
+            "ClosestFit",
+            "Contributors",
+            "Descending",
+            "HorizontalSpace",
+            "Homogeneous2",
+            "|-=",
+            "Order",
+            "Binomial",
+            "|-",
+            "while",
+            "NewOfMethod",
+            "GlobalSectionLimit",
+            "when",
+            "returnCode",
+            "Projective",
+            "GroupLex",
+            "opAttrs",
+            "|=",
+            "===>",
+            "|>",
+            ":=",
+            "Linear",
+            "NTL",
+            "Local",
+            "MakeDocumentation",
+            "ExampleFiles",
+            "order",
+            "Increment",
+            "SortStrategy",
+            "LoadDocumentation",
+            "Postfix",
+            "==>=",
+            "UseHilbertFunction",
+            "\\=",
+            "|_",
+            "Inverses",
+            "(*)",
+            "shield",
+            "MonomialSize",
+            "local",
+            "<-",
+            "Outputs",
+            "RealQP1",
+            "Tries",
+            "RemakeAllDocumentation",
+            "DivideConquer",
+            "Email",
+            "\\\\",
+            "<<",
+            "||",
+            "threadLocal",
+            "<=",
+            "cache",
+            "^!",
+            "attrKeys",
+            "SimplifyFractions",
+            "ShimoyamaYokoyama",
+            "Threads",
+            "Prune",
+            "^*",
+            "RawDocumentation",
+            "Strategy",
+            "Gorenstein",
+            "Maintainer",
+            "Boxes",
+            "Limit",
+            "^<",
+            "^=",
+            "\u29e2=",
+            "^>",
+            "==",
+            "=>",
+            "TypicalValue",
+            "_!",
+            "global",
+            "Keep",
+            "from",
+            "_*",
+            "Sugarless",
+            "Hilbert",
+            "ChangeMatrix",
+            "VariableBaseName",
+            "_<",
+            "_=",
+            "_>",
+            "incomparable",
+            ">=",
+            "oooo",
+            "^^",
+            ">>",
+            "<|",
+            "RerunExamples",
+            "DegreeOrder",
+            "Global",
+            "Keywords",
+            "Date",
+            "FastNonminimal",
+            "RunExamples",
+            "MakeInfo",
+            "Description",
+            "CallLimit",
+            "@@?=",
+            "^~",
+            "??",
+            "Flexible",
+            "InstallPrefix",
+            "RadicalCodim1",
+            "Unique",
+            "breakpoint",
+            "baseRings",
+            "UpperTriangular",
+            "@=",
+            "_~",
+            "@@",
+            "minimalPresentationMap",
+            "NewOfFromMethod",
+            "MakePDF",
+            "superscript",
+            "SaturationMap",
+            "AfterNoPrint",
+            "InverseMethod"
+        ],
+        "full_doc": "... (4603 bytes) ...",
+        "parsed_headline": "Symbol  -- the class of all symbols"
+    }
+}
+```

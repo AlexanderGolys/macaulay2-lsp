@@ -5,33 +5,53 @@ kind: Function
 
 # getNonUnit
 
-**Type:** `Function`
+**getNonUnit  -- retrieve a previously discovered non-unit**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-getNonUnit, -- retrieve a previously discovered non-unit, class => element, Usage: , getNonUnit R, class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: Ring, ring, , , in which division by a non-unit may have been attempted, Outputs:, a , Macaulay2Doc :: RingElement, ring element, , , the non-unit, if any, or , Macaulay2Doc :: null, Description, If a ring has been declared to be a field, using , Macaulay2Doc :: toField, or , Macaulay2Doc :: frac, , but a nonzero element is found to not be a unit, this routine will return that element, otherwise , Macaulay2Doc :: null, is returned., class => examples, i1 : A = ZZ/101[a]/(a^2-1);, class => language-macaulay2, i2 : toField A
-
-o2 = A[]
-
-o2 : PolynomialRing, class => language-macaulay2, i3 : 1//(a-1)
-
-o3 = 0
-
-o3 : A, class => language-macaulay2, i4 : getNonUnit A, class => language-macaulay2, Warning: this function does not work yet for divisions attempted in the course of computing a Gröbner basis or resolution., See also, Macaulay2Doc :: toField, Macaulay2Doc :: frac, class => waystouse, For the programmer, The object , Macaulay2Doc :: getNonUnit, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/getNonUnit-doc.m2:28:0, .
+ If a ring has been declared to be a field using [toField](../Method/op_Coredollar_toField.mdx)  or [frac](../Method/op_Coredollar_frac.mdx)  but a nonzero element is found to not be a unit this routine will return that element otherwise [null](../Instance/null.mdx)  is returned. Warning: this function does not work yet for divisions attempted in the course of computing a Gröbner basis or resolution.
 
 ## Examples
 
 ```macaulay2
-i1 : A = ZZ/101[a]/(a^2-1);
-
-i2 : toField A
-
-o2 = A[]
-
-o2 : PolynomialRing
+getNonUnit R
 ```
 
-## See Also
+```macaulay2
+getNonUnit A
+```
 
+## Additional Information
+
+- Inputs:
+- `R` a [ ring](../Type/Ring.mdx) in which division by a non-unit may have been attempted
+- Outputs:
+- a [ ring element](../Type/RingElement.mdx) the non-unit if any or [null](../Instance/null.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: toField
+- Macaulay2Doc:: frac
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "getNonUnit",
+    "safe_name": "op_Coredollar_getNonUnit",
+    "type": "FunctionClosure",
+    "description": " If a ring has been declared to be a field using [toField](../Method/op_Coredollar_toField.mdx)  or ...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$getNonUnit",
+        "full_doc": "... (1607 bytes) ...",
+        "parsed_headline": "getNonUnit  -- retrieve a previously discovered non-unit"
+    }
+}
+```

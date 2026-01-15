@@ -1,154 +1,257 @@
 ---
 title: "InexactNumber"
 kind: Type
-parent: Number
 ---
 
 # InexactNumber
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**InexactNumber**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ This type of number is intended to serve as a parent class for those types of numbers  that are inexactly represented in the computer.
 
-## Parent Type
+## Additional Information
 
-[Number](../Type/Number.mdx)
+[precision](../Method/op_Coredollar_precision.mdx)[numeric](../Method/op_Coredollar_numeric.mdx)[round](../Method/round.mdx)[size2](../Function/op_Coredollar_size2.mdx)[clean](../Method/clean.mdx)[norm](../Method/op_Coredollar_norm.mdx)[minExponent](../Instance/minExponent.mdx)[maxExponent](../Instance/maxExponent.mdx)
 
-## Subtypes
+## Debug info
 
-Direct subtypes of this type:
-
-- [CC](../Type/CC.mdx)
-- [RR](../Type/RR.mdx)
-- [RRi](../Type/RRi.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `%`
-
-- `%(RingElement, InexactNumber)`
-- `%(InexactNumber, RingElement)`
-
-### `*`
-
-- `*(RingElement, InexactNumber)`
-- `*(InexactNumber, RingElement)`
-- `*(Constant, InexactNumber)`
-- `*(InexactNumber, Constant)`
-
-### `+`
-
-- `+(InexactNumber, RingElement)`
-- `+(RingElement, InexactNumber)`
-- `+(Constant, InexactNumber)`
-- `+(InexactNumber, Constant)`
-
-### `-`
-
-- `-(RingElement, InexactNumber)`
-- `-(InexactNumber, RingElement)`
-- `-(Constant, InexactNumber)`
-- `-(InexactNumber, Constant)`
-
-### `/`
-
-- `/(InexactNumber, RingElement)`
-- `/(RingElement, InexactNumber)`
-- `/(Constant, InexactNumber)`
-- `/(InexactNumber, Constant)`
-
-### `//`
-
-- `//(InexactNumber, RingElement)`
-- `//(RingElement, InexactNumber)`
-
-### `==`
-
-- `==(InexactNumber, RingElement)`
-- `==(RingElement, InexactNumber)`
-- `==(Constant, InexactNumber)`
-- `==(InexactNumber, Constant)`
-
-### `?`
-
-- `?(InexactNumber, Constant)`
-- `?(Constant, InexactNumber)`
-
-### `^`
-
-- `^(Constant, InexactNumber)`
-- `^(InexactNumber, Constant)`
-
-### `imaginaryPart`
-
-- `imaginaryPart(InexactNumber)`
-
-### `lift`
-
-- `lift(Matrix, InexactNumber)`
-- `lift(Vector, InexactNumber)`
-- `lift(Module, InexactNumber)`
-- `lift(MutableMatrix, InexactNumber)`
-- `lift(Number, InexactNumber)`
-
-### `liftable`
-
-- `liftable(Number, InexactNumber)`
-
-### `precision`
-
-- `precision(InexactNumber)`
-
-### `promote`
-
-- `promote(Matrix, InexactNumber)`
-- `promote(Vector, InexactNumber)`
-- `promote(Module, InexactNumber)`
-- `promote(MutableMatrix, InexactNumber)`
-- `promote(Number, InexactNumber)`
-
-### `quotientRemainder`
-
-- `quotientRemainder(RingElement, InexactNumber)`
-- `quotientRemainder(InexactNumber, RingElement)`
-
-### `realPart`
-
-- `realPart(InexactNumber)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [%](../Operator/op_percent.mdx)
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [/](../Operator/op_slash.mdx)
-- [//](../Operator/op_slash_slash.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [?](../Operator/op_question.mdx)
-- [^](../Operator/op_caret.mdx)
-- [imaginaryPart](../Function/imaginaryPart.mdx)
-- [lift](../Function/lift.mdx)
-- [liftable](../Function/liftable.mdx)
-- [precision](../Function/precision.mdx)
-- [promote](../Function/promote.mdx)
-- [quotientRemainder](../Function/quotientRemainder.mdx)
-- [realPart](../Function/realPart.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Number](../Type/Number.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "InexactNumber",
+    "safe_name": "op_Coredollar_InexactNumber",
+    "type": null,
+    "description": " This type of number is intended to serve as a parent class for those types of numbers  that are ine...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$InexactNumber",
+        "parent": "Number",
+        "methods": [
+            [
+                "*",
+                "RingElement",
+                "InexactNumber"
+            ],
+            [
+                "+",
+                "InexactNumber",
+                "RingElement"
+            ],
+            [
+                "*",
+                "InexactNumber",
+                "RingElement"
+            ],
+            [
+                "==",
+                "RingElement",
+                "InexactNumber"
+            ],
+            [
+                "//",
+                "RingElement",
+                "InexactNumber"
+            ],
+            [
+                "//",
+                "InexactNumber",
+                "RingElement"
+            ],
+            [
+                "==",
+                "InexactNumber",
+                "RingElement"
+            ],
+            [
+                "+",
+                "RingElement",
+                "InexactNumber"
+            ],
+            [
+                "%",
+                "InexactNumber",
+                "RingElement"
+            ],
+            [
+                "%",
+                "RingElement",
+                "InexactNumber"
+            ],
+            [
+                "-",
+                "RingElement",
+                "InexactNumber"
+            ],
+            [
+                "-",
+                "InexactNumber",
+                "RingElement"
+            ],
+            [
+                "quotientRemainder",
+                "RingElement",
+                "InexactNumber"
+            ],
+            [
+                "quotientRemainder",
+                "InexactNumber",
+                "RingElement"
+            ],
+            [
+                "/",
+                "InexactNumber",
+                "RingElement"
+            ],
+            [
+                "/",
+                "RingElement",
+                "InexactNumber"
+            ],
+            [
+                "lift",
+                "Matrix",
+                "InexactNumber"
+            ],
+            [
+                "promote",
+                "Matrix",
+                "InexactNumber"
+            ],
+            [
+                "promote",
+                "Vector",
+                "InexactNumber"
+            ],
+            [
+                "lift",
+                "Vector",
+                "InexactNumber"
+            ],
+            [
+                "lift",
+                "Module",
+                "InexactNumber"
+            ],
+            [
+                "promote",
+                "Module",
+                "InexactNumber"
+            ],
+            [
+                "lift",
+                "MutableMatrix",
+                "InexactNumber"
+            ],
+            [
+                "promote",
+                "MutableMatrix",
+                "InexactNumber"
+            ],
+            [
+                "promote",
+                "Number",
+                "InexactNumber"
+            ],
+            [
+                "lift",
+                "Number",
+                "InexactNumber"
+            ],
+            [
+                "liftable",
+                "Number",
+                "InexactNumber"
+            ],
+            [
+                "+",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "+",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "-",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "-",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "*",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "*",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "/",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "/",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "^",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "^",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "==",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "==",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "?",
+                "InexactNumber",
+                "Constant"
+            ],
+            [
+                "?",
+                "Constant",
+                "InexactNumber"
+            ],
+            [
+                "imaginaryPart",
+                "InexactNumber"
+            ],
+            [
+                "precision",
+                "InexactNumber"
+            ],
+            [
+                "realPart",
+                "InexactNumber"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (2294 bytes) ...",
+        "parsed_headline": "InexactNumber"
+    }
+}
+```

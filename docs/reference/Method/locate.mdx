@@ -1,0 +1,127 @@
+---
+title: "locate"
+kind: Method
+---
+
+# locate
+
+**locate  -- locate source code**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+For a symbol interpreted function `f`  returns a `nicjdke`  describing the location of the definition in the source code:The name of the source file is `n` ;the code occupies line `i`  column `c`  through line `j`  column `d` ;the central point of interest located at line `k`  column `e` .If `f`  is a sequence then [lookup](../Function/op_Coredollar_lookup.mdx) is applied first and the location of the resulting function is provided.In particular the output of [methods](../Method/op_Coredollar_methods.mdx) can be used as an input to `locate`.If the function `f`  is compiled or if `f`  is [null](../Instance/null.mdx) then a location is not available and [null](../Instance/null.mdx) is returned.
+
+## Installed For
+
+### locate([Command](../Type/Command.mdx))
+
+### locate([DocumentTag](../Type/DocumentTag.mdx))
+
+### locate([Function](../Type/Function.mdx)) -> [FilePosition](../Type/FilePosition.mdx)
+
+### locate([FunctionBody](../Type/FunctionBody.mdx))
+
+### locate([List](../Type/List.mdx))
+
+### locate([Nothing](../Type/Nothing.mdx))
+
+### locate([Package](../Type/Package.mdx))
+
+### locate([Pseudocode](../Type/Pseudocode.mdx))
+
+### locate([Sequence](../Type/Sequence.mdx))
+
+### locate([Symbol](../Type/Symbol.mdx))
+
+### locate([TestInput](../Type/TestInput.mdx))
+
+### locate([ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+locate f
+```
+
+```macaulay2
+locate needs
+
+```
+
+```text
+/usr/share/Macaulay2/Core/Core.m2:148:8-148:68
+
+FilePosition
+```
+
+```macaulay2
+locate(jacobian Matrix)
+
+```
+
+```text
+/usr/share/Macaulay2/Core/matrix.m2:553:29-553:66
+
+FilePosition
+```
+
+```macaulay2
+locate 0
+
+```
+
+```text
+/usr/share/Macaulay2/SimpleDoc.m2:42:14-49:83
+
+FilePosition
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ function](../Type/Function.mdx) a [ sequence](../Type/Sequence.mdx) a [ symbol](../Type/op_Coredollar_Symbol.mdx) a [ list](../Type/op_Coredollar_List.mdx) or an [ integer](../Type/ZZ.mdx)
+- Outputs:
+- a [ file position](../Type/op_Coredollar_FilePosition.mdx) a [ list](../Type/op_Coredollar_List.mdx) or [null](../Instance/null.mdx) `{filename, start,startcol, stop,stopcol, pos,poscol}` respectively
+
+
+### See also
+
+
+- Macaulay2Doc:: code
+- Macaulay2Doc:: methods
+- Macaulay2Doc:: locate(DocumentTag)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "locate",
+    "safe_name": "op_Coredollar_locate",
+    "type": "MethodFunctionSingle",
+    "description": "For a symbol interpreted function `f`  returns a `nicjdke`  describing the location of the definitio...",
+    "installations": [
+        "<Installation locate(ZZ)>",
+        "<Installation locate(Command)>",
+        "<Installation locate(List)>",
+        "<Installation locate(DocumentTag)>",
+        "<Installation locate(Package)>",
+        "<Installation locate(TestInput)>",
+        "<Installation locate(Nothing)>",
+        "<Installation locate(Symbol)>",
+        "<Installation locate(Function)>",
+        "<Installation locate(FunctionBody)>",
+        "<Installation locate(Sequence)>",
+        "<Installation locate(Pseudocode)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$locate",
+        "full_doc": "... (4047 bytes) ...",
+        "parsed_headline": "locate  -- locate source code"
+    }
+}
+```

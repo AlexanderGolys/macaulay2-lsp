@@ -1,0 +1,126 @@
+---
+title: "isField"
+kind: Method
+---
+
+# isField
+
+**isField  -- whether something is a field**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ This function recognizes basic fields [ Galois fields](../Type/GaloisField.mdx)  and [ fraction fields](../Type/op_Coredollar_FractionField.mdx) . This function will not recognize other rings as fields.
+
+## Installed For
+
+### isField([EngineRing](../Type/EngineRing.mdx))
+
+### isField([GaloisField](../Type/GaloisField.mdx))
+
+### isField([InexactField](../Type/InexactField.mdx))
+
+### isField([Ring](../Type/Ring.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+## Examples
+
+```macaulay2
+isField R
+```
+
+```macaulay2
+isField QQ
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isField CC_53
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isField GF(23)
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isField(frac(QQ[xy]))
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isField R
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isField F
+
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `R` a [ ring](../Type/Ring.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) [true](../Instance/op_Coredollar_true.mdx) if `R` was explicitly constructed as a field (no computation is done) and [false](../Instance/op_Coredollar_blockMatrixForm.mdx) otherwise
+
+
+### See also
+
+
+- Macaulay2Doc:: toField
+- Macaulay2Doc:: FractionField
+- Macaulay2Doc:: GaloisField
+- Macaulay2Doc:: QuotientRing
+- Macaulay2Doc:: isUnit
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isField",
+    "safe_name": "op_Coredollar_isField",
+    "type": "MethodFunction",
+    "description": " This function recognizes basic fields [ Galois fields](../Type/GaloisField.mdx)  and [ fraction fie...",
+    "installations": [
+        "<Installation isField(EngineRing)>",
+        "<Installation isField(GaloisField)>",
+        "<Installation isField(Ring)>",
+        "<Installation isField(InexactField)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isField",
+        "full_doc": "... (2167 bytes) ...",
+        "parsed_headline": "isField  -- whether something is a field"
+    }
+}
+```

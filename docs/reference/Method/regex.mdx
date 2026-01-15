@@ -1,0 +1,192 @@
+---
+title: "regex"
+kind: Method
+---
+
+# regex
+
+**regex  -- evaluate a regular expression search**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+The value returned is a list of pairs of integers corresponding to the parenthesized subexpressions successfully matched suitable for use as the first argument of [substring](../Function/op_Coredollar_substring.mdx). The first member of each pair is the offset within `str` of the substring matched and the second is the length.See [regular expressions](../Instance/regular expressions.mdx) for a brief introduction to the topic.By default the regular expressions are interpreted using the Perl flavor which supports features such as lookaheads and lookbehinds for fine-tuning the matches. This syntax is used in Perl and JavaScript languages.Alternatively one can choose the POSIX Extended flavor of regex using ``. This syntax is similar to the one used by the Unix utilities `egrep` and `awk` and enforces the leftmost longest rule for finding matches. If there's a tie the rule is applied to the first subexpression.In the Perl flavor one can specify whether repetitions should be possessive or non-greedy.
+
+## Installed For
+
+### regex([String](../Type/String.mdx), [String](../Type/String.mdx))
+
+### regex([String](../Type/String.mdx), [ZZ](../Type/ZZ.mdx), [String](../Type/String.mdx))
+
+### regex([String](../Type/String.mdx), [ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx), [String](../Type/String.mdx)) -> [List](../Type/List.mdx)
+
+## Options
+
+- [POSIX](../Method/POSIX.mdx) => false
+
+## Examples
+
+```macaulay2
+regex(re str)
+regex(re start str)
+regex(re start range str)
+```
+
+```macaulay2
+m = regex("(\\w+) (\\w+) (\\w+)"s)
+
+```
+
+```text
+{(0, 10), (0, 3), (4, 3), (8, 2)}
+
+List
+```
+
+```macaulay2
+m = regex("a+" 0 s)
+
+```
+
+```text
+{(0, 2)}
+
+List
+```
+
+```macaulay2
+m = regex("a+" 2 s)
+
+```
+
+```text
+{(7, 4)}
+
+List
+```
+
+```macaulay2
+m = regex("a+" 2 3 s)
+```
+
+```macaulay2
+m = regex("^.*$" 8 -8 s)
+
+```
+
+```text
+{(7, 6)}
+
+List
+```
+
+```macaulay2
+m = regex("^" 10 -10 s)
+
+```
+
+```text
+{(7, 0)}
+
+List
+```
+
+```macaulay2
+m = regex("^.*$" 4 -10 s)
+
+```
+
+```text
+{(0, 6)}
+
+List
+```
+
+```macaulay2
+m = regex("a.*$" 4 -10 s)
+```
+
+```macaulay2
+regex("A(?!C)" "AC AB")
+
+```
+
+```text
+{(3, 1)}
+
+List
+```
+
+```macaulay2
+regex("A(?=B)" "AC AB")
+
+```
+
+```text
+{(3, 1)}
+
+List
+```
+
+```macaulay2
+m = regex("<b>(.*)</b>" s
+```
+
+```macaulay2
+m = regex("<b>(.*?)</b>" s);
+```
+
+## Additional Information
+
+- Inputs:
+- `re` a [ string](../Type/op_Coredollar_String.mdx) a [ regular expression](../Instance/regular expressions.mdx) describing a pattern
+- `start` an [ integer](../Type/ZZ.mdx) positive the position in `str` at which to begin the search. when omitted the search starts at the beginning of the string.
+- `range` an [ integer](../Type/ZZ.mdx) restricts matches to those beginning at a position between `start` and `start + range`; when 0 the pattern is matched only at the starting position; when negative only positions to the left of the starting position are examined for matches; when omitted the search extends to the end of the string.
+- `str` a [ string](../Type/op_Coredollar_String.mdx) the subject string to be searched
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `POSIX```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false if true interpret the `re` using the POSIX Extended flavor otherwise the Perl flavor
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) a list of pairs of integers; each pair denotes the beginning position and the length of a substring. Only the leftmost matching substring of `str` and the capturing groups within it are returned. If no match is found the output is [null](../Instance/null.mdx).
+
+
+### See also
+
+
+- Macaulay2Doc:: regular expressions
+- Macaulay2Doc:: strings and nets
+- Macaulay2Doc:: match
+- Macaulay2Doc:: separate
+- Macaulay2Doc:: replace(StringStringString)
+- Macaulay2Doc:: select(StringStringString)
+- Macaulay2Doc:: regexQuote
+- Macaulay2Doc:: substring
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "regex",
+    "safe_name": "op_Coredollar_regex",
+    "type": "MethodFunctionWithOptions",
+    "description": "The value returned is a list of pairs of integers corresponding to the parenthesized subexpressions ...",
+    "installations": [
+        "<Installation regex(String, String)>",
+        "<Installation regex(String, ZZ, String)>",
+        "<Installation regex(String, ZZ, ZZ, String)>"
+    ],
+    "options": [
+        {
+            "name": "POSIX",
+            "default": "false"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$regex",
+        "full_doc": "... (6662 bytes) ...",
+        "parsed_headline": "regex  -- evaluate a regular expression search"
+    }
+}
+```

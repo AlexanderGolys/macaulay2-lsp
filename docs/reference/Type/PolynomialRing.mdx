@@ -1,195 +1,215 @@
 ---
 title: "PolynomialRing"
 kind: Type
-parent: EngineRing
 ---
 
 # PolynomialRing
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**PolynomialRing  -- the class of all ordered monoid rings**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[EngineRing](../Type/EngineRing.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `**`
-
-- `**(QuotientRing, PolynomialRing)`
-- `**(PolynomialRing, PolynomialRing)`
-- `**(PolynomialRing, QuotientRing)`
-
-### `Grassmannian`
-
-- `Grassmannian(ZZ, ZZ, PolynomialRing)`
-
-### `_`
-
-- `_(PolynomialRing, List)`
-
-### `ambient`
-
-- `ambient(PolynomialRing)`
-
-### `char`
-
-- `char(PolynomialRing)`
-
-### `codim`
-
-- `codim(PolynomialRing)`
-
-### `coefficientRing`
-
-- `coefficientRing(PolynomialRing)`
-
-### `degreeGroup`
-
-- `degreeGroup(PolynomialRing)`
-
-### `degreeLength`
-
-- `degreeLength(PolynomialRing)`
-
-### `degreesMonoid`
-
-- `degreesMonoid(PolynomialRing)`
-
-### `degreesRing`
-
-- `degreesRing(PolynomialRing)`
-
-### `describe`
-
-- `describe(PolynomialRing)`
-
-### `dim`
-
-- `dim(PolynomialRing)`
-
-### `expression`
-
-- `expression(PolynomialRing)`
-
-### `flattenRing`
-
-- `flattenRing(PolynomialRing)`
-
-### `generators`
-
-- `generators(PolynomialRing)`
-
-### `heft`
-
-- `heft(PolynomialRing)`
-
-### `hilbertSeries`
-
-- `hilbertSeries(PolynomialRing)`
-
-### `isAffineRing`
-
-- `isAffineRing(PolynomialRing)`
-
-### `isHomogeneous`
-
-- `isHomogeneous(PolynomialRing)`
-
-### `isPolynomialRing`
-
-- `isPolynomialRing(PolynomialRing)`
-
-### `isSkewCommutative`
-
-- `isSkewCommutative(PolynomialRing)`
-
-### `isWeylAlgebra`
-
-- `isWeylAlgebra(PolynomialRing)`
-
-### `monoid`
-
-- `monoid(PolynomialRing)`
-
-### `newCoordinateSystem`
-
-- `newCoordinateSystem(PolynomialRing, Matrix)`
-
-### `newRing`
-
-- `newRing(PolynomialRing)`
-
-### `numgens`
-
-- `numgens(PolynomialRing)`
-
-### `options`
-
-- `options(PolynomialRing)`
-
-### `precision`
-
-- `precision(PolynomialRing)`
-
-### `presentation`
-
-- `presentation(PolynomialRing)`
-- `presentation(PolynomialRing, QuotientRing)`
-- `presentation(QuotientRing, PolynomialRing)`
-- `presentation(PolynomialRing, PolynomialRing)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [**](../Operator/op_star_star.mdx)
-- [Grassmannian](../Function/Grassmannian.mdx)
-- [_](../Operator/_.mdx)
-- [ambient](../Function/ambient.mdx)
-- [char](../Function/char.mdx)
-- [codim](../Function/codim.mdx)
-- [coefficientRing](../Function/coefficientRing.mdx)
-- [degreeGroup](../Function/degreeGroup.mdx)
-- [degreeLength](../Function/degreeLength.mdx)
-- [degreesMonoid](../Function/degreesMonoid.mdx)
-- [degreesRing](../Function/degreesRing.mdx)
-- [describe](../Function/describe.mdx)
-- [dim](../Function/dim.mdx)
-- [expression](../Function/expression.mdx)
-- [flattenRing](../Function/flattenRing.mdx)
-- [generators](../Function/generators.mdx)
-- [heft](../Function/heft.mdx)
-- [hilbertSeries](../Function/hilbertSeries.mdx)
-- [isAffineRing](../Function/isAffineRing.mdx)
-- [isHomogeneous](../Function/isHomogeneous.mdx)
-- [isPolynomialRing](../Function/isPolynomialRing.mdx)
-- [isSkewCommutative](../Function/isSkewCommutative.mdx)
-- [isWeylAlgebra](../Function/isWeylAlgebra.mdx)
-- [monoid](../Function/monoid.mdx)
-- [newCoordinateSystem](../Function/newCoordinateSystem.mdx)
-- [newRing](../Function/newRing.mdx)
-- [numgens](../Function/numgens.mdx)
-- [options](../Function/options.mdx)
-- [precision](../Function/precision.mdx)
-- [presentation](../Function/presentation.mdx)
-
-*... and 2 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [EngineRing](../Type/EngineRing.mdx) (parent type)
+ Every element of a polynomial ring is also a [RingElement](../Type/RingElement.mdx) .
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: polynomial rings
+
+[hilbertSeries(PolynomialRing)](../Instance/hilbertSeries(PolynomialRing).mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "PolynomialRing",
+    "safe_name": "PolynomialRing",
+    "type": null,
+    "description": " Every element of a polynomial ring is also a [RingElement](../Type/RingElement.mdx) ....",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "PolynomialRing",
+        "parent": "EngineRing",
+        "methods": [
+            [
+                "char",
+                "PolynomialRing"
+            ],
+            [
+                "precision",
+                "PolynomialRing"
+            ],
+            [
+                "options",
+                "PolynomialRing"
+            ],
+            [
+                "numgens",
+                "PolynomialRing"
+            ],
+            [
+                "isAffineRing",
+                "PolynomialRing"
+            ],
+            [
+                "heft",
+                "PolynomialRing"
+            ],
+            [
+                "hilbertSeries",
+                "PolynomialRing"
+            ],
+            [
+                "newCoordinateSystem",
+                "PolynomialRing",
+                "Matrix"
+            ],
+            [
+                "newRing",
+                "PolynomialRing"
+            ],
+            [
+                "**",
+                "PolynomialRing",
+                "PolynomialRing"
+            ],
+            [
+                "**",
+                "PolynomialRing",
+                "QuotientRing"
+            ],
+            [
+                "**",
+                "QuotientRing",
+                "PolynomialRing"
+            ],
+            [
+                "flattenRing",
+                "PolynomialRing"
+            ],
+            [
+                "tensor",
+                "QuotientRing",
+                "PolynomialRing"
+            ],
+            [
+                "tensor",
+                "PolynomialRing",
+                "QuotientRing"
+            ],
+            [
+                "tensor",
+                "PolynomialRing",
+                "PolynomialRing"
+            ],
+            [
+                "codim",
+                "PolynomialRing"
+            ],
+            [
+                "isPolynomialRing",
+                "PolynomialRing"
+            ],
+            [
+                "isHomogeneous",
+                "PolynomialRing"
+            ],
+            [
+                "isWeylAlgebra",
+                "PolynomialRing"
+            ],
+            [
+                "isSkewCommutative",
+                "PolynomialRing"
+            ],
+            [
+                "_",
+                "PolynomialRing",
+                "List"
+            ],
+            [
+                "coefficientRing",
+                "PolynomialRing"
+            ],
+            [
+                "monoid",
+                "PolynomialRing"
+            ],
+            [
+                "generators",
+                "PolynomialRing"
+            ],
+            [
+                "dim",
+                "PolynomialRing"
+            ],
+            [
+                "describe",
+                "PolynomialRing"
+            ],
+            [
+                "expression",
+                "PolynomialRing"
+            ],
+            [
+                "degreesRing",
+                "PolynomialRing"
+            ],
+            [
+                "degreesMonoid",
+                "PolynomialRing"
+            ],
+            [
+                "degreeLength",
+                "PolynomialRing"
+            ],
+            [
+                "degreeGroup",
+                "PolynomialRing"
+            ],
+            [
+                "selectVariables",
+                "List",
+                "PolynomialRing"
+            ],
+            [
+                "presentation",
+                "PolynomialRing"
+            ],
+            [
+                "presentation",
+                "PolynomialRing",
+                "QuotientRing"
+            ],
+            [
+                "presentation",
+                "QuotientRing",
+                "PolynomialRing"
+            ],
+            [
+                "presentation",
+                "PolynomialRing",
+                "PolynomialRing"
+            ],
+            [
+                "Grassmannian",
+                "ZZ",
+                "ZZ",
+                "PolynomialRing"
+            ],
+            [
+                "ambient",
+                "PolynomialRing"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (3196 bytes) ...",
+        "parsed_headline": "PolynomialRing  -- the class of all ordered monoid rings"
+    }
+}
+```

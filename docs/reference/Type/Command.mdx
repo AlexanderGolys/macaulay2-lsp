@@ -1,160 +1,207 @@
 ---
 title: "Command"
 kind: Type
-parent: BasicList
 ---
 
 # Command
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [SelfInitializingType](../Type/SelfInitializingType.mdx)
+**Command  -- the class of all commands**
 
 ## Description
 
-An instance of the type [SelfInitializingType](../Type/SelfInitializingType.mdx).
-
-## Parent Type
-
-[BasicList](../Type/BasicList.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `clearAll`
-- `showStructure`
-- `cite`
-- `showClassStructure`
-- `profileSummary`
-- `coverageSummary`
-- `exit`
-- `help`
-- `viewHelp`
-- `copyright`
-- `edit`
-- `showUserStructure`
-- `clearOutput`
-- `listLocalSymbols`
-- `quit`
-- `restart`
-- `infoHelp`
-- `listUserSymbols`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `/`
-
-- `/(List, Command)`
-- `/(VisibleList, Command)`
-- `/(String, Command)`
-- `/(VirtualTally, Command)`
-- `/(Set, Command)`
-
-### `//`
-
-- `//(Thing, Command)`
-- `//(VisibleList, Command)`
-
-### `?`
-
-- `?(Command)`
-
-### `NewFromMethod`
-
-- `NewFromMethod(Command, Function)`
-- `NewFromMethod(Command, String)`
-
-### `SPACE`
-
-- `SPACE(Command, Thing)`
-
-### `\`
-
-- `\(Command, VisibleList)`
-- `\(Command, String)`
-- `\(Command, VirtualTally)`
-- `\(Command, Set)`
-
-### `\\`
-
-- `\\(Command, Thing)`
-
-### `apply`
-
-- `apply(Thing, Command)`
-
-### `code`
-
-- `code(Command)`
-
-### `html`
-
-- `html(Command)`
-
-### `hypertext`
-
-- `hypertext(Command)`
-
-### `locate`
-
-- `locate(Command)`
-
-### `methodOptions`
-
-- `methodOptions(Command)`
-
-### `methods`
-
-- `methods(Command)`
-
-### `net`
-
-- `net(Command)`
-
-### `options`
-
-- `options(Command)`
-
-### `toExternalString`
-
-- `toExternalString(Command)`
-
-### `toString`
-
-- `toString(Command)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [/](../Operator/op_slash.mdx)
-- [//](../Operator/op_slash_slash.mdx)
-- [?](../Operator/op_question.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [\](../Operator/op_bs.mdx)
-- [\\](../Operator/op_bs_bs.mdx)
-- [apply](../Function/apply.mdx)
-- [code](../Function/code.mdx)
-- [html](../Function/html.mdx)
-- [hypertext](../Function/hypertext.mdx)
-- [locate](../Function/locate.mdx)
-- [methodOptions](../Function/methodOptions.mdx)
-- [methods](../Function/methods.mdx)
-- [net](../Function/net.mdx)
-- [options](../Function/options.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-- [toString](../Function/toString.mdx)
+ A command behaves as a function does if it is followed by an adjacent expression that can serve as its argument or argument list.  In addition if it appears as the value of an expression typed by the user at top level (i.e. not in a file) then it gets executed with empty argument list.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+Command g
+```
 
-## See Also
+```macaulay2
+(f = Command ( () -> 2^30 );)
+```
 
-- [BasicList](../Type/BasicList.mdx) (parent type)
+```macaulay2
+(c = Command "date";)
+```
+
+## Additional Information
+
+- Inputs:
+- `g` a function or a string
+- Outputs:
+- a new command that will evaluate `g()` if `g` is a function and will evaluate `run g` if `g` is a string
+
+
+### See also
+
+
+- Macaulay2Doc:: run
+- Macaulay2Doc:: AfterEval
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "Command",
+    "safe_name": "op_Coredollar_Command",
+    "type": null,
+    "description": " A command behaves as a function does if it is followed by an adjacent expression that can serve as ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Command",
+        "parent": "BasicList",
+        "methods": [
+            [
+                "NewFromMethod",
+                "Command",
+                "Function"
+            ],
+            [
+                "SPACE",
+                "Command",
+                "Thing"
+            ],
+            [
+                "apply",
+                "Thing",
+                "Command"
+            ],
+            [
+                "\\",
+                "Command",
+                "VisibleList"
+            ],
+            [
+                "\\",
+                "Command",
+                "String"
+            ],
+            [
+                "\\\\",
+                "Command",
+                "Thing"
+            ],
+            [
+                "/",
+                "List",
+                "Command"
+            ],
+            [
+                "/",
+                "VisibleList",
+                "Command"
+            ],
+            [
+                "/",
+                "String",
+                "Command"
+            ],
+            [
+                "//",
+                "Thing",
+                "Command"
+            ],
+            [
+                "//",
+                "VisibleList",
+                "Command"
+            ],
+            [
+                "html",
+                "Command"
+            ],
+            [
+                "code",
+                "Command"
+            ],
+            [
+                "methods",
+                "Command"
+            ],
+            [
+                "locate",
+                "Command"
+            ],
+            [
+                "?",
+                "Command"
+            ],
+            [
+                "hypertext",
+                "Command"
+            ],
+            [
+                "methodOptions",
+                "Command"
+            ],
+            [
+                "options",
+                "Command"
+            ],
+            [
+                "toExternalString",
+                "Command"
+            ],
+            [
+                "net",
+                "Command"
+            ],
+            [
+                "toString",
+                "Command"
+            ],
+            [
+                "/",
+                "VirtualTally",
+                "Command"
+            ],
+            [
+                "\\",
+                "Command",
+                "VirtualTally"
+            ],
+            [
+                "/",
+                "Set",
+                "Command"
+            ],
+            [
+                "\\",
+                "Command",
+                "Set"
+            ],
+            [
+                "NewFromMethod",
+                "Command",
+                "String"
+            ]
+        ],
+        "instances": [
+            "clearAll",
+            "showStructure",
+            "cite",
+            "showClassStructure",
+            "profileSummary",
+            "coverageSummary",
+            "exit",
+            "help",
+            "viewHelp",
+            "copyright",
+            "edit",
+            "showUserStructure",
+            "clearOutput",
+            "listLocalSymbols",
+            "quit",
+            "restart",
+            "infoHelp",
+            "listUserSymbols"
+        ],
+        "full_doc": "... (3921 bytes) ...",
+        "parsed_headline": "Command  -- the class of all commands"
+    }
+}
+```

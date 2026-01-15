@@ -5,61 +5,65 @@ kind: Function
 
 # globalAssignFunction
 
-**Type:** `Function`
+**globalAssignFunction  -- the standard method for the global assignment hook**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-globalAssignFunction, -- the standard method for the global assignment hook, Description, globalAssignFunction, -- the standard function that can be used as a method for , Macaulay2Doc :: GlobalAssignHook, so that certain types of things, when assigned to a global variable, will acquire the name of the global variable as their name. The companion function , Macaulay2Doc :: globalReleaseFunction, is used to release the name when the global variable gets reassigned., , Another thing done by this function is to apply , Macaulay2Doc :: use, to the thing. This is used for polynomial rings to assign values to the symbols representing the variables (indeterminates) in the ring., , class => examples, i1 : X = new Type of MutableHashTable
-
-o1 = X
-
-o1 : Type, class => language-macaulay2, i2 : x = new X
-
-o2 = 
-
-o2 : X, class => language-macaulay2, i3 : X.GlobalAssignHook = globalAssignFunction
-
-o3 = globalAssignFunction
-
-o3 : FunctionClosure, class => language-macaulay2, i4 : X.GlobalReleaseHook = globalReleaseFunction
-
-o4 = globalReleaseFunction
-
-o4 : FunctionClosure, class => language-macaulay2, i5 : x' = new X
-
-o5 = x'
-
-o5 : X, class => language-macaulay2, i6 : t = {x,x'
-
-o6 = {, x'
-
-o6 : List, class => language-macaulay2, i7 : x = x' = 44
-
-o7 = 44, class => language-macaulay2, i8 : t
-
-o8 = {, 
-
-o8 : List, class => language-macaulay2, i9 : code globalAssignFunction
-
-o9 = /usr/share/Macaulay2/Core/startup.m2.in:193
- :28-197:11: --source code:
- globalAssignFunction = (X,x) -> (
- if not instance(X,Symbol) then error("globalAssignFunction: expected a symbol: ", toString X);
- if not hasAttribute(x,ReverseDictionary) then setAttribute(x,ReverseDictionary,X);
- use x;
- );, class => language-macaulay2, See also, Macaulay2Doc :: symbol, Macaulay2Doc :: SelfInitializingType, class => waystouse, For the programmer, The object , Macaulay2Doc :: globalAssignFunction, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:225:0, .
+`globalAssignFunction`  -- the standard function that can be used as a method for [GlobalAssignHook](../Method/op_Coredollar_GlobalAssignHook.mdx)  so that certain types of things when assigned to a global variable will acquire the name of the global variable as their name.  The companion function [globalReleaseFunction](../Function/op_Coredollar_globalReleaseFunction.mdx)  is used to release the name when the global variable gets reassigned. Another thing done by this function is to apply [use](../Method/op_Coredollar_use.mdx)  to the thing. This is used for polynomial rings to assign values to the symbols representing the variables (indeterminates) in the ring.
 
 ## Examples
 
 ```macaulay2
-i1 : X = new Type of MutableHashTable
+X.GlobalAssignHook = globalAssignFunction
 
-o1 = X
-
-o1 : Type
 ```
 
-## See Also
+```text
+globalAssignFunction
 
+FunctionClosure
+```
+
+```macaulay2
+code globalAssignFunction
+
+```
+
+```text
+/usr/share/Macaulay2/Core/startup.m2.in:193
+     :28-197:11: --source code:
+          globalAssignFunction = (Xx) -> (
+               if not instance(XSymbol) then error("globalAssignFunction: expected a symbol: " toString X);
+               if not hasAttribute(xReverseDictionary) then setAttribute(xReverseDictionaryX);
+               use x;
+               );
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: symbol
+- Macaulay2Doc:: SelfInitializingType
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "globalAssignFunction",
+    "safe_name": "globalAssignFunction",
+    "type": "FunctionClosure",
+    "description": "`globalAssignFunction`  -- the standard function that can be used as a method for [GlobalAssignHook]...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "globalAssignFunction",
+        "full_doc": "... (2451 bytes) ...",
+        "parsed_headline": "globalAssignFunction  -- the standard method for the global assignment hook"
+    }
+}
+```

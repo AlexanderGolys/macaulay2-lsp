@@ -5,35 +5,60 @@ kind: Function
 
 # fileExists
 
-**Type:** `Function`
+**fileExists  -- whether a file exists**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-fileExists, -- whether a file exists, class => element, Usage: , fileExists fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether a file with the filename or path , fn, exists, Description, class => examples, i1 : fn = temporaryFileName()
-
-o1 = /tmp/M2-705499-0/0, class => language-macaulay2, i2 : fileExists fn
-
-o2 = false, class => language-macaulay2, i3 : fn << "hi there" << close
-
-o3 = /tmp/M2-705499-0/0
-
-o3 : File, class => language-macaulay2, i4 : fileExists fn
-
-o4 = true, class => language-macaulay2, i5 : removeFile fn, class => language-macaulay2, If , fn, refers to a symbolic link, then whether the file exists is determined by the content of the link and whether there is a file with the new path determined by it. The presence of a symbolic link can be detected with , Macaulay2Doc :: readlink, ., class => waystouse, For the programmer, The object , Macaulay2Doc :: fileExists, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/fileExists-doc.m2:17:0, .
+ If `fn`  refers to a symbolic link then whether the file exists is determined by the content of the link and whether there is a file with the new path determined by it.  The presence of a symbolic link can be detected with [readlink](../Function/readlink.mdx) .
 
 ## Examples
 
 ```macaulay2
-i1 : fn = temporaryFileName()
-
-o1 = /tmp/M2-705499-0/0
-
-i2 : fileExists fn
-
-o2 = false
+fileExists fn
 ```
 
-## See Also
+```macaulay2
+fileExists fn
 
+```
+
+```text
+false
+```
+
+```macaulay2
+fileExists fn
+
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `fn` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether a file with the filename or path `fn` exists
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "fileExists",
+    "safe_name": "op_Coredollar_fileExists",
+    "type": "CompiledFunction",
+    "description": " If `fn`  refers to a symbolic link then whether the file exists is determined by the content of the...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$fileExists",
+        "full_doc": "... (1459 bytes) ...",
+        "parsed_headline": "fileExists  -- whether a file exists"
+    }
+}
+```

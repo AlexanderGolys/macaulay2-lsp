@@ -5,17 +5,50 @@ kind: Function
 
 # left
 
-**Type:** `Function`
+**left  -- left endpoint of an interval**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-left, -- left endpoint of an interval, class => element, Usage: , x = left I, class => language-macaulay2, Inputs:, I, , , a , Macaulay2Doc :: RRi, real interval, , , Outputs:, x, , , a , Macaulay2Doc :: RR, real number, , , Description, Returns the left endpoint of the input interval., See also, Macaulay2Doc :: right, Macaulay2Doc :: midpoint, Macaulay2Doc :: diameter, class => waystouse, For the programmer, The object , Macaulay2Doc :: left, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_intervals.m2:20:0, .
+Returns the left endpoint of the input interval.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+x = left I
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `I` a [ real interval](../Type/RRi.mdx)
+- Outputs:
+- `x` a [ real number](../Type/op_x226_x132_x157.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: right
+- Macaulay2Doc:: midpoint
+- Macaulay2Doc:: diameter
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "left",
+    "safe_name": "op_Coredollar_left",
+    "type": "CompiledFunction",
+    "description": "Returns the left endpoint of the input interval....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$left",
+        "full_doc": "... (850 bytes) ...",
+        "parsed_headline": "left  -- left endpoint of an interval"
+    }
+}
+```

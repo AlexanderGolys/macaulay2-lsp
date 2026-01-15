@@ -1,0 +1,205 @@
+---
+title: "net"
+kind: Method
+---
+
+# net
+
+**net  -- format for printing as a net**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+This function is the primary function called upon by [<<](../Method/op_Coredollar_lt_lt.mdx) to format expressions for printing. The default method provided by the system is to convert `o` to an [Expression](../Type/op_Coredollar_Expression.mdx) with [expression](../Method/op_Coredollar_expression.mdx) and then to convert that to a [Net](../Type/op_Coredollar_Net.mdx).A new method for formatting expressions of type `T` may be installed as follows:The function provided by the user should return a [Net](../Type/op_Coredollar_Net.mdx) or a [String](../Type/op_Coredollar_String.mdx).There are various such methods for formatting but we don't document them separately.
+
+## Installed For
+
+### net([Adjacent](../Type/Adjacent.mdx))
+
+### net([AngleBarList](../Type/AngleBarList.mdx))
+
+### net([Array](../Type/Array.mdx))
+
+### net([AssociativeExpression](../Type/AssociativeExpression.mdx))
+
+### net([Bag](../Type/Bag.mdx))
+
+### net([BasicList](../Type/BasicList.mdx))
+
+### net([BettiTally](../Type/BettiTally.mdx))
+
+### net([BinaryOperation](../Type/BinaryOperation.mdx))
+
+### net([Boolean](../Type/Boolean.mdx))
+
+### net([CC](../Type/CC.mdx))
+
+### net([Command](../Type/Command.mdx))
+
+### net([Constant](../Type/Constant.mdx))
+
+### net([Database](../Type/Database.mdx))
+
+### net([Descent](../Type/Descent.mdx))
+
+### net([Divide](../Type/Divide.mdx))
+
+### net([DocumentTag](../Type/DocumentTag.mdx))
+
+### net([EngineRing](../Type/EngineRing.mdx))
+
+### net([File](../Type/File.mdx))
+
+### net([FilePosition](../Type/FilePosition.mdx))
+
+### net([Function](../Type/Function.mdx))
+
+### net([FunctionApplication](../Type/FunctionApplication.mdx))
+
+### net([FunctionBody](../Type/FunctionBody.mdx))
+
+### net([GroebnerBasis](../Type/GroebnerBasis.mdx))
+
+### net([HashTable](../Type/HashTable.mdx))
+
+### net([Holder](../Type/Holder.mdx))
+
+### net([Ideal](../Type/Ideal.mdx))
+
+### net([IndeterminateNumber](../Type/IndeterminateNumber.mdx))
+
+### net([IndexedVariable](../Type/IndexedVariable.mdx))
+
+### net([IndexedVariableTable](../Type/IndexedVariableTable.mdx))
+
+### net([InexactField](../Type/InexactField.mdx))
+
+
+*... and 51 more*
+
+## Examples
+
+```macaulay2
+net o
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) obtained by formatting `o` for printing
+
+
+### See also
+
+
+- Macaulay2Doc:: String
+- Macaulay2Doc:: Expression
+- Macaulay2Doc:: AfterPrint
+- Macaulay2Doc:: toString
+- Macaulay2Doc:: toExternalString
+- Macaulay2Doc:: expression
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "net",
+    "safe_name": "op_Coredollar_net",
+    "type": "MethodFunctionSingle",
+    "description": "This function is the primary function called upon by [<<](../Method/op_Coredollar_lt_lt.mdx) to form...",
+    "installations": [
+        "<Installation net(BettiTally)>",
+        "<Installation net(MultigradedBettiTally)>",
+        "<Installation net(Pseudocode)>",
+        "<Installation net(RingMap)>",
+        "<Installation net(Option)>",
+        "<Installation net(Monoid)>",
+        "<Installation net(MonoidElement)>",
+        "<Installation net(ProgramRun)>",
+        "<Installation net(Matrix)>",
+        "<Installation net(EngineRing)>",
+        "<Installation net(Set)>",
+        "<Installation net(IndexedVariableTable)>",
+        "<Installation net(ProjectiveHilbertPolynomial)>",
+        "<Installation net(Descent)>",
+        "<Installation net(FilePosition)>",
+        "<Installation net(DocumentTag)>",
+        "<Installation net(RingElement)>",
+        "<Installation net(AssociativeExpression)>",
+        "<Installation net(Holder)>",
+        "<Installation net(RowExpression)>",
+        "<Installation net(BinaryOperation)>",
+        "<Installation net(Adjacent)>",
+        "<Installation net(FunctionApplication)>",
+        "<Installation net(Subscript)>",
+        "<Installation net(Superscript)>",
+        "<Installation net(Power)>",
+        "<Installation net(Sum)>",
+        "<Installation net(Product)>",
+        "<Installation net(Minus)>",
+        "<Installation net(Divide)>",
+        "<Installation net(SparseVectorExpression)>",
+        "<Installation net(SparseMonomialVectorExpression)>",
+        "<Installation net(Table)>",
+        "<Installation net(MatrixExpression)>",
+        "<Installation net(VectorExpression)>",
+        "<Installation net(MapExpression)>",
+        "<Installation net(GroebnerBasis)>",
+        "<Installation net(Iterator)>",
+        "<Installation net(Ideal)>",
+        "<Installation net(InfiniteNumber)>",
+        "<Installation net(IndeterminateNumber)>",
+        "<Installation net(Vector)>",
+        "<Installation net(Module)>",
+        "<Installation net(MutableMatrix)>",
+        "<Installation net(Command)>",
+        "<Installation net(TestInput)>",
+        "<Installation net(Function)>",
+        "<Installation net(FunctionBody)>",
+        "<Installation net(String)>",
+        "<Installation net(Nothing)>",
+        "<Installation net(Sequence)>",
+        "<Installation net(List)>",
+        "<Installation net(VerticalList)>",
+        "<Installation net(NumberedVerticalList)>",
+        "<Installation net(Array)>",
+        "<Installation net(AngleBarList)>",
+        "<Installation net(BasicList)>",
+        "<Installation net(MutableList)>",
+        "<Installation net(HashTable)>",
+        "<Installation net(MutableHashTable)>",
+        "<Installation net(Type)>",
+        "<Installation net(ScriptedFunctor)>",
+        "<Installation net(Package)>",
+        "<Installation net(Time)>",
+        "<Installation net(Bag)>",
+        "<Installation net(Program)>",
+        "<Installation net(QQ)>",
+        "<Installation net(Constant)>",
+        "<Installation net(InexactField)>",
+        "<Installation net(CC)>",
+        "<Installation net(VirtualTally)>",
+        "<Installation net(IndexedVariable)>",
+        "<Installation net(Net)>",
+        "<Installation net(File)>",
+        "<Installation net(Boolean)>",
+        "<Installation net(Manipulator)>",
+        "<Installation net(Symbol)>",
+        "<Installation net(Database)>",
+        "<Installation net(ZZ)>",
+        "<Installation net(RR)>",
+        "<Installation net(Thing)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$net",
+        "full_doc": "... (2326 bytes) ...",
+        "parsed_headline": "net  -- format for printing as a net"
+    }
+}
+```

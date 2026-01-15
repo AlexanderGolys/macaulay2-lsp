@@ -1,0 +1,108 @@
+---
+title: "sortColumns"
+kind: Method
+---
+
+# sortColumns
+
+**sortColumns  -- permutation giving sort order**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ See [sort(Matrix)](../Instance/sort(Matrix).mdx)  for the ordering used.  The meanings of the optional parameters is also the same.
+
+## Installed For
+
+### sortColumns([Matrix](../Type/Matrix.mdx))
+
+## Options
+
+- [MonomialOrder](../Option/MonomialOrder.mdx) => Ascending
+- [DegreeOrder](../Option/DegreeOrder.mdx) => null
+
+## Examples
+
+```macaulay2
+sortColumns m
+```
+
+```macaulay2
+p = sortColumns m
+
+```
+
+```text
+{4, 1, 3, 2, 0}
+
+List
+```
+
+```macaulay2
+p = sortColumns(m
+```
+
+```macaulay2
+s = sortColumns f
+
+```
+
+```text
+{0, 5, 4, 1, 6, 8, 9, 3, 7, 2}
+
+List
+```
+
+```macaulay2
+s = sortColumns(f
+```
+
+## Additional Information
+
+- Inputs:
+- `m` between free modules
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- [](../Instance/sortColumns(....mdx)```...` default value null specify Ascending Descending or null
+- [](../Instance/sortColumns(....mdx)```...` default value Ascending specify Ascending or Descending monomial order
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) of integers representing the order which places the columns in order
+
+
+### See also
+
+
+- Macaulay2Doc:: sort
+
+[sortColumns(...](../Instance/sortColumns(....mdx)[sortColumns(...](../Instance/sortColumns(....mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "sortColumns",
+    "safe_name": "sortColumns",
+    "type": "MethodFunctionWithOptions",
+    "description": " See [sort(Matrix)](../Instance/sort(Matrix).mdx)  for the ordering used.  The meanings of the optio...",
+    "installations": [
+        "<Installation sortColumns(Matrix)>"
+    ],
+    "options": [
+        {
+            "name": "MonomialOrder",
+            "default": "Ascending"
+        },
+        {
+            "name": "DegreeOrder",
+            "default": "null"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "sortColumns",
+        "full_doc": "... (3284 bytes) ...",
+        "parsed_headline": "sortColumns  -- permutation giving sort order"
+    }
+}
+```

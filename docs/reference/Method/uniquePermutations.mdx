@@ -1,0 +1,69 @@
+---
+title: "uniquePermutations"
+kind: Method
+---
+
+# uniquePermutations
+
+**uniquePermutations  -- produce all unique permutations of a list**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+uniquePermutations  -- produce all unique permutations of a list
+
+## Installed For
+
+### uniquePermutations([VisibleList](../Type/VisibleList.mdx))
+
+### uniquePermutations([ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+uniquePermutations x
+```
+
+```macaulay2
+uniquePermutations {a,b,a,b}
+
+```
+
+```text
+{{a, b, a, b}, {a, b, b, a}, {a, a, b, b}, {b, a, a, b}, {b, a, b, a},
+     ------------------------------------------------------------------------
+     {b, b, a, a}}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ visible list](../Type/VisibleList.mdx) or an [ integer](../Type/ZZ.mdx)
+- Outputs:
+- a list of all distinct permutations of the visible list `x` or if `x` is an integer of the list of integers from 0 through `n-1`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "uniquePermutations",
+    "safe_name": "op_Coredollar_uniquePermutations",
+    "type": "MethodFunction",
+    "description": "uniquePermutations  -- produce all unique permutations of a list...",
+    "installations": [
+        "<Installation uniquePermutations(VisibleList)>",
+        "<Installation uniquePermutations(ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$uniquePermutations",
+        "full_doc": "... (1302 bytes) ...",
+        "parsed_headline": "uniquePermutations  -- produce all unique permutations of a list"
+    }
+}
+```

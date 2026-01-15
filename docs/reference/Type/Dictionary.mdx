@@ -1,123 +1,129 @@
 ---
 title: "Dictionary"
 kind: Type
-parent: Thing
 ---
 
 # Dictionary
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Dictionary  -- the class of all dictionaries**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[Thing](../Type/Thing.mdx)
-
-## Subtypes
-
-Direct subtypes of this type:
-
-- [GlobalDictionary](../Type/GlobalDictionary.mdx)
-- [LocalDictionary](../Type/LocalDictionary.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `OutputDictionary`
-- `PackageDictionary`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `#`
-
-- `#(Dictionary)`
-- `#(Dictionary, String)`
-
-### `#?`
-
-- `#?(Dictionary, String)`
-
-### `applyPairs`
-
-- `applyPairs(Dictionary, Function)`
-
-### `html`
-
-- `html(Dictionary)`
-
-### `hypertext`
-
-- `hypertext(Dictionary)`
-
-### `keys`
-
-- `keys(Dictionary)`
-
-### `length`
-
-- `length(Dictionary)`
-
-### `listSymbols`
-
-- `listSymbols(Dictionary)`
-
-### `localDictionaries`
-
-- `localDictionaries(Dictionary)`
-
-### `package`
-
-- `package(Dictionary)`
-
-### `pairs`
-
-- `pairs(Dictionary)`
-
-### `peek'`
-
-- `peek'(ZZ, Dictionary)`
-
-### `toString`
-
-- `toString(Dictionary)`
-
-### `values`
-
-- `values(Dictionary)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [#](../Operator/op_hash.mdx)
-- [#?](../Operator/op_hash_question.mdx)
-- [applyPairs](../Function/applyPairs.mdx)
-- [html](../Function/html.mdx)
-- [hypertext](../Function/hypertext.mdx)
-- [keys](../Function/keys.mdx)
-- [length](../Function/length.mdx)
-- [listSymbols](../Function/listSymbols.mdx)
-- [localDictionaries](../Function/localDictionaries.mdx)
-- [package](../Function/package.mdx)
-- [pairs](../Function/pairs.mdx)
-- [peek'](../Function/op_peekx39.mdx)
-- [toString](../Function/toString.mdx)
-- [values](../Function/values.mdx)
+ A dictionary is a special sort of hash table whose keys are the strings and whose values are the corresponding symbols.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+Core.Dictionary # "sin"
 
-## See Also
+```
 
-- [Thing](../Type/Thing.mdx) (parent type)
+```text
+sin
+
+Symbol
+```
+
+```macaulay2
+Core.Dictionary #? "sin"
+
+```
+
+```text
+true
+```
+
+## Additional Information
+
+[GlobalDictionary](../Type/op_Coredollar_GlobalDictionary.mdx)[LocalDictionary](../Type/LocalDictionary.mdx)[length(Dictionary)](../Instance/length(Dictionary).mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "Dictionary",
+    "safe_name": "op_Coredollar_Dictionary",
+    "type": null,
+    "description": " A dictionary is a special sort of hash table whose keys are the strings and whose values are the co...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Dictionary",
+        "parent": "Thing",
+        "methods": [
+            [
+                "html",
+                "Dictionary"
+            ],
+            [
+                "listSymbols",
+                "Dictionary"
+            ],
+            [
+                "hypertext",
+                "Dictionary"
+            ],
+            [
+                "length",
+                "Dictionary"
+            ],
+            [
+                "toString",
+                "Dictionary"
+            ],
+            [
+                "package",
+                "Dictionary"
+            ],
+            [
+                "peek'",
+                "ZZ",
+                "Dictionary"
+            ],
+            [
+                "pairs",
+                "Dictionary"
+            ],
+            [
+                "localDictionaries",
+                "Dictionary"
+            ],
+            [
+                "keys",
+                "Dictionary"
+            ],
+            [
+                "values",
+                "Dictionary"
+            ],
+            [
+                "applyPairs",
+                "Dictionary",
+                "Function"
+            ],
+            [
+                "#",
+                "Dictionary"
+            ],
+            [
+                "#",
+                "Dictionary",
+                "String"
+            ],
+            [
+                "#?",
+                "Dictionary",
+                "String"
+            ]
+        ],
+        "instances": [
+            "OutputDictionary",
+            "PackageDictionary"
+        ],
+        "full_doc": "... (1894 bytes) ...",
+        "parsed_headline": "Dictionary  -- the class of all dictionaries"
+    }
+}
+```

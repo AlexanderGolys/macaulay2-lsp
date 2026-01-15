@@ -1,0 +1,79 @@
+---
+title: "multigraded"
+kind: Method
+---
+
+# multigraded
+
+**multigraded  -- convert a Betti tally into a multigraded Betti tally**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+A multigraded Betti tally is a special type of [BettiTally](../Type/op_Coredollar_BettiTally.mdx) that both prints nicely and from which multigraded Betti numbers could be easily extracted.By changing the weights we can reorder the columns of the diagram. The following three displays show the first degree the second degree and the total degree respectively.
+
+## Installed For
+
+### multigraded([BettiTally](../Type/BettiTally.mdx)) -> [MultigradedBettiTally](../Type/MultigradedBettiTally.mdx)
+
+## Examples
+
+```macaulay2
+multigraded t
+```
+
+```macaulay2
+B = multigraded t
+
+         0         1                   2                   3                   4
+```
+
+```text
+0: 1         .                   .                   .                   .
+      4: . 2*a^2*b^2                   .                   .                   .
+      6: . 2*a^3*b^3                   .                   .                   .
+      8: .         .             a^4*b^4                   .                   .
+      9: .         . 4*a^5*b^4+4*a^4*b^5                   .                   .
+     10: .         . 2*a^7*b^3+2*a^3*b^7           6*a^5*b^5                   .
+     11: .         .                   . 4*a^7*b^4+4*a^4*b^7                   .
+     12: .         .                   .                   . 2*a^7*b^5+2*a^5*b^7
+
+MultigradedBettiTally
+```
+
+## Additional Information
+
+- Inputs:
+- `t` a [ Betti tally](../Type/op_Coredollar_BettiTally.mdx)
+- Outputs:
+- a [ multigraded Betti tally](../Type/MultigradedBettiTally.mdx) different from the input only in the printed diagram
+
+
+### See also
+
+
+- Macaulay2Doc:: MultigradedBettiTally
+- Macaulay2Doc:: betti(BettiTally)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "multigraded",
+    "safe_name": "multigraded",
+    "type": "MethodFunction",
+    "description": "A multigraded Betti tally is a special type of [BettiTally](../Type/op_Coredollar_BettiTally.mdx) th...",
+    "installations": [
+        "<Installation multigraded(BettiTally)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "multigraded",
+        "full_doc": "... (4722 bytes) ...",
+        "parsed_headline": "multigraded  -- convert a Betti tally into a multigraded Betti tally"
+    }
+}
+```

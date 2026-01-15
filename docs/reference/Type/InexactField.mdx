@@ -1,95 +1,81 @@
 ---
 title: "InexactField"
 kind: Type
-parent: EngineRing
 ---
 
 # InexactField
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**InexactField  -- the class of inexact fields**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+An inexact field is one whose elements are real or complex numbers represented floating point approximations of varying accuracy or precision.
 
-## Parent Type
+## Additional Information
 
-[EngineRing](../Type/EngineRing.mdx)
+[RealField](../Type/op_Coredollar_RealField.mdx)[ComplexField](../Type/ComplexField.mdx)
 
-## Subtypes
+## Debug info
 
-Direct subtypes of this type:
-
-- [ComplexField](../Type/ComplexField.mdx)
-- [RealField](../Type/RealField.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `char`
-
-- `char(InexactField)`
-
-### `degreeLength`
-
-- `degreeLength(InexactField)`
-
-### `dim`
-
-- `dim(InexactField)`
-
-### `frac`
-
-- `frac(InexactField)`
-
-### `generators`
-
-- `generators(InexactField)`
-
-### `isField`
-
-- `isField(InexactField)`
-
-### `net`
-
-- `net(InexactField)`
-
-### `norm`
-
-- `norm(InexactField, MutableMatrix)`
-
-### `numgens`
-
-- `numgens(InexactField)`
-
-### `precision`
-
-- `precision(InexactField)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [char](../Function/char.mdx)
-- [degreeLength](../Function/degreeLength.mdx)
-- [dim](../Function/dim.mdx)
-- [frac](../Function/frac.mdx)
-- [generators](../Function/generators.mdx)
-- [isField](../Function/isField.mdx)
-- [net](../Function/net.mdx)
-- [norm](../Function/norm.mdx)
-- [numgens](../Function/numgens.mdx)
-- [precision](../Function/precision.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [EngineRing](../Type/EngineRing.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "InexactField",
+    "safe_name": "op_Coredollar_InexactField",
+    "type": null,
+    "description": "An inexact field is one whose elements are real or complex numbers represented floating point approx...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$InexactField",
+        "parent": "EngineRing",
+        "methods": [
+            [
+                "norm",
+                "InexactField",
+                "MutableMatrix"
+            ],
+            [
+                "precision",
+                "InexactField"
+            ],
+            [
+                "generators",
+                "InexactField"
+            ],
+            [
+                "isField",
+                "InexactField"
+            ],
+            [
+                "degreeLength",
+                "InexactField"
+            ],
+            [
+                "numgens",
+                "InexactField"
+            ],
+            [
+                "dim",
+                "InexactField"
+            ],
+            [
+                "char",
+                "InexactField"
+            ],
+            [
+                "net",
+                "InexactField"
+            ],
+            [
+                "frac",
+                "InexactField"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1699 bytes) ...",
+        "parsed_headline": "InexactField  -- the class of inexact fields"
+    }
+}
+```

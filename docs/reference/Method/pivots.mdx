@@ -1,0 +1,73 @@
+---
+title: "pivots"
+kind: Method
+---
+
+# pivots
+
+**pivots  -- list of pivot locations of a matrix**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+This function is used in the current implementation of the Smith normal form.
+
+## Installed For
+
+### pivots([Matrix](../Type/Matrix.mdx)) -> [List](../Type/List.mdx)
+
+## Examples
+
+```macaulay2
+pivots f
+```
+
+```macaulay2
+pivots f
+
+```
+
+```text
+{(0, 0), (0, 1), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7)}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) of positions (rc) which are the positions of the non-zero lead terms (in each column)
+
+
+### Caveat
+
+ Should be implemented in the engine.
+### See also
+
+
+- Macaulay2Doc:: smithNormalForm
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "pivots",
+    "safe_name": "pivots",
+    "type": "MethodFunction",
+    "description": "This function is used in the current implementation of the Smith normal form....",
+    "installations": [
+        "<Installation pivots(Matrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "pivots",
+        "full_doc": "... (1425 bytes) ...",
+        "parsed_headline": "pivots  -- list of pivot locations of a matrix"
+    }
+}
+```

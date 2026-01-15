@@ -1,0 +1,122 @@
+---
+title: "polarize"
+kind: Method
+---
+
+# polarize
+
+**polarize  -- compute the polarization of a monomial ideal**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+Polarization takes each minimal generator of a monomial ideal to a squarefree monomial in a new ring. The procedure is to define a new variable $z_{i,j}$ for the $j$th power of the $i$th variable in the original ring. For instance polarizing the ideal $I=(x^3 y^2 xy)$ of the ring $\mathbb{Q}[xy]$ results in the ideal $(z_{0,0}z_{0,1}z_{0,2}10}z_{1100}z_{10})$ of $\mathbb{Q}[z_{00010210z_{1,1}]$.This is code adapted from the Monomial Ideals chapter written by Greg Smith and Serkan Hosten of Computations in algebraic geometry with Macaulay 2 . See https://macaulay2.com/Book/ComputationsBook/chapters/monomialIdeals/chapter-wrapper.pdf for the chapter PDF and https://macaulay2.com/Book/ for more information on this book.By default the variables in the new rings are named $z_{i,j}$. To use a different letter (or longer string) instead of `z`  use the `VariableBaseName`  option.Variables are always indexed from 0. To use an unindexed variable naming scheme the polarized ideal can always be mapped to a new ring after it is created. The following code is one way to do this.
+
+## Installed For
+
+### polarize([MonomialIdeal](../Type/MonomialIdeal.mdx)) -> [MonomialIdeal](../Type/MonomialIdeal.mdx)
+
+## Options
+
+- [VariableBaseName](../Method/VariableBaseName.mdx) => z
+
+## Examples
+
+```macaulay2
+polarize M
+polarize(M
+```
+
+```macaulay2
+J = polarize(I)
+
+```
+
+```text
+monomialIdeal (z      z       z      z      z       z      z      z   
+                     {0, 0} {0, 1}   {1, 0} {1, 1} {1, 2}   {0, 0} {1, 0} {1,
+     ------------------------------------------------------------------------
+       z      , z      z      z      z      z      )
+     1} {2, 0}   {1, 0} {2, 0} {2, 1} {2, 2} {2, 3}
+
+MonomialIdeal of QQ[z       z       z       z       z       z       z       z       z      ]
+                          {0, 0}   {0, 1}   {1, 0}   {1, 1}   {1, 2}   {2, 0}   {2, 1}   {2, 2}   {2, 3}
+```
+
+```macaulay2
+J = polarize(I x      x      x      x   
+                     {0, 0} {0, 1} {1, 0} {1, 1}   {1, 0} {1, 1} {2, 0} {2,
+     ------------------------------------------------------------------------
+       , x      x      x      x      x      x      )
+     1}   {0, 0} {1, 0} {2, 0} {2, 1} {2, 2} {2, 3}
+
+```
+
+```text
+MonomialIdeal of QQ[x       x       x       x       x       x       x       x      ]
+                          {0, 0}   {0, 1}   {1, 0}   {1, 1}   {2, 0}   {2, 1}   {2, 2}   {2, 3}
+```
+
+```macaulay2
+J = polarize(I foo      foo   
+                       {0, 0}   {0, 1}   {1, 0}   {1, 1}     {1, 0}   {1,
+     ------------------------------------------------------------------------
+       foo      foo      , foo      foo      foo      foo      foo   
+     1}   {2, 0}   {2, 1}     {0, 0}   {1, 0}   {2, 0}   {2, 1}   {2,
+     ------------------------------------------------------------------------
+       foo      )
+     2}   {2, 3}
+
+```
+
+```text
+MonomialIdeal of QQ[foo       foo       foo       foo       foo       foo       foo       foo      ]
+                            {0, 0}     {0, 1}     {1, 0}     {1, 1}     {2, 0}     {2, 1}     {2, 2}     {2, 3}
+```
+
+## Additional Information
+
+- Inputs:
+- `M` a [ monomial ideal](../Type/op_Coredollar_MonomialIdeal.mdx)
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `VariableBaseName```a [ string](../Type/op_Coredollar_String.mdx) default value "z" specified letter or string for the new variables
+- Outputs:
+- `I` a [ monomial ideal](../Type/op_Coredollar_MonomialIdeal.mdx) a squarefree monomial ideal in a new polynomial ring
+
+
+### See also
+
+
+- Macaulay2Doc:: isSquareFree
+- Macaulay2Doc:: monomialIdeal
+- MinimalPrimes:: radical
+- Macaulay2Doc:: substitution and maps between rings
+- Macaulay2Doc:: working with multiple rings
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "polarize",
+    "safe_name": "polarize",
+    "type": "MethodFunctionWithOptions",
+    "description": "Polarization takes each minimal generator of a monomial ideal to a squarefree monomial in a new ring...",
+    "installations": [
+        "<Installation polarize(MonomialIdeal)>"
+    ],
+    "options": [
+        {
+            "name": "VariableBaseName",
+            "default": "z"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "polarize",
+        "full_doc": "... (5623 bytes) ...",
+        "parsed_headline": "polarize  -- compute the polarization of a monomial ideal"
+    }
+}
+```

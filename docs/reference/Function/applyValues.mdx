@@ -5,41 +5,61 @@ kind: Function
 
 # applyValues
 
-**Type:** `Function`
+**applyValues  -- apply a function to each value in a hash table**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-applyValues, -- apply a function to each value in a hash table, class => element, Usage: , applyValues(H, f), class => language-macaulay2, Inputs:, H, , , a , Macaulay2Doc :: HashTable, hash table, , , f, , , a , Macaulay2Doc :: Function, function, , , of one argument, Outputs:, a , Macaulay2Doc :: HashTable, hash table, , , obtained by applying , f, to each value in , H, , Description, class => examples, i1 : H = new HashTable from {1 => 10, 2 => 15, 3 => 20
-
-o1 = HashTable{1 => 10
- 2 => 15
- 3 => 20
-
-o1 : HashTable, class => language-macaulay2, i2 : applyValues(H, v -> v + 100)
-
-o2 = HashTable{1 => 110
- 2 => 115
- 3 => 120
-
-o2 : HashTable, class => language-macaulay2, i3 : applyValues(H, v -> 1)
-
-o3 = HashTable{1 => 1
- 2 => 1
- 3 => 1
-
-o3 : HashTable, class => language-macaulay2, See also, Macaulay2Doc :: hash tables, Macaulay2Doc :: applyKeys, Macaulay2Doc :: applyPairs, Macaulay2Doc :: scanValues, Macaulay2Doc :: values, class => waystouse, Ways to use , applyValues, :, applyValues(HashTable,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: applyValues, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/applyValues-doc.m2:32:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `applyValues(HashTable, Function)`
+applyValues  -- apply a function to each value in a hash table
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+applyValues(H f)
+```
 
-## See Also
+```macaulay2
+applyValues(H
+```
 
+```macaulay2
+applyValues(H
+```
+
+## Additional Information
+
+- Inputs:
+- `H` a [ hash table](../Type/op_Coredollar_HashTable.mdx)
+- `f` a [ function](../Type/Function.mdx) of one argument
+- Outputs:
+- a [ hash table](../Type/op_Coredollar_HashTable.mdx) obtained by applying `f` to each value in `H`
+
+
+### See also
+
+
+- Macaulay2Doc:: hash tables
+- Macaulay2Doc:: applyKeys
+- Macaulay2Doc:: applyPairs
+- Macaulay2Doc:: scanValues
+- Macaulay2Doc:: values
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "applyValues",
+    "safe_name": "applyValues",
+    "type": "CompiledFunction",
+    "description": "applyValues  -- apply a function to each value in a hash table...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "applyValues",
+        "full_doc": "... (1740 bytes) ...",
+        "parsed_headline": "applyValues  -- apply a function to each value in a hash table"
+    }
+}
+```

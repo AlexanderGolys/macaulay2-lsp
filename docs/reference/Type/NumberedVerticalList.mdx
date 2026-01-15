@@ -1,64 +1,73 @@
 ---
 title: "NumberedVerticalList"
 kind: Type
-parent: VerticalList
 ---
 
 # NumberedVerticalList
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [SelfInitializingType](../Type/SelfInitializingType.mdx)
+**NumberedVerticalList  -- a type of visible self-initializing list that prints vertically**
 
 ## Description
 
-An instance of the type [SelfInitializingType](../Type/SelfInitializingType.mdx).
-
-## Parent Type
-
-[VerticalList](../Type/VerticalList.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `ms`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `html`
-
-- `html(NumberedVerticalList)`
-
-### `hypertext`
-
-- `hypertext(NumberedVerticalList)`
-
-### `net`
-
-- `net(NumberedVerticalList)`
-
-### `texMath`
-
-- `texMath(NumberedVerticalList)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [html](../Function/html.mdx)
-- [hypertext](../Function/hypertext.mdx)
-- [net](../Function/net.mdx)
-- [texMath](../Function/texMath.mdx)
+ All operations on lists apply to numbered vertical lists since they inherit from the type [VisibleList](../Type/VisibleList.mdx) .  The only difference is the way that a numbered vertical list is displayed vertically with index numbers labelling the entries. One may get a normal list back from a vertical list as follows.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+NumberedVerticalList x
+```
 
-## See Also
+## Additional Information
 
-- [VerticalList](../Type/VerticalList.mdx) (parent type)
+- Inputs:
+- `x` a [ list](../Type/op_Coredollar_List.mdx)
+- Outputs:
+- a [ numbered vertical list](../Type/NumberedVerticalList.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: VerticalList
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "NumberedVerticalList",
+    "safe_name": "NumberedVerticalList",
+    "type": null,
+    "description": " All operations on lists apply to numbered vertical lists since they inherit from the type [VisibleL...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "NumberedVerticalList",
+        "parent": "VerticalList",
+        "methods": [
+            [
+                "html",
+                "NumberedVerticalList"
+            ],
+            [
+                "hypertext",
+                "NumberedVerticalList"
+            ],
+            [
+                "texMath",
+                "NumberedVerticalList"
+            ],
+            [
+                "net",
+                "NumberedVerticalList"
+            ]
+        ],
+        "instances": [
+            "ms"
+        ],
+        "full_doc": "... (2038 bytes) ...",
+        "parsed_headline": "NumberedVerticalList  -- a type of visible self-initializing list that prints vertically"
+    }
+}
+```

@@ -1,53 +1,73 @@
 ---
 title: "MatrixExpression"
 kind: Type
-parent: Expression
 ---
 
 # MatrixExpression
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [HeaderType](../Type/HeaderType.mdx)
+**MatrixExpression  -- the class of all matrix expressions**
 
 ## Description
 
-An instance of the type [HeaderType](../Type/HeaderType.mdx).
-
-## Parent Type
-
-[Expression](../Type/Expression.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `mathML`
-
-- `mathML(MatrixExpression)`
-
-### `net`
-
-- `net(MatrixExpression)`
-
-### `texMath`
-
-- `texMath(MatrixExpression)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-- [texMath](../Function/texMath.mdx)
+`MatrixExpression`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a matrix.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+MatrixExpression {{a,b,c},{a,bb,ccc}}
 
-## See Also
+```
 
-- [Expression](../Type/Expression.mdx) (parent type)
+```text
+| a b  c   |
+     | a bb ccc |
+
+Expression of class MatrixExpression
+```
+
+```macaulay2
+MatrixExpression append(applyTable({{x^2-y^2,x^3-y^3},{x^2-4*y^2,x^3+y^3}}factor)
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: Table
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "MatrixExpression",
+    "safe_name": "op_Coredollar_MatrixExpression",
+    "type": null,
+    "description": "`MatrixExpression`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$MatrixExpression",
+        "parent": "Expression",
+        "methods": [
+            [
+                "net",
+                "MatrixExpression"
+            ],
+            [
+                "texMath",
+                "MatrixExpression"
+            ],
+            [
+                "mathML",
+                "MatrixExpression"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1428 bytes) ...",
+        "parsed_headline": "MatrixExpression  -- the class of all matrix expressions"
+    }
+}
+```

@@ -1,106 +1,107 @@
 ---
 title: "EngineRing"
 kind: Type
-parent: Ring
 ---
 
 # EngineRing
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**EngineRing  -- the class of rings handled by the engine**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ Typically [the engine of Macaulay2](../Instance/the engine of Macaulay2.mdx)  handles the rings in the system. The command `new EngineRing from x`  is not meant for general users and provides the developers with a way to create top-level rings corresponding to rings implemented in the engine.  Here `x`  may be:
+- commands for the engine as a string or a sequence or list of strings which cause a ring to be placed on the top of the engine's stack.
+- a ring in which case another top-level ring is formed as an interface to the same underlying engine ring.
+- the handle of on engine ring
 
-## Parent Type
 
-[Ring](../Type/Ring.mdx)
 
-## Subtypes
+## Additional Information
 
-Direct subtypes of this type:
+[Engine](../Method/op_Coredollar_Engine.mdx)[InexactField](../Type/op_Coredollar_InexactField.mdx)[GaloisField](../Type/GaloisField.mdx)[FractionField](../Type/op_Coredollar_FractionField.mdx)[PolynomialRing](../Type/PolynomialRing.mdx)[QuotientRing](../Type/QuotientRing.mdx)
 
-- [FractionField](../Type/FractionField.mdx)
-- [GaloisField](../Type/GaloisField.mdx)
-- [InexactField](../Type/InexactField.mdx)
-- [PolynomialRing](../Type/PolynomialRing.mdx)
-- [QuotientRing](../Type/QuotientRing.mdx)
+## Debug info
 
-## Methods
-
-Methods that can be used with this type:
-
-### `/`
-
-- `/(EngineRing, Ideal)`
-
-### `NewFromMethod`
-
-- `NewFromMethod(EngineRing, RawRing)`
-
-### `_`
-
-- `_(RR, EngineRing)`
-- `_(RRi, EngineRing)`
-- `_(ZZ, EngineRing)`
-- `_(EngineRing, ZZ)`
-
-### `expression`
-
-- `expression(EngineRing)`
-
-### `frac`
-
-- `frac(EngineRing)`
-
-### `generators`
-
-- `generators(EngineRing)`
-
-### `isField`
-
-- `isField(EngineRing)`
-
-### `net`
-
-- `net(EngineRing)`
-
-### `numgens`
-
-- `numgens(EngineRing)`
-
-### `texMath`
-
-- `texMath(EngineRing)`
-
-### `toString`
-
-- `toString(EngineRing)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [/](../Operator/op_slash.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [_](../Operator/_.mdx)
-- [expression](../Function/expression.mdx)
-- [frac](../Function/frac.mdx)
-- [generators](../Function/generators.mdx)
-- [isField](../Function/isField.mdx)
-- [net](../Function/net.mdx)
-- [numgens](../Function/numgens.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toString](../Function/toString.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Ring](../Type/Ring.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "EngineRing",
+    "safe_name": "op_Coredollar_EngineRing",
+    "type": null,
+    "description": " Typically [the engine of Macaulay2](../Instance/the engine of Macaulay2.mdx)  handles the rings in ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$EngineRing",
+        "parent": "Ring",
+        "methods": [
+            [
+                "net",
+                "EngineRing"
+            ],
+            [
+                "toString",
+                "EngineRing"
+            ],
+            [
+                "texMath",
+                "EngineRing"
+            ],
+            [
+                "isField",
+                "EngineRing"
+            ],
+            [
+                "expression",
+                "EngineRing"
+            ],
+            [
+                "_",
+                "RR",
+                "EngineRing"
+            ],
+            [
+                "_",
+                "RRi",
+                "EngineRing"
+            ],
+            [
+                "_",
+                "ZZ",
+                "EngineRing"
+            ],
+            [
+                "NewFromMethod",
+                "EngineRing",
+                "RawRing"
+            ],
+            [
+                "frac",
+                "EngineRing"
+            ],
+            [
+                "numgens",
+                "EngineRing"
+            ],
+            [
+                "generators",
+                "EngineRing"
+            ],
+            [
+                "_",
+                "EngineRing",
+                "ZZ"
+            ],
+            [
+                "/",
+                "EngineRing",
+                "Ideal"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1921 bytes) ...",
+        "parsed_headline": "EngineRing  -- the class of rings handled by the engine"
+    }
+}
+```

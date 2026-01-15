@@ -5,19 +5,49 @@ kind: Instance
 
 # OutputDictionary
 
-:::warning[Stub Documentation]
-This is a placeholder documentation entry. The full documentation for this instance needs to be extracted from Macaulay2.
-:::
+**OutputDictionary  -- the dictionary for output values**
 
 **Type:** [GlobalDictionary](../Type/GlobalDictionary.mdx)
 
 ## Description
 
-An instance of the type [GlobalDictionary](../Type/GlobalDictionary.mdx).
+ The symbols `o1`  `o2`  `o3`  etc. are used to store the output values arising from interaction with the user one line at a time.  The dictionary `OutputDictionary`  is the dictionary in which those symbols reside.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+value \ values OutputDictionary
 
-## See Also
+```
 
+```text
+{4, asdfqwer}
+
+List
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: dictionaryPath
+
+## Debug info
+
+```python
+{
+    "obj_type": "Instance",
+    "name": "OutputDictionary",
+    "safe_name": "OutputDictionary",
+    "type": "GlobalDictionary",
+    "description": " The symbols `o1`  `o2`  `o3`  etc. are used to store the output values arising from interaction wit...",
+    "extra": {
+        "isSymbol": false,
+        "codeName": "OutputDictionary",
+        "full_doc": "... (2635 bytes) ...",
+        "stub": true,
+        "parsed_headline": "OutputDictionary  -- the dictionary for output values"
+    }
+}
+```

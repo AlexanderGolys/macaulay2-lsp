@@ -1,0 +1,115 @@
+---
+title: "max"
+kind: Method
+---
+
+# max
+
+**max  -- get the maximum element in a list or sequence**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+If `L`  contains elements in a polynomial ring the [MonomialOrder](../Instance/MonomialOrder.mdx) of the ring is used for comparisons.More generally the order of the elements is determined using the [?](../Method/op_Coredollar_question.mdx) operator.If `X`  is a list of lists `max`  acts on the outermost level.
+
+## Installed For
+
+### max([VisibleList](../Type/VisibleList.mdx)) -> [Thing](../Type/Thing.mdx)
+
+## Examples
+
+```macaulay2
+max X
+```
+
+```macaulay2
+max X
+
+```
+
+```text
+93
+```
+
+```macaulay2
+max {x*y^2, x*y^2 + z^2, y^4, y*z^5}
+
+        2    2
+```
+
+```text
+x*y  + z
+
+R1
+```
+
+```macaulay2
+max (x*y^2 x*y^2 + z^2 y^4 y*z^5)
+
+        5
+```
+
+```text
+y*z
+
+R2
+```
+
+```macaulay2
+max {{3, 1, 2}, {2, 9, 6}, {3, 7, 5}}
+
+```
+
+```text
+{3, 7, 5}
+
+List
+```
+
+```macaulay2
+max flatten {{3, 1, 2}, {2, 9, 6}, {3, 7, 5}}
+
+```
+
+```text
+9
+```
+
+## Additional Information
+
+- Inputs:
+- `X` a [ visible list](../Type/VisibleList.mdx)
+- Outputs:
+- `m` a [ thing](../Type/Thing.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: maxPosition
+- Macaulay2Doc:: min
+- Macaulay2Doc:: sort
+- Macaulay2Doc:: ?
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "max",
+    "safe_name": "op_Coredollar_max",
+    "type": "MethodFunctionSingle",
+    "description": "If `L`  contains elements in a polynomial ring the [MonomialOrder](../Instance/MonomialOrder.mdx) of...",
+    "installations": [
+        "<Installation max(VisibleList)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$max",
+        "full_doc": "... (2324 bytes) ...",
+        "parsed_headline": "max  -- get the maximum element in a list or sequence"
+    }
+}
+```

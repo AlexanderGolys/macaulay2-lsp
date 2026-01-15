@@ -1,0 +1,106 @@
+---
+title: "QRDecomposition"
+kind: Method
+---
+
+# QRDecomposition
+
+**QRDecomposition  -- compute a QR decomposition of a real matrix**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+If $A$ is a $m \times n$ matrix whose columns are linearly independent the $QR$ decomposition of $A$ is $QR = A$ where $Q$ is an $m \times m$ orthogonal matrix and $R$ is an upper triangular $m \times n$ matrix.$R$ is upper triangular and $Q$ is (close to) orthogonal.If the input is a [MutableMatrix](../Type/op_Coredollar_MutableMatrix.mdx) then so are the output matrices.This function works by calling LAPACK routines and so only uses the first 53 bits of precision. Lapack also has a way of returning an encoded pair of matrices that contain enough information to reconstruct $Q R$.
+
+## Installed For
+
+### QRDecomposition([Matrix](../Type/Matrix.mdx)) -> [Matrix](../Type/Matrix.mdx)
+
+### QRDecomposition([MutableMatrix](../Type/MutableMatrix.mdx))
+
+## Examples
+
+```macaulay2
+(QR) = QRDecomposition A
+```
+
+```macaulay2
+(QR) = QRDecomposition A
+
+```
+
+```text
+(| -.677131  .143091  .247563  | | -1.31837 -1.22811 -1.1883  |)
+      | -.510777  -.324257 -.666994 |  | 0        -.816018 -.175579 |
+      | -.222987  .0524494 -.347041 |  | 0        0        .523234  |
+      | -.480095  .156448  .507738  |
+      | -.0196366 -.92041  .339994  |
+
+Sequence
+```
+
+```macaulay2
+(QR) = QRDecomposition A
+
+```
+
+```text
+(| -.373219  .00053571 -.0145186 .434826   -.0273305 | | -1.89191
+       | -.0673582 -.640249  -.160526  -.10301   .310349   |  | 0       
+       | -.134511  .0235031  -.312596  -.211448  .462328   |  | 0       
+       | -.391693  .202931   -.312943  .0456648  .146375   |  | 0       
+       | -.0572895 -.453214  -.233381  .214532   -.100994  |  | 0       
+       | -.184434  .24735    -.0733514 -.0385991 .0314994  |
+       | -.297281  .225982   -.452339  -.214843  -.131288  |
+       | -.130169  -.153513  .179847   -.466939  -.58274   |
+       | -.0810536 -.368715  -.2545    .236721   -.32996   |
+       | -.439151  -.138065  .495715   .204262   .184438   |
+       | -.284662  -.208589  .0850958  -.577067  .107535   |
+       | -.461791  .0602065  .325632   .0156234  -.0364137 |
+       | -.219838  .070582   -.240391  .103952   -.379431  |
+      -----------------------------------------------------------------------
+      -1.62694 -1.56271 -1.38193  -1.52288 |)
+...
+   (output truncated)
+```
+
+## Additional Information
+
+- Inputs:
+- `A` a [ matrix](../Type/op_Coredollar_Matrix.mdx) or a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx) over $RR_{53}$
+- Outputs:
+- `Q` a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- `R` a [ matrix](../Type/op_Coredollar_Matrix.mdx) $(QR)$ is the QR-decomposition of $A$
+
+
+### Caveat
+
+If the matrices are over higher precision real or complex fields such as $RR_100$ this extra precision is not used in the computation
+### See also
+
+
+- Macaulay2Doc:: clean
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "QRDecomposition",
+    "safe_name": "QRDecomposition",
+    "type": "MethodFunction",
+    "description": "If $A$ is a $m \\times n$ matrix whose columns are linearly independent the $QR$ decomposition of $A$...",
+    "installations": [
+        "<Installation QRDecomposition(MutableMatrix)>",
+        "<Installation QRDecomposition(Matrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "QRDecomposition",
+        "full_doc": "... (7191 bytes) ...",
+        "parsed_headline": "QRDecomposition  -- compute a QR decomposition of a real matrix"
+    }
+}
+```

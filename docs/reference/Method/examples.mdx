@@ -1,0 +1,111 @@
+---
+title: "examples"
+kind: Method
+---
+
+# examples
+
+**examples  -- list the examples in documentation**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+The output is returned as a [Net](../Type/op_Coredollar_Net.mdx) of height 0 so the examples will be displayed indented by just white space allowing immediate entry.Alternatively one could use [print](../Function/print.mdx) to display them with no indentation.If the input is an integer then the examples will correspond to the documentation node with that index in the last call to [about](../Method/op_Coredollar_about.mdx).If the input is a list then the examples for all of its elements will be gathered into a single net.
+
+## Installed For
+
+### examples([DocumentTag](../Type/DocumentTag.mdx))
+
+### examples([List](../Type/List.mdx))
+
+### examples([Thing](../Type/Thing.mdx)) -> [Net](../Type/Net.mdx)
+
+### examples([ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+examples s
+```
+
+```macaulay2
+ex := examples(resolution Ideal)
+
+```
+
+```text
+-- examples for tag: resolution(Ideal)
+     -- /usr/share/Macaulay2/OldChainComplexes/docs/doc10.m2:254:0
+     R = ZZ[a..d]
+     I = ideal(abcd)
+     C = res I
+     C_2
+     C.dd_2
+```
+
+```macaulay2
+examples 0
+
+```
+
+```text
+-- examples for tag: firstFunction
+     -- /usr/share/Macaulay2/FirstPackage.m2:53:0
+     firstFunction 1
+     firstFunction 0
+```
+
+```macaulay2
+examples about firstFunction
+
+```
+
+```text
+-- examples for tag: firstFunction
+     -- examples for tag: firstFunction(ZZ)
+     -- /usr/share/Macaulay2/FirstPackage.m2:53:0
+     firstFunction 1
+     firstFunction 0
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ thing](../Type/Thing.mdx) a descriptor for a documentation node acceptable by [makeDocumentTag](../Method/makeDocumentTag.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) containing examples of code provided in the documentation of `s`
+
+
+### See also
+
+
+- Macaulay2Doc:: reading the documentation
+- Macaulay2Doc:: capture
+- Macaulay2Doc:: EXAMPLE
+- Macaulay2Doc:: help
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "examples",
+    "safe_name": "examples",
+    "type": "MethodFunctionSingle",
+    "description": "The output is returned as a [Net](../Type/op_Coredollar_Net.mdx) of height 0 so the examples will be...",
+    "installations": [
+        "<Installation examples(Thing)>",
+        "<Installation examples(ZZ)>",
+        "<Installation examples(DocumentTag)>",
+        "<Installation examples(List)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "examples",
+        "full_doc": "... (3933 bytes) ...",
+        "parsed_headline": "examples  -- list the examples in documentation"
+    }
+}
+```

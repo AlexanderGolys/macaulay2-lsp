@@ -1,0 +1,75 @@
+---
+title: "standardPairs"
+kind: Method
+---
+
+# standardPairs
+
+**standardPairs  -- find the standard pairs of a monomial ideal**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ The standard monomials of a monomial ideal `I`  (those monomials that are not in `I` ) can be enumerated as follows.  Given a monomial `m`  and a subset `F`  of the variables the pair `(mF)`  indexes the set of monomials of the form `m m'`  where the monomial `m'`  is supported on `F` .  A [List](../Type/op_Coredollar_List.mdx)  of pairs `(m F)`  form *standard pairs*  for the monomial ideal `I`  if it satisfies the following three conditions:
+- for each pair the monomial `m` is supported on the complement of `F`;
+- all of the monomials represented by a pair are standard;
+- the pairs index disjoint sets of monomials.
+
+ The standard pairs are computed with Algorithm 3.2.5 in Gröbner Deformations of Hypergeometric Differential Equations by Mutsumi Saito Bernd Sturmfels and Nobuki Takayama; Algorithms and Computation in Mathematics 6 Springer-Verlag 2000. Implemented by Gregory G. Smith. For more information see the *Monomial ideals*  chapter in Computations in algebraic geometry with Macaulay2 edited by David Eisenbud Daniel R. Grayson Michael E. Stillman and Bernd Sturmfels Algorithms and Computations in Mathematics 8 Springer-Verlag 2001.
+
+## Installed For
+
+### standardPairs([MonomialIdeal](../Type/MonomialIdeal.mdx)) -> [List](../Type/List.mdx)
+
+### standardPairs([MonomialIdeal](../Type/MonomialIdeal.mdx), [List](../Type/List.mdx))
+
+## Examples
+
+```macaulay2
+standardPairs I
+```
+
+```macaulay2
+standardPairs I
+
+                                                         2           2 2
+```
+
+```text
+{{1, {x, z}}, {y, {x, z}}, {1, {x, y}}, {z, {y}}, {y z, {x}}, {y z ,
+     ------------------------------------------------------------------------
+     {}}}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `I` a [ monomial ideal](../Type/op_Coredollar_MonomialIdeal.mdx)
+- Outputs:
+- a [List](../Type/op_Coredollar_List.mdx) of standard pairs for `I`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "standardPairs",
+    "safe_name": "op_Coredollar_standardPairs",
+    "type": "MethodFunction",
+    "description": " The standard monomials of a monomial ideal `I`  (those monomials that are not in `I` ) can be enume...",
+    "installations": [
+        "<Installation standardPairs(MonomialIdeal, List)>",
+        "<Installation standardPairs(MonomialIdeal)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$standardPairs",
+        "full_doc": "... (2771 bytes) ...",
+        "parsed_headline": "standardPairs  -- find the standard pairs of a monomial ideal"
+    }
+}
+```

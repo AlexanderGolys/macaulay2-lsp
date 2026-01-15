@@ -1,0 +1,51 @@
+---
+title: "setupEmacs"
+kind: Method
+---
+
+# setupEmacs
+
+**setupEmacs**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+A backup files is made carefully and if a mangled initialization file is detected it will not be modified. The lines added are bracketed by comment lines containing the phrases `Macaulay 2 start` and `Macaulay 2 end`.The function [setup](../Method/setup.mdx) does all this and more.
+
+## Examples
+
+```macaulay2
+setupEmacs()
+```
+
+## Additional Information
+
+- Consequences:
+- The initialization file for Emacs (`.emacs` in your home directory) will have lines added to allow the Macaulay2 Emacs mode to operate. The user is prompted before the file is modified and offered the opportunity to review or reject the change.
+
+
+### See also
+
+
+- Macaulay2Doc:: setup
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "setupEmacs",
+    "safe_name": "op_Coredollar_setupEmacs",
+    "type": "MethodFunction",
+    "description": "A backup files is made carefully and if a mangled initialization file is detected it will not be mod...",
+    "installations": [],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$setupEmacs",
+        "full_doc": "... (1245 bytes) ...",
+        "parsed_headline": "setupEmacs"
+    }
+}
+```

@@ -1,52 +1,65 @@
 ---
 title: "Equation"
 kind: Type
-parent: AssociativeExpression
 ---
 
 # Equation
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [HeaderType](../Type/HeaderType.mdx)
+**Equation  -- the class of all equation expressions**
 
 ## Description
 
-An instance of the type [HeaderType](../Type/HeaderType.mdx).
+`Equation`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing an equation.
 
-## Parent Type
+## Debug info
 
-[AssociativeExpression](../Type/AssociativeExpression.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `==`
-
-- `==(Holder, Equation)`
-- `==(Equation, Holder)`
-- `==(Equation, Equation)`
-- `==(Expression, Equation)`
-- `==(Equation, Expression)`
-
-### `not`
-
-- `not(Equation)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [==](../Operator/op_eq_eq.mdx)
-- [not](../Operator/not.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [AssociativeExpression](../Type/AssociativeExpression.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Equation",
+    "safe_name": "Equation",
+    "type": null,
+    "description": "`Equation`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing an equatio...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Equation",
+        "parent": "AssociativeExpression",
+        "methods": [
+            [
+                "==",
+                "Holder",
+                "Equation"
+            ],
+            [
+                "==",
+                "Equation",
+                "Holder"
+            ],
+            [
+                "not",
+                "Equation"
+            ],
+            [
+                "==",
+                "Equation",
+                "Equation"
+            ],
+            [
+                "==",
+                "Expression",
+                "Equation"
+            ],
+            [
+                "==",
+                "Equation",
+                "Expression"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (663 bytes) ...",
+        "parsed_headline": "Equation  -- the class of all equation expressions"
+    }
+}
+```

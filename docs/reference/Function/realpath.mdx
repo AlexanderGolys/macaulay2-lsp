@@ -5,41 +5,78 @@ kind: Function
 
 # realpath
 
-**Type:** `Function`
+**realpath  -- convert a filename to one passing through no symbolic links**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-realpath, -- convert a filename to one passing through no symbolic links, class => element, Usage: , realpath fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, , , a filename, or path to a file, Outputs:, a , Macaulay2Doc :: String, string, , , a pathname to , fn, passing through no symbolic links, and ending with a slash if , fn, refers to a directory, Description, class => examples, i1 : realpath "."
-
-o1 = /tmp/M2-704383-0/88-rundir/, class => language-macaulay2, i2 : p = temporaryFileName()
-
-o2 = /tmp/M2-709659-0/0, class => language-macaulay2, i3 : q = temporaryFileName()
-
-o3 = /tmp/M2-709659-0/1, class => language-macaulay2, i4 : symlinkFile(p,q), class => language-macaulay2, i5 : p << close
-
-o5 = /tmp/M2-709659-0/0
-
-o5 : File, class => language-macaulay2, i6 : readlink q
-
-o6 = /tmp/M2-709659-0/0, class => language-macaulay2, i7 : realpath q
-
-o7 = /tmp/M2-709659-0/0, class => language-macaulay2, i8 : removeFile p, class => language-macaulay2, i9 : removeFile q, class => language-macaulay2, The empty string is interpreted as a reference to the current directory., class => examples, i10 : realpath ""
-
-o10 = /tmp/M2-704383-0/88-rundir/, class => language-macaulay2, Caveat, Every component of the path must exist in the file system and be accessible to the user. Terminal slashes will be dropped. Warning: under most operating systems, the value returned is an absolute path (one starting at the root of the file system), but under Solaris, this system call may, in certain circumstances, return a relative path when given a relative path., See also, Macaulay2Doc :: readlink, class => waystouse, For the programmer, The object , Macaulay2Doc :: realpath, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/realpath-doc.m2:35:0, .
+The empty string is interpreted as a reference to the current directory.
 
 ## Examples
 
 ```macaulay2
-i1 : realpath "."
-
-o1 = /tmp/M2-704383-0/88-rundir/
-
-i2 : p = temporaryFileName()
-
-o2 = /tmp/M2-709659-0/0
+realpath fn
 ```
 
-## See Also
+```macaulay2
+realpath "."
 
+```
+
+```text
+/tmp/M2-704383-0/88-rundir/
+```
+
+```macaulay2
+realpath q
+
+```
+
+```text
+/tmp/M2-709659-0/0
+```
+
+```macaulay2
+realpath ""
+
+```
+
+```text
+/tmp/M2-704383-0/88-rundir/
+```
+
+## Additional Information
+
+- Inputs:
+- `fn` a [ string](../Type/op_Coredollar_String.mdx) a filename or path to a file
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) a pathname to `fn` passing through no symbolic links and ending with a slash if `fn` refers to a directory
+
+
+### Caveat
+
+ Every component of the path must exist in the file system and be accessible to the user. Terminal slashes will be dropped.  Warning: under most operating systems the value returned is an absolute path (one starting at the root of the file system) but under Solaris this system call may in certain circumstances return a relative path when given a relative path.
+### See also
+
+
+- Macaulay2Doc:: readlink
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "realpath",
+    "safe_name": "realpath",
+    "type": "CompiledFunction",
+    "description": "The empty string is interpreted as a reference to the current directory....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "realpath",
+        "full_doc": "... (2320 bytes) ...",
+        "parsed_headline": "realpath  -- convert a filename to one passing through no symbolic links"
+    }
+}
+```

@@ -1,0 +1,68 @@
+---
+title: "hold"
+kind: Method
+---
+
+# hold
+
+**hold  -- hold something in a holder expression**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+hold  -- hold something in a holder expression
+
+## Installed For
+
+### hold([Expression](../Type/Expression.mdx))
+
+### hold([Thing](../Type/Thing.mdx))
+
+## Examples
+
+```macaulay2
+hold x
+```
+
+```macaulay2
+(hold 2)^5 * (hold 3)^3
+
+      5 3
+```
+
+```text
+2 3
+
+Expression of class Product
+```
+
+## Additional Information
+
+- Inputs:
+- `x`
+- Outputs:
+- an [ expression](../Type/op_Coredollar_Expression.mdx) of class [Holder](../Type/Holder.mdx) containing `x` as its single element unless `x` is already an expression in which case `x` is returned.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "hold",
+    "safe_name": "op_Coredollar_hold",
+    "type": "MethodFunctionSingle",
+    "description": "hold  -- hold something in a holder expression...",
+    "installations": [
+        "<Installation hold(Thing)>",
+        "<Installation hold(Expression)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$hold",
+        "full_doc": "... (958 bytes) ...",
+        "parsed_headline": "hold  -- hold something in a holder expression"
+    }
+}
+```

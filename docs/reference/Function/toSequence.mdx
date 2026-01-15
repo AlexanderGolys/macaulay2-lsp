@@ -5,47 +5,86 @@ kind: Function
 
 # toSequence
 
-**Type:** `Function`
+**toSequence  -- convert to sequence**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-toSequence, -- convert to sequence, class => element, Usage: , toSequence x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: BasicList, basic list, or , a , Macaulay2Doc :: String, string, , , or an instance of a class with the , Macaulay2Doc :: iterator, method installed, Outputs:, a , Macaulay2Doc :: Sequence, sequence, , , Description, toSequence x, yields the elements of a , x, as a sequence., class => examples, i1 : toSequence {1, 2, 3
-
-o1 = (1, 2, 3)
-
-o1 : Sequence, class => language-macaulay2, i2 : toSequence "foo"
-
-o2 = (f, o, o)
-
-o2 : Sequence, class => language-macaulay2, i3 : toSequence iterator {1, 2, 3
-
-o3 = (1, 2, 3)
-
-o3 : Sequence, class => language-macaulay2, If , x, is already a sequence, then , x, is returned., class => examples, i4 : toSequence (1, 2, 3)
-
-o4 = (1, 2, 3)
-
-o4 : Sequence, class => language-macaulay2, class => waystouse, Ways to use , toSequence, :, toSequence(BasicList), toSequence(String), toSequence(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: toSequence, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_lists.m2:765:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `toSequence(String)`
-- `toSequence(BasicList)`
-- `toSequence(Thing)`
+`toSequence x` yields the elements of a `x` as a sequence.If `x` is already a sequence then `x` is returned.
 
 ## Examples
 
 ```macaulay2
-i2 : toSequence "foo"
-
-o2 = (f, o, o)
-
-o2 : Sequence
+toSequence x
 ```
 
-## See Also
+```macaulay2
+toSequence {1, 2, 3}
 
+```
+
+```text
+(1 2 3)
+
+Sequence
+```
+
+```macaulay2
+toSequence "foo"
+
+```
+
+```text
+(f o o)
+
+Sequence
+```
+
+```macaulay2
+toSequence iterator {1, 2, 3}
+
+```
+
+```text
+(1 2 3)
+
+Sequence
+```
+
+```macaulay2
+toSequence (1 2 3)
+
+```
+
+```text
+(1 2 3)
+
+Sequence
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ basic list](../Type/op_Coredollar_BasicList.mdx) or a [ string](../Type/op_Coredollar_String.mdx) or an instance of a class with the [iterator](../Method/iterator.mdx) method installed
+- Outputs:
+- a [ sequence](../Type/Sequence.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "toSequence",
+    "safe_name": "toSequence",
+    "type": "CompiledFunction",
+    "description": "`toSequence x` yields the elements of a `x` as a sequence.If `x` is already a sequence then `x` is r...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "toSequence",
+        "full_doc": "... (1622 bytes) ...",
+        "parsed_headline": "toSequence  -- convert to sequence"
+    }
+}
+```

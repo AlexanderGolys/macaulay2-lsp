@@ -1,0 +1,113 @@
+---
+title: "independentSets"
+kind: Method
+---
+
+# independentSets
+
+**independentSets  -- some size-maximal independent subsets of variables modulo an ideal**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ An independent set of variables of an ideal `J`  in a polynomial ring `R`  is a set of variables that are algebraically independent modulo `J`  (i.e. there is no polynomial in `J`  involving only these sets of variables. If the Krull dimension of `R/J`  is `d`  then a maximal independent set is an independent set having size `d` . The independent sets returned correspond one for one with the minimal primes of smallest codimension of the ideal of lead terms of J. The optional Limit argument is useful if you need only one or several such independent sets. Often you want the list of the variables in a maximal independent set or the list of those not in the set. This function is useful as a subroutine to primary decomposition algorithms.
+
+## Installed For
+
+### independentSets([Ideal](../Type/Ideal.mdx)) -> [List](../Type/List.mdx)
+
+### independentSets([MonomialIdeal](../Type/MonomialIdeal.mdx))
+
+## Options
+
+- [Limit](../Option/Limit.mdx) => infinity
+
+## Examples
+
+```macaulay2
+independentSets J
+```
+
+```macaulay2
+independentSets I
+
+```
+
+```text
+{a*b*d*f*h, a*c*d*f*h, a*c*e*f*h, a*c*e*g*h}
+
+List
+```
+
+```macaulay2
+independentSets inI
+
+```
+
+```text
+{a*b*d*f*h, a*c*d*f*h, a*c*e*f*h, a*c*e*g*h}
+
+List
+```
+
+```macaulay2
+independentSets I
+
+```
+
+```text
+{a*b*d*e*h, a*c*e*f*h, b*d*e*g*h, d*e*f*g*h}
+
+List
+```
+
+```macaulay2
+L = independentSets(I
+```
+
+## Additional Information
+
+- Inputs:
+- `J` an [ ideal](../Type/op_Coredollar_Ideal.mdx) or a [ monomial ideal](../Type/op_Coredollar_MonomialIdeal.mdx)
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `Limit```an [ integer](../Type/ZZ.mdx) default value infinity the maximum number of independent sets to be found
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) of products of variables. The support of any one of these products is a maximal independent subset of variables modulo `J`
+
+
+### See also
+
+
+- PrimaryDecomposition:: PrimaryDecomposition
+- MinimalPrimes:: minimalPrimes
+- Macaulay2Doc:: support
+- Macaulay2Doc:: rsort
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "independentSets",
+    "safe_name": "independentSets",
+    "type": "MethodFunctionWithOptions",
+    "description": " An independent set of variables of an ideal `J`  in a polynomial ring `R`  is a set of variables th...",
+    "installations": [
+        "<Installation independentSets(Ideal)>",
+        "<Installation independentSets(MonomialIdeal)>"
+    ],
+    "options": [
+        {
+            "name": "Limit",
+            "default": "infinity"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "independentSets",
+        "full_doc": "... (4360 bytes) ...",
+        "parsed_headline": "independentSets  -- some size-maximal independent subsets of variables modulo an ideal"
+    }
+}
+```

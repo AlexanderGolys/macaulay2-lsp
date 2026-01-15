@@ -1,0 +1,81 @@
+---
+title: "reduceHilbert"
+kind: Method
+---
+
+# reduceHilbert
+
+**reduceHilbert  -- reduce a Hilbert series expression**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+This function is used to reduce the rational expression given by the command [hilbertSeries](../Method/op_Coredollar_hilbertSeries.mdx) . It is not automatically reduced but sometimes it is useful to write it in reduced form. For instance one might not notice that the series is a polynomial until it is reduced.The reduction is partial in the sense that the explicit factors of the denominator are cancelled entirely or not at all.
+
+## Installed For
+
+### reduceHilbert([Divide](../Type/Divide.mdx)) -> [Divide](../Type/Divide.mdx)
+
+## Examples
+
+```macaulay2
+reduceHilbert H
+```
+
+```macaulay2
+reduceHilbert s
+
+          2
+     1 + T
+```
+
+```text
+------
+        1
+
+Expression of class Divide
+```
+
+```macaulay2
+f = reduceHilbert oo
+
+       1 + T
+```
+
+```text
+--------
+           2
+     (1 - T )
+
+Expression of class Divide
+```
+
+## Additional Information
+
+- Inputs:
+- `H` a [ divide expression](../Type/op_Coredollar_Divide.mdx)
+- Outputs:
+- a [ divide expression](../Type/op_Coredollar_Divide.mdx) the Hilbert series reduced by removing common factors
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "reduceHilbert",
+    "safe_name": "op_Coredollar_reduceHilbert",
+    "type": "MethodFunction",
+    "description": "This function is used to reduce the rational expression given by the command [hilbertSeries](../Meth...",
+    "installations": [
+        "<Installation reduceHilbert(Divide)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$reduceHilbert",
+        "full_doc": "... (2396 bytes) ...",
+        "parsed_headline": "reduceHilbert  -- reduce a Hilbert series expression"
+    }
+}
+```

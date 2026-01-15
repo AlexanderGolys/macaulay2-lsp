@@ -5,29 +5,69 @@ kind: Function
 
 # isGlobalSymbol
 
-**Type:** `Function`
+**isGlobalSymbol  -- whether a global symbol with a given name exists**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-isGlobalSymbol, -- whether a global symbol with a given name exists, class => element, Usage: , isGlobalSymbol s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether a global symbol with the name contained in the string , s, has been defined, Description, The search for the symbol runs through the dictionaries in the list , Macaulay2Doc :: dictionaryPath, ., class => examples, i1 : isGlobalSymbol "res"
-
-o1 = true, class => language-macaulay2, i2 : isGlobalSymbol "resres"
-
-o2 = false, class => language-macaulay2, See also, Macaulay2Doc :: dictionaryPath, Macaulay2Doc :: getGlobalSymbol, class => waystouse, For the programmer, The object , Macaulay2Doc :: isGlobalSymbol, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isGlobalSymbol-doc.m2:18:0, .
+ The search for the symbol runs through the dictionaries in the list [dictionaryPath](../Instance/dictionaryPath.mdx) .
 
 ## Examples
 
 ```macaulay2
-i1 : isGlobalSymbol "res"
-
-o1 = true
-
-i2 : isGlobalSymbol "resres"
-
-o2 = false
+isGlobalSymbol s
 ```
 
-## See Also
+```macaulay2
+isGlobalSymbol "res"
 
+```
+
+```text
+true
+```
+
+```macaulay2
+isGlobalSymbol "resres"
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether a global symbol with the name contained in the string
+- `s`
+- has been defined
+
+
+### See also
+
+
+- Macaulay2Doc:: dictionaryPath
+- Macaulay2Doc:: getGlobalSymbol
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "isGlobalSymbol",
+    "safe_name": "isGlobalSymbol",
+    "type": "CompiledFunction",
+    "description": " The search for the symbol runs through the dictionaries in the list [dictionaryPath](../Instance/di...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "isGlobalSymbol",
+        "full_doc": "... (1235 bytes) ...",
+        "parsed_headline": "isGlobalSymbol  -- whether a global symbol with a given name exists"
+    }
+}
+```

@@ -1,75 +1,76 @@
 ---
 title: "Tally"
 kind: Type
-parent: VirtualTally
 ---
 
 # Tally
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Tally  -- the class of all tally results**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+`Tally`  -- a class designed to hold tally results i.e. multisets.
 
-## Parent Type
+## Additional Information
 
-[VirtualTally](../Type/VirtualTally.mdx)
+### See also
 
-## Subtypes
 
-Direct subtypes of this type:
+- Macaulay2Doc:: Set
 
-- [Set](../Type/Set.mdx)
+[Tally + Tally](../Instance/Tally + Tally.mdx)[Tally - Tally](../Instance/Tally - Tally.mdx)
 
-## Methods
+## Debug info
 
-Methods that can be used with this type:
-
-### `*`
-
-- `*(Number, Tally)`
-
-### `+`
-
-- `+(Tally, Tally)`
-
-### `-`
-
-- `-(Tally)`
-- `-(Tally, Tally)`
-
-### `commonest`
-
-- `commonest(Tally)`
-
-### `elements`
-
-- `elements(Tally)`
-
-### `toList`
-
-- `toList(Tally)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [commonest](../Function/commonest.mdx)
-- [elements](../Function/elements.mdx)
-- [toList](../Function/toList.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [VirtualTally](../Type/VirtualTally.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Tally",
+    "safe_name": "Tally",
+    "type": null,
+    "description": "`Tally`  -- a class designed to hold tally results i.e. multisets....",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Tally",
+        "parent": "VirtualTally",
+        "methods": [
+            [
+                "commonest",
+                "Tally"
+            ],
+            [
+                "toList",
+                "Tally"
+            ],
+            [
+                "elements",
+                "Tally"
+            ],
+            [
+                "-",
+                "Tally"
+            ],
+            [
+                "+",
+                "Tally",
+                "Tally"
+            ],
+            [
+                "-",
+                "Tally",
+                "Tally"
+            ],
+            [
+                "*",
+                "Number",
+                "Tally"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1384 bytes) ...",
+        "parsed_headline": "Tally  -- the class of all tally results"
+    }
+}
+```

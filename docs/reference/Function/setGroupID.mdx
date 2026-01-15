@@ -5,17 +5,50 @@ kind: Function
 
 # setGroupID
 
-**Type:** `Function`
+**setGroupID  -- set the process group identifier**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-setGroupID, -- set the process group identifier, class => element, Usage: , setGroupID(pid,pgid), class => language-macaulay2, Inputs:, pid, , , an , Macaulay2Doc :: ZZ, integer, pgid, , , an , Macaulay2Doc :: ZZ, integer, Consequences:, The process group id of the process with process id , pid, is set to , pgid, . If , pid, is 0, the current process is affected. If , pgid, is 0, the new process group id is equal to the process id., empty documentation body, See also, Macaulay2Doc :: processID, Macaulay2Doc :: groupID, class => waystouse, For the programmer, The object , Macaulay2Doc :: setGroupID, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:807:0, .
+setGroupID  -- set the process group identifier
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+setGroupID(pidpgid)
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `pid` an [ integer](../Type/ZZ.mdx)
+- `pgid` an [ integer](../Type/ZZ.mdx)
+- Consequences:
+- The process group id of the process with process id `pid` is set to `pgid`. If `pid` is 0 the current process is affected. If `pgid` is 0 the new process group id is equal to the process id.
+
+empty documentation body
+### See also
+
+
+- Macaulay2Doc:: processID
+- Macaulay2Doc:: groupID
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "setGroupID",
+    "safe_name": "op_Coredollar_setGroupID",
+    "type": "CompiledFunction",
+    "description": "setGroupID  -- set the process group identifier...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$setGroupID",
+        "full_doc": "... (1010 bytes) ...",
+        "parsed_headline": "setGroupID  -- set the process group identifier"
+    }
+}
+```

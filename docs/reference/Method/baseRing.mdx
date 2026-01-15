@@ -1,0 +1,101 @@
+---
+title: "baseRing"
+kind: Method
+---
+
+# baseRing
+
+**baseRing  -- produce the ring from which a ring was formed**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+The base ring of a ring `R`  is the ring from which `R`  was formed. For example if `R`  is a quotient ring of the form `S/I`  or if `R`  is a fraction ring of the form `frac S`  or if `R`  is a polynomial ring over `S`  then the base ring is `S` .The entire chain of base rings can be obtained under the key [baseRings](../Instance/baseRings.mdx) .
+
+## Installed For
+
+### baseRing([Ring](../Type/Ring.mdx)) -> [Ring](../Type/Ring.mdx)
+
+## Examples
+
+```macaulay2
+baseRing R
+```
+
+```macaulay2
+baseRing QQ
+
+```
+
+```text
+ZZ
+
+Ring
+```
+
+```macaulay2
+baseRing T
+
+```
+
+```text
+S
+
+QuotientRing
+```
+
+```macaulay2
+baseRing S
+
+```
+
+```text
+R
+
+PolynomialRing
+```
+
+```macaulay2
+baseRing R
+
+```
+
+```text
+QQ
+
+Ring
+```
+
+## Additional Information
+
+- Inputs:
+- `R` a [ ring](../Type/Ring.mdx)
+- Outputs:
+- a [ ring](../Type/Ring.mdx) the ring from which
+- `R`
+- was formed
+
+[baseRings](../Instance/baseRings.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "baseRing",
+    "safe_name": "baseRing",
+    "type": "MethodFunction",
+    "description": "The base ring of a ring `R`  is the ring from which `R`  was formed. For example if `R`  is a quotie...",
+    "installations": [
+        "<Installation baseRing(Ring)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "baseRing",
+        "full_doc": "... (2057 bytes) ...",
+        "parsed_headline": "baseRing  -- produce the ring from which a ring was formed"
+    }
+}
+```

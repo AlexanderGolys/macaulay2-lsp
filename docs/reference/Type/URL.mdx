@@ -1,48 +1,64 @@
 ---
 title: "URL"
 kind: Type
-parent: BasicList
 ---
 
 # URL
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [SelfInitializingType](../Type/SelfInitializingType.mdx)
+**URL  -- a type representing a URL**
 
 ## Description
 
-An instance of the type [SelfInitializingType](../Type/SelfInitializingType.mdx).
-
-## Parent Type
-
-[BasicList](../Type/BasicList.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `NewFromMethod`
-
-- `NewFromMethod(URL, String)`
-
-### `show`
-
-- `show(URL)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [show](../Function/show.mdx)
+The function [show](../Method/show.mdx) knows how to display entities of various types including URLs.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+URL str
+```
 
-## See Also
+## Additional Information
 
-- [BasicList](../Type/BasicList.mdx) (parent type)
+- Inputs:
+- `str` a [ string](../Type/op_Coredollar_String.mdx) a URL
+- Outputs:
+- an instance of the type [URL](../Type/op_Coredollar_URL.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: show
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "URL",
+    "safe_name": "op_Coredollar_URL",
+    "type": null,
+    "description": "The function [show](../Method/show.mdx) knows how to display entities of various types including URL...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$URL",
+        "parent": "BasicList",
+        "methods": [
+            [
+                "show",
+                "URL"
+            ],
+            [
+                "NewFromMethod",
+                "URL",
+                "String"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1121 bytes) ...",
+        "parsed_headline": "URL  -- a type representing a URL"
+    }
+}
+```

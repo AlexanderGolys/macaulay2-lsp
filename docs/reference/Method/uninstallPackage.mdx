@@ -1,0 +1,77 @@
+---
+title: "uninstallPackage"
+kind: Method
+---
+
+# uninstallPackage
+
+**uninstallPackage  -- uninstall a package and remove its documentation**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+uninstallPackage  -- uninstall a package and remove its documentation
+
+## Installed For
+
+### uninstallPackage([Package](../Type/Package.mdx))
+
+### uninstallPackage([String](../Type/String.mdx))
+
+## Options
+
+- [InstallPrefix](../Method/InstallPrefix.mdx) => /home/flux/.Macaulay2/local/
+
+## Examples
+
+```macaulay2
+uninstallPackage PackageName
+```
+
+## Additional Information
+
+- Inputs:
+- `PackageName` a [ package](../Type/op_Coredollar_Package.mdx) or [String](../Type/op_Coredollar_String.mdx) the package to uninstall
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `InstallPrefix```a [ string](../Type/op_Coredollar_String.mdx) default value "/home/m2user/.Macaulay2/local/" see Macaulay2Doc:: installPackage(...
+- Consequences:
+- the links to the files and the files of the specified package created by [installPackage](../Method/installPackage.mdx) in case encapsulation is enabled are removed for every version of the package.
+
+empty documentation body
+### See also
+
+
+- Macaulay2Doc:: packages
+- Macaulay2Doc:: prefixPath
+- Macaulay2Doc:: installPackage
+- Macaulay2Doc:: installedPackages
+- Macaulay2Doc:: uninstallAllPackages
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "uninstallPackage",
+    "safe_name": "op_Coredollar_uninstallPackage",
+    "type": "MethodFunctionWithOptions",
+    "description": "uninstallPackage  -- uninstall a package and remove its documentation...",
+    "installations": [
+        "<Installation uninstallPackage(Package)>",
+        "<Installation uninstallPackage(String)>"
+    ],
+    "options": [
+        {
+            "name": "InstallPrefix",
+            "default": "/home/flux/.Macaulay2/local/"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$uninstallPackage",
+        "full_doc": "... (1672 bytes) ...",
+        "parsed_headline": "uninstallPackage  -- uninstall a package and remove its documentation"
+    }
+}
+```

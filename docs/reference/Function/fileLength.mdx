@@ -5,45 +5,66 @@ kind: Function
 
 # fileLength
 
-**Type:** `Function`
+**fileLength  -- the length of a file**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-fileLength, -- the length of a file, class => element, Usage: , fileLength f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: String, string, or , a , Macaulay2Doc :: File, file, Outputs:, an , Macaulay2Doc :: ZZ, integer, , , the length of the file , f, or the file whose name is , f, Description, The length of an open output file is determined from the internal count of the number of bytes written so far., class => examples, i1 : f = temporaryFileName() << "hi there"
-
-o1 = /tmp/M2-710621-0/0
-
-o1 : File, class => language-macaulay2, i2 : fileLength f
-
-o2 = 8, class => language-macaulay2, i3 : close f
-
-o3 = /tmp/M2-710621-0/0
-
-o3 : File, class => language-macaulay2, i4 : filename = toString f
-
-o4 = /tmp/M2-710621-0/0, class => language-macaulay2, i5 : fileLength filename
-
-o5 = 8, class => language-macaulay2, i6 : get filename
-
-o6 = hi there, class => language-macaulay2, i7 : length oo
-
-o7 = 8, class => language-macaulay2, i8 : removeFile filename, class => language-macaulay2, See also, Macaulay2Doc :: fileTime, class => waystouse, For the programmer, The object , Macaulay2Doc :: fileLength, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1868:0, .
+The length of an open output file is determined from the internal count of the number of bytes written so far.
 
 ## Examples
 
 ```macaulay2
-i1 : f = temporaryFileName() << "hi there"
-
-o1 = /tmp/M2-710621-0/0
-
-o1 : File
-
-i2 : fileLength f
-
-o2 = 8
+fileLength f
 ```
 
-## See Also
+```macaulay2
+fileLength f
 
+```
+
+```text
+8
+```
+
+```macaulay2
+fileLength filename
+
+```
+
+```text
+8
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ string](../Type/op_Coredollar_String.mdx) or a [ file](../Type/op_Coredollar_File.mdx)
+- Outputs:
+- an [ integer](../Type/ZZ.mdx) the length of the file `f` or the file whose name is `f`
+
+
+### See also
+
+
+- Macaulay2Doc:: fileTime
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "fileLength",
+    "safe_name": "op_Coredollar_fileLength",
+    "type": "CompiledFunction",
+    "description": "The length of an open output file is determined from the internal count of the number of bytes writt...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$fileLength",
+        "full_doc": "... (1672 bytes) ...",
+        "parsed_headline": "fileLength  -- the length of a file"
+    }
+}
+```

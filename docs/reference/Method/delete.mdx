@@ -1,0 +1,87 @@
+---
+title: "delete"
+kind: Method
+---
+
+# delete
+
+**delete  -- delete some elements of a list**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+Equality is determined with [===](../Method/op_Coredollar_eq_eq_eq.mdx) which is quick but not always intuitive. For instance in the next example the first item in the list is not  removed because it is an element of `QQ`  and will not match an element of `ZZ` .To delete items from a list by index rather than value see [drop](../Function/op_Coredollar_drop.mdx).
+
+## Installed For
+
+### delete([Thing](../Type/Thing.mdx), [BasicList](../Type/BasicList.mdx))
+
+## Examples
+
+```macaulay2
+delete(x A)
+```
+
+```macaulay2
+delete(c {a,b,c,d,e,a,b,c,d,e})
+
+```
+
+```text
+{a, b, d, e, a, b, d, e}
+
+List
+```
+
+```macaulay2
+delete(1 {2/2, 3/2, 4/2})
+
+         3
+```
+
+```text
+{1, -, 2}
+         2
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `A` list or sequence
+- `x` thing
+- Outputs:
+- `A2` a new list from `A` with every occurrence of `x` removed
+
+
+### See also
+
+
+- Macaulay2Doc:: drop
+- Macaulay2Doc:: positions
+- Macaulay2Doc:: select
+- Macaulay2Doc:: lists and sequences
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "delete",
+    "safe_name": "op_Coredollar_delete",
+    "type": "MethodFunction",
+    "description": "Equality is determined with [===](../Method/op_Coredollar_eq_eq_eq.mdx) which is quick but not alway...",
+    "installations": [
+        "<Installation delete(Thing, BasicList)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$delete",
+        "full_doc": "... (1682 bytes) ...",
+        "parsed_headline": "delete  -- delete some elements of a list"
+    }
+}
+```

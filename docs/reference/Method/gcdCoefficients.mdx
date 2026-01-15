@@ -1,0 +1,90 @@
+---
+title: "gcdCoefficients"
+kind: Method
+---
+
+# gcdCoefficients
+
+**gcdCoefficients  -- greatest common divisor with coefficients**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+This returns a sequence of the form `(d r s)` where $d=\gcd(a b)$ and $r$ and $s$ are the minimal Bézout coefficients satisfying the equation $d = ar + bs$.It works for integers or elements of polynomial rings in one variable.
+
+## Installed For
+
+### gcdCoefficients([RingElement](../Type/RingElement.mdx), [RingElement](../Type/RingElement.mdx))
+
+### gcdCoefficients([RingElement](../Type/RingElement.mdx), [ZZ](../Type/ZZ.mdx))
+
+### gcdCoefficients([ZZ](../Type/ZZ.mdx), [RingElement](../Type/RingElement.mdx))
+
+### gcdCoefficients([ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+gcdCoefficients(a b)
+```
+
+```macaulay2
+(d r s) = gcdCoefficients(46 240)
+
+```
+
+```text
+(2 47 -9)
+
+Sequence
+```
+
+```macaulay2
+(d r s) = gcdCoefficients(f g)
+
+          5    4    3    2       7    6    3
+```
+
+```text
+(1 x  + x  + x  + x  + 1 x  + x  + x  + x)
+
+Sequence
+```
+
+## Additional Information
+
+- Inputs:
+- `a` a [ ring element](../Type/RingElement.mdx) or an [ integer](../Type/ZZ.mdx)
+- `b` a [ ring element](../Type/RingElement.mdx) or an [ integer](../Type/ZZ.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: gcd
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "gcdCoefficients",
+    "safe_name": "gcdCoefficients",
+    "type": "MethodFunction",
+    "description": "This returns a sequence of the form `(d r s)` where $d=\\gcd(a b)$ and $r$ and $s$ are the minimal B\u00e9...",
+    "installations": [
+        "<Installation gcdCoefficients(ZZ, RingElement)>",
+        "<Installation gcdCoefficients(RingElement, ZZ)>",
+        "<Installation gcdCoefficients(RingElement, RingElement)>",
+        "<Installation gcdCoefficients(ZZ, ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "gcdCoefficients",
+        "full_doc": "... (2391 bytes) ...",
+        "parsed_headline": "gcdCoefficients  -- greatest common divisor with coefficients"
+    }
+}
+```

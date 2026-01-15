@@ -5,17 +5,36 @@ kind: Function
 
 # copy
 
-**Type:** `Function`
+**copy  -- copy an object**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-copy, -- copy an object, Description, copy x, yields a copy of x., , If x is an hash table, array, list or sequence, then the elements are placed into a new copy. If x is a hash table, the copy is mutable if and only if x is., , It is not advisable to copy such things as modules and rings, for: (1) the operations that have already been installed for them will return values in the original object, rather than in the copy; and (2) the copy operation is shallow, not copying keys and values that happen to be hash tables., , See also, Macaulay2Doc :: newClass, class => waystouse, For the programmer, The object , Macaulay2Doc :: copy, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_hashtables.m2:340:0, .
+`copy x`  yields a copy of x. If x is an hash table array list or sequence then the elements are placed into a new copy. If x is a hash table the copy is mutable if and only if x is. It is not advisable to copy such things as modules and rings for: (1) the operations that have already been installed for them will return values in the original object rather than in the copy; and (2) the copy operation is shallow not copying keys and values that happen to be hash tables.
 
-## Examples
+## Additional Information
 
-*Examples would be extracted from M2 documentation here*
+### See also
 
-## See Also
 
+- Macaulay2Doc:: newClass
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "copy",
+    "safe_name": "op_Coredollar_copy",
+    "type": "CompiledFunction",
+    "description": "`copy x`  yields a copy of x. If x is an hash table array list or sequence then the elements are pla...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$copy",
+        "full_doc": "... (937 bytes) ...",
+        "parsed_headline": "copy  -- copy an object"
+    }
+}
+```

@@ -1,0 +1,119 @@
+---
+title: "insert"
+kind: Method
+---
+
+# insert
+
+**insert  -- copy a list inserting an element**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+insert  -- copy a list inserting an element
+
+## Installed For
+
+### insert([ZZ](../Type/ZZ.mdx), [Thing](../Type/Thing.mdx), [BasicList](../Type/BasicList.mdx)) -> [BasicList](../Type/BasicList.mdx)
+
+## Examples
+
+```macaulay2
+insert(i x L)
+```
+
+```macaulay2
+insert(4 "hi" L)
+
+```
+
+```text
+(0 1 2 3 hi 4 5 6 7 8 9 10)
+
+Sequence
+```
+
+```macaulay2
+insert(0 "hi" L)
+
+```
+
+```text
+(hi 0 1 2 3 4 5 6 7 8 9 10)
+
+Sequence
+```
+
+```macaulay2
+insert(11 "hi" L)
+
+```
+
+```text
+(0 1 2 3 4 5 6 7 8 9 10 hi)
+
+Sequence
+```
+
+```macaulay2
+insert(-1 "hi" L)
+
+```
+
+```text
+(0 1 2 3 4 5 6 7 8 9 10 hi)
+
+Sequence
+```
+
+```macaulay2
+apply({-1,-3,-5} i -> L = insert(i "hi" L)); L
+
+```
+
+```text
+(0 1 2 3 4 5 6 7 8 hi 9 hi 10 hi)
+
+Sequence
+```
+
+## Additional Information
+
+- Inputs:
+- `i` an [ integer](../Type/ZZ.mdx)
+- `x` a [ thing](../Type/Thing.mdx)
+- `L` a [ basic list](../Type/op_Coredollar_BasicList.mdx)
+- Outputs:
+- `L2` a [ basic list](../Type/op_Coredollar_BasicList.mdx) a copy of `L` in which `x` has been inserted into position `i`
+
+
+### See also
+
+
+- Macaulay2Doc:: delete
+- Macaulay2Doc:: mingle
+- Macaulay2Doc:: switch
+- Macaulay2Doc:: lists and sequences
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "insert",
+    "safe_name": "op_Coredollar_insert",
+    "type": "MethodFunction",
+    "description": "insert  -- copy a list inserting an element...",
+    "installations": [
+        "<Installation insert(ZZ, Thing, BasicList)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$insert",
+        "full_doc": "... (2037 bytes) ...",
+        "parsed_headline": "insert  -- copy a list inserting an element"
+    }
+}
+```

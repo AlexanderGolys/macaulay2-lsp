@@ -5,25 +5,76 @@ kind: Function
 
 # utf8
 
-**Type:** `Function`
+**utf8  -- encode and decode unicode utf-8-encoded strings**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-utf8, -- encode and decode unicode utf-8-encoded strings, Description, Synopsis, class => element, Usage: , utf8 x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: List, list, , , a list of small natural numbers to serve as character codes, Outputs:, a , Macaulay2Doc :: String, string, , , a string obtained by encoding the character codes in , x, according to the utf-8 encoding standard, class => examples, i1 : s = utf8 {119, 111, 51, 32, 25105
 
-o1 = wo3 我, class => language-macaulay2, Synopsis, class => element, Usage: , utf8 s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: List, list, , , a list of the integer codes obtained by decoding the string , s, according to the utf-8 encoding standard, class => examples, i2 : utf8 s
+### Synopsis
 
-o2 = {119, 111, 51, 32, 25105
 
-o2 : List, class => language-macaulay2, The two operations described above are inverse to each other., The function , utf8check, can be used to verify that a string contains a valid uft8-encoding of a sequence of unicode characters. It returns , Macaulay2Doc :: null, upon success, and signals an error otherwise., class => examples, i3 : try utf8check "你好" else "invalid", class => language-macaulay2, i4 : try utf8check "\200\200" else "invalid"
+- Inputs:
+- `x` a [ list](../Type/op_Coredollar_List.mdx) a list of small natural numbers to serve as character codes
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) a string obtained by encoding the character codes in `x` according to the utf-8 encoding standard
 
-o4 = invalid, class => language-macaulay2, See also, Macaulay2Doc :: ascii, class => waystouse, For the programmer, The object , Macaulay2Doc :: utf8, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_strings.m2:438:0, .
+
+### Synopsis
+
+
+- Inputs:
+- `s` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) a list of the integer codes obtained by decoding the string `s` according to the utf-8 encoding standard
+
+The two operations described above are inverse to each other.The function `utf8check`  can be used to verify that a string contains a valid uft8-encoding of a sequence of unicode characters.  It returns [null](../Instance/null.mdx)  upon success and signals an error otherwise.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+s = utf8 {119, 111, 51, 32, 25105}
 
-## See Also
+```
 
+```text
+wo3 我
+```
+
+```macaulay2
+utf8 s
+
+```
+
+```text
+{119, 111, 51, 32, 25105}
+
+List
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: ascii
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "utf8",
+    "safe_name": "op_Coredollar_utf8",
+    "type": "CompiledFunction",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `x` a [ list](../Type/op_Coredollar_List.mdx) a list of small natural nu...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$utf8",
+        "full_doc": "... (2060 bytes) ...",
+        "parsed_headline": "utf8  -- encode and decode unicode utf-8-encoded strings"
+    }
+}
+```

@@ -5,33 +5,65 @@ kind: Function
 
 # values
 
-**Type:** `Function`
+**values  -- values in a hash table**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-values, -- values in a hash table, class => element, Usage: , values t, class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: HashTable, hash table, , , Outputs:, a , Macaulay2Doc :: List, list, , , the values occurring in the hash table , t, , Description, class => examples, i1 : x = new HashTable from {a => 1, b => 2
-
-o1 = HashTable{a => 1
- b => 2
-
-o1 : HashTable, class => language-macaulay2, i2 : values x
-
-o2 = {1, 2
-
-o2 : List, class => language-macaulay2, See also, Macaulay2Doc :: hash tables, Macaulay2Doc :: applyValues, Macaulay2Doc :: keys, Macaulay2Doc :: pairs, Macaulay2Doc :: scanValues, Macaulay2Doc :: #, Macaulay2Doc :: #?, class => waystouse, Ways to use , values, :, values(Dictionary), values(HashTable), class => waystouse, For the programmer, The object , Macaulay2Doc :: values, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_hashtables.m2:674:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `values(HashTable)`
-- `values(Dictionary)`
+values  -- values in a hash table
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+values t
+```
 
-## See Also
+```macaulay2
+values x
 
+```
+
+```text
+{1, 2}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `t` a [ hash table](../Type/op_Coredollar_HashTable.mdx)
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) the values occurring in the hash table `t`
+
+
+### See also
+
+
+- Macaulay2Doc:: hash tables
+- Macaulay2Doc:: applyValues
+- Macaulay2Doc:: keys
+- Macaulay2Doc:: pairs
+- Macaulay2Doc:: scanValues
+- Macaulay2Doc:: #
+- Macaulay2Doc:: #?
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "values",
+    "safe_name": "values",
+    "type": "CompiledFunction",
+    "description": "values  -- values in a hash table...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "values",
+        "full_doc": "... (1347 bytes) ...",
+        "parsed_headline": "values  -- values in a hash table"
+    }
+}
+```

@@ -5,39 +5,52 @@ kind: Function
 
 # globalAssign
 
-**Type:** `Function`
+**globalAssign  -- global assignment in function form**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-globalAssign, -- global assignment, in function form, class => element, Usage: , globalAssign(s,v), class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: Symbol, symbol, , , the symbol whose value is to be set, v, , , a , Macaulay2Doc :: Thing, thing, , , the value to be assigned to , s, Outputs:, v, , , a , Macaulay2Doc :: Thing, thing, Description, This function mimics what happens in the interpreter when an assignment to a global variable occurs, and can be useful if the name of the symbol is not known when the code is written. If the value changes, then , Macaulay2Doc :: GlobalReleaseHook, and , Macaulay2Doc :: GlobalAssignHook, are called appropriately., class => examples, i1 : x = y
-
-o1 = y
-
-o1 : Symbol, class => language-macaulay2, i2 : globalAssign(x,4)
-
-o2 = 4, class => language-macaulay2, i3 : x
-
-o3 = y
-
-o3 : Symbol, class => language-macaulay2, i4 : y
-
-o4 = 4, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: globalAssign, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:839:0, .
+This function mimics what happens in the interpreter when an assignment to a global variable occurs and can be useful if the name of the symbol is not known when the code is written.  If the value changes then [GlobalReleaseHook](../Instance/GlobalReleaseHook.mdx)  and [GlobalAssignHook](../Method/op_Coredollar_GlobalAssignHook.mdx)  are called appropriately.
 
 ## Examples
 
 ```macaulay2
-i1 : x = y
-
-o1 = y
-
-o1 : Symbol
-
-i2 : globalAssign(x,4)
-
-o2 = 4
+globalAssign(sv)
 ```
 
-## See Also
+```macaulay2
+globalAssign(x4)
 
+```
+
+```text
+4
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ symbol](../Type/op_Coredollar_Symbol.mdx) the symbol whose value is to be set
+- `v` a [ thing](../Type/Thing.mdx) the value to be assigned to `s`
+- Outputs:
+- `v` a [ thing](../Type/Thing.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "globalAssign",
+    "safe_name": "op_Coredollar_globalAssign",
+    "type": "FunctionClosure",
+    "description": "This function mimics what happens in the interpreter when an assignment to a global variable occurs ...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$globalAssign",
+        "full_doc": "... (1470 bytes) ...",
+        "parsed_headline": "globalAssign  -- global assignment in function form"
+    }
+}
+```

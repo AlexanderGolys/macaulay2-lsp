@@ -1,0 +1,79 @@
+---
+title: "markedGB"
+kind: Method
+---
+
+# markedGB
+
+**markedGB  -- make a marked Gröbner basis**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+markedGB  -- make a marked Gröbner basis
+
+## Installed For
+
+### markedGB([Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx)) -> [GroebnerBasis](../Type/GroebnerBasis.mdx)
+
+## Options
+
+- [SyzygyMatrix](../Option/SyzygyMatrix.mdx) => null
+- [ChangeMatrix](../Method/ChangeMatrix.mdx) => null
+- [MinimalMatrix](../Method/MinimalMatrix.mdx) => null
+
+## Examples
+
+```macaulay2
+markedGB(ltm)
+```
+
+## Additional Information
+
+- Inputs:
+- `lt` a [ matrix](../Type/op_Coredollar_Matrix.mdx) the matrix of monomials in (the columns of) `m` to mark as lead terms with respect to an unspecified monomial ordering
+- `m` a [ matrix](../Type/op_Coredollar_Matrix.mdx) the matrix whose columns are to form the generators of a Gröbner basis
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `SyzygyMatrix```a [ matrix](../Type/op_Coredollar_Matrix.mdx) default value null the matrix of syzygies
+- `MinimalMatrix```a [ matrix](../Type/op_Coredollar_Matrix.mdx) default value null the matrix of minimal generators
+- `ChangeMatrix```a [ matrix](../Type/op_Coredollar_Matrix.mdx) default value null the change-of-basis matrix
+- Outputs:
+- a [ Gröbner basis](../Type/op_Coredollar_GroebnerBasis.mdx) the resulting Gröbner basis
+
+empty documentation body
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "markedGB",
+    "safe_name": "markedGB",
+    "type": "MethodFunctionWithOptions",
+    "description": "markedGB  -- make a marked Gr\u00f6bner basis...",
+    "installations": [
+        "<Installation markedGB(Matrix, Matrix)>"
+    ],
+    "options": [
+        {
+            "name": "SyzygyMatrix",
+            "default": "null"
+        },
+        {
+            "name": "ChangeMatrix",
+            "default": "null"
+        },
+        {
+            "name": "MinimalMatrix",
+            "default": "null"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "markedGB",
+        "full_doc": "... (1657 bytes) ...",
+        "parsed_headline": "markedGB  -- make a marked Gr\u00f6bner basis"
+    }
+}
+```

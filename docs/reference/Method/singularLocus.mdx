@@ -1,0 +1,101 @@
+---
+title: "singularLocus"
+kind: Method
+---
+
+# singularLocus
+
+**singularLocus  -- singular locus**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+`singularLocus R`  -- produce the singular locus of a ring which is assumed to be integral. This function can also be applied to an ideal in which case the singular locus of the quotient ring is returned or to a variety.For rings over [ZZ](../Type/ZZ.mdx)  the locus where the ring is not smooth over [ZZ](../Type/ZZ.mdx)  is computed.
+
+## Installed For
+
+### singularLocus([Ideal](../Type/Ideal.mdx))
+
+### singularLocus([Ring](../Type/Ring.mdx))
+
+## Examples
+
+```macaulay2
+singularLocus(QQ[xy] / (x^2 - y^3))
+
+            QQ[x..y]
+```
+
+```text
+---------------------
+         3    2         2
+     (- y  + x  2x -3y )
+
+QuotientRing
+```
+
+```macaulay2
+singularLocus Spec( QQ[xyz] / (x^2 - y^3) )
+
+         /       QQ[x..z]      \
+```
+
+```text
+Spec|---------------------|
+         |    3    2         2 |
+         \(- y  + x  2x -3y )/
+
+AffineVariety
+```
+
+```macaulay2
+singularLocus Proj( QQ[xyz] / (x^2*z - y^3) )
+
+         /QQ[x..z]\
+```
+
+```text
+Proj|--------|
+         |      2 |
+         \ (x y )/
+
+ProjectiveVariety
+```
+
+```macaulay2
+singularLocus(ZZ[xy]/(x^2-x-y^3+y^2))
+
+                     ZZ[x..y]
+```
+
+```text
+----------------------------------------
+         3    2    2                  2
+     (- y  + x  + y  - x 2x - 1 - 3y  + 2y)
+
+QuotientRing
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "singularLocus",
+    "safe_name": "op_Coredollar_singularLocus",
+    "type": "MethodFunction",
+    "description": "`singularLocus R`  -- produce the singular locus of a ring which is assumed to be integral. This fun...",
+    "installations": [
+        "<Installation singularLocus(Ring)>",
+        "<Installation singularLocus(Ideal)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$singularLocus",
+        "full_doc": "... (2203 bytes) ...",
+        "parsed_headline": "singularLocus  -- singular locus"
+    }
+}
+```

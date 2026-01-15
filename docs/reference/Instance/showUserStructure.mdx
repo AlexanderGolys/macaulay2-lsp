@@ -5,19 +5,61 @@ kind: Instance
 
 # showUserStructure
 
-:::warning[Stub Documentation]
-This is a placeholder documentation entry. The full documentation for this instance needs to be extracted from Macaulay2.
-:::
+**showUserStructure  -- show parent structure for those types defined by user**
 
 **Type:** [Command](../Type/Command.mdx)
 
 ## Description
 
-An instance of the type [Command](../Type/Command.mdx).
+Each type is displayed to the right of its parent.A type is an instance of the class [Type](../Type/op_Coredollar_Type.mdx) .
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+showUserStructure
+```
 
-## See Also
+```macaulay2
+showUserStructure
 
+```
+
+```text
+Thing : BasicList : RingElement : R
+                         VisibleList : List : X : Y
+                                                  Z
+
+Descent
+```
+
+## Additional Information
+
+- Outputs:
+- a display of the parent structure of the types defined by the user and assigned to global variables
+
+
+### See also
+
+
+- Macaulay2Doc:: showStructure
+- Macaulay2Doc:: parent
+- Macaulay2Doc:: ancestors
+
+## Debug info
+
+```python
+{
+    "obj_type": "Instance",
+    "name": "showUserStructure",
+    "safe_name": "showUserStructure",
+    "type": "Command",
+    "description": "Each type is displayed to the right of its parent.A type is an instance of the class [Type](../Type/...",
+    "extra": {
+        "isSymbol": false,
+        "codeName": "showUserStructure",
+        "full_doc": "... (1530 bytes) ...",
+        "stub": true,
+        "parsed_headline": "showUserStructure  -- show parent structure for those types defined by user"
+    }
+}
+```

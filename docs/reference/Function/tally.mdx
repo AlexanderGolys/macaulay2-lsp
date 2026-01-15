@@ -5,56 +5,52 @@ kind: Function
 
 # tally
 
-**Type:** `Function`
+**tally  -- tally the elements of a list sequence array or string**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-tally, -- tally the elements of a list, sequence, array, or string, class => element, Usage: , y = tally x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: VisibleList, visible list, or , a , Macaulay2Doc :: String, string, , , Outputs:, y, , , a , Macaulay2Doc :: Tally, tally, , , Description, It produces a hash table (multiset) , y, which tallies the frequencies of the occurrences of items in the list or string , x, , i.e., , y_i, is the number of times , i, appears in , x, , or is , 0, if , i, doesn't appear in the list or string., class => examples, i1 : y = tally {1,2,3,a,b,1,2,a,1,2,{a,b,{a,b,a
-
-o1 = Tally{{a, b => 2
- 1 => 3
- 2 => 3
- 3 => 1
- a => 3
- b => 1
-
-o1 : Tally, class => language-macaulay2, i2 : y_2
-
-o2 = 3, class => language-macaulay2, i3 : y_5
-
-o3 = 0, class => language-macaulay2, i4 : y_{a,b
-
-o4 = 2, class => language-macaulay2, i5 : tally "Hello, world!"
-
-o5 = Tally{ => 1
- ! => 1
- , => 1
- d => 1
- e => 1
- H => 1
- l => 3
- o => 2
- r => 1
- w => 1
-
-o5 : Tally, class => language-macaulay2, See also, Macaulay2Doc :: Tally, class => waystouse, Ways to use , tally, :, tally(String), tally(VisibleList), class => waystouse, For the programmer, The object , Macaulay2Doc :: tally, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/tally-doc.m2:29:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `tally(String)`
-- `tally(VisibleList)`
+It produces a hash table (multiset) `y` which tallies the frequencies of the occurrences of items in the list or string `x` i.e.`y_i` is the number of times `i` appears in `x` or is `0` if `i` doesn't appear in the list or string.
 
 ## Examples
 
 ```macaulay2
-i2 : y_2
-
-o2 = 3
+y = tally x
 ```
 
-## See Also
+```macaulay2
+tally "Hello
+```
 
+## Additional Information
+
+- Inputs:
+- `x` a [ visible list](../Type/VisibleList.mdx) or a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- `y` a [ tally](../Type/Tally.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: Tally
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "tally",
+    "safe_name": "op_Coredollar_tally",
+    "type": "CompiledFunction",
+    "description": "It produces a hash table (multiset) `y` which tallies the frequencies of the occurrences of items in...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$tally",
+        "full_doc": "... (1981 bytes) ...",
+        "parsed_headline": "tally  -- tally the elements of a list sequence array or string"
+    }
+}
+```

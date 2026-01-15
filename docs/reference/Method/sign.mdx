@@ -1,0 +1,101 @@
+---
+title: "sign"
+kind: Method
+---
+
+# sign
+
+**sign  -- sign (signum) function**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+When x is real then this returns 1 if it is positive -1 if it is negative and 0 if it is zero.If x is complex and nonzero then this returns $x/|x|$.
+
+## Installed For
+
+### sign([Constant](../Type/Constant.mdx))
+
+### sign([Number](../Type/Number.mdx)) -> [ZZ](../Type/ZZ.mdx)
+
+## Examples
+
+```macaulay2
+sign x
+```
+
+```macaulay2
+sign 5
+
+```
+
+```text
+1
+```
+
+```macaulay2
+sign (-3)
+
+```
+
+```text
+-1
+```
+
+```macaulay2
+sign 0
+
+```
+
+```text
+0
+```
+
+```macaulay2
+sign(-7*ii)
+
+```
+
+```text
+-ii
+
+CC (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ number](../Type/op_Coredollar_Number.mdx)
+- Outputs:
+- an [ integer](../Type/ZZ.mdx) or a [ complex number](../Type/op_x226_x132_x130.mdx)
+
+
+### See also
+
+
+- GradedLieAlgebras:: sign(LieElement)
+- Permutations:: sign(Permutation)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "sign",
+    "safe_name": "sign",
+    "type": "MethodFunction",
+    "description": "When x is real then this returns 1 if it is positive -1 if it is negative and 0 if it is zero.If x i...",
+    "installations": [
+        "<Installation sign(Constant)>",
+        "<Installation sign(Number)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "sign",
+        "full_doc": "... (1499 bytes) ...",
+        "parsed_headline": "sign  -- sign (signum) function"
+    }
+}
+```

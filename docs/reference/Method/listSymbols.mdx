@@ -1,0 +1,81 @@
+---
+title: "listSymbols"
+kind: Method
+---
+
+# listSymbols
+
+**listSymbols  -- compact display of symbols and their values**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+listSymbols  -- compact display of symbols and their values
+
+## Installed For
+
+### listSymbols([Dictionary](../Type/Dictionary.mdx))
+
+### listSymbols([List](../Type/List.mdx)) -> [Net](../Type/Net.mdx)
+
+## Examples
+
+```macaulay2
+listSymbols v
+```
+
+```macaulay2
+listSymbols { symbol x, symbol y }
+
+```
+
+```text
+symbol  class   value       location of symbol
+     ------  -----   -----       ------------------   
+     x       ZZ      3           currentString:1:0-1:1
+     y       String  "hi there"  currentString:1:6-1:7
+```
+
+```macaulay2
+listSymbols first localDictionaries()
+
+```
+
+```text
+symbol  class   value       location of symbol
+     ------  -----   -----       ------------------     
+     x       ZZ      3           currentString:1:0-1:1  
+     y       String  "hi there"  currentString:1:6-1:7  
+     z       ZZ      1073741824  currentString:1:21-1:22
+```
+
+## Additional Information
+
+- Inputs:
+- `v` a [ list](../Type/op_Coredollar_List.mdx) or a [ dictionary](../Type/op_Coredollar_Dictionary.mdx); if it's a list it should be a list of symbols
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) a compact display of the symbols in `v` and their values
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "listSymbols",
+    "safe_name": "listSymbols",
+    "type": "MethodFunction",
+    "description": "listSymbols  -- compact display of symbols and their values...",
+    "installations": [
+        "<Installation listSymbols(Dictionary)>",
+        "<Installation listSymbols(List)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "listSymbols",
+        "full_doc": "... (1756 bytes) ...",
+        "parsed_headline": "listSymbols  -- compact display of symbols and their values"
+    }
+}
+```

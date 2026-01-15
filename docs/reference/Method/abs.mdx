@@ -1,0 +1,93 @@
+---
+title: "abs"
+kind: Method
+---
+
+# abs
+
+**abs  -- absolute value function**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+`abs x`  computes the absolute value of `x` .
+
+## Installed For
+
+### abs([CC](../Type/CC.mdx))
+
+### abs([Constant](../Type/Constant.mdx))
+
+### abs([QQ](../Type/QQ.mdx))
+
+### abs([RR](../Type/RR.mdx))
+
+### abs([RRi](../Type/RRi.mdx)) -> [RRi](../Type/RRi.mdx)
+
+### abs([ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+abs x
+abs I
+```
+
+```macaulay2
+abs(-pi)
+
+```
+
+```text
+3.141592653589793
+
+RR (of precision 53)
+```
+
+```macaulay2
+abs(1+ii)
+
+```
+
+```text
+1.414213562373095
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a number
+- `I` a [ real interval](../Type/RRi.mdx)
+- Outputs:
+- the absolute value of `x`
+- a [ real interval](../Type/RRi.mdx) an interval containing the absolute values of all the point of `I`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "abs",
+    "safe_name": "abs",
+    "type": "MethodFunction",
+    "description": "`abs x`  computes the absolute value of `x` ....",
+    "installations": [
+        "<Installation abs(Constant)>",
+        "<Installation abs(QQ)>",
+        "<Installation abs(RRi)>",
+        "<Installation abs(ZZ)>",
+        "<Installation abs(CC)>",
+        "<Installation abs(RR)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "abs",
+        "full_doc": "... (1301 bytes) ...",
+        "parsed_headline": "abs  -- absolute value function"
+    }
+}
+```

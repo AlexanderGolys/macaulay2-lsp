@@ -1,0 +1,148 @@
+---
+title: "pushForward"
+kind: Method
+---
+
+# pushForward
+
+**pushForward  -- compute the pushforward of a module along a ring map**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ Currently `R`  and `S`  must both be polynomial rings over the same base field. This function first checks to see whether M will be a finitely generated R-module via F.  If not an error message describing the codimension of M/(vars of S)M is given (this is equal to the dimension of R if and only if M is a finitely generated R-module. Assuming that it is the push forward `F_*(M)`  is computed.  This is done by first finding a presentation for `M`  in terms of a set of elements that generates `M`  as an `S` -module and then applying the routine [coimage](../Method/op_Coredollar_coimage.mdx)  to a map whose target is `M`  and whose source is a free module over `R` .
+### Example: The Auslander-Buchsbaum formula
+
+ Let's illustrate the Auslander-Buchsbaum formula. First construct some rings and make a module of projective dimension 2. Create ring maps. The module M when thought of as an R5 or R4 module has the same depth but since depth M + pdim M = dim ring the projective dimension will drop to 1 respectively 0 for these two rings.
+### Example: generic projection of a homogeneous coordinate ring
+
+ We compute the pushforward N of the homogeneous coordinate ring M of the twisted cubic curve in P^3. The result is a module with the same codimension degree and genus as the twisted cubic but the support is a cubic in the plane necessarily having one node. Note: these examples are from the original Macaulay script by David Eisenbud.
+
+## Installed For
+
+### pushForward([RingMap](../Type/RingMap.mdx), [Module](../Type/Module.mdx)) -> [Module](../Type/Module.mdx)
+
+## Options
+
+- [Strategy](../Option/Strategy.mdx) => null
+- [MonomialOrder](../Option/MonomialOrder.mdx) => Eliminate
+- [StopBeforeComputation](../Option/StopBeforeComputation.mdx) => false
+- [DegreeLimit](../Option/DegreeLimit.mdx) => {}
+- [PairLimit](../Method/PairLimit.mdx) => infinity
+- [UseHilbertFunction](../Method/UseHilbertFunction.mdx) => true
+
+## Examples
+
+```macaulay2
+pushForward(FM)
+```
+
+```macaulay2
+P = pushForward(GM)
+
+```
+
+```text
+cokernel | c -de               |
+              | d bc-ad+bd+cd+d2+de |
+
+                              2
+R5-module quotient of R5
+```
+
+```macaulay2
+Q = pushForward(FP)
+
+        3
+```
+
+```text
+R4
+
+R4-module free0..1 0
+```
+
+```macaulay2
+N = pushForward(FM)
+
+```
+
+```text
+cokernel {0} | 535385198313ab-695748977868b2-493315895835ac+1151963974140bc-509732823600c2 688352397831a2-902430802056b2-1830852961245ac+3042226879860bc-1346494597200c2 29088245077146491639979555b3-143608211076624058241486520b2c+5607746090069702101228125ac2+229835668530158883094188300bc2-126157077745523335926798000c3                           0                                                                                                                                                                   |
+               {1} | -75747159432a-120614807243b+279465785185c                                   -1103453648829a+1601687633644b+845235467735c                                  10893884734768346843578641a2-91927878026702297684757261ab+201706160712458664246153855b2+34169553202851256473159660ac-185460283186370525276628580bc+58137602981654014626547225c2 205355516247a3-1999754948079a2b+6131787984357ab2-4817629849725b3+840072427740a2c-6298181745660abc+7389192046320b2c+2186513229600ac2-3368812507200bc2-214825024000c3 |
+
+                               2
+P2-module quotient of P2
+```
+
+## Additional Information
+
+- Inputs:
+- `F` a [ ring map](../Type/op_Coredollar_RingMap.mdx) a ring map F: R --> S graded
+- `M` a [ module](../Type/op_Coredollar_Module.mdx) over S graded
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `MonomialOrder````...` default value Eliminate the type of monomial ordering to use in the computation as keyword either [Eliminate](../Type/op_Coredollar_Eliminate.mdx) [ProductOrder](../Type/ProductOrder.mdx) or [Lex](../Method/op_Coredollar_Lex.mdx)
+- `UseHilbertFunction```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true whether to use the Hilbert function as a hint for the Gröbner basis computation if `M` and `F` are homogeneous
+- `StopBeforeComputation```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false see [gb(...](../Instance/gb(....mdx)
+- `DegreeLimit```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value {} see [gb(...](../Instance/gb(....mdx)
+- `PairLimit```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value infinity see [gb(...](../Instance/gb(....mdx)
+- `Strategy````...` default value null
+- Outputs:
+- a [ module](../Type/op_Coredollar_Module.mdx) M considered as an R-module
+
+
+### Caveat
+
+ The module M must be homogeneous as must R S and f.  If you need this function in more general situations please write it and send it to the Macaulay2 authors or ask them to write it!
+### See also
+
+
+- PushForward:: PushForward
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "pushForward",
+    "safe_name": "pushForward",
+    "type": "MethodFunctionWithOptions",
+    "description": " Currently `R`  and `S`  must both be polynomial rings over the same base field. This function first...",
+    "installations": [
+        "<Installation pushForward(RingMap, Module)>"
+    ],
+    "options": [
+        {
+            "name": "Strategy",
+            "default": "null"
+        },
+        {
+            "name": "MonomialOrder",
+            "default": "Eliminate"
+        },
+        {
+            "name": "StopBeforeComputation",
+            "default": "false"
+        },
+        {
+            "name": "DegreeLimit",
+            "default": "{}"
+        },
+        {
+            "name": "PairLimit",
+            "default": "infinity"
+        },
+        {
+            "name": "UseHilbertFunction",
+            "default": "true"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "pushForward",
+        "full_doc": "... (8555 bytes) ...",
+        "parsed_headline": "pushForward  -- compute the pushforward of a module along a ring map"
+    }
+}
+```

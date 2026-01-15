@@ -1,0 +1,111 @@
+---
+title: "regularizedGamma"
+kind: Method
+---
+
+# regularizedGamma
+
+**regularizedGamma  -- upper regularized gamma function**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+This is the (upper) regularized gamma function \(Q(s x) = \frac{\Gamma(s,x)}{\Gamma(s)}\).
+
+## Installed For
+
+### regularizedGamma([CC](../Type/CC.mdx), [CC](../Type/CC.mdx))
+
+### regularizedGamma([CC](../Type/CC.mdx), [Number](../Type/Number.mdx))
+
+### regularizedGamma([CC](../Type/CC.mdx), [RR](../Type/RR.mdx))
+
+### regularizedGamma([Number](../Type/Number.mdx), [CC](../Type/CC.mdx))
+
+### regularizedGamma([Number](../Type/Number.mdx), [Number](../Type/Number.mdx))
+
+### regularizedGamma([Number](../Type/Number.mdx), [RR](../Type/RR.mdx))
+
+### regularizedGamma([Number](../Type/Number.mdx), [RRi](../Type/RRi.mdx))
+
+### regularizedGamma([RR](../Type/RR.mdx), [CC](../Type/CC.mdx))
+
+### regularizedGamma([RR](../Type/RR.mdx), [Number](../Type/Number.mdx))
+
+### regularizedGamma([RR](../Type/RR.mdx), [RR](../Type/RR.mdx)) -> [RR](../Type/RR.mdx)
+
+### regularizedGamma([RR](../Type/RR.mdx), [RRi](../Type/RRi.mdx))
+
+### regularizedGamma([RRi](../Type/RRi.mdx), [Number](../Type/Number.mdx))
+
+### regularizedGamma([RRi](../Type/RRi.mdx), [RR](../Type/RR.mdx))
+
+### regularizedGamma([RRi](../Type/RRi.mdx), [RRi](../Type/RRi.mdx))
+
+## Examples
+
+```macaulay2
+regularizedGamma(s x)
+```
+
+```macaulay2
+regularizedGamma(3 7)
+
+```
+
+```text
+.02963616388052177
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ real number](../Type/op_x226_x132_x157.mdx)
+- `x` a [ real number](../Type/op_x226_x132_x157.mdx)
+- Outputs:
+- a [ real number](../Type/op_x226_x132_x157.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: Gamma
+- Macaulay2Doc:: inverseRegularizedGamma
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "regularizedGamma",
+    "safe_name": "regularizedGamma",
+    "type": "MethodFunction",
+    "description": "This is the (upper) regularized gamma function \\(Q(s x) = \\frac{\\Gamma(s,x)}{\\Gamma(s)}\\)....",
+    "installations": [
+        "<Installation regularizedGamma(Number, RR)>",
+        "<Installation regularizedGamma(Number, RRi)>",
+        "<Installation regularizedGamma(Number, CC)>",
+        "<Installation regularizedGamma(CC, Number)>",
+        "<Installation regularizedGamma(RR, Number)>",
+        "<Installation regularizedGamma(RRi, Number)>",
+        "<Installation regularizedGamma(Number, Number)>",
+        "<Installation regularizedGamma(CC, CC)>",
+        "<Installation regularizedGamma(CC, RR)>",
+        "<Installation regularizedGamma(RR, CC)>",
+        "<Installation regularizedGamma(RR, RR)>",
+        "<Installation regularizedGamma(RRi, RR)>",
+        "<Installation regularizedGamma(RR, RRi)>",
+        "<Installation regularizedGamma(RRi, RRi)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "regularizedGamma",
+        "full_doc": "... (1576 bytes) ...",
+        "parsed_headline": "regularizedGamma  -- upper regularized gamma function"
+    }
+}
+```

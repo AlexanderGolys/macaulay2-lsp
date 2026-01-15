@@ -1,0 +1,93 @@
+---
+title: "isInfinite"
+kind: Method
+---
+
+# isInfinite
+
+**isInfinite  -- whether a number is infinite**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isInfinite  -- whether a number is infinite
+
+## Installed For
+
+### isInfinite([Constant](../Type/Constant.mdx))
+
+### isInfinite([InfiniteNumber](../Type/InfiniteNumber.mdx))
+
+### isInfinite([Number](../Type/Number.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+## Examples
+
+```macaulay2
+isInfinite x
+```
+
+```macaulay2
+isInfinite 3.
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isInfinite inf
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isInfinite nan
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ number](../Type/op_Coredollar_Number.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `x` is an infinite number
+
+
+### See also
+
+
+- Macaulay2Doc:: isFinite
+- Macaulay2Doc:: isANumber
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isInfinite",
+    "safe_name": "op_Coredollar_isInfinite",
+    "type": "MethodFunction",
+    "description": "isInfinite  -- whether a number is infinite...",
+    "installations": [
+        "<Installation isInfinite(Constant)>",
+        "<Installation isInfinite(InfiniteNumber)>",
+        "<Installation isInfinite(Number)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isInfinite",
+        "full_doc": "... (1457 bytes) ...",
+        "parsed_headline": "isInfinite  -- whether a number is infinite"
+    }
+}
+```

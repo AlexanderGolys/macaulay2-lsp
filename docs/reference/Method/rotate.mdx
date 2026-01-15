@@ -1,0 +1,80 @@
+---
+title: "rotate"
+kind: Method
+---
+
+# rotate
+
+**rotate  -- rotate a list**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+rotate  -- rotate a list
+
+## Installed For
+
+### rotate([ZZ](../Type/ZZ.mdx), [VisibleList](../Type/VisibleList.mdx))
+
+## Examples
+
+```macaulay2
+rotate(nv)
+```
+
+```macaulay2
+rotate(3p)
+
+```
+
+```text
+(3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 0 1
+     ------------------------------------------------------------------------
+     2)
+
+Sequence
+```
+
+```macaulay2
+rotate(-3p)
+
+```
+
+```text
+(18 19 20 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+     ------------------------------------------------------------------------
+     17)
+
+Sequence
+```
+
+## Additional Information
+
+- Inputs:
+- `n`
+- `v`
+- Outputs:
+- the list obtained by rotating the list `v` leftward `n` places
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "rotate",
+    "safe_name": "rotate",
+    "type": "MethodFunction",
+    "description": "rotate  -- rotate a list...",
+    "installations": [
+        "<Installation rotate(ZZ, VisibleList)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "rotate",
+        "full_doc": "... (1469 bytes) ...",
+        "parsed_headline": "rotate  -- rotate a list"
+    }
+}
+```

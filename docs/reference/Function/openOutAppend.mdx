@@ -5,54 +5,65 @@ kind: Function
 
 # openOutAppend
 
-**Type:** `Function`
+**openOutAppend  -- open an output file for appending**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-openOutAppend, -- open an output file for appending, class => element, Usage: , openOutAppend fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: File, file, , , an open output file whose filename is , fn, Description, class => examples, i1 : g = openOut "test-file"
-
-o1 = test-file
-
-o1 : File, class => language-macaulay2, i2 : g << "hi there" << endl << close
-
-o2 = test-file
-
-o2 : File, class => language-macaulay2, i3 : h = openOutAppend "test-file"
-
-o3 = test-file
-
-o3 : File, class => language-macaulay2, i4 : h << "ho there" << endl << close
-
-o4 = test-file
-
-o4 : File, class => language-macaulay2, i5 : get "test-file"
-
-o5 = hi there
- ho there, class => language-macaulay2, i6 : removeFile "test-file", class => language-macaulay2, A filename starting with , ~/, will have the tilde replaced by the user's home directory., See also, Macaulay2Doc :: openIn, Macaulay2Doc :: openInOut, Macaulay2Doc :: openOut, Macaulay2Doc :: File, Macaulay2Doc :: get, Macaulay2Doc :: removeFile, Macaulay2Doc :: File << Thing, class => waystouse, Ways to use , openOutAppend, :, Macaulay2Doc :: openOutAppend(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: openOutAppend, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:482:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `openOutAppend(String)`
+A filename starting with `~/`  will have the tilde replaced by the user's home directory.
 
 ## Examples
 
 ```macaulay2
-i1 : g = openOut "test-file"
-
-o1 = test-file
-
-o1 : File
-
-i2 : g << "hi there" << endl << close
-
-o2 = test-file
-
-o2 : File
+openOutAppend fn
 ```
 
-## See Also
+```macaulay2
+h = openOutAppend "test-file"
 
+```
+
+```text
+test-file
+
+File
+```
+
+## Additional Information
+
+- Inputs:
+- `fn` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ file](../Type/op_Coredollar_File.mdx) an open output file whose filename is `fn`
+
+
+### See also
+
+
+- Macaulay2Doc:: openIn
+- Macaulay2Doc:: openInOut
+- Macaulay2Doc:: openOut
+- Macaulay2Doc:: File
+- Macaulay2Doc:: get
+- Macaulay2Doc:: removeFile
+- Macaulay2Doc:: File << Thing
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "openOutAppend",
+    "safe_name": "op_Coredollar_openOutAppend",
+    "type": "CompiledFunction",
+    "description": "A filename starting with `~/`  will have the tilde replaced by the user's home directory....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$openOutAppend",
+        "full_doc": "... (1844 bytes) ...",
+        "parsed_headline": "openOutAppend  -- open an output file for appending"
+    }
+}
+```

@@ -1,85 +1,211 @@
 ---
 title: "Keyword"
 kind: Type
-parent: Symbol
 ---
 
 # Keyword
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Keyword  -- the class of all keywords**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+Keywords are symbols that are treated specially by the system while parsing user input.  Some of them such as [and](../Method/and.mdx)  consist of alphanumeric characters and look just like ordinary symbols.  Others such as [](../Instance/.mdx)  consist of special characters and are called operators.
 
-## Parent Type
+## Additional Information
 
-[Symbol](../Type/Symbol.mdx)
+### See also
 
-## Instances
 
-Direct instances of this type:
+- Macaulay2Doc:: precedence of operators
 
-- `===>=`
-- `then`
-- `if`
-- `^**`
-- `_<=`
-- `!`
-- `#`
-- `%`
-- `in`
-- `&`
-- `(`
-- `)`
-- `*`
-- `+`
-- `|-=`
-- `,`
-- `-`
-- `.`
-- `/`
-- `return`
+## Debug info
 
-*... and 131 more*
-
-## Methods
-
-Methods that can be used with this type:
-
-### `?`
-
-- `?(Keyword)`
-
-### `dictionary`
-
-- `dictionary(Keyword)`
-
-### `texMath`
-
-- `texMath(Keyword)`
-
-### `toExternalString`
-
-- `toExternalString(Keyword)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [?](../Operator/op_question.mdx)
-- [dictionary](../Function/dictionary.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Symbol](../Type/Symbol.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Keyword",
+    "safe_name": "op_Coredollar_Keyword",
+    "type": null,
+    "description": "Keywords are symbols that are treated specially by the system while parsing user input.  Some of the...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Keyword",
+        "parent": "Symbol",
+        "methods": [
+            [
+                "texMath",
+                "Keyword"
+            ],
+            [
+                "?",
+                "Keyword"
+            ],
+            [
+                "toExternalString",
+                "Keyword"
+            ],
+            [
+                "dictionary",
+                "Keyword"
+            ]
+        ],
+        "instances": [
+            "===>=",
+            "then",
+            "if",
+            "^**",
+            "_<=",
+            "!",
+            "#",
+            "%",
+            "in",
+            "&",
+            "(",
+            ")",
+            "*",
+            "+",
+            "|-=",
+            ",",
+            "-",
+            ".",
+            "/",
+            "return",
+            "while",
+            "|-",
+            "\u00b7",
+            "else",
+            "=!=",
+            "when",
+            "|_=",
+            ":",
+            ";",
+            "!=",
+            "<",
+            "=",
+            "@@=",
+            "\u29e2",
+            ">",
+            "?",
+            "@@?",
+            "**",
+            "@",
+            "===>",
+            "..<=",
+            "|=",
+            "|>",
+            ":=",
+            "timing",
+            "*=",
+            "xor",
+            "[",
+            "\\",
+            "//=",
+            "??=",
+            "]",
+            "_>=",
+            "^",
+            "^<=",
+            "==>=",
+            "_",
+            "++",
+            "\\=",
+            "|_",
+            "(*)",
+            "elapsedTime",
+            "shield",
+            "local",
+            "<-",
+            "+=",
+            "{",
+            "to",
+            "..<",
+            "|",
+            "#?",
+            "..=",
+            ">>=",
+            "^^=",
+            "}",
+            "~",
+            "<<",
+            "\\\\",
+            "||",
+            "threadLocal",
+            "<=",
+            "^!",
+            "\u22a0=",
+            "do",
+            "^*",
+            "TEST",
+            "symbol",
+            "<==>=",
+            "===",
+            "^>=",
+            "list",
+            "==>",
+            "^<",
+            "^=",
+            "new",
+            "==",
+            "^>",
+            "\u29e2=",
+            "=>",
+            "_!",
+            "global",
+            "continue",
+            "\u00b7=",
+            "profile",
+            "from",
+            "_*",
+            "-=",
+            "->",
+            "\u22a0",
+            "%=",
+            "catch",
+            "try",
+            "<<=",
+            "||=",
+            "_<",
+            "\\\\=",
+            "_=",
+            ">=",
+            "_>",
+            "<|",
+            ">>",
+            "^^",
+            "..",
+            "for",
+            "step",
+            "time",
+            ".?",
+            "not",
+            "and",
+            "&=",
+            "of",
+            "<==",
+            "++=",
+            "@@?=",
+            "^**=",
+            "??",
+            "^~",
+            "//",
+            "<===",
+            "<==>",
+            "or",
+            "SPACE",
+            "throw",
+            "elapsedTiming",
+            "/=",
+            "breakpoint",
+            "@=",
+            "**=",
+            "break",
+            "_~",
+            "@@"
+        ],
+        "full_doc": "... (1056 bytes) ...",
+        "parsed_headline": "Keyword  -- the class of all keywords"
+    }
+}
+```

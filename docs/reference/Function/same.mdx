@@ -5,33 +5,80 @@ kind: Function
 
 # same
 
-**Type:** `Function`
+**same  -- whether everything in a list is the same**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-same, -- whether everything in a list is the same, class => element, Usage: , same L, class => language-macaulay2, Inputs:, L, , , a list, Outputs:, b, , , a Boolean, Description, class => examples, i1 : same {1, 1, 1, 1
-
-o1 = true, class => language-macaulay2, i2 : same {1, 2, 1, 1
-
-o2 = false, class => language-macaulay2, The comparison is done with "===", which is quick, but not always intuitive. Here is a simple example of what can go wrong:, class => examples, i3 : R = QQ[x,y,z];, class => language-macaulay2, i4 : L = {gcd{x,y, x/x, 1
-
-o4 = {1, 1, 1
-
-o4 : List, class => language-macaulay2, i5 : same L
-
-o5 = false, class => language-macaulay2, We can see the problem by asking , Macaulay2, to display the class of each element of , L, . (Or use the function , Macaulay2Doc :: uniform, , which returns whether or not the elements of a list are all of the same class.), class => examples, i6 : apply(L, class)
-
-o6 = {R, frac R, ZZ
-
-o6 : List, class => language-macaulay2, i7 : uniform L
-
-o7 = false, class => language-macaulay2, The first , 1, is an element of the ring , R, , the second , 1, is an element of the fraction field of , R, , and the third , 1, is an integer. Thus , Macaulay2, thinks of these three elements as being pairwise unequal, with respect to the operator "==="., See also, Macaulay2Doc :: commonest, Macaulay2Doc :: number, Macaulay2Doc :: set, Macaulay2Doc :: uniform, Macaulay2Doc :: unique, Macaulay2Doc :: lists and sequences, class => waystouse, For the programmer, The object , Macaulay2Doc :: same, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/same-doc.m2:48:0, .
+The comparison is done with "===" which is quick but not always intuitive. Here is a simple example of what can go wrong:We can see the problem by asking `Macaulay2`  to display the class of each element of `L` . (Or use the function [uniform](../Function/op_Coredollar_uniform.mdx) which returns whether or not the elements of a list are all of the same class.)The first `1`  is an element of the ring `R`  the second `1`  is an element of the fraction field of `R`  and the third `1`  is an integer. Thus `Macaulay2`  thinks of these three elements as being pairwise unequal with respect to the operator "===".
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+same L
+```
 
-## See Also
+```macaulay2
+same {1, 1, 1, 1}
 
+```
+
+```text
+true
+```
+
+```macaulay2
+same {1, 2, 1, 1}
+
+```
+
+```text
+false
+```
+
+```macaulay2
+same L
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `L` a list
+- Outputs:
+- `b` a Boolean
+
+
+### See also
+
+
+- Macaulay2Doc:: commonest
+- Macaulay2Doc:: number
+- Macaulay2Doc:: set
+- Macaulay2Doc:: uniform
+- Macaulay2Doc:: unique
+- Macaulay2Doc:: lists and sequences
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "same",
+    "safe_name": "op_Coredollar_same",
+    "type": "FunctionClosure",
+    "description": "The comparison is done with \"===\" which is quick but not always intuitive. Here is a simple example ...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$same",
+        "full_doc": "... (2197 bytes) ...",
+        "parsed_headline": "same  -- whether everything in a list is the same"
+    }
+}
+```

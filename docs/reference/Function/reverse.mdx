@@ -5,40 +5,79 @@ kind: Function
 
 # reverse
 
-**Type:** `Function`
+**reverse  -- reverse a list sequence or string**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-reverse, -- reverse a list, sequence, or string, class => element, Usage: , reverse(L), class => language-macaulay2, Inputs:, L, , , a , Macaulay2Doc :: BasicList, basic list, or , a , Macaulay2Doc :: String, string, , , Outputs:, R, , , a , Macaulay2Doc :: BasicList, basic list, or , a , Macaulay2Doc :: String, string, , , containing the elements of , L, in reverse order, Description, The output will be the same type as the input., class => examples, i1 : reverse {5, 7, 2, 8
-
-o1 = {8, 2, 7, 5
-
-o1 : List, class => language-macaulay2, i2 : reverse (5, 7, 2, 8)
-
-o2 = (8, 2, 7, 5)
-
-o2 : Sequence, class => language-macaulay2, i3 : reverse "Hello, world!"
-
-o3 = !dlrow ,olleH, class => language-macaulay2, See also, Macaulay2Doc :: sort, class => waystouse, Ways to use , reverse, :, reverse(BasicList), reverse(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: reverse, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/reverse-doc.m2:28:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `reverse(String)`
-- `reverse(BasicList)`
+The output will be the same type as the input.
 
 ## Examples
 
 ```macaulay2
-i2 : reverse (5, 7, 2, 8)
-
-o2 = (8, 2, 7, 5)
-
-o2 : Sequence
+reverse(L)
 ```
 
-## See Also
+```macaulay2
+reverse {5, 7, 2, 8}
 
+```
+
+```text
+{8, 2, 7, 5}
+
+List
+```
+
+```macaulay2
+reverse (5 7 2 8)
+
+```
+
+```text
+(8 2 7 5)
+
+Sequence
+```
+
+```macaulay2
+reverse "Hello world!"
+
+```
+
+```text
+!dlrow olleH
+```
+
+## Additional Information
+
+- Inputs:
+- `L` a [ basic list](../Type/op_Coredollar_BasicList.mdx) or a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- `R` a [ basic list](../Type/op_Coredollar_BasicList.mdx) or a [ string](../Type/op_Coredollar_String.mdx) containing the elements of `L` in reverse order
+
+
+### See also
+
+
+- Macaulay2Doc:: sort
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "reverse",
+    "safe_name": "op_Coredollar_reverse",
+    "type": "CompiledFunction",
+    "description": "The output will be the same type as the input....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$reverse",
+        "full_doc": "... (1434 bytes) ...",
+        "parsed_headline": "reverse  -- reverse a list sequence or string"
+    }
+}
+```

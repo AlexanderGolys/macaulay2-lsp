@@ -1,0 +1,65 @@
+---
+title: "monomialSubideal"
+kind: Method
+---
+
+# monomialSubideal
+
+**monomialSubideal  -- find the largest monomial ideal in an ideal**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ Implemented by Greg Smith.
+
+## Installed For
+
+### monomialSubideal([Ideal](../Type/Ideal.mdx)) -> [MonomialIdeal](../Type/MonomialIdeal.mdx)
+
+## Examples
+
+```macaulay2
+monomialSubideal I
+```
+
+```macaulay2
+monomialSubideal I
+
+                     3          2   3          2
+```
+
+```text
+monomialIdeal (b  b*c a*c  c  a*b*d b d a*c*d)
+
+MonomialIdeal of QQ[a..d]
+```
+
+## Additional Information
+
+- Inputs:
+- `I` an [ ideal](../Type/op_Coredollar_Ideal.mdx)
+- Outputs:
+- a [ monomial ideal](../Type/op_Coredollar_MonomialIdeal.mdx) the largest monomial ideal contained in `I`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "monomialSubideal",
+    "safe_name": "monomialSubideal",
+    "type": "MethodFunction",
+    "description": " Implemented by Greg Smith....",
+    "installations": [
+        "<Installation monomialSubideal(Ideal)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "monomialSubideal",
+        "full_doc": "... (1390 bytes) ...",
+        "parsed_headline": "monomialSubideal  -- find the largest monomial ideal in an ideal"
+    }
+}
+```

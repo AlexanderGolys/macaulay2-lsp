@@ -5,23 +5,51 @@ kind: Function
 
 # toLower
 
-**Type:** `Function`
+**toLower  -- convert to lower case**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-toLower, -- convert to lower case, class => element, Usage: , toLower s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: String, string, , , the string produced from , s, by converting its characters to lower case, Description, class => examples, i1 : toLower "A b C d E f"
-
-o1 = a b c d e f, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: toLower, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_strings.m2:447:0, .
+toLower  -- convert to lower case
 
 ## Examples
 
 ```macaulay2
-i1 : toLower "A b C d E f"
-
-o1 = a b c d e f
+toLower s
 ```
 
-## See Also
+```macaulay2
+toLower "A b C d E f"
 
+```
+
+```text
+a b c d e f
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) the string produced from `s` by converting its characters to lower case
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "toLower",
+    "safe_name": "op_Coredollar_toLower",
+    "type": "FunctionClosure",
+    "description": "toLower  -- convert to lower case...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$toLower",
+        "full_doc": "... (827 bytes) ...",
+        "parsed_headline": "toLower  -- convert to lower case"
+    }
+}
+```

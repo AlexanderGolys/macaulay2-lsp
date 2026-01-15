@@ -1,147 +1,153 @@
 ---
 title: "GroebnerBasis"
 kind: Type
-parent: MutableHashTable
 ---
 
 # GroebnerBasis
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**GroebnerBasis  -- the class of all Gröbner bases**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ A Gröbner basis in Macaulay2 consists of a Gröbner basis computation and several associated matrices. Normally you don't need to refer to these objects directly as many operations on matrices and modules create them and refer to them.  For more information see [Gröbner bases](../Instance/Gröbner bases.mdx) .
 
-## Parent Type
+## Additional Information
 
-[MutableHashTable](../Type/MutableHashTable.mdx)
+[returnCode](../Method/op_Coredollar_returnCode.mdx)[generators(GroebnerBasis)](../Instance/generators(GroebnerBasis).mdx)[mingens(GroebnerBasis)](../Instance/mingens(GroebnerBasis).mdx)[syz(GroebnerBasis)](../Instance/syz(GroebnerBasis).mdx)[target(GroebnerBasis)](../Instance/target(GroebnerBasis).mdx)[getChangeMatrix(GroebnerBasis)](../Instance/getChangeMatrix(GroebnerBasis).mdx)
 
-## Methods
+## Debug info
 
-Methods that can be used with this type:
-
-### `%`
-
-- `%(Matrix, GroebnerBasis)`
-- `%(RingElement, GroebnerBasis)`
-- `%(Number, GroebnerBasis)`
-
-### `//`
-
-- `//(RingElement, GroebnerBasis)`
-- `//(Matrix, GroebnerBasis)`
-
-### `==`
-
-- `==(GroebnerBasis, GroebnerBasis)`
-
-### `NewFromMethod`
-
-- `NewFromMethod(GroebnerBasis, Matrix, GroebnerBasisOptions, OptionTable)`
-
-### `betti`
-
-- `betti(GroebnerBasis)`
-
-### `generators`
-
-- `generators(GroebnerBasis)`
-
-### `getChangeMatrix`
-
-- `getChangeMatrix(GroebnerBasis)`
-
-### `html`
-
-- `html(GroebnerBasis)`
-
-### `leadTerm`
-
-- `leadTerm(GroebnerBasis)`
-- `leadTerm(ZZ, GroebnerBasis)`
-
-### `mathML`
-
-- `mathML(GroebnerBasis)`
-
-### `mingens`
-
-- `mingens(GroebnerBasis)`
-
-### `net`
-
-- `net(GroebnerBasis)`
-
-### `quotient`
-
-- `quotient(Matrix, GroebnerBasis)`
-
-### `quotientRemainder`
-
-- `quotientRemainder(Matrix, GroebnerBasis)`
-
-### `remainder`
-
-- `remainder(Matrix, GroebnerBasis)`
-
-### `ring`
-
-- `ring(GroebnerBasis)`
-
-### `status`
-
-- `status(GroebnerBasis)`
-
-### `syz`
-
-- `syz(GroebnerBasis)`
-
-### `target`
-
-- `target(GroebnerBasis)`
-
-### `texMath`
-
-- `texMath(GroebnerBasis)`
-
-### `toString`
-
-- `toString(GroebnerBasis)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [%](../Operator/op_percent.mdx)
-- [//](../Operator/op_slash_slash.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [betti](../Function/betti.mdx)
-- [generators](../Function/generators.mdx)
-- [getChangeMatrix](../Function/getChangeMatrix.mdx)
-- [html](../Function/html.mdx)
-- [leadTerm](../Function/leadTerm.mdx)
-- [mathML](../Function/mathML.mdx)
-- [mingens](../Function/mingens.mdx)
-- [net](../Function/net.mdx)
-- [quotient](../Function/quotient.mdx)
-- [quotientRemainder](../Function/quotientRemainder.mdx)
-- [remainder](../Function/remainder.mdx)
-- [ring](../Function/ring.mdx)
-- [status](../Function/status.mdx)
-- [syz](../Function/syz.mdx)
-- [target](../Function/target.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toString](../Function/toString.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [MutableHashTable](../Type/MutableHashTable.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "GroebnerBasis",
+    "safe_name": "op_Coredollar_GroebnerBasis",
+    "type": null,
+    "description": " A Gr\u00f6bner basis in Macaulay2 consists of a Gr\u00f6bner basis computation and several associated matrice...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$GroebnerBasis",
+        "parent": "MutableHashTable",
+        "methods": [
+            [
+                "betti",
+                "GroebnerBasis"
+            ],
+            [
+                "texMath",
+                "GroebnerBasis"
+            ],
+            [
+                "NewFromMethod",
+                "GroebnerBasis",
+                "Matrix",
+                "GroebnerBasisOptions",
+                "OptionTable"
+            ],
+            [
+                "ring",
+                "GroebnerBasis"
+            ],
+            [
+                "target",
+                "GroebnerBasis"
+            ],
+            [
+                "status",
+                "GroebnerBasis"
+            ],
+            [
+                "net",
+                "GroebnerBasis"
+            ],
+            [
+                "toString",
+                "GroebnerBasis"
+            ],
+            [
+                "html",
+                "GroebnerBasis"
+            ],
+            [
+                "syz",
+                "GroebnerBasis"
+            ],
+            [
+                "leadTerm",
+                "GroebnerBasis"
+            ],
+            [
+                "leadTerm",
+                "ZZ",
+                "GroebnerBasis"
+            ],
+            [
+                "getChangeMatrix",
+                "GroebnerBasis"
+            ],
+            [
+                "generators",
+                "GroebnerBasis"
+            ],
+            [
+                "mingens",
+                "GroebnerBasis"
+            ],
+            [
+                "//",
+                "RingElement",
+                "GroebnerBasis"
+            ],
+            [
+                "//",
+                "Matrix",
+                "GroebnerBasis"
+            ],
+            [
+                "quotient",
+                "Matrix",
+                "GroebnerBasis"
+            ],
+            [
+                "quotientRemainder",
+                "Matrix",
+                "GroebnerBasis"
+            ],
+            [
+                "%",
+                "Matrix",
+                "GroebnerBasis"
+            ],
+            [
+                "remainder",
+                "Matrix",
+                "GroebnerBasis"
+            ],
+            [
+                "%",
+                "RingElement",
+                "GroebnerBasis"
+            ],
+            [
+                "%",
+                "Number",
+                "GroebnerBasis"
+            ],
+            [
+                "==",
+                "GroebnerBasis",
+                "GroebnerBasis"
+            ],
+            [
+                "mathML",
+                "GroebnerBasis"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (3082 bytes) ...",
+        "parsed_headline": "GroebnerBasis  -- the class of all Gr\u00f6bner bases"
+    }
+}
+```

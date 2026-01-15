@@ -5,17 +5,42 @@ kind: Function
 
 # removeFile
 
-**Type:** `Function`
+**removeFile  -- remove a file**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-removeFile, -- remove a file, class => element, Usage: , removeFile f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: String, string, Consequences:, the file reachable by the path , f, is removed, Description, Under a unix system such as GNU/Linux, what really happens is that the link to the file specified by , f, is removed. The file itself disappears after all the links to it are removed. See , Macaulay2Doc :: linkFile, ., class => waystouse, For the programmer, The object , Macaulay2Doc :: removeFile, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1680:0, .
+Under a unix system such as GNU/Linux what really happens is that the link to the file specified by `f`  is removed.  The file itself disappears after all the links to it are removed.  See [linkFile](../Function/linkFile.mdx) .
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+removeFile f
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `f` a [ string](../Type/op_Coredollar_String.mdx)
+- Consequences:
+- the file reachable by the path `f` is removed
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "removeFile",
+    "safe_name": "op_Coredollar_removeFile",
+    "type": "CompiledFunction",
+    "description": "Under a unix system such as GNU/Linux what really happens is that the link to the file specified by ...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$removeFile",
+        "full_doc": "... (873 bytes) ...",
+        "parsed_headline": "removeFile  -- remove a file"
+    }
+}
+```

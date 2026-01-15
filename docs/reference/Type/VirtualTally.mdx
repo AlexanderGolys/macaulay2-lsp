@@ -1,133 +1,155 @@
 ---
 title: "VirtualTally"
 kind: Type
-parent: HashTable
 ---
 
 # VirtualTally
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**VirtualTally**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ The only difference between this class and [Tally](../Type/Tally.mdx)  is that this class allows negative numbers.
 
-## Parent Type
+## Additional Information
 
-[HashTable](../Type/HashTable.mdx)
+[Tally](../Type/Tally.mdx)[BettiTally](../Type/op_Coredollar_BettiTally.mdx)[VirtualTally ** VirtualTally](../Instance/VirtualTally ** VirtualTally.mdx)[VirtualTally ^** ZZ](../Instance/VirtualTally ^** ZZ.mdx)[VirtualTally + VirtualTally](../Instance/VirtualTally + VirtualTally.mdx)[VirtualTally - VirtualTally](../Instance/VirtualTally - VirtualTally.mdx)[- VirtualTally](../Instance/- VirtualTally.mdx)[VirtualTally _ Thing](../Instance/VirtualTally _ Thing.mdx)[product(VirtualTally)](../Instance/product(VirtualTally).mdx)[sum(VirtualTally)](../Instance/sum(VirtualTally).mdx)
 
-## Subtypes
+## Debug info
 
-Direct subtypes of this type:
-
-- [BettiTally](../Type/BettiTally.mdx)
-- [Tally](../Type/Tally.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `*`
-
-- `*(Number, VirtualTally)`
-
-### `**`
-
-- `**(VirtualTally, VirtualTally)`
-
-### `+`
-
-- `+(VirtualTally, VirtualTally)`
-
-### `-`
-
-- `-(VirtualTally)`
-- `-(VirtualTally, VirtualTally)`
-
-### `/`
-
-- `/(VirtualTally, Function)`
-- `/(VirtualTally, Command)`
-
-### `==`
-
-- `==(VirtualTally, ZZ)`
-- `==(ZZ, VirtualTally)`
-- `==(VirtualTally, VirtualTally)`
-
-### `?`
-
-- `?(VirtualTally, VirtualTally)`
-- `?(VirtualTally, ZZ)`
-- `?(ZZ, VirtualTally)`
-
-### `\`
-
-- `\(Command, VirtualTally)`
-- `\(Function, VirtualTally)`
-
-### `^**`
-
-- `^**(VirtualTally, ZZ)`
-
-### `_`
-
-- `_(VirtualTally, Thing)`
-
-### `mathML`
-
-- `mathML(VirtualTally)`
-
-### `net`
-
-- `net(VirtualTally)`
-
-### `partition`
-
-- `partition(Function, VirtualTally)`
-- `partition(Function, VirtualTally, VisibleList)`
-
-### `product`
-
-- `product(VirtualTally)`
-
-### `sum`
-
-- `sum(VirtualTally)`
-
-### `toString`
-
-- `toString(VirtualTally)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [*](../Operator/op_star.mdx)
-- [**](../Operator/op_star_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [/](../Operator/op_slash.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [?](../Operator/op_question.mdx)
-- [\](../Operator/op_bs.mdx)
-- [^**](../Operator/op_caret_star_star.mdx)
-- [_](../Operator/_.mdx)
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-- [partition](../Function/partition.mdx)
-- [product](../Function/product.mdx)
-- [sum](../Function/sum.mdx)
-- [toString](../Function/toString.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [HashTable](../Type/HashTable.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "VirtualTally",
+    "safe_name": "VirtualTally",
+    "type": null,
+    "description": " The only difference between this class and [Tally](../Type/Tally.mdx)  is that this class allows ne...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "VirtualTally",
+        "parent": "HashTable",
+        "methods": [
+            [
+                "mathML",
+                "VirtualTally"
+            ],
+            [
+                "toString",
+                "VirtualTally"
+            ],
+            [
+                "net",
+                "VirtualTally"
+            ],
+            [
+                "_",
+                "VirtualTally",
+                "Thing"
+            ],
+            [
+                "**",
+                "VirtualTally",
+                "VirtualTally"
+            ],
+            [
+                "^**",
+                "VirtualTally",
+                "ZZ"
+            ],
+            [
+                "-",
+                "VirtualTally"
+            ],
+            [
+                "+",
+                "VirtualTally",
+                "VirtualTally"
+            ],
+            [
+                "-",
+                "VirtualTally",
+                "VirtualTally"
+            ],
+            [
+                "?",
+                "VirtualTally",
+                "VirtualTally"
+            ],
+            [
+                "==",
+                "VirtualTally",
+                "ZZ"
+            ],
+            [
+                "==",
+                "ZZ",
+                "VirtualTally"
+            ],
+            [
+                "?",
+                "VirtualTally",
+                "ZZ"
+            ],
+            [
+                "?",
+                "ZZ",
+                "VirtualTally"
+            ],
+            [
+                "==",
+                "VirtualTally",
+                "VirtualTally"
+            ],
+            [
+                "*",
+                "Number",
+                "VirtualTally"
+            ],
+            [
+                "sum",
+                "VirtualTally"
+            ],
+            [
+                "product",
+                "VirtualTally"
+            ],
+            [
+                "/",
+                "VirtualTally",
+                "Function"
+            ],
+            [
+                "/",
+                "VirtualTally",
+                "Command"
+            ],
+            [
+                "\\",
+                "Command",
+                "VirtualTally"
+            ],
+            [
+                "\\",
+                "Function",
+                "VirtualTally"
+            ],
+            [
+                "partition",
+                "Function",
+                "VirtualTally"
+            ],
+            [
+                "partition",
+                "Function",
+                "VirtualTally",
+                "VisibleList"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (3154 bytes) ...",
+        "parsed_headline": "VirtualTally"
+    }
+}
+```

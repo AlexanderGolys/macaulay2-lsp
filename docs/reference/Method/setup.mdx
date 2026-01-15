@@ -1,0 +1,54 @@
+---
+title: "setup"
+kind: Method
+---
+
+# setup
+
+**setup**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+Backup files are made carefully and if a mangled initialization file is detected it will not be modified. The lines added are bracketed by comment lines containing the phrases `Macaulay 2 start` and `Macaulay 2 end`.The initialization files will contain added commands that add the appropriate directory to the front of the environment variable `PATH` so the program `M2` can be found unless that directory already occurs in the path in which case it does not check whether that directory is the first one on the path containing a program whose name is `M2` for fear of escalating a competition with another init file.  (The expert user may prefer to remove those commands and instead to create a symbolic link from a directory already on their path such as `~/bin` or `~/.bin` to `M2`.)The other environment variables affected are `MANPATH``INFOPATH` and `LD_LIBRARY_PATH`.This function is intended to be run only by users not by system administrators nor on behalf of users by system administrators because system administrators can easily install Macaulay2 in such a way that the files can all be found.
+
+## Examples
+
+```macaulay2
+setup()
+```
+
+## Additional Information
+
+- Consequences:
+- Initialization files for Emacs and the standard command shells will have lines added to them to allow the Macaulay2 files to be found. A missing initialization file will be created only if doing so will not prevent the command shell from reading further initialization files. The user is prompted before each file is modified and offered the opportunity to review or reject the changes.
+
+
+### Caveat
+
+Warning: there is at least one important situation where you will not want to run the Macaulay2 `setup()` command. For example suppose you have installed M2 not in its own private location as described above but in a directory with many other executable files.  Suppose also that your account is adapted so it will run programs correctly on hardware of more than one architecture or on differing operating systems or even on various releases of the same operating system. Then `setup()` will modify your command shell init files so the directory containing M2 will be the first one searched when looking for a program. If you then try to use your account on different hardware incorrect programs may be found namely those in the same directory as M2. Similarly incorrect shareable libraries may also be found.
+### See also
+
+
+- Macaulay2Doc:: setupEmacs
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "setup",
+    "safe_name": "setup",
+    "type": "MethodFunction",
+    "description": "Backup files are made carefully and if a mangled initialization file is detected it will not be modi...",
+    "installations": [],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "setup",
+        "full_doc": "... (3205 bytes) ...",
+        "parsed_headline": "setup"
+    }
+}
+```

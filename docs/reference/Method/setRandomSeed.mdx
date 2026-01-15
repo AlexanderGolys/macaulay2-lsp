@@ -1,0 +1,108 @@
+---
+title: "setRandomSeed"
+kind: Method
+---
+
+# setRandomSeed
+
+**setRandomSeed  -- set starting point for random number generator**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+Since version 1.2 when Macaulay2 starts the random number seed is initially set to a number that depends on the current date the time (in seconds) and the process id except for when running examples and tests in packages where it is always initialized to 0 by passing the command line option `--no-randomize`.The sequence of future pseudo-random results is determined by the random number seed.If an integer seed is given the random number seed is set to the low-order 32 bits of the seed.If a string seed is given sets the random number seed to an integer computed from it. Every character of the string contributes to the seed but only 32 bits of data are used. The sequence of future pseudo-random results is determined by the seed.
+
+## Installed For
+
+### setRandomSeed([Sequence](../Type/Sequence.mdx))
+
+### setRandomSeed([String](../Type/String.mdx))
+
+### setRandomSeed([ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+setRandomSeed()
+setRandomSeed(seed)
+```
+
+```macaulay2
+setRandomSeed()
+ -- initializing random seed
+```
+
+```macaulay2
+setRandomSeed()
+ -- initializing random seed
+```
+
+```macaulay2
+setRandomSeed 123456
+ -- setting random seed to 123456
+
+```
+
+```text
+123456
+```
+
+```macaulay2
+setRandomSeed 123456
+ -- setting random seed to 123456
+
+```
+
+```text
+123456
+```
+
+```macaulay2
+setRandomSeed "thrkwjsxz"
+ -- setting random seed to 1267386136561992923
+
+```
+
+```text
+1267386136561992923
+```
+
+```macaulay2
+setRandomSeed "thrkwjsxz"
+ -- setting random seed to 1267386136561992923
+
+```
+
+```text
+1267386136561992923
+```
+
+## Additional Information
+
+- Consequences:
+- If `seed` is `()` initializes the random number generator to a fixed state identical to the initial state (upon program start) in version 1.2 and earlier of Macaulay2. Otherwise sets `randomSeed` to a value based on `seed`.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "setRandomSeed",
+    "safe_name": "op_Coredollar_setRandomSeed",
+    "type": "MethodFunctionSingle",
+    "description": "Since version 1.2 when Macaulay2 starts the random number seed is initially set to a number that dep...",
+    "installations": [
+        "<Installation setRandomSeed(ZZ)>",
+        "<Installation setRandomSeed(String)>",
+        "<Installation setRandomSeed(Sequence)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$setRandomSeed",
+        "full_doc": "... (4349 bytes) ...",
+        "parsed_headline": "setRandomSeed  -- set starting point for random number generator"
+    }
+}
+```

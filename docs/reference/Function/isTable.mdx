@@ -5,21 +5,72 @@ kind: Function
 
 # isTable
 
-**Type:** `Function`
+**isTable  -- whether something is a list of lists of equal length**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-isTable, -- whether something is a list of lists of equal length, class => element, Usage: , isTable t, class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: Thing, thing, , , Outputs:, b, , , a , Macaulay2Doc :: Boolean, Boolean value, , , whether or not $t$ is a table, Description, class => examples, i1 : isTable {{1,2,3,{4,5,6
-
-o1 = true, class => language-macaulay2, i2 : isTable {{1,2,3,{4,5
-
-o2 = false, class => language-macaulay2, Caveat, It is intrinsically impossible to represent a $0\times k$ matrix as a list of lists., See also, Macaulay2Doc :: applyTable, Macaulay2Doc :: table, Macaulay2Doc :: subtable, Macaulay2Doc :: lists and sequences, class => waystouse, For the programmer, The object , Macaulay2Doc :: isTable, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/table-doc.m2:125:0, .
+isTable  -- whether something is a list of lists of equal length
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+isTable t
+```
 
-## See Also
+```macaulay2
+isTable {{1,2,3},{4,5,6}}
 
+```
+
+```text
+true
+```
+
+```macaulay2
+isTable {{1,2,3},{4,5}}
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `t` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- `b` a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether or not $t$ is a table
+
+
+### Caveat
+
+It is intrinsically impossible to represent a $0\times k$ matrix as a list of lists.
+### See also
+
+
+- Macaulay2Doc:: applyTable
+- Macaulay2Doc:: table
+- Macaulay2Doc:: subtable
+- Macaulay2Doc:: lists and sequences
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "isTable",
+    "safe_name": "op_Coredollar_isTable",
+    "type": "FunctionClosure",
+    "description": "isTable  -- whether something is a list of lists of equal length...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isTable",
+        "full_doc": "... (1234 bytes) ...",
+        "parsed_headline": "isTable  -- whether something is a list of lists of equal length"
+    }
+}
+```

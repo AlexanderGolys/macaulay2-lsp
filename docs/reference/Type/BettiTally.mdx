@@ -1,146 +1,139 @@
 ---
 title: "BettiTally"
 kind: Type
-parent: VirtualTally
 ---
 
 # BettiTally
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**BettiTally  -- the class of all Betti tallies**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+A Betti tally is a special type of [Tally](../Type/Tally.mdx) that is printed as a display of graded Betti numbers. The class was created so the function [betti](../Method/op_Coredollar_betti.mdx) could return something that both prints nicely and from which information can be extracted.  The keys are triples `(idh)` encoding:`i` the column labels representing the homological degree;`d` a list of integers giving a multidegree; and`h` the row labels representing the dot product of a weight covector and `d`.Only `i` and `h` are used in printing and the weight covector can be modified by specifying the [betti(...](../Instance/betti(....mdx) option to [betti(BettiTally)](../Instance/betti(BettiTally).mdx).For convenience the operations of direct sum ([++](../Method/op_Coredollar_plus_plus.mdx)) tensor product ([**](../Method/op_Coredollar_star_star.mdx))[codim](../Method/op_Coredollar_codim.mdx)[degree](../Method/op_Coredollar_degree.mdx)[dual](../Method/dual.mdx)[pdim](../Method/op_Coredollar_pdim.mdx)[poincare](../Method/op_Coredollar_poincare.mdx)[regularity](../Method/op_Coredollar_regularity.mdx) and degree shifting (numbers in brackets or parentheses) have been implemented for Betti tallies.  These operations mimic the corresponding operations on chain complexes.If the Betti tally represents the Betti numbers of a resolution of a module $M$ on a polynomial ring $R = K[x_0...x_n]$ then while the data does not uniquely determine $M$ it suffices to compute the [ Hilbert polynomial](../Method/hilbertPolynomial.mdx) and [ Hilbert series](../Method/op_Coredollar_hilbertSeries.mdx) of $M$.A Betti tally can be multiplied by an integer or by a rational number and the values can be lifted to integers when possible.
 
-## Parent Type
+## Additional Information
 
-[VirtualTally](../Type/VirtualTally.mdx)
+[MultigradedBettiTally](../Type/MultigradedBettiTally.mdx)
 
-## Subtypes
+## Debug info
 
-Direct subtypes of this type:
-
-- [MultigradedBettiTally](../Type/MultigradedBettiTally.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `*`
-
-- `*(QQ, BettiTally)`
-- `*(ZZ, BettiTally)`
-
-### `**`
-
-- `**(BettiTally, BettiTally)`
-
-### `++`
-
-- `++(BettiTally, BettiTally)`
-
-### `==`
-
-- `==(BettiTally, BettiTally)`
-
-### `SPACE`
-
-- `SPACE(BettiTally, Array)`
-- `SPACE(BettiTally, ZZ)`
-
-### `^`
-
-- `^(Ring, BettiTally)`
-
-### `betti`
-
-- `betti(BettiTally)`
-
-### `codim`
-
-- `codim(BettiTally)`
-
-### `degree`
-
-- `degree(BettiTally)`
-
-### `dual`
-
-- `dual(BettiTally)`
-
-### `hilbertPolynomial`
-
-- `hilbertPolynomial(ZZ, BettiTally)`
-
-### `hilbertSeries`
-
-- `hilbertSeries(ZZ, BettiTally)`
-
-### `lift`
-
-- `lift(BettiTally, ZZ)`
-
-### `mathML`
-
-- `mathML(BettiTally)`
-
-### `multigraded`
-
-- `multigraded(BettiTally)`
-
-### `net`
-
-- `net(BettiTally)`
-
-### `pdim`
-
-- `pdim(BettiTally)`
-
-### `poincare`
-
-- `poincare(BettiTally)`
-
-### `regularity`
-
-- `regularity(BettiTally)`
-
-### `texMath`
-
-- `texMath(BettiTally)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [*](../Operator/op_star.mdx)
-- [**](../Operator/op_star_star.mdx)
-- [++](../Operator/op_plus_plus.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [^](../Operator/op_caret.mdx)
-- [betti](../Function/betti.mdx)
-- [codim](../Function/codim.mdx)
-- [degree](../Function/degree.mdx)
-- [dual](../Function/dual.mdx)
-- [hilbertPolynomial](../Function/hilbertPolynomial.mdx)
-- [hilbertSeries](../Function/hilbertSeries.mdx)
-- [lift](../Function/lift.mdx)
-- [mathML](../Function/mathML.mdx)
-- [multigraded](../Function/multigraded.mdx)
-- [net](../Function/net.mdx)
-- [pdim](../Function/pdim.mdx)
-- [poincare](../Function/poincare.mdx)
-- [regularity](../Function/regularity.mdx)
-- [texMath](../Function/texMath.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [VirtualTally](../Type/VirtualTally.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "BettiTally",
+    "safe_name": "op_Coredollar_BettiTally",
+    "type": null,
+    "description": "A Betti tally is a special type of [Tally](../Type/Tally.mdx) that is printed as a display of graded...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$BettiTally",
+        "parent": "VirtualTally",
+        "methods": [
+            [
+                "==",
+                "BettiTally",
+                "BettiTally"
+            ],
+            [
+                "++",
+                "BettiTally",
+                "BettiTally"
+            ],
+            [
+                "**",
+                "BettiTally",
+                "BettiTally"
+            ],
+            [
+                "SPACE",
+                "BettiTally",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "BettiTally",
+                "ZZ"
+            ],
+            [
+                "lift",
+                "BettiTally",
+                "ZZ"
+            ],
+            [
+                "*",
+                "QQ",
+                "BettiTally"
+            ],
+            [
+                "*",
+                "ZZ",
+                "BettiTally"
+            ],
+            [
+                "multigraded",
+                "BettiTally"
+            ],
+            [
+                "net",
+                "BettiTally"
+            ],
+            [
+                "texMath",
+                "BettiTally"
+            ],
+            [
+                "betti",
+                "BettiTally"
+            ],
+            [
+                "poincare",
+                "BettiTally"
+            ],
+            [
+                "hilbertPolynomial",
+                "ZZ",
+                "BettiTally"
+            ],
+            [
+                "degree",
+                "BettiTally"
+            ],
+            [
+                "hilbertSeries",
+                "ZZ",
+                "BettiTally"
+            ],
+            [
+                "pdim",
+                "BettiTally"
+            ],
+            [
+                "regularity",
+                "BettiTally"
+            ],
+            [
+                "mathML",
+                "BettiTally"
+            ],
+            [
+                "codim",
+                "BettiTally"
+            ],
+            [
+                "dual",
+                "BettiTally"
+            ],
+            [
+                "^",
+                "Ring",
+                "BettiTally"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (7105 bytes) ...",
+        "parsed_headline": "BettiTally  -- the class of all Betti tallies"
+    }
+}
+```

@@ -1,0 +1,114 @@
+---
+title: "matrix"
+kind: Method
+---
+
+# matrix
+
+**matrix  -- make a matrix**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ The simplest use of this function is to define a matrix by giving a doubly nested list of ring elements.  One may also explicitly provide the ring or give a matrix as a doubly-nested list of matrices. The [map](../Method/op_Coredollar_map.mdx)  function provides other methods to define a matrix.
+
+## Installed For
+
+### matrix([List](../Type/List.mdx))
+
+### matrix([Matrix](../Type/Matrix.mdx))
+
+### matrix([MutableMatrix](../Type/MutableMatrix.mdx))
+
+### matrix([Number](../Type/Number.mdx))
+
+### matrix([Ring](../Type/Ring.mdx), [List](../Type/List.mdx))
+
+### matrix([RingElement](../Type/RingElement.mdx))
+
+### matrix([RingFamily](../Type/RingFamily.mdx), [List](../Type/List.mdx))
+
+### matrix([RingMap](../Type/RingMap.mdx))
+
+### matrix([String](../Type/String.mdx))
+
+### matrix([Vector](../Type/Vector.mdx))
+
+## Options
+
+- [Degree](../Option/Degree.mdx) => null
+
+## Examples
+
+```macaulay2
+matrix{{1,2,3},{4,5,6}}
+
+```
+
+```text
+| 1 2 3 |
+     | 4 5 6 |
+
+              2       3
+Matrix ZZ  <-- ZZ
+```
+
+```macaulay2
+matrix{{x,0,2},{1,2,y}}
+
+```
+
+```text
+| x 0 2 |
+     | 1 2 y |
+
+             2      3
+Matrix R  <-- R
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: map
+- Classic:: matrix(String)
+
+[matrix(List)](../Instance/matrix(List).mdx)[matrix(Ring](../Instance/matrix(Ring.mdx)[matrix(Matrix)](../Instance/matrix(Matrix).mdx)[matrix(MutableMatrix)](../Instance/matrix(MutableMatrix).mdx)[matrix(RingElement)](../Instance/matrix(RingElement).mdx)[matrix(Vector)](../Instance/matrix(Vector).mdx)[matrix(RingMap)](../Instance/matrix(RingMap).mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "matrix",
+    "safe_name": "matrix",
+    "type": "MethodFunctionWithOptions",
+    "description": " The simplest use of this function is to define a matrix by giving a doubly nested list of ring elem...",
+    "installations": [
+        "<Installation matrix(RingFamily, List)>",
+        "<Installation matrix(Ring, List)>",
+        "<Installation matrix(Matrix)>",
+        "<Installation matrix(Number)>",
+        "<Installation matrix(RingElement)>",
+        "<Installation matrix(List)>",
+        "<Installation matrix(Vector)>",
+        "<Installation matrix(MutableMatrix)>",
+        "<Installation matrix(RingMap)>",
+        "<Installation matrix(String)>"
+    ],
+    "options": [
+        {
+            "name": "Degree",
+            "default": "null"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "matrix",
+        "full_doc": "... (2068 bytes) ...",
+        "parsed_headline": "matrix  -- make a matrix"
+    }
+}
+```

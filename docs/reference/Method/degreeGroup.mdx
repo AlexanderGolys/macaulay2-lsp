@@ -1,0 +1,124 @@
+---
+title: "degreeGroup"
+kind: Method
+---
+
+# degreeGroup
+
+**degreeGroup  -- the degree group of a ring or monoid**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+degreeGroup  -- the degree group of a ring or monoid
+
+## Installed For
+
+### degreeGroup([FractionField](../Type/FractionField.mdx))
+
+### degreeGroup([Monoid](../Type/Monoid.mdx))
+
+### degreeGroup([PolynomialRing](../Type/PolynomialRing.mdx))
+
+### degreeGroup([QuotientRing](../Type/QuotientRing.mdx))
+
+### degreeGroup([Ring](../Type/Ring.mdx)) -> [Module](../Type/Module.mdx)
+
+## Examples
+
+```macaulay2
+degreeGroup A
+```
+
+```macaulay2
+degreeGroup ZZ
+
+```
+
+```text
+0
+```
+
+```macaulay2
+degreeGroup(ZZ[])
+
+       1
+```
+
+```text
+ZZ
+
+ZZ-module free
+```
+
+```macaulay2
+degreeGroup(ZZ[x])
+
+       1
+```
+
+```text
+ZZ
+
+ZZ-module free
+```
+
+```macaulay2
+degreeGroup(ZZ[x free
+```
+
+```macaulay2
+degreeGroup(ZZ[xyz free
+```
+
+```macaulay2
+degreeGroup(ZZ[xyz free
+```
+
+```macaulay2
+degreeGroup(ZZ[xyz quotient of ZZ
+```
+
+## Additional Information
+
+- Inputs:
+- `A` a [ ring](../Type/Ring.mdx) or a [ monoid](../Type/op_Coredollar_Monoid.mdx)
+- Outputs:
+- a [ module](../Type/op_Coredollar_Module.mdx) over integers representing a group;
+
+
+### See also
+
+
+- Macaulay2Doc:: degree
+- Macaulay2Doc:: degreeLength
+- Macaulay2Doc:: degreesRing
+- Macaulay2Doc:: degreesMonoid
+- Macaulay2Doc:: monoid(...
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "degreeGroup",
+    "safe_name": "degreeGroup",
+    "type": "MethodFunction",
+    "description": "degreeGroup  -- the degree group of a ring or monoid...",
+    "installations": [
+        "<Installation degreeGroup(FractionField)>",
+        "<Installation degreeGroup(Ring)>",
+        "<Installation degreeGroup(Monoid)>",
+        "<Installation degreeGroup(PolynomialRing)>",
+        "<Installation degreeGroup(QuotientRing)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "degreeGroup",
+        "full_doc": "... (2243 bytes) ...",
+        "parsed_headline": "degreeGroup  -- the degree group of a ring or monoid"
+    }
+}
+```

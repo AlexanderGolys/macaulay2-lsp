@@ -5,42 +5,60 @@ kind: Function
 
 # isReady
 
-**Type:** `Function`
+**isReady  -- whether a file has data available for reading**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-isReady, -- whether a file has data available for reading, class => element, Usage: , isReady f, class => language-macaulay2, Inputs:, a , Macaulay2Doc :: File, file, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether the input file , f, has data available for reading, Description, class => examples, i1 : f = openInOut "!cat"
-
-o1 = !cat
-
-o1 : File, class => language-macaulay2, i2 : isReady f
-
-o2 = false, class => language-macaulay2, i3 : f << "hi there" << flush;, class => language-macaulay2, i4 : isReady f
-
-o4 = false, class => language-macaulay2, class => waystouse, Ways to use , isReady, :, Macaulay2Doc :: isReady(File), class => waystouse, For the programmer, The object , Macaulay2Doc :: isReady, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_files.m2:359:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `isReady(File)`
-- `isReady(Task)`
+isReady  -- whether a file has data available for reading
 
 ## Examples
 
 ```macaulay2
-i1 : f = openInOut "!cat"
-
-o1 = !cat
-
-o1 : File
-
-i2 : isReady f
-
-o2 = false
+isReady f
 ```
 
-## See Also
+```macaulay2
+isReady f
 
+```
+
+```text
+false
+```
+
+```macaulay2
+isReady f
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- a [ file](../Type/op_Coredollar_File.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether the input file `f` has data available for reading
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "isReady",
+    "safe_name": "op_Coredollar_isReady",
+    "type": "CompiledFunction",
+    "description": "isReady  -- whether a file has data available for reading...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isReady",
+        "full_doc": "... (1173 bytes) ...",
+        "parsed_headline": "isReady  -- whether a file has data available for reading"
+    }
+}
+```

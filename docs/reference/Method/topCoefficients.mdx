@@ -1,0 +1,90 @@
+---
+title: "topCoefficients"
+kind: Method
+---
+
+# topCoefficients
+
+**topCoefficients  -- first variable and its coefficient of a polynomial or matrix**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ The polynomial ring may have more variables.
+
+## Installed For
+
+### topCoefficients([Matrix](../Type/Matrix.mdx))
+
+### topCoefficients([RingElement](../Type/RingElement.mdx)) -> [RingElement](../Type/RingElement.mdx)
+
+## Examples
+
+```macaulay2
+(lf cf) = topCoefficients f
+```
+
+```macaulay2
+(lfcf) = topCoefficients (7*x^4-13*x^3+x+1)
+
+       4
+```
+
+```text
+(x  7)
+
+Sequence
+```
+
+```macaulay2
+(lfcf) = topCoefficients f
+
+       4    3    2
+```
+
+```text
+(y  3z  - z  - 1)
+
+Sequence
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ ring element](../Type/RingElement.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- Outputs:
+- `lf` a [ ring element](../Type/RingElement.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx) the power of the lowest index variable occurring in f if f is a ring element or the one row matrix of these powers for each column if f is a matrix.
+- `cf` a [ ring element](../Type/RingElement.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx) the coefficient of lf in f if f is a ring element or the matrix of these coefficients for each column of f
+
+
+### Caveat
+
+ If the polynomial ring B of f has a polynomial coefficient ring A and no variables of B occur in f then this 'drills down' into A and finds the top variable and coefficient there but as elements of B
+### See also
+
+
+- Macaulay2Doc:: pseudoRemainder
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "topCoefficients",
+    "safe_name": "topCoefficients",
+    "type": "MethodFunction",
+    "description": " The polynomial ring may have more variables....",
+    "installations": [
+        "<Installation topCoefficients(Matrix)>",
+        "<Installation topCoefficients(RingElement)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "topCoefficients",
+        "full_doc": "... (2622 bytes) ...",
+        "parsed_headline": "topCoefficients  -- first variable and its coefficient of a polynomial or matrix"
+    }
+}
+```

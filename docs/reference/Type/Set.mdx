@@ -1,184 +1,217 @@
 ---
 title: "Set"
 kind: Type
-parent: Tally
 ---
 
 # Set
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Set  -- the class of all sets**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[Tally](../Type/Tally.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `#`
-
-- `#(Set)`
-
-### `#?`
-
-- `#?(Set, Thing)`
-
-### `*`
-
-- `*(Set, Set)`
-
-### `**`
-
-- `**(Set, Set)`
-
-### `+`
-
-- `+(Set, Set)`
-
-### `-`
-
-- `-(Set, Set)`
-- `-(List, Set)`
-- `-(Set, List)`
-
-### `/`
-
-- `/(Set, Function)`
-- `/(Set, Command)`
-
-### `NewFromMethod`
-
-- `NewFromMethod(Set, Set)`
-- `NewFromMethod(Set, VisibleList)`
-- `NewFromMethod(Set, HashTable)`
-
-### `\`
-
-- `\(Function, Set)`
-- `\(Command, Set)`
-
-### `commonest`
-
-- `commonest(Set)`
-
-### `elements`
-
-- `elements(Set)`
-
-### `expression`
-
-- `expression(Set)`
-
-### `intersect`
-
-- `intersect(Set, Set)`
-
-### `isMember`
-
-- `isMember(Thing, Set)`
-
-### `isSubset`
-
-- `isSubset(Set, Set)`
-- `isSubset(VisibleList, Set)`
-- `isSubset(Set, VisibleList)`
-
-### `mathML`
-
-- `mathML(Set)`
-
-### `net`
-
-- `net(Set)`
-
-### `product`
-
-- `product(Set)`
-
-### `randomSubset`
-
-- `randomSubset(Set, ZZ)`
-- `randomSubset(Set)`
-
-### `select`
-
-- `select(Set, Function)`
-- `select(ZZ, Set, Function)`
-
-### `set`
-
-- `set(Set)`
-
-### `subsets`
-
-- `subsets(Set, ZZ)`
-- `subsets(Set)`
-
-### `sum`
-
-- `sum(Set)`
-
-### `texMath`
-
-- `texMath(Set)`
-
-### `toList`
-
-- `toList(Set)`
-
-### `toString`
-
-- `toString(Set)`
-
-### `union`
-
-- `union(Set, Set)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [#](../Operator/op_hash.mdx)
-- [#?](../Operator/op_hash_question.mdx)
-- [*](../Operator/op_star.mdx)
-- [**](../Operator/op_star_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [/](../Operator/op_slash.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [\](../Operator/op_bs.mdx)
-- [commonest](../Function/commonest.mdx)
-- [elements](../Function/elements.mdx)
-- [expression](../Function/expression.mdx)
-- [intersect](../Function/intersect.mdx)
-- [isMember](../Function/isMember.mdx)
-- [isSubset](../Function/isSubset.mdx)
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-- [product](../Function/product.mdx)
-- [randomSubset](../Function/randomSubset.mdx)
-- [select](../Function/select.mdx)
-- [set](../Function/set.mdx)
-- [subsets](../Function/subsets.mdx)
-- [sum](../Function/sum.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toList](../Function/toList.mdx)
-- [toString](../Function/toString.mdx)
-- [union](../Function/union.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Tally](../Type/Tally.mdx) (parent type)
+ Elements of sets may be any immutable object such as integers ring elements and lists of such.  Ideals may also be elements of sets. Set operations such as [Set)](../Instance/isMember(Thing.mdx)  [ union](../Instance/Set + Set.mdx)  [ intersection](../Instance/Set * Set.mdx)  [ difference](../Instance/Set - Set.mdx)  [ Cartesian product](../Instance/Set ** Set.mdx)  [ Cartesian power](../Instance/VirtualTally ^** ZZ.mdx)  and [Set)](../Instance/isSubset(Set.mdx)  are available. For example[ Ideals](../Type/op_Coredollar_Ideal.mdx)  in Macaulay2 come equipped with a specific sequence of generators so the following two ideals are not considered strictly equal and thus the set containing them will appear to have two elements. However if you [trim](../Method/op_Coredollar_trim.mdx)  the ideals then the generating sets will be the same and so the set containing them will have one element. A set is implemented as a [HashTable](../Type/op_Coredollar_HashTable.mdx)  whose keys are the elements of the set and whose values are all 1.  In particular this means that two objects are considered the same exactly when they are strictly equal according to [===](../Method/op_Coredollar_eq_eq_eq.mdx) .
+
+## Additional Information
+
+[set](../Method/set.mdx)[elements](../Method/elements.mdx)[union](../Method/union.mdx)[intersect](../Method/op_Coredollar_intersection.mdx)[Set #? Thing](../Instance/Set #? Thing.mdx)[Set - Set](../Instance/Set - Set.mdx)[union(Set](../Instance/union(Set.mdx)[intersect(Set](../Instance/intersect(Set.mdx)[Set ** Set](../Instance/Set ** Set.mdx)[sum(Set)](../Instance/sum(Set).mdx)[product(Set)](../Instance/product(Set).mdx)[select(Set](../Instance/select(Set.mdx)[isSubset(Set](../Instance/isSubset(Set.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "Set",
+    "safe_name": "op_Coredollar_Set",
+    "type": null,
+    "description": " Elements of sets may be any immutable object such as integers ring elements and lists of such.  Ide...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Set",
+        "parent": "Tally",
+        "methods": [
+            [
+                "net",
+                "Set"
+            ],
+            [
+                "texMath",
+                "Set"
+            ],
+            [
+                "toString",
+                "Set"
+            ],
+            [
+                "subsets",
+                "Set",
+                "ZZ"
+            ],
+            [
+                "subsets",
+                "Set"
+            ],
+            [
+                "expression",
+                "Set"
+            ],
+            [
+                "randomSubset",
+                "Set",
+                "ZZ"
+            ],
+            [
+                "randomSubset",
+                "Set"
+            ],
+            [
+                "mathML",
+                "Set"
+            ],
+            [
+                "intersect",
+                "Set",
+                "Set"
+            ],
+            [
+                "select",
+                "ZZ",
+                "Set",
+                "Function"
+            ],
+            [
+                "select",
+                "Set",
+                "Function"
+            ],
+            [
+                "NewFromMethod",
+                "Set",
+                "Set"
+            ],
+            [
+                "NewFromMethod",
+                "Set",
+                "VisibleList"
+            ],
+            [
+                "NewFromMethod",
+                "Set",
+                "HashTable"
+            ],
+            [
+                "+",
+                "Set",
+                "Set"
+            ],
+            [
+                "union",
+                "Set",
+                "Set"
+            ],
+            [
+                "**",
+                "Set",
+                "Set"
+            ],
+            [
+                "*",
+                "Set",
+                "Set"
+            ],
+            [
+                "-",
+                "Set",
+                "Set"
+            ],
+            [
+                "-",
+                "List",
+                "Set"
+            ],
+            [
+                "-",
+                "Set",
+                "List"
+            ],
+            [
+                "sum",
+                "Set"
+            ],
+            [
+                "product",
+                "Set"
+            ],
+            [
+                "isSubset",
+                "Set",
+                "Set"
+            ],
+            [
+                "isSubset",
+                "VisibleList",
+                "Set"
+            ],
+            [
+                "isSubset",
+                "Set",
+                "VisibleList"
+            ],
+            [
+                "isMember",
+                "Thing",
+                "Set"
+            ],
+            [
+                "/",
+                "Set",
+                "Function"
+            ],
+            [
+                "/",
+                "Set",
+                "Command"
+            ],
+            [
+                "\\",
+                "Function",
+                "Set"
+            ],
+            [
+                "\\",
+                "Command",
+                "Set"
+            ],
+            [
+                "#",
+                "Set"
+            ],
+            [
+                "#?",
+                "Set",
+                "Thing"
+            ],
+            [
+                "toList",
+                "Set"
+            ],
+            [
+                "set",
+                "Set"
+            ],
+            [
+                "commonest",
+                "Set"
+            ],
+            [
+                "elements",
+                "Set"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (6275 bytes) ...",
+        "parsed_headline": "Set  -- the class of all sets"
+    }
+}
+```

@@ -5,29 +5,58 @@ kind: Function
 
 # fileExecutable
 
-**Type:** `Function`
+**fileExecutable**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-fileExecutable, , class => element, Usage: , fileExecutable n, class => language-macaulay2, Inputs:, n, , , Outputs:, whether the file whose name is given by the string , n, is executable, Description, class => examples, i1 : fileExecutable "."
-
-o1 = true, class => language-macaulay2, See also, Macaulay2Doc :: fileWritable, Macaulay2Doc :: fileReadable, class => waystouse, Ways to use , fileExecutable, :, fileExecutable(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: fileExecutable, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:2115:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `fileExecutable(String)`
+fileExecutable
 
 ## Examples
 
 ```macaulay2
-i1 : fileExecutable "."
-
-o1 = true
+fileExecutable n
 ```
 
-## See Also
+```macaulay2
+fileExecutable "."
 
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `n`
+- Outputs:
+- whether the file whose name is given by the string `n` is executable
+
+
+### See also
+
+
+- Macaulay2Doc:: fileWritable
+- Macaulay2Doc:: fileReadable
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "fileExecutable",
+    "safe_name": "fileExecutable",
+    "type": "CompiledFunction",
+    "description": "fileExecutable...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "fileExecutable",
+        "full_doc": "... (933 bytes) ...",
+        "parsed_headline": "fileExecutable"
+    }
+}
+```

@@ -5,33 +5,57 @@ kind: Function
 
 # changeDirectory
 
-**Type:** `Function`
+**changeDirectory  -- change the current working directory**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-changeDirectory, -- change the current working directory, class => element, Usage: , changeDirectory dir, class => language-macaulay2, Inputs:, dir, , , a , Macaulay2Doc :: String, string, , , Outputs:, a , Macaulay2Doc :: String, string, , , the new working directory; , Description, Change the current working directory to , dir, ., class => examples, i1 : dir = temporaryFileName()
-
-o1 = /tmp/M2-705221-0/0, class => language-macaulay2, i2 : makeDirectory dir
-
-o2 = /tmp/M2-705221-0/0, class => language-macaulay2, i3 : changeDirectory dir
-
-o3 = /tmp/M2-705221-0/0/, class => language-macaulay2, i4 : currentDirectory()
-
-o4 = /tmp/M2-705221-0/0/, class => language-macaulay2, If , dir, is omitted, then the current working directory is changed to the user's home directory., See also, Macaulay2Doc :: currentDirectory, class => waystouse, For the programmer, The object , Macaulay2Doc :: changeDirectory, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:717:0, .
+Change the current working directory to dir.If dir is omitted then the current working directory is changed to the user's home directory.
 
 ## Examples
 
 ```macaulay2
-i1 : dir = temporaryFileName()
-
-o1 = /tmp/M2-705221-0/0
-
-i2 : makeDirectory dir
-
-o2 = /tmp/M2-705221-0/0
+changeDirectory dir
 ```
 
-## See Also
+```macaulay2
+changeDirectory dir
 
+```
+
+```text
+/tmp/M2-705221-0/0/
+```
+
+## Additional Information
+
+- Inputs:
+- `dir` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) the new working directory;
+
+
+### See also
+
+
+- Macaulay2Doc:: currentDirectory
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "changeDirectory",
+    "safe_name": "changeDirectory",
+    "type": "CompiledFunction",
+    "description": "Change the current working directory to dir.If dir is omitted then the current working directory is ...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "changeDirectory",
+        "full_doc": "... (1410 bytes) ...",
+        "parsed_headline": "changeDirectory  -- change the current working directory"
+    }
+}
+```

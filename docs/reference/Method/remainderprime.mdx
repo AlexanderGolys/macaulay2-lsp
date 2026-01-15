@@ -1,0 +1,61 @@
+---
+title: "remainder'"
+kind: Method
+---
+
+# remainder'
+
+**remainder'  -- matrix remainder (opposite)**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ The equation `q*g+r == f`  will hold where `q`  is the map provided by [quotient'](../Method/op_Coredollar_quotientprime.mdx) .  The sources and targets of the maps should be free modules. This function is obtained from `remainder`  by transposing the inputs and outputs.
+
+## Installed For
+
+### remainder'([Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx))
+
+## Examples
+
+```macaulay2
+r = remainder'(fg)
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- `g` a [ Gröbner basis](../Type/op_Coredollar_GroebnerBasis.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx) with the same source as `f`
+- Outputs:
+- `r` the remainder of `f` upon (opposite) division by `g`
+
+
+### See also
+
+
+- Macaulay2Doc:: quotientRemainder
+- Macaulay2Doc:: remainder
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "remainder'",
+    "safe_name": "op_Coredollar_remainderprime",
+    "type": "MethodFunction",
+    "description": " The equation `q*g+r == f`  will hold where `q`  is the map provided by [quotient'](../Method/op_Cor...",
+    "installations": [
+        "<Installation remainder'(Matrix, Matrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$remainder'",
+        "full_doc": "... (2459 bytes) ...",
+        "parsed_headline": "remainder'  -- matrix remainder (opposite)"
+    }
+}
+```

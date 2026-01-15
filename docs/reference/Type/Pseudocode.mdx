@@ -1,89 +1,82 @@
 ---
 title: "Pseudocode"
 kind: Type
-parent: Thing
 ---
 
 # Pseudocode
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Pseudocode  -- the class of pseudocodes**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ The Macaulay2 interpreter compiles its language into pseudocode which is evaluated later step by step.  At each step the evaluator is considering a pseudocode item.  These pseudocode items are normally not available to the user but the internal function [pseudocode](../Function/op_Coredollar_pseudocode.mdx)  can convert a function closure to pseudocode and display their contents the function [value](../Method/value.mdx)  can evaluate it (bindings of values to local symbols are enclosed with the pseudocode) the operator [===](../Method/op_Coredollar_eq_eq_eq.mdx)  can be used for equality testing and when the debugger is activated after an error the variable [current](../Instance/current.mdx)  contains the pseudocode step whose execution produced the error.
 
-## Parent Type
+## Additional Information
 
-[Thing](../Type/Thing.mdx)
+### See also
 
-## Subtypes
 
-Direct subtypes of this type:
+- Macaulay2Doc:: disassemble
 
-- [PseudocodeClosure](../Type/PseudocodeClosure.mdx)
+[value(Pseudocode)](../Instance/value(Pseudocode).mdx)
 
-## Methods
+## Debug info
 
-Methods that can be used with this type:
-
-### `_`
-
-- `_(Pseudocode, ZZ)`
-
-### `code`
-
-- `code(Pseudocode)`
-
-### `disassemble`
-
-- `disassemble(Pseudocode)`
-
-### `html`
-
-- `html(Pseudocode)`
-
-### `locate`
-
-- `locate(Pseudocode)`
-
-### `net`
-
-- `net(Pseudocode)`
-
-### `toList`
-
-- `toList(Pseudocode)`
-
-### `toString`
-
-- `toString(Pseudocode)`
-
-### `value`
-
-- `value(Pseudocode)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [_](../Operator/_.mdx)
-- [code](../Function/code.mdx)
-- [disassemble](../Function/disassemble.mdx)
-- [html](../Function/html.mdx)
-- [locate](../Function/locate.mdx)
-- [net](../Function/net.mdx)
-- [toList](../Function/toList.mdx)
-- [toString](../Function/toString.mdx)
-- [value](../Function/value.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Thing](../Type/Thing.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Pseudocode",
+    "safe_name": "op_Coredollar_Pseudocode",
+    "type": null,
+    "description": " The Macaulay2 interpreter compiles its language into pseudocode which is evaluated later step by st...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Pseudocode",
+        "parent": "Thing",
+        "methods": [
+            [
+                "html",
+                "Pseudocode"
+            ],
+            [
+                "net",
+                "Pseudocode"
+            ],
+            [
+                "code",
+                "Pseudocode"
+            ],
+            [
+                "_",
+                "Pseudocode",
+                "ZZ"
+            ],
+            [
+                "disassemble",
+                "Pseudocode"
+            ],
+            [
+                "locate",
+                "Pseudocode"
+            ],
+            [
+                "value",
+                "Pseudocode"
+            ],
+            [
+                "toList",
+                "Pseudocode"
+            ],
+            [
+                "toString",
+                "Pseudocode"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1729 bytes) ...",
+        "parsed_headline": "Pseudocode  -- the class of pseudocodes"
+    }
+}
+```

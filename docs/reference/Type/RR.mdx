@@ -1,186 +1,1177 @@
 ---
 title: "RR"
 kind: Type
-parent: InexactNumber
 ---
 
 # RR
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [InexactFieldFamily](../Type/InexactFieldFamily.mdx)
+**RR  -- the class of all real numbers**
 
 ## Description
 
-An instance of the type [InexactFieldFamily](../Type/InexactFieldFamily.mdx).
+ A real number is entered as a sequence of decimal digits with a point.  It is stored internally as an arbitrary precision floating point number using the [MPFR](../Instance/MPFR.mdx)  library. The precision is measured in bits is visible in the ring displayed on the second of each pair of output lines and can be recovered using [precision](../Method/op_Coredollar_precision.mdx) . For real numbers the functions [class](../Function/op_Coredollar_class.mdx)  and [ring](../Method/op_Coredollar_ring.mdx)  yield different results.  That allows numbers of various precisions to be used without creating a new ring for each precision. The precision can be specified on input by appending the letter `p`  and a positive number. An optional exponent (for the power of ten to multiply by) can be specified on input by appending the letter `e`  and a number. Numbers that appear alone on an output line are displayed with all their meaningful digits. (Specifying 100 bits of precision yields about 30 decimal digits of precision.) Numbers displayed inside more complicated objects are printed with the number of digits specified by [printingPrecision](../Instance/printingPrecision.mdx) . The notion of equality tested by [==](../Method/op_Coredollar_eq_eq.mdx)  amounts to equality of the internal binary digits. The notion of (strict) equality tested by [===](../Method/op_Coredollar_eq_eq_eq.mdx)  also takes the precision into account. Perhaps surprisingly the IEEE floating point standard also specifies that every number including 0 has a sign bit and strict equality testing takes it into account as it must do because some arithmetic and transcendental functions take it into account. Use [toExternalString](../Method/op_Coredollar_toExternalString.mdx)  to produce something that when encountered as input will reproduce exactly what you had before. Transcendental constants and functions are available to high precision with [numeric](../Method/op_Coredollar_numeric.mdx) .
 
-## Parent Type
+## Additional Information
 
-[InexactNumber](../Type/InexactNumber.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `%`
-
-- `%(RR, RR)`
-- `%(RR, ZZ)`
-- `%(RR, QQ)`
-- `%(CC, RR)`
-
-### `*`
-
-- `*(InfiniteNumber, RR)`
-- `*(RR, MutableMatrix)`
-- `*(MutableMatrix, RR)`
-
-### `/`
-
-- `/(InfiniteNumber, RR)`
-
-### `//`
-
-- `//(InfiniteNumber, RR)`
-- `//(RR, RR)`
-- `//(RR, ZZ)`
-- `//(RR, QQ)`
-- `//(CC, RR)`
-
-### `==`
-
-- `==(RR, InfiniteNumber)`
-- `==(InfiniteNumber, RR)`
-
-### `?`
-
-- `?(RR, InfiniteNumber)`
-- `?(InfiniteNumber, RR)`
-
-### `^`
-
-- `^(InfiniteNumber, RR)`
-- `^(RR, InfiniteNumber)`
-
-### `_`
-
-- `_(RR, EngineRing)`
-- `_(RR, RealField)`
-- `_(RR, ComplexField)`
-
-### `clean`
-
-- `clean(RR, Number)`
-- `clean(RR, RingElement)`
-- `clean(RR, Matrix)`
-- `clean(RR, MutableMatrix)`
-
-### `format`
-
-- `format(RR)`
-
-### `interval`
-
-- `interval(RR)`
-- `interval(ZZ, RR)`
-- `interval(RR, RR)`
-- `interval(QQ, RR)`
-- `interval(RR, QQ)`
-- *... and 1 more signatures*
-
-### `isMember`
-
-- `isMember(RR, RRi)`
-
-### `lift`
-
-- `lift(RR, QQ)`
-- `lift(RR, ZZ)`
-
-### `liftable`
-
-- `liftable(RRi, RR)`
-
-### `mathML`
-
-- `mathML(RR)`
-
-### `norm`
-
-- `norm(RR, Number)`
-- `norm(RR, RingElement)`
-- `norm(RR, Matrix)`
-- `norm(RR, MutableMatrix)`
-
-### `promote`
-
-- `promote(RR, RR_*)`
-- `promote(RR, CC_*)`
-- `promote(RR, RRi_*)`
-- `promote(RR, QQ)`
-
-### `randomMutableMatrix`
-
-- `randomMutableMatrix(ZZ, ZZ, RR, ZZ)`
-
-### `ring`
-
-- `ring(RR)`
-
-### `round`
-
-- `round(ZZ, RR)`
-
-### `span`
-
-- `span(RR)`
+### See also
 
 
-*Showing 50 of 225 methods*
+- Macaulay2Doc:: numeric
+- Macaulay2Doc:: precision
+- Macaulay2Doc:: format
+- Macaulay2Doc:: printingPrecision
+- Macaulay2Doc:: printingAccuracy
+- Macaulay2Doc:: printingLeadLimit
+- Macaulay2Doc:: printingTrailLimit
+- Macaulay2Doc:: printingSeparator
+- Macaulay2Doc:: maxExponent
+- Macaulay2Doc:: minExponent
 
-## Used In
+[toRR](../Function/op_Coredollar_toRR.mdx)[isReal](../Method/isReal.mdx)
 
-This type is used in the following methods/operators:
+## Debug info
 
-- [!](../Operator/op_bang.mdx)
-- [%](../Operator/op_percent.mdx)
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [/](../Operator/op_slash.mdx)
-- [//](../Operator/op_slash_slash.mdx)
-- [<<](../Operator/op_lt_lt.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [>>](../Operator/op_gt_gt.mdx)
-- [?](../Operator/op_question.mdx)
-- [Beta](../Function/Beta.mdx)
-- [Digamma](../Function/Digamma.mdx)
-- [Gamma](../Function/Gamma.mdx)
-- [^](../Operator/op_caret.mdx)
-- [_](../Operator/_.mdx)
-- [abs](../Function/abs.mdx)
-- [acos](../Function/acos.mdx)
-- [agm](../Function/agm.mdx)
-- [asin](../Function/asin.mdx)
-- [atan](../Function/atan.mdx)
-- [atan2](../Function/atan2.mdx)
-- [clean](../Function/clean.mdx)
-- [cos](../Function/cos.mdx)
-- [cosh](../Function/cosh.mdx)
-- [cot](../Function/cot.mdx)
-- [coth](../Function/coth.mdx)
-- [csc](../Function/csc.mdx)
-- [csch](../Function/csch.mdx)
-- [eint](../Function/eint.mdx)
-
-*... and 20 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [InexactNumber](../Type/InexactNumber.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "RR",
+    "safe_name": "op_x226_x132_x157",
+    "type": null,
+    "description": " A real number is entered as a sequence of decimal digits with a point.  It is stored internally as ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "\u211d",
+        "parent": "InexactNumber",
+        "methods": [
+            [
+                "_",
+                "RR",
+                "EngineRing"
+            ],
+            [
+                "clean",
+                "RR",
+                "Number"
+            ],
+            [
+                "clean",
+                "RR",
+                "RingElement"
+            ],
+            [
+                "norm",
+                "RR",
+                "Number"
+            ],
+            [
+                "norm",
+                "RR",
+                "RingElement"
+            ],
+            [
+                "interval",
+                "RR"
+            ],
+            [
+                "interval",
+                "RR",
+                "RR"
+            ],
+            [
+                "interval",
+                "RR",
+                "QQ"
+            ],
+            [
+                "interval",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "interval",
+                "QQ",
+                "RR"
+            ],
+            [
+                "interval",
+                "ZZ",
+                "RR"
+            ],
+            [
+                "isMember",
+                "RR",
+                "RRi"
+            ],
+            [
+                "mathML",
+                "RR"
+            ],
+            [
+                "clean",
+                "RR",
+                "Matrix"
+            ],
+            [
+                "norm",
+                "RR",
+                "Matrix"
+            ],
+            [
+                "*",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "/",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "//",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "^",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "^",
+                "RR",
+                "InfiniteNumber"
+            ],
+            [
+                "==",
+                "RR",
+                "InfiniteNumber"
+            ],
+            [
+                "==",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "?",
+                "RR",
+                "InfiniteNumber"
+            ],
+            [
+                "?",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "format",
+                "RR"
+            ],
+            [
+                "clean",
+                "RR",
+                "MutableMatrix"
+            ],
+            [
+                "norm",
+                "RR",
+                "MutableMatrix"
+            ],
+            [
+                "*",
+                "RR",
+                "MutableMatrix"
+            ],
+            [
+                "*",
+                "MutableMatrix",
+                "RR"
+            ],
+            [
+                "randomMutableMatrix",
+                "ZZ",
+                "ZZ",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "span",
+                "RR"
+            ],
+            [
+                "promote",
+                "RR",
+                "RR_*"
+            ],
+            [
+                "promote",
+                "RR",
+                "CC_*"
+            ],
+            [
+                "promote",
+                "RR",
+                "RRi_*"
+            ],
+            [
+                "liftable",
+                "RRi",
+                "RR"
+            ],
+            [
+                "_",
+                "RR",
+                "RealField"
+            ],
+            [
+                "_",
+                "RR",
+                "ComplexField"
+            ],
+            [
+                "lift",
+                "RR",
+                "QQ"
+            ],
+            [
+                "lift",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "promote",
+                "RR",
+                "QQ"
+            ],
+            [
+                "ring",
+                "RR"
+            ],
+            [
+                "//",
+                "RR",
+                "RR"
+            ],
+            [
+                "%",
+                "RR",
+                "RR"
+            ],
+            [
+                "//",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "%",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "//",
+                "RR",
+                "QQ"
+            ],
+            [
+                "%",
+                "RR",
+                "QQ"
+            ],
+            [
+                "//",
+                "CC",
+                "RR"
+            ],
+            [
+                "%",
+                "CC",
+                "RR"
+            ],
+            [
+                "round",
+                "ZZ",
+                "RR"
+            ],
+            [
+                "random",
+                "RR"
+            ],
+            [
+                "random",
+                "RR",
+                "RR"
+            ],
+            [
+                "lngamma",
+                "RR"
+            ],
+            [
+                "expression",
+                "RR"
+            ],
+            [
+                "texMath",
+                "RR"
+            ],
+            [
+                "isReal",
+                "RR"
+            ],
+            [
+                "toCC",
+                "RR"
+            ],
+            [
+                "size2",
+                "RR"
+            ],
+            [
+                "toCC",
+                "RR",
+                "RR"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "RR"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "QQ",
+                "RR"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "RR",
+                "RR"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "ZZ",
+                "RR"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "RR",
+                "QQ"
+            ],
+            [
+                "+",
+                "RR"
+            ],
+            [
+                "-",
+                "RR"
+            ],
+            [
+                "/",
+                "RRi",
+                "RR"
+            ],
+            [
+                "+",
+                "ZZ",
+                "RR"
+            ],
+            [
+                "==",
+                "RR",
+                "RRi"
+            ],
+            [
+                "/",
+                "QQ",
+                "RR"
+            ],
+            [
+                "+",
+                "RR",
+                "RRi"
+            ],
+            [
+                "/",
+                "RR",
+                "RRi"
+            ],
+            [
+                "-",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "-",
+                "RR",
+                "QQ"
+            ],
+            [
+                "==",
+                "ZZ",
+                "RR"
+            ],
+            [
+                "==",
+                "QQ",
+                "RR"
+            ],
+            [
+                "-",
+                "CC",
+                "RR"
+            ],
+            [
+                "/",
+                "ZZ",
+                "RR"
+            ],
+            [
+                "/",
+                "CC",
+                "RR"
+            ],
+            [
+                "-",
+                "RR",
+                "RR"
+            ],
+            [
+                "+",
+                "CC",
+                "RR"
+            ],
+            [
+                "-",
+                "QQ",
+                "RR"
+            ],
+            [
+                "-",
+                "RR",
+                "CC"
+            ],
+            [
+                "+",
+                "RRi",
+                "RR"
+            ],
+            [
+                "==",
+                "CC",
+                "RR"
+            ],
+            [
+                "+",
+                "QQ",
+                "RR"
+            ],
+            [
+                "-",
+                "RR",
+                "RRi"
+            ],
+            [
+                "==",
+                "RRi",
+                "RR"
+            ],
+            [
+                "*",
+                "ZZ",
+                "RR"
+            ],
+            [
+                "/",
+                "RR",
+                "CC"
+            ],
+            [
+                "*",
+                "RRi",
+                "RR"
+            ],
+            [
+                "-",
+                "RRi",
+                "RR"
+            ],
+            [
+                "/",
+                "RR",
+                "QQ"
+            ],
+            [
+                "/",
+                "RR",
+                "RR"
+            ],
+            [
+                "+",
+                "RR",
+                "CC"
+            ],
+            [
+                "*",
+                "QQ",
+                "RR"
+            ],
+            [
+                "==",
+                "RR",
+                "QQ"
+            ],
+            [
+                "==",
+                "RR",
+                "RR"
+            ],
+            [
+                "==",
+                "RR",
+                "CC"
+            ],
+            [
+                "*",
+                "RR",
+                "CC"
+            ],
+            [
+                "*",
+                "RR",
+                "RR"
+            ],
+            [
+                "*",
+                "RR",
+                "QQ"
+            ],
+            [
+                "*",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "==",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "+",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "*",
+                "RR",
+                "RRi"
+            ],
+            [
+                "+",
+                "RR",
+                "QQ"
+            ],
+            [
+                "-",
+                "ZZ",
+                "RR"
+            ],
+            [
+                "*",
+                "CC",
+                "RR"
+            ],
+            [
+                "/",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "+",
+                "RR",
+                "RR"
+            ],
+            [
+                "log",
+                "Number",
+                "RR"
+            ],
+            [
+                "atan2",
+                "Number",
+                "RR"
+            ],
+            [
+                "inverseRegularizedGamma",
+                "Number",
+                "RR"
+            ],
+            [
+                "Beta",
+                "Number",
+                "RR"
+            ],
+            [
+                "regularizedGamma",
+                "Number",
+                "RR"
+            ],
+            [
+                "agm",
+                "Number",
+                "RR"
+            ],
+            [
+                "Gamma",
+                "Number",
+                "RR"
+            ],
+            [
+                "regularizedGamma",
+                "RR",
+                "Number"
+            ],
+            [
+                "Beta",
+                "RR",
+                "Number"
+            ],
+            [
+                "inverseRegularizedGamma",
+                "RR",
+                "Number"
+            ],
+            [
+                "atan2",
+                "RR",
+                "Number"
+            ],
+            [
+                "log",
+                "RR",
+                "Number"
+            ],
+            [
+                "agm",
+                "RR",
+                "Number"
+            ],
+            [
+                "Gamma",
+                "RR",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "RRi",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "CC",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "RR",
+                "RRi"
+            ],
+            [
+                "inverseRegularizedBeta",
+                "Number",
+                "RR",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "RR",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "RR",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "Number",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "Number",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "Number",
+                "RR"
+            ],
+            [
+                "inverseRegularizedBeta",
+                "RR",
+                "Number",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "Number",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "Number",
+                "RR"
+            ],
+            [
+                "inverseRegularizedBeta",
+                "RR",
+                "RR",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RR",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "RR",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "CC",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "RR",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RRi",
+                "Number"
+            ],
+            [
+                "inverseRegularizedBeta",
+                "Number",
+                "Number",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "Number",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "RR",
+                "Number"
+            ],
+            [
+                "inverseRegularizedBeta",
+                "Number",
+                "RR",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "Number",
+                "Number"
+            ],
+            [
+                "inverseRegularizedBeta",
+                "RR",
+                "Number",
+                "Number"
+            ],
+            [
+                "isc",
+                "RR"
+            ],
+            [
+                "cos",
+                "RR"
+            ],
+            [
+                "erfc",
+                "RR"
+            ],
+            [
+                "sinh",
+                "RR"
+            ],
+            [
+                "csch",
+                "RR"
+            ],
+            [
+                "zeta",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RR",
+                "RRi"
+            ],
+            [
+                "asin",
+                "RR"
+            ],
+            [
+                "Beta",
+                "RRi",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "CC",
+                "RR"
+            ],
+            [
+                "atan2",
+                "RR",
+                "RRi"
+            ],
+            [
+                "atan2",
+                "RR",
+                "RR"
+            ],
+            [
+                "inverseRegularizedBeta",
+                "RR",
+                "RR",
+                "RR"
+            ],
+            [
+                "cot",
+                "RR"
+            ],
+            [
+                "tanh",
+                "RR"
+            ],
+            [
+                "expm1",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RR",
+                "CC"
+            ],
+            [
+                "Beta",
+                "RR",
+                "RRi"
+            ],
+            [
+                "Gamma",
+                "RRi",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RR",
+                "RR"
+            ],
+            [
+                "tan",
+                "RR"
+            ],
+            [
+                "sec",
+                "RR"
+            ],
+            [
+                "!",
+                "RR"
+            ],
+            [
+                "<<",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "sech",
+                "RR"
+            ],
+            [
+                "Gamma",
+                "CC",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RRi",
+                "RR"
+            ],
+            [
+                "Gamma",
+                "RR"
+            ],
+            [
+                "atan2",
+                "RRi",
+                "RR"
+            ],
+            [
+                "abs",
+                "RR"
+            ],
+            [
+                "eint",
+                "RR"
+            ],
+            [
+                "Beta",
+                "RR",
+                "CC"
+            ],
+            [
+                "Beta",
+                "RR",
+                "RR"
+            ],
+            [
+                "coth",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "acos",
+                "RR"
+            ],
+            [
+                "regularizedGamma",
+                "RRi",
+                "RR"
+            ],
+            [
+                "csc",
+                "RR"
+            ],
+            [
+                "net",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "RR",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "RR",
+                "CC"
+            ],
+            [
+                "log",
+                "RR"
+            ],
+            [
+                "inverseErf",
+                "RR"
+            ],
+            [
+                ">>",
+                "RR",
+                "ZZ"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "CC",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "CC",
+                "RR"
+            ],
+            [
+                "erf",
+                "RR"
+            ],
+            [
+                "Gamma",
+                "RR",
+                "RRi"
+            ],
+            [
+                "sin",
+                "RR"
+            ],
+            [
+                "log",
+                "RR",
+                "RR"
+            ],
+            [
+                "inverseRegularizedGamma",
+                "RR",
+                "RR"
+            ],
+            [
+                "log",
+                "RR",
+                "CC"
+            ],
+            [
+                "log",
+                "RRi",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "RR",
+                "RR"
+            ],
+            [
+                "toExternalString",
+                "RR"
+            ],
+            [
+                "Beta",
+                "CC",
+                "RR"
+            ],
+            [
+                "agm",
+                "CC",
+                "RR"
+            ],
+            [
+                "regularizedGamma",
+                "RR",
+                "RR"
+            ],
+            [
+                "regularizedGamma",
+                "RR",
+                "CC"
+            ],
+            [
+                "log",
+                "RR",
+                "RRi"
+            ],
+            [
+                "exp",
+                "RR"
+            ],
+            [
+                "atan",
+                "RR"
+            ],
+            [
+                "cosh",
+                "RR"
+            ],
+            [
+                "Digamma",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "RR",
+                "RRi"
+            ],
+            [
+                "sqrt",
+                "RR"
+            ],
+            [
+                "regularizedGamma",
+                "CC",
+                "RR"
+            ],
+            [
+                "Gamma",
+                "RR",
+                "CC"
+            ],
+            [
+                "Gamma",
+                "RR",
+                "RR"
+            ],
+            [
+                "regularizedGamma",
+                "RR",
+                "RRi"
+            ],
+            [
+                "agm",
+                "RR",
+                "CC"
+            ],
+            [
+                "numeric",
+                "RR"
+            ],
+            [
+                "agm",
+                "RR",
+                "RR"
+            ],
+            [
+                "log1p",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "RRi",
+                "RR"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (16936 bytes) ...",
+        "parsed_headline": "RR  -- the class of all real numbers"
+    }
+}
+```

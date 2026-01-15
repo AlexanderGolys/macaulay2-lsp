@@ -1,0 +1,121 @@
+---
+title: "weightRange"
+kind: Method
+---
+
+# weightRange
+
+**weightRange  -- the pair of lowest and highest weights of the monomials**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+
+### Synopsis
+
+
+- Inputs:
+- `w` a [ list](../Type/op_Coredollar_List.mdx) of integers the weight of each variable
+- `f` a [ ring element](../Type/RingElement.mdx) in a polynomial ring
+- Outputs:
+- `lo` an [ integer](../Type/ZZ.mdx) the least weight of the monomials of `f`
+- `hi` an [ integer](../Type/ZZ.mdx) the greatest weight of the monomials of `f`
+
+ The weight of a monomial is the dot product of w and the exponent vector. If the weight vector has length smaller than the number of variables the other variables are assumed to have weight zero.  If there are too many weights given the extras are silently ignored. Use  [terms](../Method/op_Coredollar_terms.mdx)  and [weightRange](../Method/weightRange.mdx)  together to select the terms which have a given weight. If the coefficient ring is a polynomial ring one can use the weights of these variables too.  The order of weights is the same as the order of variables (see [index](../Method/op_Coredollar_index.mdx) )
+### Synopsis
+
+
+- Inputs:
+- `f` a [ ring element](../Type/RingElement.mdx)
+- Outputs:
+- `lo` an [ integer](../Type/ZZ.mdx) the minimum value for (the first component of) the degrees of the monomials occurring in `f`
+- `hi` an [ integer](../Type/ZZ.mdx) the corresponding maximum value
+
+
+
+## Installed For
+
+### weightRange([List](../Type/List.mdx), [RingElement](../Type/RingElement.mdx))
+
+### weightRange([RingElement](../Type/RingElement.mdx)) -> [ZZ](../Type/ZZ.mdx)
+
+## Examples
+
+```macaulay2
+weightRange({1,1,0,0,0,0,0}f)
+
+```
+
+```text
+(0 3)
+
+Sequence
+```
+
+```macaulay2
+sum select(terms f t -> (weightRange({1,0}t))#0 == 2)
+
+      2      2
+```
+
+```text
+a b + 3a c
+
+R
+```
+
+```macaulay2
+weightRange({0,0,3,7}a*x^2+b*x*y)
+
+```
+
+```text
+(3 7)
+
+Sequence
+```
+
+```macaulay2
+weightRange (x^3+y^2)^5
+
+```
+
+```text
+(10 15)
+
+Sequence
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: degree
+- Macaulay2Doc:: homogenize
+- Macaulay2Doc:: part
+- Macaulay2Doc:: index
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "weightRange",
+    "safe_name": "weightRange",
+    "type": "MethodFunction",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `w` a [ list](../Type/op_Coredollar_List.mdx) of integers the weight of ...",
+    "installations": [
+        "<Installation weightRange(List, RingElement)>",
+        "<Installation weightRange(RingElement)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "weightRange",
+        "full_doc": "... (3554 bytes) ...",
+        "parsed_headline": "weightRange  -- the pair of lowest and highest weights of the monomials"
+    }
+}
+```

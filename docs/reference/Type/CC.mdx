@@ -1,184 +1,760 @@
 ---
 title: "CC"
 kind: Type
-parent: InexactNumber
 ---
 
 # CC
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [InexactFieldFamily](../Type/InexactFieldFamily.mdx)
+**CC  -- the class of all complex numbers**
 
 ## Description
 
-An instance of the type [InexactFieldFamily](../Type/InexactFieldFamily.mdx).
+ In Macaulay2 complex numbers are represented as floating point numbers and so are only approximate.  The symbol [ii](../Instance/ii.mdx)  represents the square root of -1 in many numeric contexts.  A complex number is obtained by using the symbolic constant [ii](../Instance/ii.mdx)  or the conversion functions [toCC](../Function/op_Coredollar_toCC.mdx)  and [numeric](../Method/op_Coredollar_numeric.mdx)  in combination with real numbers (see [RR](../Type/op_x226_x132_x157.mdx) ). It is stored internally as a pair of arbitrary precision floating point real numbers using the [MPFR](../Instance/MPFR.mdx)  library. Complex numbers are ordered lexicographically mingled with real numbers. The precision is measured in bits is visible in the ring displayed on the second of each pair of output lines and can be recovered using [precision](../Method/op_Coredollar_precision.mdx) . For complex numbers the functions [class](../Function/op_Coredollar_class.mdx)  and [ring](../Method/op_Coredollar_ring.mdx)  yield different results.  That allows numbers of various precisions to be used without creating a new ring for each precision. A computation involving numbers of different precisions has a result with the minimal precision occurring. Numbers that appear alone on an output line are displayed with all their meaningful digits. (Specifying 100 bits of precision yields about 30 decimal digits of precision.) Numbers displayed inside more complicated objects are printed with the number of digits specified by [printingPrecision](../Instance/printingPrecision.mdx) . Use [toExternalString](../Method/op_Coredollar_toExternalString.mdx)  to produce something that when encountered as input will reproduce exactly what you had before.
 
-## Parent Type
+## Additional Information
 
-[InexactNumber](../Type/InexactNumber.mdx)
+### Caveat
 
-## Methods
-
-Methods that can be used with this type:
-
-### `%`
-
-- `%(CC, CC)`
-- `%(CC, ZZ)`
-- `%(CC, QQ)`
-- `%(CC, RR)`
-
-### `*`
-
-- `*(InfiniteNumber, CC)`
-- `*(ZZ, CC)`
-- `*(CC, ZZ)`
-- `*(CC, QQ)`
-- `*(QQ, CC)`
-
-### `+`
-
-- `+(InfiniteNumber, CC)`
-- `+(CC, InfiniteNumber)`
-- `+(CC)`
-- `+(RR, CC)`
-- `+(CC, ZZ)`
-- *... and 3 more signatures*
-
-### `-`
-
-- `-(InfiniteNumber, CC)`
-- `-(CC, InfiniteNumber)`
-- `-(CC)`
-- `-(RR, CC)`
-- `-(ZZ, CC)`
-
-### `/`
-
-- `/(InfiniteNumber, CC)`
-- `/(RR, CC)`
-- `/(ZZ, CC)`
-- `/(CC, CC)`
-
-### `//`
-
-- `//(InfiniteNumber, CC)`
-- `//(CC, CC)`
-- `//(CC, ZZ)`
-- `//(CC, QQ)`
-- `//(CC, RR)`
-
-### `?`
-
-- `?(CC, InfiniteNumber)`
-- `?(InfiniteNumber, CC)`
-
-### `_`
-
-- `_(CC, ComplexField)`
-
-### `conjugate`
-
-- `conjugate(CC)`
-
-### `expression`
-
-- `expression(CC)`
-
-### `format`
-
-- `format(CC)`
-
-### `isReal`
-
-- `isReal(CC)`
-
-### `lift`
-
-- `lift(CC, RR_*)`
-- `lift(CC, QQ)`
-- `lift(CC, ZZ)`
-
-### `liftable`
-
-- `liftable(CC, RR_*)`
-
-### `net`
-
-- `net(CC)`
-
-### `promote`
-
-- `promote(CC, CC_*)`
-
-### `ring`
-
-- `ring(CC)`
-
-### `round`
-
-- `round(ZZ, CC)`
-
-### `size2`
-
-- `size2(CC)`
-
-### `texMath`
-
-- `texMath(CC)`
-
-### `toCC`
-
-- `toCC(CC)`
-- `toCC(ZZ, CC)`
+ Currently most transcendental functions are not implemented for complex arguments.
+### See also
 
 
-*Showing 50 of 145 methods*
+- Macaulay2Doc:: ii
+- Macaulay2Doc:: toRR
+- Macaulay2Doc:: numeric
+- Macaulay2Doc:: precision
+- Macaulay2Doc:: format
+- Macaulay2Doc:: printingPrecision
+- Macaulay2Doc:: printingAccuracy
+- Macaulay2Doc:: printingLeadLimit
+- Macaulay2Doc:: printingTrailLimit
+- Macaulay2Doc:: printingSeparator
 
-## Used In
+[toCC](../Function/op_Coredollar_toCC.mdx)[conjugate](../Method/op_Coredollar_conjugate.mdx)[realPart](../Method/realPart.mdx)[imaginaryPart](../Method/op_Coredollar_imaginaryPart.mdx)
 
-This type is used in the following methods/operators:
+## Debug info
 
-- [%](../Operator/op_percent.mdx)
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [/](../Operator/op_slash.mdx)
-- [//](../Operator/op_slash_slash.mdx)
-- [<<](../Operator/op_lt_lt.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [>>](../Operator/op_gt_gt.mdx)
-- [?](../Operator/op_question.mdx)
-- [Beta](../Function/Beta.mdx)
-- [Digamma](../Function/Digamma.mdx)
-- [Gamma](../Function/Gamma.mdx)
-- [_](../Operator/_.mdx)
-- [abs](../Function/abs.mdx)
-- [acos](../Function/acos.mdx)
-- [agm](../Function/agm.mdx)
-- [asin](../Function/asin.mdx)
-- [atan](../Function/atan.mdx)
-- [conjugate](../Function/conjugate.mdx)
-- [cos](../Function/cos.mdx)
-- [cosh](../Function/cosh.mdx)
-- [cot](../Function/cot.mdx)
-- [coth](../Function/coth.mdx)
-- [csc](../Function/csc.mdx)
-- [csch](../Function/csch.mdx)
-- [eint](../Function/eint.mdx)
-- [erf](../Function/erf.mdx)
-- [erfc](../Function/erfc.mdx)
-- [exp](../Function/exp.mdx)
-
-*... and 20 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [InexactNumber](../Type/InexactNumber.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "CC",
+    "safe_name": "op_x226_x132_x130",
+    "type": null,
+    "description": " In Macaulay2 complex numbers are represented as floating point numbers and so are only approximate....",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "\u2102",
+        "parent": "InexactNumber",
+        "methods": [
+            [
+                "+",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "-",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "+",
+                "CC",
+                "InfiniteNumber"
+            ],
+            [
+                "-",
+                "CC",
+                "InfiniteNumber"
+            ],
+            [
+                "*",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "//",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "/",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "?",
+                "CC",
+                "InfiniteNumber"
+            ],
+            [
+                "?",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "format",
+                "CC"
+            ],
+            [
+                "promote",
+                "CC",
+                "CC_*"
+            ],
+            [
+                "liftable",
+                "CC",
+                "RR_*"
+            ],
+            [
+                "lift",
+                "CC",
+                "RR_*"
+            ],
+            [
+                "_",
+                "CC",
+                "ComplexField"
+            ],
+            [
+                "lift",
+                "CC",
+                "ZZ"
+            ],
+            [
+                "lift",
+                "CC",
+                "QQ"
+            ],
+            [
+                "ring",
+                "CC"
+            ],
+            [
+                "//",
+                "CC",
+                "CC"
+            ],
+            [
+                "%",
+                "CC",
+                "CC"
+            ],
+            [
+                "//",
+                "CC",
+                "ZZ"
+            ],
+            [
+                "%",
+                "CC",
+                "ZZ"
+            ],
+            [
+                "//",
+                "CC",
+                "QQ"
+            ],
+            [
+                "%",
+                "CC",
+                "QQ"
+            ],
+            [
+                "//",
+                "CC",
+                "RR"
+            ],
+            [
+                "%",
+                "CC",
+                "RR"
+            ],
+            [
+                "conjugate",
+                "CC"
+            ],
+            [
+                "round",
+                "ZZ",
+                "CC"
+            ],
+            [
+                "expression",
+                "CC"
+            ],
+            [
+                "net",
+                "CC"
+            ],
+            [
+                "texMath",
+                "CC"
+            ],
+            [
+                "isReal",
+                "CC"
+            ],
+            [
+                "toCC",
+                "CC"
+            ],
+            [
+                "size2",
+                "CC"
+            ],
+            [
+                "toCC",
+                "ZZ",
+                "CC"
+            ],
+            [
+                "-",
+                "CC"
+            ],
+            [
+                "+",
+                "CC"
+            ],
+            [
+                "/",
+                "ZZ",
+                "CC"
+            ],
+            [
+                "+",
+                "RR",
+                "CC"
+            ],
+            [
+                "-",
+                "ZZ",
+                "CC"
+            ],
+            [
+                "/",
+                "CC",
+                "QQ"
+            ],
+            [
+                "/",
+                "QQ",
+                "CC"
+            ],
+            [
+                "+",
+                "ZZ",
+                "CC"
+            ],
+            [
+                "+",
+                "CC",
+                "CC"
+            ],
+            [
+                "*",
+                "CC",
+                "QQ"
+            ],
+            [
+                "-",
+                "CC",
+                "RR"
+            ],
+            [
+                "==",
+                "RR",
+                "CC"
+            ],
+            [
+                "/",
+                "CC",
+                "RR"
+            ],
+            [
+                "==",
+                "ZZ",
+                "CC"
+            ],
+            [
+                "*",
+                "CC",
+                "ZZ"
+            ],
+            [
+                "-",
+                "CC",
+                "CC"
+            ],
+            [
+                "/",
+                "CC",
+                "CC"
+            ],
+            [
+                "*",
+                "CC",
+                "CC"
+            ],
+            [
+                "*",
+                "CC",
+                "RR"
+            ],
+            [
+                "*",
+                "QQ",
+                "CC"
+            ],
+            [
+                "*",
+                "ZZ",
+                "CC"
+            ],
+            [
+                "*",
+                "RR",
+                "CC"
+            ],
+            [
+                "/",
+                "RR",
+                "CC"
+            ],
+            [
+                "-",
+                "RR",
+                "CC"
+            ],
+            [
+                "+",
+                "CC",
+                "RR"
+            ],
+            [
+                "==",
+                "QQ",
+                "CC"
+            ],
+            [
+                "==",
+                "CC",
+                "CC"
+            ],
+            [
+                "==",
+                "CC",
+                "RR"
+            ],
+            [
+                "+",
+                "CC",
+                "ZZ"
+            ],
+            [
+                "==",
+                "CC",
+                "QQ"
+            ],
+            [
+                "+",
+                "QQ",
+                "CC"
+            ],
+            [
+                "+",
+                "CC",
+                "QQ"
+            ],
+            [
+                "-",
+                "CC",
+                "ZZ"
+            ],
+            [
+                "-",
+                "QQ",
+                "CC"
+            ],
+            [
+                "-",
+                "CC",
+                "QQ"
+            ],
+            [
+                "/",
+                "CC",
+                "ZZ"
+            ],
+            [
+                "==",
+                "CC",
+                "ZZ"
+            ],
+            [
+                "Beta",
+                "Number",
+                "CC"
+            ],
+            [
+                "log",
+                "Number",
+                "CC"
+            ],
+            [
+                "regularizedGamma",
+                "Number",
+                "CC"
+            ],
+            [
+                "Gamma",
+                "Number",
+                "CC"
+            ],
+            [
+                "agm",
+                "Number",
+                "CC"
+            ],
+            [
+                "Gamma",
+                "CC",
+                "Number"
+            ],
+            [
+                "agm",
+                "CC",
+                "Number"
+            ],
+            [
+                "Beta",
+                "CC",
+                "Number"
+            ],
+            [
+                "regularizedGamma",
+                "CC",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "RR",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "CC",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "CC",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "Number",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "Number",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "Number",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "CC",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "CC",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "RR",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "Number",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "CC",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "Number",
+                "Number"
+            ],
+            [
+                "atan",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "CC",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "CC",
+                "CC"
+            ],
+            [
+                "sqrt",
+                "CC"
+            ],
+            [
+                "regularizedGamma",
+                "RR",
+                "CC"
+            ],
+            [
+                "eint",
+                "CC"
+            ],
+            [
+                "sinh",
+                "CC"
+            ],
+            [
+                "Beta",
+                "CC",
+                "CC"
+            ],
+            [
+                "log",
+                "CC"
+            ],
+            [
+                "Beta",
+                "CC",
+                "RR"
+            ],
+            [
+                "tan",
+                "CC"
+            ],
+            [
+                "toExternalString",
+                "CC"
+            ],
+            [
+                "numeric",
+                "CC"
+            ],
+            [
+                "regularizedGamma",
+                "CC",
+                "RR"
+            ],
+            [
+                "regularizedGamma",
+                "CC",
+                "CC"
+            ],
+            [
+                "csch",
+                "CC"
+            ],
+            [
+                "agm",
+                "RR",
+                "CC"
+            ],
+            [
+                "erf",
+                "CC"
+            ],
+            [
+                "asin",
+                "CC"
+            ],
+            [
+                "log",
+                "RR",
+                "CC"
+            ],
+            [
+                "log1p",
+                "CC"
+            ],
+            [
+                "sin",
+                "CC"
+            ],
+            [
+                ">>",
+                "CC",
+                "ZZ"
+            ],
+            [
+                "tanh",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "RR",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "CC",
+                "RR",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RR",
+                "CC"
+            ],
+            [
+                "csc",
+                "CC"
+            ],
+            [
+                "agm",
+                "CC",
+                "CC"
+            ],
+            [
+                "cos",
+                "CC"
+            ],
+            [
+                "erfc",
+                "CC"
+            ],
+            [
+                "zeta",
+                "CC"
+            ],
+            [
+                "Gamma",
+                "RR",
+                "CC"
+            ],
+            [
+                "agm",
+                "CC",
+                "RR"
+            ],
+            [
+                "cosh",
+                "CC"
+            ],
+            [
+                "exp",
+                "CC"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "CC",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "CC",
+                "CC"
+            ],
+            [
+                "<<",
+                "CC",
+                "ZZ"
+            ],
+            [
+                "cot",
+                "CC"
+            ],
+            [
+                "lngamma",
+                "CC"
+            ],
+            [
+                "expm1",
+                "CC"
+            ],
+            [
+                "abs",
+                "CC"
+            ],
+            [
+                "sec",
+                "CC"
+            ],
+            [
+                "numeric",
+                "ZZ",
+                "CC"
+            ],
+            [
+                "Gamma",
+                "CC",
+                "RR"
+            ],
+            [
+                "acos",
+                "CC"
+            ],
+            [
+                "sech",
+                "CC"
+            ],
+            [
+                "Gamma",
+                "CC",
+                "CC"
+            ],
+            [
+                "coth",
+                "CC"
+            ],
+            [
+                "Beta",
+                "RR",
+                "CC"
+            ],
+            [
+                "Gamma",
+                "CC"
+            ],
+            [
+                "Digamma",
+                "CC"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (12658 bytes) ...",
+        "parsed_headline": "CC  -- the class of all complex numbers"
+    }
+}
+```

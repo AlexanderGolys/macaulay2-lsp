@@ -1,0 +1,196 @@
+---
+title: "installPackage"
+kind: Method
+---
+
+# installPackage
+
+**installPackage  -- load and install a package and its documentation**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+The main action of this routine is to generate the documentation of the given package and install the Macaulay2 package and documentation.The actual file loaded is `PackageName.m2` which should be on the load [path](../Instance/path.mdx) and should contain a package named `PackageName`.In order to accomplish this several steps are performed (or bypassed depending on the values of the optional arguments).
+- load the package if not already loaded (see [loadPackage](../Method/loadPackage.mdx) )
+- determine which help pages have changed since last install
+- run any new or previously failed examples or all examples as specified by the `RerunExamples` option
+- generate the html pages or not as specified by the `MakeHTML` option for the modified help pages or all html pages if `RemakeAllDocumentation` is set to true
+- generate the info pages or not as specified by the `MakeInfo` option
+- install the documentation and package in the location specified by the `InstallPrefix` option
+- place a link to this html documentation in the file `index.html` in the user's [application directory](../Instance/application directory.mdx); see [makePackageIndex](../Method/op_Coredollar_makePackageIndex.mdx)
+
+The current value of [prefixPath](../Instance/prefixPath.mdx) is used to determine how to direct documentation hyperlinks; the link will be directed to the appropriate file if one is found by searching the trees referred to by [prefixPath](../Instance/prefixPath.mdx). Otherwise all documentation hyperlinks are relative to positions within a single tree of directories as describe by [Layout](../Instance/Layout.mdx).It might be necessary to run [installPackage](../Method/installPackage.mdx) twice if a package with the same name is already installed: the second installation will redirect the hyperlinks to the freshly installed documentation because the files will have been installed by the first installation. This applies for example to those authors who are developing updates to packages already included with Macaulay2.The files of the package are placed in subdirectories of the appropriate prefix directory as specified by [Layout](../Instance/Layout.mdx) depending on the value of the `SeparateExec` option:Install paths given ``:
+- `share/Macaulay2/PackageName.m2`
+- `share/info/PackageName.info`
+- `lib/Macaulay2/PackageName/`
+- `share/Macaulay2/PackageName/` and
+- `share/doc/Macaulay2/PackageName/`;
+
+Install paths given ``:
+- `common/share/Macaulay2/PackageName.m2`
+- `common/share/info/PackageName.info`
+- `x86_64-Linux-ArchLinux/lib/Macaulay2/PackageName/`
+- `common/share/Macaulay2/PackageName/` and
+- `common/share/doc/Macaulay2/PackageName/`.
+
+Note that in the latter case the paths reflect the type of your machine. In addition if no errors occurred during running the examples then an empty file whose name is `lib/Macaulay2/PackageName/.installed` or `x86_64-Linux-ArchLinux/lib/Macaulay2/PackageName/.installed` is created to signify that installation was completed.
+
+## Installed For
+
+### installPackage([Package](../Type/Package.mdx))
+
+### installPackage([String](../Type/String.mdx)) -> [Package](../Type/Package.mdx)
+
+## Options
+
+- [SeparateExec](../Option/SeparateExec.mdx) => false
+- [RunExamples](../Option/RunExamples.mdx) => true
+- [MakeHTML](../Option/MakeHTML.mdx) => true
+- [RemakeAllDocumentation](../Method/RemakeAllDocumentation.mdx) => true
+- [MakeInfo](../Option/MakeInfo.mdx) => true
+- [RerunExamples](../Method/RerunExamples.mdx) => false
+- [Verbose](../Method/Verbose.mdx) => false
+- [IgnoreExampleErrors](../Option/IgnoreExampleErrors.mdx) => false
+- [MakePDF](../Method/MakePDF.mdx) => false
+- [FileName](../Option/FileName.mdx) => null
+- [CacheExampleOutput](../Option/CacheExampleOutput.mdx) => null
+- [MakeDocumentation](../Option/MakeDocumentation.mdx) => true
+- [InstallPrefix](../Method/InstallPrefix.mdx) => /home/flux/.Macaulay2/local/
+- [UserMode](../Method/UserMode.mdx) => null
+- [DebuggingMode](../Method/DebuggingMode.mdx) => null
+- [CheckDocumentation](../Option/CheckDocumentation.mdx) => true
+
+## Examples
+
+```macaulay2
+installPackage PackageName
+```
+
+## Additional Information
+
+- Inputs:
+- `PackageName` a [ string](../Type/op_Coredollar_String.mdx) or [Package](../Type/op_Coredollar_Package.mdx) the package to install
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `FileName```a [ string](../Type/op_Coredollar_String.mdx) default value null the name of the file containing the source code of the package from which it should be loaded
+- `UserMode```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value null if true then do not give the `-q` option to the Macaulay2 executable when running examples thereby allowing it to load the user's [initialization file](../Instance/initialization file.mdx) allowing it to load packages previously installed in the user's [ application directory](../Function/applicationDirectory.mdx) and allowing packages it loads to read their configuration files from the user's [ application directory](../Function/applicationDirectory.mdx). If false then do give the option. If [null](../Instance/null.mdx) then propagate the option from the current [commandLine](../Instance/commandLine.mdx) if one occurs there.
+- `DebuggingMode```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value null whether to enter [the debugger](../Instance/the debugger.mdx) if an error occurs during installation; however if [debuggingMode](../Instance/debuggingMode.mdx) is already false it will remain so.
+- `RerunExamples```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to rerun all the examples during installation
+- `RunExamples```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true whether to run the examples during installation
+- `IgnoreExampleErrors```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to ignore errors that occur during the running of examples during installation
+- `CheckDocumentation```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true whether to check the package's documentation for consistency and completeness
+- `MakeDocumentation```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true whether to make the documentation for the package during installation
+- `MakeHTML```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true whether to make HTML documentation. This is a form of the documentation that can be viewed using a browser.
+- `MakeInfo```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true whether to make the info pages. This is a form of the documentation that can be viewed using the Unix command `info` or using `emacs`
+- `MakePDF```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to make PDF documentation
+- `InstallPrefix```a [ string](../Type/op_Coredollar_String.mdx) default value "/home/m2user/.Macaulay2/local/" the installation prefix for installation of the files of the package in case encapsulation is not enabled or for installation of the links to the files in case encapsulation is enabled. The default value is the subdirectory named `local` of the user's [application directory](../Instance/application directory.mdx).
+- `RemakeAllDocumentation```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true whether to regenerate all of the help pages for this package. The default action is to rebuild only the html pages of the documentation entries that have been changed since the last time the package was installed. However some changes to an entry such as to its headline will change the html of other pages that cross-reference it.
+- `CacheExampleOutput```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value null whether to cache (newer) example output in a subdirectory of the [](../Instance/newPackage(....mdx) named `examples` for use in a future installation. This value if set to true or false will override any value explicitly specified when [newPackage](../Method/op_Coredollar_newPackage.mdx) is called. After the directory is created it will be necessary for the user to specify `` with the [newPackage](../Method/op_Coredollar_newPackage.mdx) command.
+- `SeparateExec```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to install the files of the package in two separate directory trees one for the architecture independent files and one for the architecture dependent files
+- `Verbose```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to display some details of the installation procedure. For even more information set [debugLevel](../Instance/debugLevel.mdx) to a number greater than 0 or a number greater than 5.
+- Outputs:
+- a [ package](../Type/op_Coredollar_Package.mdx) the package that was installed
+- Consequences:
+- The package is installed in a local directory so that in the future one may simply use [loadPackage](../Method/loadPackage.mdx). Documentation for the package is also produced running any Macaulay2 examples that are requested in the package documentation with the random number seed initialized to 0.
+
+
+### Caveat
+
+Links from html files containing documentation to documentation in another package not yet installed may go to the wrong place because it is assumed that the package not yet installed will be installed under the same prefix. By contrast if the other package has already been installed under some prefix occurring in the value of [prefixPath](../Instance/prefixPath.mdx) then the correct path will be used.  To get two packages installed under different prefixes which refer to each other's documentation correctly it may be necessary to install one of them twice.
+### See also
+
+
+- Macaulay2Doc:: Layout
+- Macaulay2Doc:: packages
+- Macaulay2Doc:: prefixPath
+- Macaulay2Doc:: installedPackages
+- Macaulay2Doc:: uninstallAllPackages
+- Macaulay2Doc:: uninstallPackage
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "installPackage",
+    "safe_name": "installPackage",
+    "type": "MethodFunctionWithOptions",
+    "description": "The main action of this routine is to generate the documentation of the given package and install th...",
+    "installations": [
+        "<Installation installPackage(String)>",
+        "<Installation installPackage(Package)>"
+    ],
+    "options": [
+        {
+            "name": "SeparateExec",
+            "default": "false"
+        },
+        {
+            "name": "RunExamples",
+            "default": "true"
+        },
+        {
+            "name": "MakeHTML",
+            "default": "true"
+        },
+        {
+            "name": "RemakeAllDocumentation",
+            "default": "true"
+        },
+        {
+            "name": "MakeInfo",
+            "default": "true"
+        },
+        {
+            "name": "RerunExamples",
+            "default": "false"
+        },
+        {
+            "name": "Verbose",
+            "default": "false"
+        },
+        {
+            "name": "IgnoreExampleErrors",
+            "default": "false"
+        },
+        {
+            "name": "MakePDF",
+            "default": "false"
+        },
+        {
+            "name": "FileName",
+            "default": "null"
+        },
+        {
+            "name": "CacheExampleOutput",
+            "default": "null"
+        },
+        {
+            "name": "MakeDocumentation",
+            "default": "true"
+        },
+        {
+            "name": "InstallPrefix",
+            "default": "/home/flux/.Macaulay2/local/"
+        },
+        {
+            "name": "UserMode",
+            "default": "null"
+        },
+        {
+            "name": "DebuggingMode",
+            "default": "null"
+        },
+        {
+            "name": "CheckDocumentation",
+            "default": "true"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "installPackage",
+        "full_doc": "... (11028 bytes) ...",
+        "parsed_headline": "installPackage  -- load and install a package and its documentation"
+    }
+}
+```

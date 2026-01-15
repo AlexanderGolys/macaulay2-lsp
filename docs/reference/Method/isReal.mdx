@@ -1,0 +1,89 @@
+---
+title: "isReal"
+kind: Method
+---
+
+# isReal
+
+**isReal  -- whether a number is real**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isReal  -- whether a number is real
+
+## Installed For
+
+### isReal([CC](../Type/CC.mdx))
+
+### isReal([Constant](../Type/Constant.mdx))
+
+### isReal([InfiniteNumber](../Type/InfiniteNumber.mdx))
+
+### isReal([QQ](../Type/QQ.mdx))
+
+### isReal([RR](../Type/RR.mdx))
+
+### isReal([RRi](../Type/RRi.mdx))
+
+### isReal([ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+isReal x
+```
+
+```macaulay2
+isReal 2.
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isReal sqrt(-1)
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ number](../Type/op_Coredollar_Number.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `x` is real
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isReal",
+    "safe_name": "isReal",
+    "type": "MethodFunction",
+    "description": "isReal  -- whether a number is real...",
+    "installations": [
+        "<Installation isReal(Constant)>",
+        "<Installation isReal(RR)>",
+        "<Installation isReal(RRi)>",
+        "<Installation isReal(QQ)>",
+        "<Installation isReal(ZZ)>",
+        "<Installation isReal(CC)>",
+        "<Installation isReal(InfiniteNumber)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "isReal",
+        "full_doc": "... (1088 bytes) ...",
+        "parsed_headline": "isReal  -- whether a number is real"
+    }
+}
+```

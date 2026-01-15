@@ -1,173 +1,1077 @@
 ---
 title: "Ring"
 kind: Type
-parent: Type
 ---
 
 # Ring
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Ring  -- the class of all rings**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ Common ways to make a ring:
+- Macaulay2Doc:: Ring / Ideal
+- Macaulay2Doc:: Ring Array
+- Macaulay2Doc:: GF
 
-## Parent Type
+ Common functions for accessing the variables or elements in a ring:
+- Macaulay2Doc:: use(Ring)
+- Macaulay2Doc:: generators(Ring)
+- Macaulay2Doc:: numgens(Ring)
+- Macaulay2Doc:: Ring _ ZZ
 
-[Type](../Type/Type.mdx)
+ Common ways to get information about a ring:
+- Macaulay2Doc:: char(Ring)
+- Macaulay2Doc:: coefficientRing(Ring)
+- Macaulay2Doc:: dim(Ring)
 
-## Subtypes
-
-Direct subtypes of this type:
-
-- [EngineRing](../Type/EngineRing.mdx)
-- [SheafOfRings](../Type/SheafOfRings.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `QQ`
-- `ZZ`
-- `v`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `Ext`
-
-- `Ext(ZZ, Ideal, Ring)`
-- `Ext(ZZ, Ring, Module)`
-- `Ext(ZZ, Ring, Ring)`
-- `Ext(ZZ, Module, Ring)`
-- `Ext(ZZ, Ring, Ideal)`
-- *... and 7 more signatures*
-
-### `Fano`
-
-- `Fano(ZZ, Ideal, Ring)`
-
-### `GF`
-
-- `GF(Ring)`
-
-### `Tor`
-
-- `Tor(ZZ, Ideal, Ring)`
-- `Tor(ZZ, Ring, Ideal)`
-- `Tor(ZZ, Module, Ring)`
-- `Tor(ZZ, Ring, Module)`
-- `Tor(ZZ, Ring, Ring)`
-- *... and 2 more signatures*
-
-### `_`
-
-- `_(Ring, ZZ)`
-
-### `basis`
-
-- `basis(Ring)`
-- `basis(List, Ring)`
-- `basis(ZZ, Ring)`
-- `basis(InfiniteNumber, InfiniteNumber, Ring)`
-- `basis(List, InfiniteNumber, Ring)`
-- *... and 7 more signatures*
-
-### `degreeLength`
-
-- `degreeLength(Ring)`
-
-### `frac`
-
-- `frac(Ring)`
-
-### `genericMatrix`
-
-- `genericMatrix(Ring, ZZ, ZZ)`
-- `genericMatrix(Ring, RingElement, ZZ, ZZ)`
-
-### `genericSkewMatrix`
-
-- `genericSkewMatrix(Ring, ZZ)`
-- `genericSkewMatrix(Ring, RingElement, ZZ)`
-
-### `isField`
-
-- `isField(Ring)`
-
-### `part`
-
-- `part(List, Ring)`
-- `part(ZZ, Ring)`
-
-### `setupLift`
-
-- `setupLift(Function, Ring, Ring, Function)`
-- `setupLift(Function, Ring, Ring)`
-
-### `setupPromote`
-
-- `setupPromote(RingMap, Ring, Ring, Function)`
-- `setupPromote(Function, Ring, Ring, Function)`
-- `setupPromote(Function, Ring, Ring)`
-
-### `toExternalString`
-
-- `toExternalString(Ring)`
-
-### `use`
-
-- `use(Ring)`
+ Common ways to use a ring:
+- Macaulay2Doc:: Ring ^ ZZ
+- Macaulay2Doc:: Ring ^ List
+- Macaulay2Doc:: vars(Ring)
 
 
-*Showing 50 of 206 methods*
 
-## Used In
+## Additional Information
 
-This type is used in the following methods/operators:
+### See also
 
-- [*](../Operator/op_star.mdx)
-- [**](../Operator/op_star_star.mdx)
-- [/](../Operator/op_slash.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [Ext](../Instance/Ext.mdx)
-- [Fano](../Function/Fano.mdx)
-- [GF](../Function/GF.mdx)
-- [Hom](../Function/Hom.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [Proj](../Type/Proj.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [Spec](../Type/Spec.mdx)
-- [Tor](../Instance/Tor.mdx)
-- [^](../Operator/op_caret.mdx)
-- [^**](../Operator/op_caret_star_star.mdx)
-- [^~](../Operator/op_caret_tilde.mdx)
-- [_](../Operator/_.mdx)
-- [_*](../Operator/op_underscore_star.mdx)
-- [ambient](../Function/ambient.mdx)
-- [associatedPrimes](../Type/associatedPrimes.mdx)
-- [baseRing](../Function/baseRing.mdx)
-- [basis](../Function/basis.mdx)
-- [chainComplex](../Type/chainComplex.mdx)
-- [char](../Function/char.mdx)
-- [coefficientRing](../Function/coefficientRing.mdx)
-- [conductor](../Type/conductor.mdx)
-- [degree](../Function/degree.mdx)
-- [degreeGroup](../Function/degreeGroup.mdx)
-- [degreeLength](../Function/degreeLength.mdx)
-- [degrees](../Function/degrees.mdx)
 
-*... and 20 more*
+- Macaulay2Doc:: rings
 
-## Examples
+[EngineRing](../Type/op_Coredollar_EngineRing.mdx)[ring](../Method/op_Coredollar_ring.mdx)[isRing](../Method/op_Coredollar_isRing.mdx)[ambient(Ring)](../Instance/ambient(Ring).mdx)[baseRing(Ring)](../Instance/baseRing(Ring).mdx)[degree(Ring)](../Instance/degree(Ring).mdx)[degreeLength(Ring)](../Instance/degreeLength(Ring).mdx)[degreeGroup(Ring)](../Instance/degreeGroup(Ring).mdx)[degrees](../Method/op_Coredollar_degrees.mdx)[degrees(Ring)](../Instance/degrees(Ring).mdx)[degreesRing(Ring)](../Instance/degreesRing(Ring).mdx)[numgens(Ring)](../Instance/numgens(Ring).mdx)[dim(Ring)](../Instance/dim(Ring).mdx)[vars(Ring)](../Instance/vars(Ring).mdx)[generators(Ring)](../Instance/generators(Ring).mdx)[hilbertPolynomial(Ring)](../Instance/hilbertPolynomial(Ring).mdx)[jacobian(Ring)](../Instance/jacobian(Ring).mdx)[minimalPresentation(Ring)](../Instance/minimalPresentation(Ring).mdx)[selectVariables](../Method/op_Coredollar_selectVariables.mdx)[flattenRing](../Method/flattenRing.mdx)[generators](../Method/gens.mdx)
 
-*No examples available yet. Please contribute!*
+## Debug info
 
-## See Also
-
-- [Type](../Type/Type.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Ring",
+    "safe_name": "Ring",
+    "type": null,
+    "description": " Common ways to make a ring:\n- Macaulay2Doc:: Ring / Ideal\n- Macaulay2Doc:: Ring Array\n- Macaulay2Do...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Ring",
+        "parent": "Type",
+        "methods": [
+            [
+                "basis",
+                "Ring"
+            ],
+            [
+                "basis",
+                "List",
+                "Ring"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "Ring"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "List",
+                "Ring"
+            ],
+            [
+                "basis",
+                "List",
+                "ZZ",
+                "Ring"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "ZZ",
+                "Ring"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "InfiniteNumber",
+                "Ring"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "ZZ",
+                "Ring"
+            ],
+            [
+                "basis",
+                "List",
+                "List",
+                "Ring"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "List",
+                "Ring"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "Ring"
+            ],
+            [
+                "basis",
+                "List",
+                "InfiniteNumber",
+                "Ring"
+            ],
+            [
+                "part",
+                "List",
+                "Ring"
+            ],
+            [
+                "part",
+                "ZZ",
+                "Ring"
+            ],
+            [
+                "toExternalString",
+                "Ring"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Ring",
+                "Module"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Module",
+                "Ring"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Ideal",
+                "Ring"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Ring",
+                "Ideal"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Ring",
+                "Matrix"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Matrix",
+                "Ring"
+            ],
+            [
+                "Ext",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "Ext",
+                "Module",
+                "Ring"
+            ],
+            [
+                "Ext",
+                "Ring",
+                "Module"
+            ],
+            [
+                "Ext",
+                "Ring",
+                "Ideal"
+            ],
+            [
+                "Ext",
+                "Ideal",
+                "Ring"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Ideal",
+                "Ring"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Ring",
+                "Ideal"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Ring",
+                "Module"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Module",
+                "Ring"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Ring",
+                "Matrix"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Matrix",
+                "Ring"
+            ],
+            [
+                "setupPromote",
+                "Function",
+                "Ring",
+                "Ring",
+                "Function"
+            ],
+            [
+                "setupPromote",
+                "RingMap",
+                "Ring",
+                "Ring",
+                "Function"
+            ],
+            [
+                "setupPromote",
+                "Function",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "setupLift",
+                "Function",
+                "Ring",
+                "Ring",
+                "Function"
+            ],
+            [
+                "setupLift",
+                "Function",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "frac",
+                "Ring"
+            ],
+            [
+                "degreeLength",
+                "Ring"
+            ],
+            [
+                "use",
+                "Ring"
+            ],
+            [
+                "_",
+                "Ring",
+                "ZZ"
+            ],
+            [
+                "Fano",
+                "ZZ",
+                "Ideal",
+                "Ring"
+            ],
+            [
+                "GF",
+                "Ring"
+            ],
+            [
+                "isField",
+                "Ring"
+            ],
+            [
+                "genericMatrix",
+                "Ring",
+                "ZZ",
+                "ZZ"
+            ],
+            [
+                "genericMatrix",
+                "Ring",
+                "RingElement",
+                "ZZ",
+                "ZZ"
+            ],
+            [
+                "genericSkewMatrix",
+                "Ring",
+                "ZZ"
+            ],
+            [
+                "genericSkewMatrix",
+                "Ring",
+                "RingElement",
+                "ZZ"
+            ],
+            [
+                "genericSymmetricMatrix",
+                "Ring",
+                "ZZ"
+            ],
+            [
+                "genericSymmetricMatrix",
+                "Ring",
+                "RingElement",
+                "ZZ"
+            ],
+            [
+                "random",
+                "List",
+                "Ring"
+            ],
+            [
+                "random",
+                "ZZ",
+                "Ring"
+            ],
+            [
+                "heft",
+                "Ring"
+            ],
+            [
+                "poincare",
+                "Ring"
+            ],
+            [
+                "degree",
+                "Ring"
+            ],
+            [
+                "multidegree",
+                "Ring"
+            ],
+            [
+                "hilbertPolynomial",
+                "Ring"
+            ],
+            [
+                "euler",
+                "Ring"
+            ],
+            [
+                "eulers",
+                "Ring"
+            ],
+            [
+                "genus",
+                "Ring"
+            ],
+            [
+                "genera",
+                "Ring"
+            ],
+            [
+                "hilbertFunction",
+                "ZZ",
+                "Ring"
+            ],
+            [
+                "hilbertFunction",
+                "List",
+                "Ring"
+            ],
+            [
+                "hilbertFunction",
+                "Ring"
+            ],
+            [
+                "Hom",
+                "Ideal",
+                "Ring"
+            ],
+            [
+                "Hom",
+                "Module",
+                "Ring"
+            ],
+            [
+                "Hom",
+                "Ring",
+                "Ideal"
+            ],
+            [
+                "Hom",
+                "Ring",
+                "Module"
+            ],
+            [
+                "Hom",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "html",
+                "Ring"
+            ],
+            [
+                "jacobian",
+                "Ring"
+            ],
+            [
+                "vars",
+                "Ring"
+            ],
+            [
+                "degrees",
+                "Ring"
+            ],
+            [
+                "matrix",
+                "Ring",
+                "List"
+            ],
+            [
+                "==",
+                "Ideal",
+                "Ring"
+            ],
+            [
+                "==",
+                "Ring",
+                "Ideal"
+            ],
+            [
+                "ideal",
+                "Ring"
+            ],
+            [
+                "trim",
+                "Ring"
+            ],
+            [
+                "terms",
+                "Ring",
+                "RingElement"
+            ],
+            [
+                "diagonalMatrix",
+                "Ring",
+                "ZZ",
+                "ZZ",
+                "List"
+            ],
+            [
+                "diagonalMatrix",
+                "Ring",
+                "List"
+            ],
+            [
+                "module",
+                "Ring"
+            ],
+            [
+                "Proj",
+                "Ring"
+            ],
+            [
+                "Spec",
+                "Ring"
+            ],
+            [
+                "minimalPresentation",
+                "Ring"
+            ],
+            [
+                "prune",
+                "Ring"
+            ],
+            [
+                "*",
+                "Ring",
+                "RingElement"
+            ],
+            [
+                "*",
+                "Ring",
+                "Vector"
+            ],
+            [
+                "NewFromMethod",
+                "Module",
+                "Ring",
+                "RawFreeModule"
+            ],
+            [
+                "vector",
+                "Ring",
+                "Matrix"
+            ],
+            [
+                "vector",
+                "Ring",
+                "List"
+            ],
+            [
+                "vector",
+                "Ring",
+                "Number"
+            ],
+            [
+                "vector",
+                "Ring",
+                "RingElement"
+            ],
+            [
+                "^",
+                "Ring",
+                "ZZ"
+            ],
+            [
+                "^",
+                "Ring",
+                "List"
+            ],
+            [
+                "**",
+                "Module",
+                "Ring"
+            ],
+            [
+                "**",
+                "Ring",
+                "Module"
+            ],
+            [
+                "**",
+                "Matrix",
+                "Ring"
+            ],
+            [
+                "**",
+                "Ring",
+                "Matrix"
+            ],
+            [
+                "**",
+                "Ideal",
+                "Ring"
+            ],
+            [
+                "*",
+                "Ideal",
+                "Ring"
+            ],
+            [
+                "*",
+                "Ring",
+                "Ideal"
+            ],
+            [
+                "**",
+                "Ring",
+                "Ideal"
+            ],
+            [
+                "*",
+                "MonomialIdeal",
+                "Ring"
+            ],
+            [
+                "*",
+                "Ring",
+                "MonomialIdeal"
+            ],
+            [
+                "degreeGroup",
+                "Ring"
+            ],
+            [
+                "_",
+                "MonoidElement",
+                "Ring"
+            ],
+            [
+                "_",
+                "RingElement",
+                "Ring"
+            ],
+            [
+                "_",
+                "String",
+                "Ring"
+            ],
+            [
+                "_",
+                "Symbol",
+                "Ring"
+            ],
+            [
+                "_",
+                "IndexedVariable",
+                "Ring"
+            ],
+            [
+                "_",
+                "Ring",
+                "String"
+            ],
+            [
+                "_",
+                "Ring",
+                "IndexedVariable"
+            ],
+            [
+                "_",
+                "Ring",
+                "Symbol"
+            ],
+            [
+                "degreesMonoid",
+                "Ring"
+            ],
+            [
+                "symmetricAlgebra",
+                "Ring",
+                "Ring",
+                "Matrix"
+            ],
+            [
+                "symmetricAlgebra",
+                "Nothing",
+                "Ring",
+                "Matrix"
+            ],
+            [
+                "symmetricAlgebra",
+                "Ring",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "mutableMatrix",
+                "Ring",
+                "List"
+            ],
+            [
+                "mutableMatrix",
+                "Ring",
+                "ZZ",
+                "ZZ"
+            ],
+            [
+                "mutableIdentity",
+                "Ring",
+                "ZZ"
+            ],
+            [
+                "**",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "^**",
+                "Ring",
+                "ZZ"
+            ],
+            [
+                "flattenRing",
+                "Ring"
+            ],
+            [
+                "truncate",
+                "List",
+                "Ring"
+            ],
+            [
+                "chainComplex",
+                "Ring"
+            ],
+            [
+                "truncate",
+                "ZZ",
+                "Ring"
+            ],
+            [
+                "^",
+                "Number",
+                "Ring"
+            ],
+            [
+                "tensor",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "_",
+                "Ring",
+                "List"
+            ],
+            [
+                "monoid",
+                "Ring"
+            ],
+            [
+                "degreesRing",
+                "Ring"
+            ],
+            [
+                "SPACE",
+                "Ring",
+                "List"
+            ],
+            [
+                "SPACE",
+                "Ring",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "Ring",
+                "Monoid"
+            ],
+            [
+                "isQuotientRing",
+                "Ring"
+            ],
+            [
+                "isFinitePrimeField",
+                "Ring"
+            ],
+            [
+                "isQuotientOf",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "isQuotientOf",
+                "Ring",
+                "QuotientRing"
+            ],
+            [
+                "isQuotientOf",
+                "Type",
+                "Ring"
+            ],
+            [
+                "/",
+                "Ring",
+                "Ideal"
+            ],
+            [
+                "/",
+                "Ring",
+                "ZZ"
+            ],
+            [
+                "/",
+                "Ring",
+                "RingElement"
+            ],
+            [
+                "/",
+                "Ring",
+                "Module"
+            ],
+            [
+                "/",
+                "Ring",
+                "Sequence"
+            ],
+            [
+                "/",
+                "Ring",
+                "List"
+            ],
+            [
+                "singularLocus",
+                "Ring"
+            ],
+            [
+                "toField",
+                "Ring"
+            ],
+            [
+                "precision",
+                "Ring"
+            ],
+            [
+                "_",
+                "Constant",
+                "Ring"
+            ],
+            [
+                "map",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "map",
+                "Ring",
+                "Ring",
+                "RingMap"
+            ],
+            [
+                "map",
+                "Ring",
+                "Ring",
+                "List"
+            ],
+            [
+                "map",
+                "Ring",
+                "Matrix"
+            ],
+            [
+                "map",
+                "Ring",
+                "Ring",
+                "Matrix"
+            ],
+            [
+                "substitute",
+                "Matrix",
+                "Ring"
+            ],
+            [
+                "substitute",
+                "Module",
+                "Ring"
+            ],
+            [
+                "substitute",
+                "Ideal",
+                "Ring"
+            ],
+            [
+                "substitute",
+                "Vector",
+                "Ring"
+            ],
+            [
+                "substitute",
+                "Number",
+                "Ring"
+            ],
+            [
+                "substitute",
+                "RingElement",
+                "Ring"
+            ],
+            [
+                "setupPromote",
+                "RingMap",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "setupPromote",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "setupLift",
+                "RingMap",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "==",
+                "Ring",
+                "ZZ"
+            ],
+            [
+                "options",
+                "Ring"
+            ],
+            [
+                "==",
+                "ZZ",
+                "Ring"
+            ],
+            [
+                "dim",
+                "Ring"
+            ],
+            [
+                "char",
+                "Ring"
+            ],
+            [
+                "baseRing",
+                "Ring"
+            ],
+            [
+                "generators",
+                "Ring"
+            ],
+            [
+                "_*",
+                "Ring"
+            ],
+            [
+                "numgens",
+                "Ring"
+            ],
+            [
+                "ambient",
+                "Ring"
+            ],
+            [
+                "coefficientRing",
+                "Ring"
+            ],
+            [
+                "isCommutative",
+                "Ring"
+            ],
+            [
+                "isSkewCommutative",
+                "Ring"
+            ],
+            [
+                "isWeylAlgebra",
+                "Ring"
+            ],
+            [
+                "isRing",
+                "Ring"
+            ],
+            [
+                "isHomogeneous",
+                "Ring"
+            ],
+            [
+                "integralClosure",
+                "Ring",
+                "Ring"
+            ],
+            [
+                "integralClosure",
+                "Ring"
+            ],
+            [
+                "isNormal",
+                "Ring"
+            ],
+            [
+                "conductor",
+                "Ring"
+            ],
+            [
+                "icMap",
+                "Ring"
+            ],
+            [
+                "icFractions",
+                "Ring"
+            ],
+            [
+                "icFracP",
+                "Ring"
+            ],
+            [
+                "makeS2",
+                "Ring"
+            ],
+            [
+                "isStandardGradedPolynomialRing",
+                "Ring"
+            ],
+            [
+                "^",
+                "Ring",
+                "BettiTally"
+            ],
+            [
+                "**",
+                "ChainComplex",
+                "Ring"
+            ],
+            [
+                "associatedPrimes",
+                "Ring"
+            ],
+            [
+                "primaryDecomposition",
+                "Ring"
+            ],
+            [
+                "effGenerators",
+                "Ring"
+            ],
+            [
+                "effCone",
+                "Ring"
+            ],
+            [
+                "**",
+                "AffineVariety",
+                "Ring"
+            ],
+            [
+                "variety",
+                "Ring"
+            ],
+            [
+                "nefCone",
+                "Ring"
+            ],
+            [
+                "nefGenerators",
+                "Ring"
+            ],
+            [
+                "^~",
+                "Ring"
+            ],
+            [
+                "sheaf",
+                "Ring"
+            ],
+            [
+                "sheaf",
+                "Variety",
+                "Ring"
+            ],
+            [
+                "_",
+                "Number",
+                "Ring"
+            ],
+            [
+                "isAffineRing",
+                "Ring"
+            ]
+        ],
+        "instances": [
+            "QQ",
+            "ZZ"
+        ],
+        "full_doc": "... (15974 bytes) ...",
+        "parsed_headline": "Ring  -- the class of all rings"
+    }
+}
+```

@@ -5,45 +5,99 @@ kind: Function
 
 # isMutable
 
-**Type:** `Function`
+**isMutable  -- whether something may be modified**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-isMutable, -- whether something may be modified, class => element, Usage: , isMutable x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Thing, thing, , , Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , x, is mutable, Description, If , x, is a hash table, list, dictionary, or database, then it is mutable if its contents can be destructively altered., If , x, is a symbol, then it's mutable if a value can be assigned to it; i.e., if it is not , Macaulay2Doc :: protect, ed., If , x, is anything else, , isMutable x, will return , false, ., class => examples, i1 : T = new MutableList from (a, b, c)
-
-o1 = MutableList{...3...
-
-o1 : MutableList, class => language-macaulay2, i2 : isMutable T
-
-o2 = true, class => language-macaulay2, i3 : V = new List from (a, b, c)
-
-o3 = {a, b, c
-
-o3 : List, class => language-macaulay2, i4 : isMutable V
-
-o4 = false, class => language-macaulay2, i5 : isMutable join(T, V)
-
-o5 = true, class => language-macaulay2, i6 : isMutable a
-
-o6 = true, class => language-macaulay2, i7 : isMutable "a"
-
-o7 = false, class => language-macaulay2, This function may also be called using the synonym , mutable, ., Caveat, The (changeable) contents of a mutable hash table or list do not participate in strong comparison with , Macaulay2Doc :: ===, or in , Macaulay2Doc :: hashing, ., See also, Macaulay2Doc :: MutableHashTable, Macaulay2Doc :: MutableList, Macaulay2Doc :: hash tables, Macaulay2Doc :: lists and sequences, class => waystouse, Ways to use , isMutable, :, isMutable(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: isMutable, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_hashtables.m2:412:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `isMutable(Thing)`
+If `x`  is a hash table list dictionary or database then it is mutable if its contents can be destructively altered.If `x`  is a symbol then it's mutable if a value can be assigned to it; i.e. if it is not [protect](../Function/op_Coredollar_protect.mdx)ed.If `x`  is anything else `isMutable x`  will return false .This function may also be called using the synonym `mutable`.
 
 ## Examples
 
 ```macaulay2
-i2 : isMutable T
-
-o2 = true
+isMutable x
 ```
 
-## See Also
+```macaulay2
+isMutable T
 
+```
+
+```text
+true
+```
+
+```macaulay2
+isMutable V
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isMutable join(T V)
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isMutable a
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isMutable "a"
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `x` is mutable
+
+
+### Caveat
+
+The (changeable) contents of a mutable hash table or list do not participate in strong comparison with [===](../Method/op_Coredollar_eq_eq_eq.mdx) or in [hashing](../Instance/hashing.mdx).
+### See also
+
+
+- Macaulay2Doc:: MutableHashTable
+- Macaulay2Doc:: MutableList
+- Macaulay2Doc:: hash tables
+- Macaulay2Doc:: lists and sequences
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "isMutable",
+    "safe_name": "isMutable",
+    "type": "CompiledFunction",
+    "description": "If `x`  is a hash table list dictionary or database then it is mutable if its contents can be destru...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "isMutable",
+        "full_doc": "... (2346 bytes) ...",
+        "parsed_headline": "isMutable  -- whether something may be modified"
+    }
+}
+```

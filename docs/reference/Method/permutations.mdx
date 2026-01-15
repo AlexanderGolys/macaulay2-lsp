@@ -1,0 +1,86 @@
+---
+title: "permutations"
+kind: Method
+---
+
+# permutations
+
+**permutations  -- produce all permutations of a list**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+permutations  -- produce all permutations of a list
+
+## Installed For
+
+### permutations([VisibleList](../Type/VisibleList.mdx))
+
+### permutations([ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+permutations x
+```
+
+```macaulay2
+permutations {a,b,c,d}
+
+```
+
+```text
+{{a, b, c, d}, {a, b, d, c}, {a, c, b, d}, {a, c, d, b}, {a, d, b, c},
+     ------------------------------------------------------------------------
+     {a, d, c, b}, {b, a, c, d}, {b, a, d, c}, {b, c, a, d}, {b, c, d, a},
+     ------------------------------------------------------------------------
+     {b, d, a, c}, {b, d, c, a}, {c, a, b, d}, {c, a, d, b}, {c, b, a, d},
+     ------------------------------------------------------------------------
+     {c, b, d, a}, {c, d, a, b}, {c, d, b, a}, {d, a, b, c}, {d, a, c, b},
+     ------------------------------------------------------------------------
+     {d, b, a, c}, {d, b, c, a}, {d, c, a, b}, {d, c, b, a}}
+
+List
+```
+
+```macaulay2
+permutations 3
+
+```
+
+```text
+{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ visible list](../Type/VisibleList.mdx) or an [ integer](../Type/ZZ.mdx)
+- Outputs:
+- a list of all the permutations of the visible list `x` or if `x` is an integer of the list of integers from 0 through `n-1`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "permutations",
+    "safe_name": "op_Coredollar_permutations",
+    "type": "MethodFunction",
+    "description": "permutations  -- produce all permutations of a list...",
+    "installations": [
+        "<Installation permutations(VisibleList)>",
+        "<Installation permutations(ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$permutations",
+        "full_doc": "... (1902 bytes) ...",
+        "parsed_headline": "permutations  -- produce all permutations of a list"
+    }
+}
+```

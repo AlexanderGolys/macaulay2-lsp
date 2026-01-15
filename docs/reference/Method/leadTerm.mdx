@@ -1,0 +1,67 @@
+---
+title: "leadTerm"
+kind: Method
+---
+
+# leadTerm
+
+**leadTerm  -- get the greatest term**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ Every polynomial ring in Macaulay2 comes equipped with a monomial ordering. For ring elements and matrices this function returns the greatest term in this order. For an ideal a Gröbner basis is first computed and the ideal of lead terms is returned. If an initial integer `n`  is specified then the returned value contains the sum of all of the terms with the greatest value on the first `n`   parts of the monomial order.
+
+## Installed For
+
+### leadTerm([GroebnerBasis](../Type/GroebnerBasis.mdx))
+
+### leadTerm([Ideal](../Type/Ideal.mdx))
+
+### leadTerm([Matrix](../Type/Matrix.mdx))
+
+### leadTerm([RingElement](../Type/RingElement.mdx))
+
+### leadTerm([Vector](../Type/Vector.mdx))
+
+### leadTerm([ZZ](../Type/ZZ.mdx), [GroebnerBasis](../Type/GroebnerBasis.mdx))
+
+### leadTerm([ZZ](../Type/ZZ.mdx), [Ideal](../Type/Ideal.mdx))
+
+### leadTerm([ZZ](../Type/ZZ.mdx), [Matrix](../Type/Matrix.mdx))
+
+### leadTerm([ZZ](../Type/ZZ.mdx), [RingElement](../Type/RingElement.mdx))
+
+### leadTerm([ZZ](../Type/ZZ.mdx), [Vector](../Type/Vector.mdx))
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "leadTerm",
+    "safe_name": "leadTerm",
+    "type": "MethodFunction",
+    "description": " Every polynomial ring in Macaulay2 comes equipped with a monomial ordering. For ring elements and m...",
+    "installations": [
+        "<Installation leadTerm(RingElement)>",
+        "<Installation leadTerm(GroebnerBasis)>",
+        "<Installation leadTerm(ZZ, GroebnerBasis)>",
+        "<Installation leadTerm(ZZ, Matrix)>",
+        "<Installation leadTerm(ZZ, RingElement)>",
+        "<Installation leadTerm(Matrix)>",
+        "<Installation leadTerm(Ideal)>",
+        "<Installation leadTerm(ZZ, Ideal)>",
+        "<Installation leadTerm(Vector)>",
+        "<Installation leadTerm(ZZ, Vector)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "leadTerm",
+        "full_doc": "... (1520 bytes) ...",
+        "parsed_headline": "leadTerm  -- get the greatest term"
+    }
+}
+```

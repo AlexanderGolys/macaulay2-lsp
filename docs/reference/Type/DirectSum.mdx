@@ -1,48 +1,71 @@
 ---
 title: "DirectSum"
 kind: Type
-parent: AssociativeExpression
 ---
 
 # DirectSum
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [WrapperType](../Type/WrapperType.mdx)
+**DirectSum  -- the class of all direct sum expressions**
 
 ## Description
 
-An instance of the type [WrapperType](../Type/WrapperType.mdx).
+`DirectSum`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a direct sum.
 
-## Parent Type
+## Debug info
 
-[AssociativeExpression](../Type/AssociativeExpression.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `++`
-
-- `++(Holder, DirectSum)`
-- `++(DirectSum, Holder)`
-- `++(DirectSum, ZeroExpression)`
-- `++(ZeroExpression, DirectSum)`
-- `++(DirectSum, Expression)`
-- *... and 2 more signatures*
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [++](../Operator/op_plus_plus.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [AssociativeExpression](../Type/AssociativeExpression.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "DirectSum",
+    "safe_name": "op_Coredollar_DirectSum",
+    "type": null,
+    "description": "`DirectSum`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a direct ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$DirectSum",
+        "parent": "AssociativeExpression",
+        "methods": [
+            [
+                "++",
+                "Holder",
+                "DirectSum"
+            ],
+            [
+                "++",
+                "DirectSum",
+                "Holder"
+            ],
+            [
+                "++",
+                "DirectSum",
+                "ZeroExpression"
+            ],
+            [
+                "++",
+                "ZeroExpression",
+                "DirectSum"
+            ],
+            [
+                "++",
+                "DirectSum",
+                "Expression"
+            ],
+            [
+                "++",
+                "DirectSum",
+                "DirectSum"
+            ],
+            [
+                "++",
+                "Expression",
+                "DirectSum"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (671 bytes) ...",
+        "parsed_headline": "DirectSum  -- the class of all direct sum expressions"
+    }
+}
+```

@@ -1,0 +1,89 @@
+---
+title: "imaginaryPart"
+kind: Method
+---
+
+# imaginaryPart
+
+**imaginaryPart  -- imaginary part**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+imaginaryPart  -- imaginary part
+
+## Installed For
+
+### imaginaryPart([InexactNumber](../Type/InexactNumber.mdx))
+
+### imaginaryPart([Number](../Type/Number.mdx))
+
+### imaginaryPart([QQ](../Type/QQ.mdx))
+
+### imaginaryPart([ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+imaginaryPart z
+```
+
+```macaulay2
+imaginaryPart(3/4)
+
+```
+
+```text
+0
+```
+
+```macaulay2
+imaginaryPart(1.5+2*ii)
+
+```
+
+```text
+2
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `z` an integer rational real or complex number
+- Outputs:
+- the imaginary part of the complex number z.
+
+
+### See also
+
+
+- Macaulay2Doc:: CC
+- Macaulay2Doc:: realPart
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "imaginaryPart",
+    "safe_name": "op_Coredollar_imaginaryPart",
+    "type": "MethodFunction",
+    "description": "imaginaryPart  -- imaginary part...",
+    "installations": [
+        "<Installation imaginaryPart(Number)>",
+        "<Installation imaginaryPart(InexactNumber)>",
+        "<Installation imaginaryPart(QQ)>",
+        "<Installation imaginaryPart(ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$imaginaryPart",
+        "full_doc": "... (1147 bytes) ...",
+        "parsed_headline": "imaginaryPart  -- imaginary part"
+    }
+}
+```

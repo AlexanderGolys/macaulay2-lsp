@@ -1,0 +1,74 @@
+---
+title: "preimage"
+kind: Method
+---
+
+# preimage
+
+**preimage  -- preimage of a map**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+
+### preimage of an ideal under a ring map
+
+
+- Inputs:
+- `f` a [ ring map](../Type/op_Coredollar_RingMap.mdx)
+- `M` an [ ideal](../Type/op_Coredollar_Ideal.mdx) in the target of $f$;
+- Outputs:
+- an [ ideal](../Type/op_Coredollar_Ideal.mdx) the preimage of $I$ under the map $f$;
+
+
+### preimage of a submodule under a module map
+
+
+- Inputs:
+- `f` a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- `M` a [ module](../Type/op_Coredollar_Module.mdx) a submodule in the target of $f$;
+- Outputs:
+- a [ module](../Type/op_Coredollar_Module.mdx) the preimage of $M$ under the map $f$;
+
+$M$ and [target](../Method/op_Coredollar_target.mdx) of $f$ should have the same [ambient](../Method/op_Coredollar_ambient.mdx) module.
+
+## Installed For
+
+### preimage([Matrix](../Type/Matrix.mdx), [Module](../Type/Module.mdx)) -> [Module](../Type/Module.mdx)
+
+### preimage([RingMap](../Type/RingMap.mdx), [Ideal](../Type/Ideal.mdx))
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: coimage
+- Macaulay2Doc:: image
+- Macaulay2Doc:: kernel
+- Macaulay2Doc:: source
+- Macaulay2Doc:: target
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "preimage",
+    "safe_name": "preimage",
+    "type": "MethodFunction",
+    "description": "\n### preimage of an ideal under a ring map\n\n\n- Inputs:\n- `f` a [ ring map](../Type/op_Coredollar_Rin...",
+    "installations": [
+        "<Installation preimage(RingMap, Ideal)>",
+        "<Installation preimage(Matrix, Module)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "preimage",
+        "full_doc": "... (2288 bytes) ...",
+        "parsed_headline": "preimage  -- preimage of a map"
+    }
+}
+```

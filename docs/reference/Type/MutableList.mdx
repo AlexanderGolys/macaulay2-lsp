@@ -1,80 +1,79 @@
 ---
 title: "MutableList"
 kind: Type
-parent: BasicList
 ---
 
 # MutableList
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**MutableList  -- the class of all mutable lists**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[BasicList](../Type/BasicList.mdx)
-
-## Subtypes
-
-Direct subtypes of this type:
-
-- [Bag](../Type/Bag.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `state`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `net`
-
-- `net(MutableList)`
-
-### `positions`
-
-- `positions(MutableList, Function)`
-
-### `remove`
-
-- `remove(MutableList, ZZ)`
-
-### `texMath`
-
-- `texMath(MutableList)`
-
-### `toExternalString`
-
-- `toExternalString(MutableList)`
-
-### `toString`
-
-- `toString(MutableList)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [net](../Function/net.mdx)
-- [positions](../Function/positions.mdx)
-- [remove](../Function/remove.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-- [toString](../Function/toString.mdx)
+For an overview of lists and sequences see [lists and sequences](../Instance/lists and sequences.mdx) . Normally the entries in a mutable list are not printed to prevent infinite loops in the printing routines.  To print them out use [peek](../Function/op_Coredollar_peek.mdx) .
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+s = new MutableList from {a,b,c};
+```
 
-## See Also
+## Additional Information
 
-- [BasicList](../Type/BasicList.mdx) (parent type)
+### See also
+
+
+- Macaulay2Doc:: BasicList
+
+[Bag](../Type/op_Coredollar_Bag.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "MutableList",
+    "safe_name": "op_Coredollar_MutableList",
+    "type": null,
+    "description": "For an overview of lists and sequences see [lists and sequences](../Instance/lists and sequences.mdx...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$MutableList",
+        "parent": "BasicList",
+        "methods": [
+            [
+                "texMath",
+                "MutableList"
+            ],
+            [
+                "positions",
+                "MutableList",
+                "Function"
+            ],
+            [
+                "toString",
+                "MutableList"
+            ],
+            [
+                "toExternalString",
+                "MutableList"
+            ],
+            [
+                "net",
+                "MutableList"
+            ],
+            [
+                "remove",
+                "MutableList",
+                "ZZ"
+            ]
+        ],
+        "instances": [
+            "state"
+        ],
+        "full_doc": "... (1501 bytes) ...",
+        "parsed_headline": "MutableList  -- the class of all mutable lists"
+    }
+}
+```

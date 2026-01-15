@@ -5,17 +5,40 @@ kind: Function
 
 # fork
 
-**Type:** `Function`
+**fork  -- fork the process**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-fork, -- fork the process, class => element, Usage: , fork(), class => language-macaulay2, Outputs:, When successful, it returns the process id of the child in the parent, and returns 0 in the child. When unsuccessful, it returns -1., Description, Platforms that do not have a built-in , fork(), function will always return -1., Warning: in multithreaded programs like Macaulay2, very few operations can be safely done in the child. This is especially true when the user has been , Macaulay2Doc :: parallel programming with threads and tasks, . Even allocating memory in the child may hang the process., class => waystouse, For the programmer, The object , Macaulay2Doc :: fork, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:759:0, .
+Platforms that do not have a built-in `fork()`  function will always return -1.Warning: in multithreaded programs like Macaulay2 very few operations can be safely done in the child.  This is especially true when the user has been [parallel programming with threads and tasks](../Instance/parallel programming with threads and tasks.mdx) . Even allocating memory in the child may hang the process.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+fork()
+```
 
-## See Also
+## Additional Information
 
+- Outputs:
+- When successful it returns the process id of the child in the parent and returns 0 in the child. When unsuccessful it returns -1.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "fork",
+    "safe_name": "op_Coredollar_fork",
+    "type": "CompiledFunction",
+    "description": "Platforms that do not have a built-in `fork()`  function will always return -1.Warning: in multithre...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$fork",
+        "full_doc": "... (992 bytes) ...",
+        "parsed_headline": "fork  -- fork the process"
+    }
+}
+```

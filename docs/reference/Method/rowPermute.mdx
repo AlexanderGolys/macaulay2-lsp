@@ -1,0 +1,77 @@
+---
+title: "rowPermute"
+kind: Method
+---
+
+# rowPermute
+
+**rowPermute  -- permute some rows**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+rowPermute  -- permute some rows
+
+## Installed For
+
+### rowPermute([MutableMatrix](../Type/MutableMatrix.mdx), [ZZ](../Type/ZZ.mdx), [List](../Type/List.mdx))
+
+## Examples
+
+```macaulay2
+rowPermute(mi{...})
+```
+
+```macaulay2
+rowPermute(m1{2,0,1})
+
+```
+
+```text
+| 0   1   2   3   4   5   |
+     | 300 301 302 303 304 305 |
+     | 100 101 102 103 104 105 |
+     | 200 201 202 203 204 205 |
+     | 400 401 402 403 404 405 |
+
+MutableMatrix
+```
+
+## Additional Information
+
+- Inputs:
+- `m` a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx)
+- `i` an [ integer](../Type/ZZ.mdx) starting row
+- a list of integers denoting a permutation of `0..d` for some number `d`
+- Consequences:
+- If the permutation is `{p0,p1,...,pd}` then `m` is modified so that the `i+j` row becomes the `i+pj` row of the original matrix for `j=0..d`
+
+
+### See also
+
+
+- Macaulay2Doc:: mutable matrices
+- Macaulay2Doc:: row and column operations
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "rowPermute",
+    "safe_name": "op_Coredollar_rowPermute",
+    "type": "MethodFunction",
+    "description": "rowPermute  -- permute some rows...",
+    "installations": [
+        "<Installation rowPermute(MutableMatrix, ZZ, List)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$rowPermute",
+        "full_doc": "... (1787 bytes) ...",
+        "parsed_headline": "rowPermute  -- permute some rows"
+    }
+}
+```

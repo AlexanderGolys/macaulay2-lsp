@@ -1,215 +1,518 @@
 ---
 title: "VisibleList"
 kind: Type
-parent: BasicList
 ---
 
 # VisibleList
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**VisibleList  -- the class of all visible lists**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[BasicList](../Type/BasicList.mdx)
-
-## Subtypes
-
-Direct subtypes of this type:
-
-- [AngleBarList](../Type/AngleBarList.mdx)
-- [Array](../Type/Array.mdx)
-- [List](../Type/List.mdx)
-- [Sequence](../Type/Sequence.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `environment`
-- `allObjects`
-- `scriptCommandLine`
-- `fileExitHooks`
-- `prefixPath`
-- `instKeys`
-- `dictionaryPath`
-- `ml`
-- `commandLine`
-- `il`
-- `path`
-- `ms`
-- `allNames`
-- `operators`
-- `loadedPackages`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `/`
-
-- `/(VisibleList, SelfInitializingType)`
-- `/(VisibleList, Command)`
-- `/(VisibleList, Function)`
-
-### `//`
-
-- `//(VisibleList, Function)`
-- `//(VisibleList, Command)`
-
-### `EXAMPLE`
-
-- `EXAMPLE(VisibleList)`
-
-### `\`
-
-- `\(SelfInitializingType, VisibleList)`
-- `\(Function, VisibleList)`
-- `\(Command, VisibleList)`
-
-### `_`
-
-- `_(VisibleList, ZZ)`
-- `_(VisibleList, List)`
-
-### `accumulate`
-
-- `accumulate(Function, Thing, VisibleList)`
-- `accumulate(VisibleList, Thing, Function)`
-- `accumulate(Function, VisibleList)`
-- `accumulate(VisibleList, Function)`
-
-### `commonest`
-
-- `commonest(VisibleList)`
-
-### `expression`
-
-- `expression(VisibleList)`
-
-### `fold`
-
-- `fold(VisibleList, Thing, Function)`
-- `fold(Function, VisibleList)`
-- `fold(VisibleList, Function)`
-
-### `isMember`
-
-- `isMember(Thing, VisibleList)`
-
-### `isSorted`
-
-- `isSorted(VisibleList)`
-
-### `iterator`
-
-- `iterator(VisibleList)`
-
-### `part`
-
-- `part(ZZ, Nothing, VisibleList, RingElement)`
-- `part(Nothing, ZZ, VisibleList, RingElement)`
-- `part(ZZ, ZZ, VisibleList, RingElement)`
-- `part(Nothing, Nothing, VisibleList, RingElement)`
-- `part(InfiniteNumber, ZZ, VisibleList, RingElement)`
-- *... and 3 more signatures*
-
-### `position`
-
-- `position(VisibleList, Function)`
-- `position(VisibleList, VisibleList, Function)`
-
-### `positions`
-
-- `positions(VisibleList, Function)`
-
-### `product`
-
-- `product(VisibleList, Function)`
-- `product(VisibleList, VisibleList, Function)`
-
-### `randomSubset`
-
-- `randomSubset(VisibleList, ZZ)`
-- `randomSubset(VisibleList)`
-
-### `rotate`
-
-- `rotate(ZZ, VisibleList)`
-
-### `runLengthEncode`
-
-- `runLengthEncode(VisibleList)`
-
-### `sublists`
-
-- `sublists(VisibleList, Function, Function, Function)`
-- `sublists(VisibleList, Function)`
-- `sublists(VisibleList, Function, Function)`
-- `sublists(VisibleList, Function, Nothing)`
-- `sublists(VisibleList, Function, Function, Nothing)`
-- *... and 2 more signatures*
-
-### `sum`
-
-- `sum(VisibleList, Function)`
-- `sum(VisibleList, VisibleList, Function)`
-
-### `texMath`
-
-- `texMath(VisibleList)`
-
-
-*Showing 50 of 88 methods*
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [/](../Operator/op_slash.mdx)
-- [//](../Operator/op_slash_slash.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [EXAMPLE](../Function/EXAMPLE.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [Schubert](../Function/Schubert.mdx)
-- [\](../Operator/op_bs.mdx)
-- [_](../Operator/_.mdx)
-- [accumulate](../Function/accumulate.mdx)
-- [between](../Function/between.mdx)
-- [commonest](../Function/commonest.mdx)
-- [expression](../Function/expression.mdx)
-- [flatten](../Function/flatten.mdx)
-- [fold](../Function/fold.mdx)
-- [inversePermutation](../Function/inversePermutation.mdx)
-- [isMember](../Function/isMember.mdx)
-- [isSorted](../Function/isSorted.mdx)
-- [isSubset](../Function/isSubset.mdx)
-- [iterator](../Function/iterator.mdx)
-- [length](../Function/length.mdx)
-- [max](../Function/max.mdx)
-- [min](../Function/min.mdx)
-- [netList](../Function/netList.mdx)
-- [numeric](../Function/numeric.mdx)
-- [oeis](../Type/oeis.mdx)
-- [part](../Function/part.mdx)
-- [partition](../Function/partition.mdx)
-- [permutations](../Function/permutations.mdx)
-- [position](../Function/position.mdx)
-- [positions](../Function/positions.mdx)
-
-*... and 13 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [BasicList](../Type/BasicList.mdx) (parent type)
+ There are three types of lists that can be entered directly from the keyboard as follows. We introduce the class of visible lists as a convenience for referring to lists of these types.
+
+## Additional Information
+
+[List](../Type/op_Coredollar_List.mdx)[Sequence](../Type/Sequence.mdx)[Array](../Type/op_Coredollar_Array.mdx)[AngleBarList](../Type/AngleBarList.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "VisibleList",
+    "safe_name": "VisibleList",
+    "type": null,
+    "description": " There are three types of lists that can be entered directly from the keyboard as follows. We introd...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "VisibleList",
+        "parent": "BasicList",
+        "methods": [
+            [
+                "\\",
+                "SelfInitializingType",
+                "VisibleList"
+            ],
+            [
+                "/",
+                "VisibleList",
+                "SelfInitializingType"
+            ],
+            [
+                "\\",
+                "Function",
+                "VisibleList"
+            ],
+            [
+                "\\",
+                "Command",
+                "VisibleList"
+            ],
+            [
+                "/",
+                "VisibleList",
+                "Command"
+            ],
+            [
+                "/",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "//",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "//",
+                "VisibleList",
+                "Command"
+            ],
+            [
+                "part",
+                "Nothing",
+                "ZZ",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "ZZ",
+                "Nothing",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "ZZ",
+                "ZZ",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "Nothing",
+                "Nothing",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "InfiniteNumber",
+                "ZZ",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "ZZ",
+                "InfiniteNumber",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "ZZ",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "EXAMPLE",
+                "VisibleList"
+            ],
+            [
+                "expression",
+                "VisibleList"
+            ],
+            [
+                "accumulate",
+                "Function",
+                "Thing",
+                "VisibleList"
+            ],
+            [
+                "accumulate",
+                "VisibleList",
+                "Thing",
+                "Function"
+            ],
+            [
+                "accumulate",
+                "Function",
+                "VisibleList"
+            ],
+            [
+                "accumulate",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "fold",
+                "VisibleList",
+                "Thing",
+                "Function"
+            ],
+            [
+                "fold",
+                "Function",
+                "VisibleList"
+            ],
+            [
+                "fold",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "runLengthEncode",
+                "VisibleList"
+            ],
+            [
+                "iterator",
+                "VisibleList"
+            ],
+            [
+                "texMath",
+                "VisibleList"
+            ],
+            [
+                "_",
+                "VisibleList",
+                "ZZ"
+            ],
+            [
+                "_",
+                "VisibleList",
+                "List"
+            ],
+            [
+                "positions",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "position",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "position",
+                "VisibleList",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "isMember",
+                "Thing",
+                "VisibleList"
+            ],
+            [
+                "sum",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "sum",
+                "VisibleList",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "product",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "product",
+                "VisibleList",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "rotate",
+                "ZZ",
+                "VisibleList"
+            ],
+            [
+                "randomSubset",
+                "VisibleList",
+                "ZZ"
+            ],
+            [
+                "randomSubset",
+                "VisibleList"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function",
+                "Function",
+                "Function"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function",
+                "Function"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function",
+                "Nothing"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function",
+                "Function",
+                "Nothing"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function",
+                "Nothing",
+                "Function"
+            ],
+            [
+                "sublists",
+                "VisibleList",
+                "Function",
+                "Nothing",
+                "Nothing"
+            ],
+            [
+                "commonest",
+                "VisibleList"
+            ],
+            [
+                "isSorted",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "Matrix",
+                "VisibleList",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "Matrix",
+                "VisibleList",
+                "Nothing"
+            ],
+            [
+                "submatrix",
+                "Matrix",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "Matrix",
+                "Nothing",
+                "VisibleList"
+            ],
+            [
+                "submatrix'",
+                "Matrix",
+                "VisibleList",
+                "VisibleList"
+            ],
+            [
+                "submatrix'",
+                "Matrix",
+                "VisibleList",
+                "Nothing"
+            ],
+            [
+                "submatrix'",
+                "Matrix",
+                "VisibleList"
+            ],
+            [
+                "submatrix'",
+                "Matrix",
+                "Nothing",
+                "VisibleList"
+            ],
+            [
+                "max",
+                "VisibleList"
+            ],
+            [
+                "min",
+                "VisibleList"
+            ],
+            [
+                "between",
+                "Thing",
+                "VisibleList"
+            ],
+            [
+                "length",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "VisibleList",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "Nothing",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "VisibleList",
+                "Nothing"
+            ],
+            [
+                "netList",
+                "VisibleList"
+            ],
+            [
+                "numeric",
+                "VisibleList"
+            ],
+            [
+                "numeric",
+                "ZZ",
+                "VisibleList"
+            ],
+            [
+                "/",
+                "VisibleList",
+                "RingMap"
+            ],
+            [
+                "\\",
+                "RingMap",
+                "VisibleList"
+            ],
+            [
+                "Schubert",
+                "ZZ",
+                "ZZ",
+                "VisibleList"
+            ],
+            [
+                "NewFromMethod",
+                "Set",
+                "VisibleList"
+            ],
+            [
+                "unique",
+                "VisibleList"
+            ],
+            [
+                "isSubset",
+                "VisibleList",
+                "Set"
+            ],
+            [
+                "isSubset",
+                "VisibleList",
+                "VisibleList"
+            ],
+            [
+                "isSubset",
+                "Set",
+                "VisibleList"
+            ],
+            [
+                "permutations",
+                "VisibleList"
+            ],
+            [
+                "inversePermutation",
+                "VisibleList"
+            ],
+            [
+                "uniquePermutations",
+                "VisibleList"
+            ],
+            [
+                "partition",
+                "Function",
+                "VirtualTally",
+                "VisibleList"
+            ],
+            [
+                "partition",
+                "Function",
+                "VisibleList"
+            ],
+            [
+                "partition",
+                "Function",
+                "VisibleList",
+                "VisibleList"
+            ],
+            [
+                "oeis",
+                "VisibleList"
+            ],
+            [
+                "set",
+                "VisibleList"
+            ],
+            [
+                "tally",
+                "VisibleList"
+            ],
+            [
+                "flatten",
+                "VisibleList"
+            ],
+            [
+                "==",
+                "VisibleList",
+                "VisibleList"
+            ]
+        ],
+        "instances": [
+            "environment",
+            "scriptCommandLine",
+            "allKeys",
+            "fileExitHooks",
+            "prefixPath",
+            "instKeys",
+            "dictionaryPath",
+            "ml",
+            "commandLine",
+            "il",
+            "path",
+            "ms",
+            "optKeys",
+            "insts",
+            "loadedPackages"
+        ],
+        "full_doc": "... (8652 bytes) ...",
+        "parsed_headline": "VisibleList  -- the class of all visible lists"
+    }
+}
+```

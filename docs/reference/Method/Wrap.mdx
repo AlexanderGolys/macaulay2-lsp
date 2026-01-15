@@ -1,0 +1,71 @@
+---
+title: "Wrap"
+kind: Method
+---
+
+# Wrap
+
+**Wrap  -- a key for methods for wrapping printed output**
+
+**Type:** [Symbol](../Type/Symbol.mdx)
+
+## Description
+
+ The default method for printing results of computations (stored in `Thing#{Standard,Print}` ) searches for a method for wrapping the output by search in the class of the result (and its ancestors) for a function stored under the key `Wrap` .  The preinstalled wrapping methods use [wrap](../Function/op_Coredollar_wrap.mdx)  they differ in their choice of separator between wrapped lines or in whether to wrap at all.
+
+## Installed For
+
+### Wrap([Ideal](../Type/Ideal.mdx))
+
+### Wrap([Matrix](../Type/Matrix.mdx))
+
+### Wrap([Net](../Type/Net.mdx))
+
+### Wrap([Number](../Type/Number.mdx))
+
+### Wrap([QQ](../Type/QQ.mdx))
+
+### Wrap([RingElement](../Type/RingElement.mdx))
+
+### Wrap([Sequence](../Type/Sequence.mdx))
+
+### Wrap([String](../Type/String.mdx))
+
+### Wrap([Tally](../Type/Tally.mdx))
+
+### Wrap([VerticalList](../Type/VerticalList.mdx))
+
+### Wrap([VisibleList](../Type/VisibleList.mdx))
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "Wrap",
+    "safe_name": "op_Coredollar_Wrap",
+    "type": "Symbol",
+    "description": " The default method for printing results of computations (stored in `Thing#{Standard,Print}` ) searc...",
+    "installations": [
+        "<Installation Wrap(RingElement)>",
+        "<Installation Wrap(Ideal)>",
+        "<Installation Wrap(VisibleList)>",
+        "<Installation Wrap(Matrix)>",
+        "<Installation Wrap(Tally)>",
+        "<Installation Wrap(Sequence)>",
+        "<Installation Wrap(String)>",
+        "<Installation Wrap(Net)>",
+        "<Installation Wrap(Number)>",
+        "<Installation Wrap(QQ)>",
+        "<Installation Wrap(VerticalList)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": true,
+        "codeName": "Core$Wrap",
+        "full_doc": "... (1287 bytes) ...",
+        "stub": true,
+        "parsed_headline": "Wrap  -- a key for methods for wrapping printed output"
+    }
+}
+```

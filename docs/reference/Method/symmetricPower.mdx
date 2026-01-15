@@ -1,0 +1,96 @@
+---
+title: "symmetricPower"
+kind: Method
+---
+
+# symmetricPower
+
+**symmetricPower  -- symmetric power**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+There is currently one restriction: if $f$ is a matrix then it must have only one row and be a map of free modules as in this example.If G --> F --> M --> 0 is a presentation for the module M = coker(f:G-->F) then symmetricPower(if) is the cokernel of the map symmetricPower(i-1F) ** G --> symmetricPower(iF).
+
+## Installed For
+
+### symmetricPower([ZZ](../Type/ZZ.mdx))
+
+### symmetricPower([ZZ](../Type/ZZ.mdx))
+
+### symmetricPower([ZZ](../Type/ZZ.mdx), [Matrix](../Type/Matrix.mdx)) -> [Matrix](../Type/Matrix.mdx)
+
+### symmetricPower([ZZ](../Type/ZZ.mdx), [Module](../Type/Module.mdx))
+
+## Examples
+
+```macaulay2
+symmetricPower(if)
+```
+
+```macaulay2
+symmetricPower(2vars R)
+
+```
+
+```text
+| a2 ab ac ad b2 bc bd c2 cd d2 |
+
+             1      10
+Matrix R  <-- R
+```
+
+```macaulay2
+symmetricPower(2image vars R)
+
+```
+
+```text
+cokernel {2} | -b 0  |
+              {2} | a  -b |
+              {2} | 0  a  |
+
+                            3
+R-module quotient of R
+```
+
+## Additional Information
+
+- Inputs:
+- `i` an [ integer](../Type/ZZ.mdx)
+- `M` a [ matrix](../Type/op_Coredollar_Matrix.mdx) or a [ module](../Type/op_Coredollar_Module.mdx)
+- Outputs:
+- a [ matrix](../Type/op_Coredollar_Matrix.mdx) or a [ module](../Type/op_Coredollar_Module.mdx) the $i$-th symmetric power of the matrix or module $f$
+
+
+### See also
+
+
+- Macaulay2Doc:: exteriorPower
+- Macaulay2Doc:: basis
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "symmetricPower",
+    "safe_name": "op_Coredollar_symmetricPower",
+    "type": "MethodFunction",
+    "description": "There is currently one restriction: if $f$ is a matrix then it must have only one row and be a map o...",
+    "installations": [
+        "<Installation symmetricPower(ZZ, Module)>",
+        "<Installation symmetricPower(ZZ, Matrix)>",
+        "<Installation symmetricPower(ZZ)>",
+        "<Installation symmetricPower(ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$symmetricPower",
+        "full_doc": "... (2240 bytes) ...",
+        "parsed_headline": "symmetricPower  -- symmetric power"
+    }
+}
+```

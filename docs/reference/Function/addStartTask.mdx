@@ -5,43 +5,47 @@ kind: Function
 
 # addStartTask
 
-**Type:** `Function`
+**addStartTask  -- schedule a task upon completion of another**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-addStartTask, -- schedule a task upon completion of another, class => element, Usage: , addStartTask(t,u), class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: Task, task, , , u, , , a , Macaulay2Doc :: Task, task, , , Consequences:, After task , t, finishes, task , u, will be scheduled for execution., Description, class => examples, i1 : f = () -> "f value";, class => language-macaulay2, i2 : g = () -> "g value";, class => language-macaulay2, i3 : F = createTask f
-
-o3 = <<task, created>>
-
-o3 : Task, class => language-macaulay2, i4 : G = createTask g
-
-o4 = <<task, created>>
-
-o4 : Task, class => language-macaulay2, i5 : addStartTask(F,G), class => language-macaulay2, i6 : schedule F
-
-o6 = <<task, created>>
-
-o6 : Task, class => language-macaulay2, i7 : taskResult F
-
-o7 = f value, class => language-macaulay2, i8 : taskResult G
-
-o8 = g value, class => language-macaulay2, class => waystouse, Ways to use , addStartTask, :, Macaulay2Doc :: addStartTask(Task,Task), class => waystouse, For the programmer, The object , Macaulay2Doc :: addStartTask, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `addStartTask(Task, Task)`
+addStartTask  -- schedule a task upon completion of another
 
 ## Examples
 
 ```macaulay2
-i1 : f = () -> "f value";
-
-i2 : g = () -> "g value";
+addStartTask(tu)
 ```
 
-## See Also
+```macaulay2
+addStartTask(FG)
+```
 
+## Additional Information
+
+- Inputs:
+- `t` a [ task](../Type/op_Coredollar_Task.mdx)
+- `u` a [ task](../Type/op_Coredollar_Task.mdx)
+- Consequences:
+- After task `t` finishes task `u` will be scheduled for execution.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "addStartTask",
+    "safe_name": "addStartTask",
+    "type": "CompiledFunction",
+    "description": "addStartTask  -- schedule a task upon completion of another...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "addStartTask",
+        "full_doc": "... (1620 bytes) ...",
+        "parsed_headline": "addStartTask  -- schedule a task upon completion of another"
+    }
+}
+```

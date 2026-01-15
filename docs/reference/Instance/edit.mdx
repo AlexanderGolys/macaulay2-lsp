@@ -5,19 +5,84 @@ kind: Instance
 
 # edit
 
-:::warning[Stub Documentation]
-This is a placeholder documentation entry. The full documentation for this instance needs to be extracted from Macaulay2.
-:::
+**edit  -- edit source code**
 
 **Type:** [Command](../Type/Command.mdx)
 
 ## Description
 
-An instance of the type [Command](../Type/Command.mdx).
 
-## Examples
+### Synopsis
 
-*No examples available yet. Please contribute!*
 
-## See Also
+- Inputs:
+- `f` a [ function](../Type/Function.mdx) or a [ command](../Type/op_Coredollar_Command.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the editor is started up pointing at the source code of the function or command`f`
 
+
+### Synopsis
+
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx) or a [ keyword](../Type/op_Coredollar_Keyword.mdx)
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the editor is started up pointing at the source code of method for applying `f` to an argument of type `X`
+
+
+### Synopsis
+
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx) or a [ keyword](../Type/op_Coredollar_Keyword.mdx)
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- `Y` a [ type](../Type/op_Coredollar_Type.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the editor is started up pointing at the source code of method for applying `f` to arguments of type `X` and `Y`
+
+
+### Synopsis
+
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx) or a [ keyword](../Type/op_Coredollar_Keyword.mdx)
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- `Y` a [ type](../Type/op_Coredollar_Type.mdx)
+- `Z` a [ type](../Type/op_Coredollar_Type.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the editor is started up pointing at the source code of method for applying `f` to arguments of type `X` `Y and ``Z`
+
+
+### Synopsis
+
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx) or a [ keyword](../Type/op_Coredollar_Keyword.mdx)
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- `Y` a [ type](../Type/op_Coredollar_Type.mdx)
+- `Z` a [ type](../Type/op_Coredollar_Type.mdx)
+- `T` a [ type](../Type/op_Coredollar_Type.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the editor is started up pointing at the source code of method for applying `f` to arguments of type `X` `Y and ``Z` and `T`
+
+The name of the user's preferred editor is take from the environment variable `EDITOR` .  If X is running and the editor is not Emacs then the editor is started in a new `xterm`  window.For an interactive example try `edit(dimModule)` .The value returned is the exit code returned by the editor as with [run](../Function/run.mdx)  usually zero.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Instance",
+    "name": "edit",
+    "safe_name": "op_Coredollar_edit",
+    "type": "Command",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `f` a [ function](../Type/Function.mdx) or a [ command](../Type/op_Cored...",
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$edit",
+        "full_doc": "... (3688 bytes) ...",
+        "stub": true,
+        "parsed_headline": "edit  -- edit source code"
+    }
+}
+```

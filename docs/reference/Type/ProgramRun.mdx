@@ -1,53 +1,69 @@
 ---
 title: "ProgramRun"
 kind: Type
-parent: HashTable
 ---
 
 # ProgramRun
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**ProgramRun  -- result of running an external program**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+A hash table returned by [runProgram](../Method/op_Coredollar_runProgram.mdx) with the following strings as keys:
+- `"command"` the command that was used to run the program.
+- `"output"` the output of the program to `stdout`.
+- `"error"` the output of the program to `stderr`.
+- `"return value"` the return value of the program possibly multiplied by 256 (see [run](../Function/run.mdx) ). Note that this is what is displayed when printing a `ProgramRun` object.
 
-## Parent Type
+In addition if [runProgram](../Method/op_Coredollar_runProgram.mdx) is called with the `KeepFiles` option set to [true](../Instance/op_Coredollar_true.mdx) then the following keys will be present:
+- `"output file"` the path to a file containing the output of the program to `stdout`.
+- `"error file"` the path to a file containing the output of the program to `stderr`.
 
-[HashTable](../Type/HashTable.mdx)
 
-## Methods
 
-Methods that can be used with this type:
+## Additional Information
 
-### `net`
+### See also
 
-- `net(ProgramRun)`
 
-### `status`
+- Macaulay2Doc:: runProgram
+- Macaulay2Doc:: Program << Thing
+- Macaulay2Doc:: Program
 
-- `status(ProgramRun)`
+[status(ProgramRun)](../Instance/status(ProgramRun).mdx)
 
-### `toString`
+## Debug info
 
-- `toString(ProgramRun)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [net](../Function/net.mdx)
-- [status](../Function/status.mdx)
-- [toString](../Function/toString.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [HashTable](../Type/HashTable.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "ProgramRun",
+    "safe_name": "op_Coredollar_ProgramRun",
+    "type": null,
+    "description": "A hash table returned by [runProgram](../Method/op_Coredollar_runProgram.mdx) with the following str...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$ProgramRun",
+        "parent": "HashTable",
+        "methods": [
+            [
+                "net",
+                "ProgramRun"
+            ],
+            [
+                "status",
+                "ProgramRun"
+            ],
+            [
+                "toString",
+                "ProgramRun"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1850 bytes) ...",
+        "parsed_headline": "ProgramRun  -- result of running an external program"
+    }
+}
+```

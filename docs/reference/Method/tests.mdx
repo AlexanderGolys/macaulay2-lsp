@@ -1,0 +1,75 @@
+---
+title: "tests"
+kind: Method
+---
+
+# tests
+
+**tests  -- locate a package's tests**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+When an integer is not provided this returns all the tests for the given package.  The position of each element would be passed as the first argument of [check](../Method/op_Coredollar_check.mdx) to run the test. Each value is a `TestInput` object.  These are printed with the location of the file so that you may quickly jump to the source code of the test when using Emacs.If the test number is also provided then the corresponding `TestInput` object is returned.The [locate](../Method/op_Coredollar_locate.mdx) and [code](../Method/op_Coredollar_code.mdx) functions do the expected thing when given a `TestInput` object.Passing only the key of the desired test to [code](../Method/op_Coredollar_code.mdx) is supported as well.You may also pass a `TestInput` object to [edit](../Instance/op_Coredollar_edit.mdx) to open the code in your favorite editor.
+
+## Installed For
+
+### tests([Package](../Type/Package.mdx))
+
+### tests([String](../Type/String.mdx))
+
+### tests([ZZ](../Type/ZZ.mdx), [Package](../Type/Package.mdx)) -> [NumberedVerticalList](../Type/NumberedVerticalList.mdx)
+
+### tests([ZZ](../Type/ZZ.mdx), [String](../Type/String.mdx))
+
+## Examples
+
+```macaulay2
+tests pkg
+tests(i pkg)
+```
+
+```macaulay2
+t = tests(0 "FirstPackage")
+
+```
+
+```text
+TestInput[../FirstPackage.m2:54:5-56:3]
+
+TestInput
+```
+
+## Additional Information
+
+- Inputs:
+- `i` an [ integer](../Type/ZZ.mdx)
+- `pkg` a [ package](../Type/op_Coredollar_Package.mdx) or a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ numbered vertical list](../Type/NumberedVerticalList.mdx) or a [ test input](../Type/op_Coredollar_TestInput.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "tests",
+    "safe_name": "op_Coredollar_tests",
+    "type": "MethodFunction",
+    "description": "When an integer is not provided this returns all the tests for the given package.  The position of e...",
+    "installations": [
+        "<Installation tests(Package)>",
+        "<Installation tests(String)>",
+        "<Installation tests(ZZ, Package)>",
+        "<Installation tests(ZZ, String)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$tests",
+        "full_doc": "... (3049 bytes) ...",
+        "parsed_headline": "tests  -- locate a package's tests"
+    }
+}
+```

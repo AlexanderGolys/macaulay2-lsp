@@ -1,0 +1,98 @@
+---
+title: "isAffineRing"
+kind: Method
+---
+
+# isAffineRing
+
+**isAffineRing  -- whether something is an affine ring**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ For our purposes an affine ring is a quotient of a (not necessarily commutative) [ polynomial ring](../Type/PolynomialRing.mdx)  over a field.
+
+## Installed For
+
+### isAffineRing([PolynomialRing](../Type/PolynomialRing.mdx))
+
+### isAffineRing([QuotientRing](../Type/QuotientRing.mdx))
+
+### isAffineRing([Ring](../Type/Ring.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+## Examples
+
+```macaulay2
+isAffineRing R
+```
+
+```macaulay2
+isAffineRing (ZZ[abcd])
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isAffineRing (ZZ/101[abcd])
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isAffineRing (ZZ/2[xyz]/(x^2-y*z))
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isAffineRing (QQ[xdx
+```
+
+## Additional Information
+
+- Inputs:
+- `R` a [ ring](../Type/Ring.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) [true](../Instance/op_Coredollar_true.mdx) if `R` is an affine ring and [false](../Instance/op_Coredollar_blockMatrixForm.mdx) otherwise
+
+
+### See also
+
+
+- Macaulay2Doc:: coefficientRing
+- Macaulay2Doc:: isField
+- Macaulay2Doc:: ambient
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isAffineRing",
+    "safe_name": "isAffineRing",
+    "type": "MethodFunction",
+    "description": " For our purposes an affine ring is a quotient of a (not necessarily commutative) [ polynomial ring]...",
+    "installations": [
+        "<Installation isAffineRing(PolynomialRing)>",
+        "<Installation isAffineRing(QuotientRing)>",
+        "<Installation isAffineRing(Ring)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "isAffineRing",
+        "full_doc": "... (1680 bytes) ...",
+        "parsed_headline": "isAffineRing  -- whether something is an affine ring"
+    }
+}
+```

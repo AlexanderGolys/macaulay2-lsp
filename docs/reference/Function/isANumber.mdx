@@ -5,47 +5,76 @@ kind: Function
 
 # isANumber
 
-**Type:** `Function`
+**isANumber  -- whether a number is not not-a-number**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-isANumber, -- whether a number is not not-a-number, class => element, Usage: , isANumber x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Number, number, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , x, is not , not a number, ., Description, For a discussion of the notion of not-a-number in floating point arithmetic, see , http://en.wikipedia.org/wiki/NaN, ., class => examples, i1 : isANumber 3.
-
-o1 = true, class => language-macaulay2, i2 : inf = 1/0.
-
-o2 = infinity
-
-o2 : RR (of precision 53), class => language-macaulay2, i3 : isANumber inf
-
-o3 = true, class => language-macaulay2, i4 : nan = inf - inf
-
-o4 = NotANumber
-
-o4 : RR (of precision 53), class => language-macaulay2, i5 : isANumber nan
-
-o5 = false, class => language-macaulay2, See also, Macaulay2Doc :: isFinite, Macaulay2Doc :: isInfinite, class => waystouse, Ways to use , isANumber, :, isANumber(Number), class => waystouse, For the programmer, The object , Macaulay2Doc :: isANumber, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_analytic_functions.m2:513:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `isANumber(Number)`
+For a discussion of the notion of not-a-number in floating point arithmetic see http://en.wikipedia.org/wiki/NaN .
 
 ## Examples
 
 ```macaulay2
-i1 : isANumber 3.
-
-o1 = true
-
-i2 : inf = 1/0.
-
-o2 = infinity
-
-o2 : RR (of precision 53)
+isANumber x
 ```
 
-## See Also
+```macaulay2
+isANumber 3.
 
+```
+
+```text
+true
+```
+
+```macaulay2
+isANumber inf
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isANumber nan
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ number](../Type/op_Coredollar_Number.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `x` is not *not a number*.
+
+
+### See also
+
+
+- Macaulay2Doc:: isFinite
+- Macaulay2Doc:: isInfinite
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "isANumber",
+    "safe_name": "op_Coredollar_isANumber",
+    "type": "CompiledFunction",
+    "description": "For a discussion of the notion of not-a-number in floating point arithmetic see http://en.wikipedia....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isANumber",
+        "full_doc": "... (1532 bytes) ...",
+        "parsed_headline": "isANumber  -- whether a number is not not-a-number"
+    }
+}
+```

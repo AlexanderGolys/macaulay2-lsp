@@ -1,48 +1,66 @@
 ---
 title: "Table"
 kind: Type
-parent: Expression
 ---
 
 # Table
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [HeaderType](../Type/HeaderType.mdx)
+**Table  -- the class of all table expressions**
 
 ## Description
 
-An instance of the type [HeaderType](../Type/HeaderType.mdx).
-
-## Parent Type
-
-[Expression](../Type/Expression.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `net`
-
-- `net(Table)`
-
-### `texMath`
-
-- `texMath(Table)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [net](../Function/net.mdx)
-- [texMath](../Function/texMath.mdx)
+`Table`  -- a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a table i.e. a list of lists of the same length.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+Table {{a,b,c},{a,bb,ccc}}
 
-## See Also
+```
 
-- [Expression](../Type/Expression.mdx) (parent type)
+```text
+a   b   c 
+            
+     a  bb  ccc
+
+Expression of class Table
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: MatrixExpression
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "Table",
+    "safe_name": "op_Coredollar_Table",
+    "type": null,
+    "description": "`Table`  -- a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a table i.e. ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Table",
+        "parent": "Expression",
+        "methods": [
+            [
+                "net",
+                "Table"
+            ],
+            [
+                "texMath",
+                "Table"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1010 bytes) ...",
+        "parsed_headline": "Table  -- the class of all table expressions"
+    }
+}
+```

@@ -1,0 +1,76 @@
+---
+title: "dismiss"
+kind: Method
+---
+
+# dismiss
+
+**dismiss  -- dismiss a package**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+The package itself is still accessible under its name in the [PackageDictionary](../Instance/op_Coredollar_PackageDictionary.mdx) and its exported symbols can be made available again with [use](../Method/op_Coredollar_use.mdx).
+
+## Installed For
+
+### dismiss([Package](../Type/Package.mdx))
+
+### dismiss([String](../Type/String.mdx))
+
+## Examples
+
+```macaulay2
+dismiss pkg
+```
+
+```macaulay2
+dismiss PKG
+
+```
+
+```text
+PKG
+
+Package
+```
+
+## Additional Information
+
+- Inputs:
+- `pkg` a [ package](../Type/op_Coredollar_Package.mdx)
+- Consequences:
+- the dictionary of the package `pkg` is removed from [dictionaryPath](../Instance/dictionaryPath.mdx) so the symbols exported by `pkg` are no longer available for use.
+
+
+### See also
+
+
+- Macaulay2Doc:: loadPackage
+- Macaulay2Doc:: dictionaryPath
+- Macaulay2Doc:: PackageDictionary
+- Macaulay2Doc:: use(Package)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "dismiss",
+    "safe_name": "op_Coredollar_dismiss",
+    "type": "MethodFunction",
+    "description": "The package itself is still accessible under its name in the [PackageDictionary](../Instance/op_Core...",
+    "installations": [
+        "<Installation dismiss(String)>",
+        "<Installation dismiss(Package)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$dismiss",
+        "full_doc": "... (6413 bytes) ...",
+        "parsed_headline": "dismiss  -- dismiss a package"
+    }
+}
+```

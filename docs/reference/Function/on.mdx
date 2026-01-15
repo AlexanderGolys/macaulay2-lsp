@@ -5,43 +5,75 @@ kind: Function
 
 # on
 
-**Type:** `Function`
+**on  -- trace a function each time it's run**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-on, -- trace a function each time it's run, class => element, Usage: , on f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Function, function, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, CallLimit, => , an , Macaulay2Doc :: ZZ, integer, , , default value , 100000, , , the maximum number of times to permit the function , f, to be called, Name, => , a , Macaulay2Doc :: String, string, , , default value , null, , , the name to use for the function, in case , f, is an anonymous function (not assigned to a global variable), GenerateAssertions, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , whether to print assertion statements that can be used as input to Macaulay2 to check the behavior of the function remains the same. Arguments and values are prepared with , Macaulay2Doc :: toExternalString, , failure of which is silently ignored., Outputs:, a , Macaulay2Doc :: Function, function, , , a new function that returns the same values that , f, would have returned, but has a few side effects useful for debugging: upon entry, it prints its arguments, and upon exit it prints its return values. The display includes the name of , f, , a sequence number in parentheses that tells how many times the function has been called, and a number in brackets that gives the nesting (recursion) depth. The sequence number allows the entry and exit reports to be connected., Description, Ideally, this function would replace , f, , i.e., we would write , f = on f, . Unfortunately, all the pre-installed system functions are write-protected; fortunately, their methods are not, and can be replaced., class => examples, i1 : ker Matrix := on(lookup(ker,Matrix),GenerateAssertions=>true,Name=>"ker"); , class => language-macaulay2, i2 : f = x -> kernel (x|x);, class => language-macaulay2, i3 : R = QQ[a..c];, class => language-macaulay2, i4 : f vars R
--- ker (1) called with OptionTable: OptionTable{DegreeLimit => { 
--- Strategy => {
--- SubringLimit => infinity
--- ker (1) returned FunctionClosure: FunctionClosure[/usr/share/Macaulay2/Core/matrix1.m2:592:35-602:58]
--- ker (1) called with Matrix: | a b c a b c |
--- ker (1) returned Module: image {1 | -1 0 0 -b 0 -c |
--- {1 | 0 -1 0 a -c 0 |
--- {1 | 0 0 -1 0 b a |
--- {1 | 1 0 0 0 0 0 |
--- {1 | 0 1 0 0 0 0 |
--- {1 | 0 0 1 0 0 0 |
-assert( ker(map(R^1,R^{6:{-1,{{a, b, c, a, b, c)) === (image(map(R^{6:{-1,R^{3:{-1, 3:{-2,{{-1, 0, 0, -b, 0, -c, {0, -1, 0, a, -c, 0, {0, 0, -1, 0, b, a, {1, 0, 0, 0, 0, 0, {0, 1, 0, 0, 0, 0, {0, 0, 1, 0, 0, 0))))
+Ideally this function would replace `f`  i.e. we would write `f = on f` .  Unfortunately all the pre-installed system functions are write-protected; fortunately their methods are not and can be replaced.
 
-o4 = image {1 | -1 0 0 -b 0 -c |
- {1 | 0 -1 0 a -c 0 |
- {1 | 0 0 -1 0 b a |
- {1 | 1 0 0 0 0 0 |
- {1 | 0 1 0 0 0 0 |
- {1 | 0 0 1 0 0 0 |
+## Options
 
- 6
-o4 : R-module, submodule of R, class => language-macaulay2, See also, Macaulay2Doc :: lookup, class => waystouse, For the programmer, The object , Macaulay2Doc :: on, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_debugging.m2:442:0, .
+- [Name](../Method/Name.mdx) => null
+- [CallLimit](../Method/CallLimit.mdx) => 100000
+- [GenerateAssertions](../Method/GenerateAssertions.mdx) => false
 
 ## Examples
 
 ```macaulay2
-i1 : ker Matrix := on(lookup(ker,Matrix),GenerateAssertions=>true,Name=>"ker"); 
-
-i2 : f = x -> kernel (x|x);
+on f
 ```
 
-## See Also
+```macaulay2
+ker Matrix := on(lookup(kerMatrix)
+```
 
+## Additional Information
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx)
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `CallLimit```an [ integer](../Type/ZZ.mdx) default value 100000 the maximum number of times to permit the function `f` to be called
+- `Name```a [ string](../Type/op_Coredollar_String.mdx) default value null the name to use for the function in case `f` is an anonymous function (not assigned to a global variable)
+- `GenerateAssertions```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to print assertion statements that can be used as input to Macaulay2 to check the behavior of the function remains the same. Arguments and values are prepared with [toExternalString](../Method/op_Coredollar_toExternalString.mdx) failure of which is silently ignored.
+- Outputs:
+- a [ function](../Type/Function.mdx) a new function that returns the same values that `f` would have returned but has a few side effects useful for debugging: upon entry it prints its arguments and upon exit it prints its return values. The display includes the name of `f` a sequence number in parentheses that tells how many times the function has been called and a number in brackets that gives the nesting (recursion) depth. The sequence number allows the entry and exit reports to be connected.
+
+
+### See also
+
+
+- Macaulay2Doc:: lookup
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "on",
+    "safe_name": "on",
+    "type": "FunctionClosure",
+    "description": "Ideally this function would replace `f`  i.e. we would write `f = on f` .  Unfortunately all the pre...",
+    "options": [
+        {
+            "name": "Name",
+            "default": "null"
+        },
+        {
+            "name": "CallLimit",
+            "default": "100000"
+        },
+        {
+            "name": "GenerateAssertions",
+            "default": "false"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "on",
+        "full_doc": "... (3905 bytes) ...",
+        "parsed_headline": "on  -- trace a function each time it's run"
+    }
+}
+```

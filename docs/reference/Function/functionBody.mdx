@@ -5,41 +5,64 @@ kind: Function
 
 # functionBody
 
-**Type:** `Function`
+**functionBody  -- get the body of a function**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-functionBody, -- get the body of a function, class => element, Usage: , functionBody f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Function, function, Outputs:, a , Macaulay2Doc :: FunctionBody, function body, , , the body of the function , f, Description, The body of , f, is essentially just the source code of , f, , with no frames providing bindings for the local variables in scopes enclosing the scope of , f, . Function bodies cannot act as functions, but they can be tested for equality (, Macaulay2Doc :: ===, ), and they can be used as keys in hash tables., class => examples, i1 : f = a -> b -> a+b+a*b
-
-o1 = f
-
-o1 : FunctionClosure, class => language-macaulay2, i2 : functionBody f 1
-
-o2 = FunctionBody[currentString:1:14-1:21]
-
-o2 : FunctionBody, class => language-macaulay2, i3 : f 1 === f 2
-
-o3 = false, class => language-macaulay2, i4 : functionBody f 1 === functionBody f 2
-
-o4 = true, class => language-macaulay2, Macaulay2Doc :: FunctionBody, Macaulay2Doc :: CompiledFunctionBody, class => waystouse, For the programmer, The object , Macaulay2Doc :: functionBody, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:965:0, .
+The body of `f`  is essentially just the source code of `f`  with no frames providing bindings for the local variables in scopes enclosing the scope of `f` .  Function bodies cannot act as functions but they can be tested for equality ([===](../Method/op_Coredollar_eq_eq_eq.mdx) ) and they can be used as keys in hash tables.
 
 ## Examples
 
 ```macaulay2
-i1 : f = a -> b -> a+b+a*b
-
-o1 = f
-
-o1 : FunctionClosure
-
-i2 : functionBody f 1
-
-o2 = FunctionBody[currentString:1:14-1:21]
-
-o2 : FunctionBody
+functionBody f
 ```
 
-## See Also
+```macaulay2
+functionBody f 1
 
+```
+
+```text
+FunctionBody[currentString:1:14-1:21]
+
+FunctionBody
+```
+
+```macaulay2
+functionBody f 1 === functionBody f 2
+
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx)
+- Outputs:
+- a [ function body](../Type/op_Coredollar_FunctionBody.mdx) the body of the function `f`
+
+[FunctionBody](../Type/op_Coredollar_FunctionBody.mdx)[CompiledFunctionBody](../Type/CompiledFunctionBody.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "functionBody",
+    "safe_name": "functionBody",
+    "type": "CompiledFunction",
+    "description": "The body of `f`  is essentially just the source code of `f`  with no frames providing bindings for t...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "functionBody",
+        "full_doc": "... (1562 bytes) ...",
+        "parsed_headline": "functionBody  -- get the body of a function"
+    }
+}
+```

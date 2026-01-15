@@ -1,0 +1,89 @@
+---
+title: "remainder"
+kind: Method
+---
+
+# remainder
+
+**remainder  -- matrix remainder**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+This operation is the same as [Matrix % GroebnerBasis](../Instance/Matrix % GroebnerBasis.mdx) .The equation `g*q+r == f`  will hold where `q`  is the map provided by [quotient](../Method/quotient.mdx) .  The source of `f`  should be a free module.
+
+## Installed For
+
+### remainder([Matrix](../Type/Matrix.mdx), [GroebnerBasis](../Type/GroebnerBasis.mdx))
+
+### remainder([Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx))
+
+## Examples
+
+```macaulay2
+r = remainder(fg)
+```
+
+```macaulay2
+remainder(fg)
+
+```
+
+```text
+0
+
+             2      2
+Matrix R  <-- R
+```
+
+```macaulay2
+remainder(fg)
+
+```
+
+```text
+| 1 0 |
+     | 0 1 |
+
+             2      2
+Matrix R  <-- R
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- `g` a [ Gröbner basis](../Type/op_Coredollar_GroebnerBasis.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx) with the same target as `f`
+- Outputs:
+- `r` the remainder of `f` upon division by `g`
+
+
+### See also
+
+
+- Macaulay2Doc:: quotientRemainder
+- Macaulay2Doc:: remainder'
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "remainder",
+    "safe_name": "remainder",
+    "type": "MethodFunction",
+    "description": "This operation is the same as [Matrix % GroebnerBasis](../Instance/Matrix % GroebnerBasis.mdx) .The ...",
+    "installations": [
+        "<Installation remainder(Matrix, GroebnerBasis)>",
+        "<Installation remainder(Matrix, Matrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "remainder",
+        "full_doc": "... (2244 bytes) ...",
+        "parsed_headline": "remainder  -- matrix remainder"
+    }
+}
+```

@@ -1,0 +1,142 @@
+---
+title: "html"
+kind: Method
+---
+
+# html
+
+**html  -- convert to HTML format**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+`html x` converts `x` to HTML format.The return value is a string that is suitable for use in a .html file readable by a browser. [hypertext](../Method/op_Coredollar_hypertext.mdx) elements are translated into the corresponding HTML elements. When no HTML conversion is available[tex](../Method/op_Coredollar_tex.mdx) is called. $\LaTeX$ can be rendered in the browser using MathJax or $\KaTeX$.
+
+## Installed For
+
+### html([Bag](../Type/Bag.mdx))
+
+### html([Boolean](../Type/Boolean.mdx))
+
+### html([Command](../Type/Command.mdx))
+
+### html([Descent](../Type/Descent.mdx))
+
+### html([Dictionary](../Type/Dictionary.mdx))
+
+### html([File](../Type/File.mdx))
+
+### html([FilePosition](../Type/FilePosition.mdx))
+
+### html([Function](../Type/Function.mdx))
+
+### html([FunctionBody](../Type/FunctionBody.mdx))
+
+### html([GroebnerBasis](../Type/GroebnerBasis.mdx))
+
+### html([Holder](../Type/Holder.mdx))
+
+### html([IndeterminateNumber](../Type/IndeterminateNumber.mdx))
+
+### html([Manipulator](../Type/Manipulator.mdx))
+
+### html([Monoid](../Type/Monoid.mdx))
+
+### html([Net](../Type/Net.mdx))
+
+### html([Nothing](../Type/Nothing.mdx))
+
+### html([NumberedVerticalList](../Type/NumberedVerticalList.mdx))
+
+### html([Package](../Type/Package.mdx))
+
+### html([Program](../Type/Program.mdx))
+
+### html([Pseudocode](../Type/Pseudocode.mdx))
+
+### html([Ring](../Type/Ring.mdx))
+
+### html([RingFamily](../Type/RingFamily.mdx))
+
+### html([RowExpression](../Type/RowExpression.mdx))
+
+### html([String](../Type/String.mdx))
+
+### html([Thing](../Type/Thing.mdx)) -> [String](../Type/String.mdx)
+
+### html([Time](../Type/Time.mdx))
+
+### html([Type](../Type/Type.mdx))
+
+### html([VerticalList](../Type/VerticalList.mdx))
+
+## Examples
+
+```macaulay2
+html x
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ thing](../Type/Thing.mdx) any Macaulay2 object
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) the HTML rendering of `x`
+
+
+### See also
+
+
+- Macaulay2Doc:: show
+- Macaulay2Doc:: mathML
+- Text:: html(TEX)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "html",
+    "safe_name": "op_Coredollar_html",
+    "type": "MethodFunctionSingle",
+    "description": "`html x` converts `x` to HTML format.The return value is a string that is suitable for use in a .htm...",
+    "installations": [
+        "<Installation html(Package)>",
+        "<Installation html(Nothing)>",
+        "<Installation html(Command)>",
+        "<Installation html(FunctionBody)>",
+        "<Installation html(IndeterminateNumber)>",
+        "<Installation html(Pseudocode)>",
+        "<Installation html(Function)>",
+        "<Installation html(File)>",
+        "<Installation html(Manipulator)>",
+        "<Installation html(Time)>",
+        "<Installation html(Program)>",
+        "<Installation html(Type)>",
+        "<Installation html(VerticalList)>",
+        "<Installation html(NumberedVerticalList)>",
+        "<Installation html(Dictionary)>",
+        "<Installation html(Boolean)>",
+        "<Installation html(Descent)>",
+        "<Installation html(String)>",
+        "<Installation html(FilePosition)>",
+        "<Installation html(Net)>",
+        "<Installation html(Holder)>",
+        "<Installation html(RowExpression)>",
+        "<Installation html(GroebnerBasis)>",
+        "<Installation html(Monoid)>",
+        "<Installation html(RingFamily)>",
+        "<Installation html(Ring)>",
+        "<Installation html(Thing)>",
+        "<Installation html(Bag)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$html",
+        "full_doc": "... (1264 bytes) ...",
+        "parsed_headline": "html  -- convert to HTML format"
+    }
+}
+```

@@ -1,0 +1,83 @@
+---
+title: "scanKeys"
+kind: Method
+---
+
+# scanKeys
+
+**scanKeys  -- apply a function to each key in a hash table or database**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+`scanKeys(t f)`  applies the function `f`  to each key in the hash table `t` .
+
+## Installed For
+
+### scanKeys([Database](../Type/Database.mdx), [Function](../Type/Function.mdx))
+
+### scanKeys([HashTable](../Type/HashTable.mdx), [Function](../Type/Function.mdx))
+
+## Examples
+
+```macaulay2
+scanKeys(t f)
+```
+
+```macaulay2
+scanKeys(t print)
+1
+2
+3
+4
+```
+
+```macaulay2
+scanKeys(t k -> if k>2 then print t#k)
+4
+20
+```
+
+## Additional Information
+
+- Inputs:
+- `t` a [ hash table](../Type/op_Coredollar_HashTable.mdx) or Database
+- `f` a [ function](../Type/Function.mdx)
+
+
+### Caveat
+
+This function requires an immutable hash table.  To scan the keys in a mutable hash table use `scan(keys t f)` .
+### See also
+
+
+- Macaulay2Doc:: hash tables
+- Macaulay2Doc:: applyKeys
+- Macaulay2Doc:: keys
+- Macaulay2Doc:: scan
+- Macaulay2Doc:: scanPairs
+- Macaulay2Doc:: scanValues
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "scanKeys",
+    "safe_name": "scanKeys",
+    "type": "MethodFunction",
+    "description": "`scanKeys(t f)`  applies the function `f`  to each key in the hash table `t` ....",
+    "installations": [
+        "<Installation scanKeys(HashTable, Function)>",
+        "<Installation scanKeys(Database, Function)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "scanKeys",
+        "full_doc": "... (1762 bytes) ...",
+        "parsed_headline": "scanKeys  -- apply a function to each key in a hash table or database"
+    }
+}
+```

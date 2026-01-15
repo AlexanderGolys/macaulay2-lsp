@@ -1,0 +1,115 @@
+---
+title: "describe"
+kind: Method
+---
+
+# describe
+
+**describe  -- real description**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+`describe X` returns an `Expression` containing the real description of `X` bypassing the feature that causes certain types of things to acquire for brevity the names of global variables to which they are assigned.For example it also displays the options used at creation of polynomial rings.
+
+## Installed For
+
+### describe([FractionField](../Type/FractionField.mdx))
+
+### describe([GaloisField](../Type/GaloisField.mdx))
+
+### describe([Matrix](../Type/Matrix.mdx))
+
+### describe([Module](../Type/Module.mdx))
+
+### describe([Monoid](../Type/Monoid.mdx))
+
+### describe([PolynomialRing](../Type/PolynomialRing.mdx))
+
+### describe([QuotientRing](../Type/QuotientRing.mdx))
+
+### describe([RingMap](../Type/RingMap.mdx))
+
+### describe([Thing](../Type/Thing.mdx)) -> [Expression](../Type/Expression.mdx)
+
+### describe([Vector](../Type/Vector.mdx))
+
+## Examples
+
+```macaulay2
+describe X
+```
+
+```macaulay2
+describe R
+
+      ZZ
+```
+
+```text
+---[a..b c ..c
+```
+
+```macaulay2
+toString describe R
+
+```
+
+```text
+(ZZ/101)[a..b c_1..c_2
+```
+
+```macaulay2
+describe oo
+
+```
+
+```text
+QQ[x dx
+```
+
+## Additional Information
+
+- Inputs:
+- `X` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- an [ expression](../Type/op_Coredollar_Expression.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: toString
+- Macaulay2Doc:: toExternalString
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "describe",
+    "safe_name": "describe",
+    "type": "MethodFunctionSingle",
+    "description": "`describe X` returns an `Expression` containing the real description of `X` bypassing the feature th...",
+    "installations": [
+        "<Installation describe(FractionField)>",
+        "<Installation describe(Thing)>",
+        "<Installation describe(GaloisField)>",
+        "<Installation describe(Matrix)>",
+        "<Installation describe(Vector)>",
+        "<Installation describe(Module)>",
+        "<Installation describe(Monoid)>",
+        "<Installation describe(PolynomialRing)>",
+        "<Installation describe(QuotientRing)>",
+        "<Installation describe(RingMap)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "describe",
+        "full_doc": "... (2407 bytes) ...",
+        "parsed_headline": "describe  -- real description"
+    }
+}
+```

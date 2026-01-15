@@ -5,39 +5,69 @@ kind: Function
 
 # synonym
 
-**Type:** `Function`
+**synonym  -- synonym for members of a class**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-synonym, -- synonym for members of a class, class => element, Usage: , synonym X, class => language-macaulay2, Inputs:, X, , , a , Macaulay2Doc :: Type, type, Outputs:, a , Macaulay2Doc :: String, string, , , a synonym for members of the class , X, Description, A synonym can be installed with the assignment statement , X.synonym=t, . The synonym is used by , Macaulay2Doc :: ofClass, ., class => examples, i1 : synonym ZZ
-
-o1 = integer, class => language-macaulay2, i2 : Stack = new Type of HashTable
-
-o2 = Stack
-
-o2 : Type, class => language-macaulay2, i3 : synonym Stack
-
-o3 = object of class Stack, class => language-macaulay2, i4 : Stack.synonym = "Deligne-Mumford stack"
-
-o4 = Deligne-Mumford stack, class => language-macaulay2, i5 : ofClass Stack
-
-o5 = a "Deligne-Mumford stack", class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: synonym, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_types.m2:648:0, .
+ A synonym can be installed with the assignment statement `X.synonym=t` .  The synonym is used by [ofClass](../Method/op_Coredollar_ofClass.mdx) .
 
 ## Examples
 
 ```macaulay2
-i1 : synonym ZZ
-
-o1 = integer
-
-i2 : Stack = new Type of HashTable
-
-o2 = Stack
-
-o2 : Type
+synonym X
 ```
 
-## See Also
+```macaulay2
+synonym ZZ
 
+```
+
+```text
+integer
+```
+
+```macaulay2
+synonym Stack
+
+```
+
+```text
+object of class Stack
+```
+
+```macaulay2
+Stack.synonym = "Deligne-Mumford stack"
+
+```
+
+```text
+Deligne-Mumford stack
+```
+
+## Additional Information
+
+- Inputs:
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) a synonym for members of the class `X`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "synonym",
+    "safe_name": "synonym",
+    "type": "FunctionClosure",
+    "description": " A synonym can be installed with the assignment statement `X.synonym=t` .  The synonym is used by [o...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "synonym",
+        "full_doc": "... (1341 bytes) ...",
+        "parsed_headline": "synonym  -- synonym for members of a class"
+    }
+}
+```

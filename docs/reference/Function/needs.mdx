@@ -5,17 +5,40 @@ kind: Function
 
 # needs
 
-**Type:** `Function`
+**needs  -- read Macaulay2 commands if necessary**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-needs, -- read Macaulay2 commands if necessary, class => element, Usage: , needs "f", class => language-macaulay2, Consequences:, The file named , f, is loaded with , Macaulay2Doc :: load, if it hasn't been loaded yet; if it has changed since the last time it was loaded, it will be loaded again, from the same location as the time before, without searching along the , Macaulay2Doc :: path, ., Description, If the variable , Macaulay2Doc :: notify, is set to true, then an informational message is displayed after the file is loaded., class => waystouse, For the programmer, The object , Macaulay2Doc :: needs, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:225:0, .
+If the variable [notify](../Instance/notify.mdx)  is set to true then an informational message is displayed after the file is loaded.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+needs "f"
+```
 
-## See Also
+## Additional Information
 
+- Consequences:
+- The file named `f` is loaded with [load](../Function/op_Coredollar_load.mdx) if it hasn't been loaded yet; if it has changed since the last time it was loaded it will be loaded again from the same location as the time before without searching along the [path](../Instance/path.mdx).
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "needs",
+    "safe_name": "op_Coredollar_needs",
+    "type": "FunctionClosure",
+    "description": "If the variable [notify](../Instance/notify.mdx)  is set to true then an informational message is di...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$needs",
+        "full_doc": "... (924 bytes) ...",
+        "parsed_headline": "needs  -- read Macaulay2 commands if necessary"
+    }
+}
+```

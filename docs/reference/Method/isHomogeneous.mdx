@@ -1,0 +1,210 @@
+---
+title: "isHomogeneous"
+kind: Method
+---
+
+# isHomogeneous
+
+**isHomogeneous  -- whether something is homogeneous (graded)**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ Quotients of multigraded rings are homogeneous if the ideal is homogeneous. Polynomial rings over polynomial rings are multigraded. A matrix is homogeneous if each entry is homogeneous of such a degree that the matrix has a well-defined degree. Modules are homogeneous if their generator and relation matrices are homogeneous. Note that no implicit simplification is done. Consider the following cautionary example.
+
+## Installed For
+
+### isHomogeneous([Ideal](../Type/Ideal.mdx))
+
+### isHomogeneous([Matrix](../Type/Matrix.mdx))
+
+### isHomogeneous([Module](../Type/Module.mdx))
+
+### isHomogeneous([Number](../Type/Number.mdx))
+
+### isHomogeneous([PolynomialRing](../Type/PolynomialRing.mdx))
+
+### isHomogeneous([QuotientRing](../Type/QuotientRing.mdx))
+
+### isHomogeneous([Ring](../Type/Ring.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+### isHomogeneous([RingElement](../Type/RingElement.mdx))
+
+### isHomogeneous([RingMap](../Type/RingMap.mdx))
+
+### isHomogeneous([Vector](../Type/Vector.mdx))
+
+## Examples
+
+```macaulay2
+isHomogeneous x
+```
+
+```macaulay2
+isHomogeneous(ZZ)
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isHomogeneous(ZZ[xy])
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isHomogeneous(ZZ[xy]/(x^3-x^2*y+3*y^3))
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isHomogeneous(ZZ[xy]/(x^3-y-3))
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isHomogeneous I
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isHomogeneous(R/I)
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isHomogeneous(R/(a-b))
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isHomogeneous B
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isHomogeneous F
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isHomogeneous phi
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isHomogeneous(a*M)
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isHomogeneous((a+1)*M)
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isHomogeneous ideal(x+x^2 x^2)
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [Ring](../Type/Ring.mdx) [RingElement](../Type/RingElement.mdx) [Vector](../Type/op_Coredollar_Vector.mdx) [Matrix](../Type/op_Coredollar_Matrix.mdx) [Ideal](../Type/op_Coredollar_Ideal.mdx) [Module](../Type/op_Coredollar_Module.mdx) or [RingMap](../Type/op_Coredollar_RingMap.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `x` is homogeneous.
+
+
+### Caveat
+
+ No computation on the generators and relations is performed. For example if inhomogeneous generators of a homogeneous ideal are given then the return value is [false](../Instance/op_Coredollar_blockMatrixForm.mdx) .
+### See also
+
+
+- Macaulay2Doc:: degree
+- Macaulay2Doc:: degrees
+- Macaulay2Doc:: homogenize
+- Macaulay2Doc:: graded and multigraded polynomial rings
+- Macaulay2Doc:: prune
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isHomogeneous",
+    "safe_name": "isHomogeneous",
+    "type": "MethodFunction",
+    "description": " Quotients of multigraded rings are homogeneous if the ideal is homogeneous. Polynomial rings over p...",
+    "installations": [
+        "<Installation isHomogeneous(RingElement)>",
+        "<Installation isHomogeneous(Number)>",
+        "<Installation isHomogeneous(Ideal)>",
+        "<Installation isHomogeneous(Module)>",
+        "<Installation isHomogeneous(Matrix)>",
+        "<Installation isHomogeneous(Vector)>",
+        "<Installation isHomogeneous(PolynomialRing)>",
+        "<Installation isHomogeneous(QuotientRing)>",
+        "<Installation isHomogeneous(RingMap)>",
+        "<Installation isHomogeneous(Ring)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "isHomogeneous",
+        "full_doc": "... (5108 bytes) ...",
+        "parsed_headline": "isHomogeneous  -- whether something is homogeneous (graded)"
+    }
+}
+```

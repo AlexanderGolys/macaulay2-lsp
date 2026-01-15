@@ -1,0 +1,174 @@
+---
+title: "substitute"
+kind: Method
+---
+
+# substitute
+
+**substitute  -- substituting values for variables**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+A convenient abbreviation for [substitute](../Method/sub.mdx)  is `sub` . This function allows you to substitute values for some variables.  There are three ways to describe the kind of substitution depending on the second argument `v` .
+- give specific values for (some of) the variables. An option `` specifies that a generator `x` should be replaced by the ring element `r`. Generators not mentioned will be preserved.
+- give a matrix the entries determines the values of each of the variables
+- give a ring the effect will be to substitute variables with variables of the same name into this new ring
+
+ The following line substitutes values for a and b and the result is in the same ring `B`  of `F` . Substitute `a`  by `x`  `b`  by `y`  and so on.  The result is a polynomial in the ring `C` . Using a ring as the second argument substitutes variables with the same name. The following produces the polynomial `F`  in the rings `A`  and `D` . If the values of all of the variables are in a different ring then the result will be in that ring. If `f`  is an ideal or a submodule of a free module over `R`  then substitution amounts to substitution in the matrix of generators of `f` .  This is not the same as tensor product! Although we cannot use substitute directly on modules which are not submodules here is a useful idiom for moving a cokernel module to another ring.  One must be careful though: the degrees of the generators might not be the desired ones. Unevaluated expressions (i.e. from [hilbertSeries](../Method/op_Coredollar_hilbertSeries.mdx) ) may also have variables substituted in all of the ways mentioned so far. Of course we can change the ring too:If you plan on using the same substitution over and over it is wise to create a ring map that will perform the same substitution.For example in the first example above we can make a [ ring map](../Type/op_Coredollar_RingMap.mdx)  `G`  and then apply it to `F` .
+
+## Installed For
+
+### substitute([Divide](../Type/Divide.mdx), [Thing](../Type/Thing.mdx))
+
+### substitute([Ideal](../Type/Ideal.mdx), [List](../Type/List.mdx))
+
+### substitute([Ideal](../Type/Ideal.mdx), [Matrix](../Type/Matrix.mdx))
+
+### substitute([Ideal](../Type/Ideal.mdx), [Option](../Type/Option.mdx))
+
+### substitute([Ideal](../Type/Ideal.mdx), [Ring](../Type/Ring.mdx))
+
+### substitute([Ideal](../Type/Ideal.mdx), [RingFamily](../Type/RingFamily.mdx))
+
+### substitute([Matrix](../Type/Matrix.mdx), [List](../Type/List.mdx))
+
+### substitute([Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx))
+
+### substitute([Matrix](../Type/Matrix.mdx), [Option](../Type/Option.mdx))
+
+### substitute([Matrix](../Type/Matrix.mdx), [Ring](../Type/Ring.mdx))
+
+### substitute([Matrix](../Type/Matrix.mdx), [RingFamily](../Type/RingFamily.mdx))
+
+### substitute([Matrix](../Type/Matrix.mdx), [ZZ](../Type/ZZ.mdx))
+
+### substitute([Module](../Type/Module.mdx), [List](../Type/List.mdx))
+
+### substitute([Module](../Type/Module.mdx), [Matrix](../Type/Matrix.mdx))
+
+### substitute([Module](../Type/Module.mdx), [Option](../Type/Option.mdx))
+
+### substitute([Module](../Type/Module.mdx), [Ring](../Type/Ring.mdx))
+
+### substitute([Module](../Type/Module.mdx), [RingFamily](../Type/RingFamily.mdx))
+
+### substitute([Number](../Type/Number.mdx), [Ring](../Type/Ring.mdx))
+
+### substitute([Number](../Type/Number.mdx), [RingFamily](../Type/RingFamily.mdx))
+
+### substitute([Power](../Type/Power.mdx), [Thing](../Type/Thing.mdx))
+
+### substitute([Product](../Type/Product.mdx), [Thing](../Type/Thing.mdx))
+
+### substitute([RingElement](../Type/RingElement.mdx), [List](../Type/List.mdx))
+
+### substitute([RingElement](../Type/RingElement.mdx), [Matrix](../Type/Matrix.mdx))
+
+### substitute([RingElement](../Type/RingElement.mdx), [Option](../Type/Option.mdx))
+
+### substitute([RingElement](../Type/RingElement.mdx), [Ring](../Type/Ring.mdx))
+
+### substitute([RingElement](../Type/RingElement.mdx), [RingFamily](../Type/RingFamily.mdx))
+
+### substitute([Sum](../Type/Sum.mdx), [Thing](../Type/Thing.mdx))
+
+### substitute([Vector](../Type/Vector.mdx), [List](../Type/List.mdx))
+
+### substitute([Vector](../Type/Vector.mdx), [Matrix](../Type/Matrix.mdx))
+
+### substitute([Vector](../Type/Vector.mdx), [Option](../Type/Option.mdx))
+
+
+*... and 2 more*
+
+## Examples
+
+```macaulay2
+substitute(fv)
+sub(fv)
+```
+
+```macaulay2
+N = substitute(M submodule of B
+```
+
+```macaulay2
+N' = coker substitute(presentation M' quotient of B
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ ring element](../Type/RingElement.mdx) a [ matrix](../Type/op_Coredollar_Matrix.mdx) an [ ideal](../Type/op_Coredollar_Ideal.mdx) a [ module](../Type/op_Coredollar_Module.mdx) a [ vector](../Type/op_Coredollar_Vector.mdx) or an [ expression](../Type/op_Coredollar_Expression.mdx) over a ring `R`
+- `v` a [ ring](../Type/Ring.mdx) a [ matrix](../Type/op_Coredollar_Matrix.mdx) an [ option](../Type/Option.mdx) or a [ list](../Type/op_Coredollar_List.mdx) of [ options](../Type/Option.mdx)
+- Outputs:
+- An object of the same sort as `f` obtained by substituting values for the variables in the ring `R` of `f` using `v`.
+
+
+### Caveat
+
+ The specified substitution is not checked to see whether the corresponding ring homomorphism is well-defined; this may produce surprising results especially if rational coefficients are converted to integer coefficients.
+### See also
+
+
+- Macaulay2Doc:: RingMap
+- Macaulay2Doc:: hilbertSeries
+- Macaulay2Doc:: value
+- Macaulay2Doc:: Expression
+
+[RingElement Sequence](../Instance/RingElement Sequence.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "substitute",
+    "safe_name": "sub",
+    "type": "MethodFunction",
+    "description": "A convenient abbreviation for [substitute](../Method/sub.mdx)  is `sub` . This function allows you t...",
+    "installations": [
+        "<Installation substitute(Power, Thing)>",
+        "<Installation substitute(Divide, Thing)>",
+        "<Installation substitute(Product, Thing)>",
+        "<Installation substitute(Sum, Thing)>",
+        "<Installation substitute(RingElement, Matrix)>",
+        "<Installation substitute(Vector, Matrix)>",
+        "<Installation substitute(Matrix, Matrix)>",
+        "<Installation substitute(Module, Matrix)>",
+        "<Installation substitute(Ideal, Matrix)>",
+        "<Installation substitute(Matrix, Ring)>",
+        "<Installation substitute(Module, Ring)>",
+        "<Installation substitute(Ideal, Ring)>",
+        "<Installation substitute(Vector, Ring)>",
+        "<Installation substitute(Number, Ring)>",
+        "<Installation substitute(RingElement, Ring)>",
+        "<Installation substitute(Matrix, RingFamily)>",
+        "<Installation substitute(Module, RingFamily)>",
+        "<Installation substitute(Ideal, RingFamily)>",
+        "<Installation substitute(Vector, RingFamily)>",
+        "<Installation substitute(RingElement, RingFamily)>",
+        "<Installation substitute(Number, RingFamily)>",
+        "<Installation substitute(Matrix, ZZ)>",
+        "<Installation substitute(Matrix, List)>",
+        "<Installation substitute(Module, List)>",
+        "<Installation substitute(Ideal, List)>",
+        "<Installation substitute(Vector, List)>",
+        "<Installation substitute(RingElement, List)>",
+        "<Installation substitute(Matrix, Option)>",
+        "<Installation substitute(Module, Option)>",
+        "<Installation substitute(Ideal, Option)>",
+        "<Installation substitute(Vector, Option)>",
+        "<Installation substitute(RingElement, Option)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "sub",
+        "full_doc": "... (9712 bytes) ...",
+        "parsed_headline": "substitute  -- substituting values for variables"
+    }
+}
+```

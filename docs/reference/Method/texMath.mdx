@@ -1,0 +1,198 @@
+---
+title: "texMath"
+kind: Method
+---
+
+# texMath
+
+**texMath  -- convert to TeX math format**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+ The main difference between this and [tex](../Method/op_Coredollar_tex.mdx)  is that the surrounding dollar signs aren't there.
+
+## Installed For
+
+### texMath([Adjacent](../Type/Adjacent.mdx))
+
+### texMath([AngleBarList](../Type/AngleBarList.mdx))
+
+### texMath([Array](../Type/Array.mdx))
+
+### texMath([AssociativeExpression](../Type/AssociativeExpression.mdx))
+
+### texMath([BasicList](../Type/BasicList.mdx))
+
+### texMath([BettiTally](../Type/BettiTally.mdx))
+
+### texMath([BinaryOperation](../Type/BinaryOperation.mdx))
+
+### texMath([CC](../Type/CC.mdx))
+
+### texMath([Constant](../Type/Constant.mdx))
+
+### texMath([Descent](../Type/Descent.mdx))
+
+### texMath([Divide](../Type/Divide.mdx))
+
+### texMath([EngineRing](../Type/EngineRing.mdx))
+
+### texMath([Function](../Type/Function.mdx))
+
+### texMath([FunctionApplication](../Type/FunctionApplication.mdx))
+
+### texMath([GroebnerBasis](../Type/GroebnerBasis.mdx))
+
+### texMath([HashTable](../Type/HashTable.mdx))
+
+### texMath([Holder](../Type/Holder.mdx))
+
+### texMath([Ideal](../Type/Ideal.mdx))
+
+### texMath([IndeterminateNumber](../Type/IndeterminateNumber.mdx))
+
+### texMath([IndexedVariable](../Type/IndexedVariable.mdx))
+
+### texMath([IndexedVariableTable](../Type/IndexedVariableTable.mdx))
+
+### texMath([InfiniteNumber](../Type/InfiniteNumber.mdx))
+
+### texMath([Keyword](../Type/Keyword.mdx))
+
+### texMath([MapExpression](../Type/MapExpression.mdx))
+
+### texMath([Matrix](../Type/Matrix.mdx))
+
+### texMath([MatrixExpression](../Type/MatrixExpression.mdx))
+
+### texMath([Minus](../Type/Minus.mdx))
+
+### texMath([Module](../Type/Module.mdx))
+
+### texMath([Monoid](../Type/Monoid.mdx))
+
+### texMath([MonoidElement](../Type/MonoidElement.mdx))
+
+
+*... and 35 more*
+
+## Examples
+
+```macaulay2
+texMath x
+```
+
+```macaulay2
+texMath (x-1)^6
+
+```
+
+```text
+x^{6}-6\x^{5}+15\x^{4}-20\x^{3}+15\x^{2}-6\x+1
+```
+
+## Additional Information
+
+- Inputs:
+- `x` any Macaulay2 object
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) `x` converted to TeX math format
+
+
+### Caveat
+
+ No attempt is made to wrap large matrices or equations.
+### See also
+
+
+- Macaulay2Doc:: tex
+- Macaulay2Doc:: mathML
+- Macaulay2Doc:: showTex
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "texMath",
+    "safe_name": "op_Coredollar_texMath",
+    "type": "MethodFunctionSingle",
+    "description": " The main difference between this and [tex](../Method/op_Coredollar_tex.mdx)  is that the surroundin...",
+    "installations": [
+        "<Installation texMath(BettiTally)>",
+        "<Installation texMath(MultigradedBettiTally)>",
+        "<Installation texMath(Matrix)>",
+        "<Installation texMath(MonoidElement)>",
+        "<Installation texMath(EngineRing)>",
+        "<Installation texMath(Nothing)>",
+        "<Installation texMath(Set)>",
+        "<Installation texMath(Option)>",
+        "<Installation texMath(RingMap)>",
+        "<Installation texMath(Symbol)>",
+        "<Installation texMath(Keyword)>",
+        "<Installation texMath(Monoid)>",
+        "<Installation texMath(GroebnerBasis)>",
+        "<Installation texMath(ProjectiveHilbertPolynomial)>",
+        "<Installation texMath(Descent)>",
+        "<Installation texMath(RingElement)>",
+        "<Installation texMath(Holder)>",
+        "<Installation texMath(RowExpression)>",
+        "<Installation texMath(BinaryOperation)>",
+        "<Installation texMath(FunctionApplication)>",
+        "<Installation texMath(Adjacent)>",
+        "<Installation texMath(AssociativeExpression)>",
+        "<Installation texMath(Minus)>",
+        "<Installation texMath(Divide)>",
+        "<Installation texMath(Sum)>",
+        "<Installation texMath(Product)>",
+        "<Installation texMath(Power)>",
+        "<Installation texMath(Superscript)>",
+        "<Installation texMath(Subscript)>",
+        "<Installation texMath(SparseVectorExpression)>",
+        "<Installation texMath(SparseMonomialVectorExpression)>",
+        "<Installation texMath(Table)>",
+        "<Installation texMath(MatrixExpression)>",
+        "<Installation texMath(VectorExpression)>",
+        "<Installation texMath(MapExpression)>",
+        "<Installation texMath(SymbolBody)>",
+        "<Installation texMath(Thing)>",
+        "<Installation texMath(String)>",
+        "<Installation texMath(Net)>",
+        "<Installation texMath(VerticalList)>",
+        "<Installation texMath(NumberedVerticalList)>",
+        "<Installation texMath(AngleBarList)>",
+        "<Installation texMath(Array)>",
+        "<Installation texMath(Sequence)>",
+        "<Installation texMath(VisibleList)>",
+        "<Installation texMath(BasicList)>",
+        "<Installation texMath(MutableList)>",
+        "<Installation texMath(HashTable)>",
+        "<Installation texMath(MutableHashTable)>",
+        "<Installation texMath(Function)>",
+        "<Installation texMath(ZZ)>",
+        "<Installation texMath(Ideal)>",
+        "<Installation texMath(IndeterminateNumber)>",
+        "<Installation texMath(InfiniteNumber)>",
+        "<Installation texMath(Vector)>",
+        "<Installation texMath(Module)>",
+        "<Installation texMath(MutableMatrix)>",
+        "<Installation texMath(Package)>",
+        "<Installation texMath(QQ)>",
+        "<Installation texMath(Constant)>",
+        "<Installation texMath(CC)>",
+        "<Installation texMath(RR)>",
+        "<Installation texMath(RRi)>",
+        "<Installation texMath(IndexedVariable)>",
+        "<Installation texMath(IndexedVariableTable)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$texMath",
+        "full_doc": "... (1717 bytes) ...",
+        "parsed_headline": "texMath  -- convert to TeX math format"
+    }
+}
+```

@@ -5,26 +5,36 @@ kind: Function
 
 # stack
 
-**Type:** `Function`
+**stack  -- join nets or string vertically**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-stack, -- join nets or string vertically, Description, stack(m,n,...), -- joins nets or strings by concatenating them vertically. The baseline of the result is the baseline of the first argument., , Nested sequences among the arguments are first spliced together., , If there are no arguments, then the net returned has zero height and zero depth. This might be unexpected., , Tab characters in any of the strings are first expanded into spaces, assuming tab stops at every eighth column., , Null arguments are allowed and ignored., See also, Macaulay2Doc :: Net || Net, class => waystouse, Ways to use , stack, :, stack(BasicList), class => waystouse, For the programmer, The object , Macaulay2Doc :: stack, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_strings.m2:270:0, .
+`stack(mn...)`  -- joins nets or strings by concatenating them vertically.  The baseline of the result is the baseline of the first argument. Nested sequences among the arguments are first spliced together. If there are no arguments then the net returned has zero height and zero depth.  This might be unexpected. Tab characters in any of the strings are first expanded into spaces assuming tab stops at every eighth column. Null arguments are allowed and ignored.
 
-## Installations
+## Additional Information
 
-Type signatures for this function:
+### See also
 
-- `stack(String)`
-- `stack(Net)`
-- `stack(Nothing)`
-- `stack(BasicList)`
 
-## Examples
+- Macaulay2Doc:: Net || Net
 
-*Examples would be extracted from M2 documentation here*
+## Debug info
 
-## See Also
-
+```python
+{
+    "obj_type": "Function",
+    "name": "stack",
+    "safe_name": "op_Coredollar_stack",
+    "type": "CompiledFunction",
+    "description": "`stack(mn...)`  -- joins nets or strings by concatenating them vertically.  The baseline of the resu...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$stack",
+        "full_doc": "... (1045 bytes) ...",
+        "parsed_headline": "stack  -- join nets or string vertically"
+    }
+}
+```

@@ -1,0 +1,76 @@
+---
+title: "Print"
+kind: Method
+---
+
+# Print
+
+**Print  -- top level method for printing results**
+
+**Type:** [Symbol](../Type/Symbol.mdx)
+
+## Description
+
+ The function `f`  is responsible for printing the output prompt and for applying the [BeforePrint](../Instance/BeforePrint.mdx)  and [AfterPrint](../Method/op_Coredollar_AfterPrint.mdx)  methods if desired.
+
+## Examples
+
+```macaulay2
+X#{topLevelMode,Print} = f
+```
+
+```macaulay2
+code Thing#{Standard,Print}
+
+```
+
+```text
+/usr/share/Macaulay2/Core/robust.m2:133:25-
+     149:6: --source code:
+     Thing#{Standard,Print} = x -> (
+          oprompt := concatenate(interpreterDepth:"o" toString lineNumber " = ");
+          save := printWidth;
+          if printWidth != 0 then printWidth = printWidth - #oprompt;
+          z := robustNet x;
+          wrapper := lookup(global Wrapclass x);
+          if wrapper =!= null then (
+               fun := () -> z = wrapper z;
+               try timelimit(printingTimeLimit fun)
+               else (
+                    alarm 0;
+                    global debugError <- fun;
+                    stderr << "--error or time limit reached in applying Wrap method to output; type 'debugError()' to see it" << endl << endl);
+...
+   (output truncated)
+```
+
+## Additional Information
+
+- Inputs:
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- `f` a [ function](../Type/Function.mdx) that can print something of type `X`
+- Consequences:
+- at top level whenever it is time to print an output value of type `X` the function `f` will be called
+
+[Wrap](../Method/op_Coredollar_Wrap.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "Print",
+    "safe_name": "op_Coredollar_Print",
+    "type": "Symbol",
+    "description": " The function `f`  is responsible for printing the output prompt and for applying the [BeforePrint](...",
+    "installations": [],
+    "options": null,
+    "extra": {
+        "isSymbol": true,
+        "codeName": "Core$Print",
+        "full_doc": "... (2000 bytes) ...",
+        "stub": true,
+        "parsed_headline": "Print  -- top level method for printing results"
+    }
+}
+```

@@ -1,0 +1,66 @@
+---
+title: "between"
+kind: Method
+---
+
+# between
+
+**between  -- insert something between elements of a list**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ Inserts `m`  between each pair of elements of the list or sequence `v`  returning a list.
+
+## Installed For
+
+### between([Thing](../Type/Thing.mdx), [VisibleList](../Type/VisibleList.mdx))
+
+## Examples
+
+```macaulay2
+between(mv)
+```
+
+```macaulay2
+between(55{a,b,c,d})
+
+```
+
+```text
+{a, 55, b, 55, c, 55, d}
+
+List
+```
+
+```macaulay2
+concatenate between("" (1..10) / toString)
+
+```
+
+```text
+12345678910
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "between",
+    "safe_name": "op_Coredollar_between",
+    "type": "MethodFunction",
+    "description": " Inserts `m`  between each pair of elements of the list or sequence `v`  returning a list....",
+    "installations": [
+        "<Installation between(Thing, VisibleList)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$between",
+        "full_doc": "... (974 bytes) ...",
+        "parsed_headline": "between  -- insert something between elements of a list"
+    }
+}
+```

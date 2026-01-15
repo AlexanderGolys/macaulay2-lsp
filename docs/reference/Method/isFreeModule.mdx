@@ -1,0 +1,81 @@
+---
+title: "isFreeModule"
+kind: Method
+---
+
+# isFreeModule
+
+**isFreeModule  -- whether something is a free module**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ This function checks if the module `M`  is equal to its [ambient](../Method/op_Coredollar_ambient.mdx)  free module by examining its matrix of [ generators](../Instance/generators(Module).mdx)  and its matrix of [ relations](../Instance/relations(Module).mdx) . To determine whether `M`  is isomorphic to a free module use [prune](../Method/prune.mdx)  `M` .
+
+## Installed For
+
+### isFreeModule([Module](../Type/Module.mdx))
+
+### isFreeModule([Thing](../Type/Thing.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+## Examples
+
+```macaulay2
+isFreeModule M
+```
+
+```macaulay2
+isFreeModule M
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isFreeModule prune M
+
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `M` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) [true](../Instance/op_Coredollar_true.mdx) if the given representation of `M` is a free module and [false](../Instance/op_Coredollar_blockMatrixForm.mdx) otherwise
+
+
+### See also
+
+
+- Macaulay2Doc:: ambient
+- Macaulay2Doc:: prune(Module)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isFreeModule",
+    "safe_name": "op_Coredollar_isFreeModule",
+    "type": "MethodFunction",
+    "description": " This function checks if the module `M`  is equal to its [ambient](../Method/op_Coredollar_ambient.m...",
+    "installations": [
+        "<Installation isFreeModule(Thing)>",
+        "<Installation isFreeModule(Module)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isFreeModule",
+        "full_doc": "... (1861 bytes) ...",
+        "parsed_headline": "isFreeModule  -- whether something is a free module"
+    }
+}
+```

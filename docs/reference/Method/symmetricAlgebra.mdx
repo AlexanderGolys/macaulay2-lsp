@@ -1,0 +1,262 @@
+---
+title: "symmetricAlgebra"
+kind: Method
+---
+
+# symmetricAlgebra
+
+**symmetricAlgebra  -- the symmetric algebra of a module**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+
+### Synopsis
+
+
+- Inputs:
+- `M` a [ module](../Type/op_Coredollar_Module.mdx)
+- Outputs:
+- a [ ring](../Type/Ring.mdx) the symmetric algebra of `M`
+
+Most of the optional arguments for monoids (see [Ring Array](../Instance/Ring Array.mdx)  or [monoid](../Method/monoid.mdx) ) are available here as well as in the following example.  They apply to the variables that correspond to the generators of the module.
+### Synopsis
+
+
+- Inputs:
+- `f` a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- Outputs:
+- a [ ring map](../Type/op_Coredollar_RingMap.mdx) the map between symmetric algebras induced by `f`
+
+
+### Synopsis
+
+
+- Inputs:
+- `A` a [ ring](../Type/Ring.mdx) the symmetric algebra of the target of `f` previously computed. Optional.
+- `B` a [ ring](../Type/Ring.mdx) the symmetric algebra of the source of `f` previously computed. Optional.
+- `f` a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- Outputs:
+- a [ ring map](../Type/op_Coredollar_RingMap.mdx) the map between the specified symmetric algebras induced by `f`
+
+This form of functoriality is needed because various options are available when computing symmetric algebras.For a linear map that is an isomorphism and is known to be so e.g. by having had its inverse computed the inverse of the corresponding map between symmetric algebras is precomputed and made available.
+
+## Installed For
+
+### symmetricAlgebra([Matrix](../Type/Matrix.mdx))
+
+### symmetricAlgebra([Module](../Type/Module.mdx))
+
+### symmetricAlgebra([Nothing](../Type/Nothing.mdx), [Nothing](../Type/Nothing.mdx), [Matrix](../Type/Matrix.mdx))
+
+### symmetricAlgebra([Nothing](../Type/Nothing.mdx), [Ring](../Type/Ring.mdx), [Matrix](../Type/Matrix.mdx))
+
+### symmetricAlgebra([Ring](../Type/Ring.mdx), [Nothing](../Type/Nothing.mdx), [Matrix](../Type/Matrix.mdx))
+
+### symmetricAlgebra([Ring](../Type/Ring.mdx), [Ring](../Type/Ring.mdx), [Matrix](../Type/Matrix.mdx)) -> [RingMap](../Type/RingMap.mdx)
+
+## Options
+
+- [DegreeGroup](../Option/DegreeGroup.mdx) => null
+- [Variables](../Option/Variables.mdx) => null
+- [DegreeLift](../Method/DegreeLift.mdx) => null
+- [VariableBaseName](../Method/VariableBaseName.mdx) => p
+- [DegreeRank](../Method/DegreeRank.mdx) => null
+- [Weights](../Method/Weights.mdx) => {}
+- [Inverses](../Option/Inverses.mdx) => false
+- [Global](../Method/Global.mdx) => true
+- [MonomialOrder](../Option/MonomialOrder.mdx) => {GRevLex, Position => Up}
+- [WeylAlgebra](../Option/WeylAlgebra.mdx) => {}
+- [Degrees](../Method/Degrees.mdx) => null
+- [Join](../Method/Join.mdx) => null
+- [MonomialSize](../Option/MonomialSize.mdx) => 32
+- [Local](../Method/Local.mdx) => false
+- [Heft](../Method/Heft.mdx) => null
+- [Constants](../Method/Constants.mdx) => false
+- [SkewCommutative](../Option/SkewCommutative.mdx) => {}
+- [DegreeMap](../Option/DegreeMap.mdx) => null
+
+## Examples
+
+```macaulay2
+symmetricAlgebra M
+
+                       R[p ..p ]
+                          0   2
+```
+
+```text
+---------------------------------------------
+     (- b*p  + a*p  - c*p  + b*p  - c*p  + a*p )
+           0      1       1      2       0      2
+
+QuotientRing
+```
+
+```macaulay2
+symmetricAlgebra(R^{1,2,3})
+
+```
+
+```text
+R[p ..p ]
+        0   2
+
+PolynomialRing
+```
+
+```macaulay2
+A = symmetricAlgebra(M
+```
+
+```macaulay2
+B = symmetricAlgebra(M
+```
+
+```macaulay2
+symmetricAlgebra(M - c*p  + b*p  - c*p  + a*p )
+           0      1       1      2       0      2
+
+```
+
+```text
+QuotientRing
+```
+
+```macaulay2
+symmetricAlgebra vars R
+
+```
+
+```text
+map (R[p ] R[p ..p ] {a*p , b*p , c*p , d*p , a, b, c, d})
+              0      0   3       0     0     0     0
+
+RingMap R[p ] <-- R[p ..p ]
+                 0         0   3
+```
+
+```macaulay2
+symmetricAlgebra vars R
+
+```
+
+```text
+map (R[p ] R[p ..p ] {a*p , b*p , c*p , d*p , a, b, c, d})
+              0      0   3       0     0     0     0
+
+RingMap R[p ] <-- R[p ..p ]
+                 0         0   3
+```
+
+```macaulay2
+p = symmetricAlgebra(ABid_M)
+
+```
+
+```text
+map (A B {x, y, z, a, b, c, d})
+
+RingMap A <-- B
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "symmetricAlgebra",
+    "safe_name": "op_Coredollar_symmetricAlgebra",
+    "type": "MethodFunctionWithOptions",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `M` a [ module](../Type/op_Coredollar_Module.mdx)\n- Outputs:\n- a [ ring]...",
+    "installations": [
+        "<Installation symmetricAlgebra(Module)>",
+        "<Installation symmetricAlgebra(Ring, Ring, Matrix)>",
+        "<Installation symmetricAlgebra(Matrix)>",
+        "<Installation symmetricAlgebra(Nothing, Nothing, Matrix)>",
+        "<Installation symmetricAlgebra(Nothing, Ring, Matrix)>",
+        "<Installation symmetricAlgebra(Ring, Nothing, Matrix)>"
+    ],
+    "options": [
+        {
+            "name": "DegreeGroup",
+            "default": "null"
+        },
+        {
+            "name": "Variables",
+            "default": "null"
+        },
+        {
+            "name": "DegreeLift",
+            "default": "null"
+        },
+        {
+            "name": "VariableBaseName",
+            "default": "p"
+        },
+        {
+            "name": "DegreeRank",
+            "default": "null"
+        },
+        {
+            "name": "Weights",
+            "default": "{}"
+        },
+        {
+            "name": "Inverses",
+            "default": "false"
+        },
+        {
+            "name": "Global",
+            "default": "true"
+        },
+        {
+            "name": "MonomialOrder",
+            "default": "{GRevLex, Position => Up}"
+        },
+        {
+            "name": "WeylAlgebra",
+            "default": "{}"
+        },
+        {
+            "name": "Degrees",
+            "default": "null"
+        },
+        {
+            "name": "Join",
+            "default": "null"
+        },
+        {
+            "name": "MonomialSize",
+            "default": "32"
+        },
+        {
+            "name": "Local",
+            "default": "false"
+        },
+        {
+            "name": "Heft",
+            "default": "null"
+        },
+        {
+            "name": "Constants",
+            "default": "false"
+        },
+        {
+            "name": "SkewCommutative",
+            "default": "{}"
+        },
+        {
+            "name": "DegreeMap",
+            "default": "null"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$symmetricAlgebra",
+        "full_doc": "... (5564 bytes) ...",
+        "parsed_headline": "symmetricAlgebra  -- the symmetric algebra of a module"
+    }
+}
+```

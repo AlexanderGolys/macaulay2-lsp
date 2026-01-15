@@ -5,17 +5,36 @@ kind: Function
 
 # globalReleaseFunction
 
-**Type:** `Function`
+**globalReleaseFunction  -- the standard method for the global variable release hook**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-globalReleaseFunction, -- the standard method for the global variable release hook, Description, globalReleaseFunction, -- the standard function that can be used as a method for , Macaulay2Doc :: GlobalReleaseHook, so that certain types of things, which have acquired as their name the name of a global variable to which they have been assigned, will lose that name when a different value is assigned to the variable., , See also, Macaulay2Doc :: globalAssignFunction, class => waystouse, For the programmer, The object , Macaulay2Doc :: globalReleaseFunction, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:237:0, .
+`globalReleaseFunction`  -- the standard function that can be used as a method for [GlobalReleaseHook](../Instance/GlobalReleaseHook.mdx)  so that certain types of things which have acquired as their name the name of a global variable to which they have been assigned will lose that name when a different value is assigned to the variable.
 
-## Examples
+## Additional Information
 
-*Examples would be extracted from M2 documentation here*
+### See also
 
-## See Also
 
+- Macaulay2Doc:: globalAssignFunction
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "globalReleaseFunction",
+    "safe_name": "op_Coredollar_globalReleaseFunction",
+    "type": "FunctionClosure",
+    "description": "`globalReleaseFunction`  -- the standard function that can be used as a method for [GlobalReleaseHoo...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$globalReleaseFunction",
+        "full_doc": "... (846 bytes) ...",
+        "parsed_headline": "globalReleaseFunction  -- the standard method for the global variable release hook"
+    }
+}
+```

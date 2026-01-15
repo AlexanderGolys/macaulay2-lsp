@@ -1,0 +1,76 @@
+---
+title: "setupPromote"
+kind: Method
+---
+
+# setupPromote
+
+**setupPromote  -- set up promote from one ring to another**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+This defines promotion from one ring to another as the application of a ring map. After calling `setupPromote` any operation that is given an element of the source of `f` but expects an element of the target of `f` will automatically [promote](../Method/op_Coredollar_promote.mdx) it by applying `f`.
+
+## Installed For
+
+### setupPromote([Function](../Type/Function.mdx), [Ring](../Type/Ring.mdx), [Ring](../Type/Ring.mdx))
+
+### setupPromote([Function](../Type/Function.mdx), [Ring](../Type/Ring.mdx), [Ring](../Type/Ring.mdx), [Function](../Type/Function.mdx))
+
+### setupPromote([Ring](../Type/Ring.mdx), [Ring](../Type/Ring.mdx))
+
+### setupPromote([RingMap](../Type/RingMap.mdx))
+
+### setupPromote([RingMap](../Type/RingMap.mdx), [Ring](../Type/Ring.mdx), [Ring](../Type/Ring.mdx))
+
+### setupPromote([RingMap](../Type/RingMap.mdx), [Ring](../Type/Ring.mdx), [Ring](../Type/Ring.mdx), [Function](../Type/Function.mdx))
+
+## Examples
+
+```macaulay2
+setupPromote f
+```
+
+```macaulay2
+setupPromote map(RR'{x_1+x_2,x_1*x_2})
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ ring map](../Type/op_Coredollar_RingMap.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: setupLift
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "setupPromote",
+    "safe_name": "setupPromote",
+    "type": "MethodFunction",
+    "description": "This defines promotion from one ring to another as the application of a ring map. After calling `set...",
+    "installations": [
+        "<Installation setupPromote(RingMap, Ring, Ring, Function)>",
+        "<Installation setupPromote(Function, Ring, Ring, Function)>",
+        "<Installation setupPromote(Function, Ring, Ring)>",
+        "<Installation setupPromote(RingMap, Ring, Ring)>",
+        "<Installation setupPromote(RingMap)>",
+        "<Installation setupPromote(Ring, Ring)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "setupPromote",
+        "full_doc": "... (1784 bytes) ...",
+        "parsed_headline": "setupPromote  -- set up promote from one ring to another"
+    }
+}
+```

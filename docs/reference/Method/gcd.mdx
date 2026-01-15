@@ -1,0 +1,129 @@
+---
+title: "gcd"
+kind: Method
+---
+
+# gcd
+
+**gcd  -- greatest common divisor**
+
+**Type:** [MethodFunctionBinary](../Type/MethodFunctionBinary.mdx)
+
+## Description
+
+gcd  -- greatest common divisor
+
+## Installed For
+
+### gcd([List](../Type/List.mdx))
+
+### gcd([QQ](../Type/QQ.mdx))
+
+### gcd([QQ](../Type/QQ.mdx), [QQ](../Type/QQ.mdx))
+
+### gcd([QQ](../Type/QQ.mdx), [ZZ](../Type/ZZ.mdx))
+
+### gcd([RingElement](../Type/RingElement.mdx))
+
+### gcd([RingElement](../Type/RingElement.mdx), [RingElement](../Type/RingElement.mdx))
+
+### gcd([RingElement](../Type/RingElement.mdx), [ZZ](../Type/ZZ.mdx))
+
+### gcd([Sequence](../Type/Sequence.mdx))
+
+### gcd([ZZ](../Type/ZZ.mdx))
+
+### gcd([ZZ](../Type/ZZ.mdx), [QQ](../Type/QQ.mdx))
+
+### gcd([ZZ](../Type/ZZ.mdx), [RingElement](../Type/RingElement.mdx))
+
+### gcd([ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+gcd(xy...)
+```
+
+```macaulay2
+gcd(12848)
+
+```
+
+```text
+4
+```
+
+```macaulay2
+gcd(x^2*yx*y^3^6)
+
+```
+
+```text
+x*y
+
+R
+```
+
+```macaulay2
+gcd(x^36-1x^24-1)
+
+      12
+```
+
+```text
+x   - 1
+
+R
+```
+
+## Additional Information
+
+- Inputs:
+- `x` an [ integer](../Type/ZZ.mdx)
+- or
+- a [ rational number](../Type/op_x226_x132_x154.mdx)
+- or
+- a [ ring element](../Type/RingElement.mdx)
+- Outputs:
+- an [ integer](../Type/ZZ.mdx) or a [ rational number](../Type/op_x226_x132_x154.mdx) or a [ ring element](../Type/RingElement.mdx) the greatest common divisor of the arguments
+
+
+### See also
+
+
+- Macaulay2Doc:: gcdCoefficients
+- Macaulay2Doc:: lcm
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "gcd",
+    "safe_name": "op_Coredollar_gcd",
+    "type": "MethodFunctionBinary",
+    "description": "gcd  -- greatest common divisor...",
+    "installations": [
+        "<Installation gcd(ZZ, RingElement)>",
+        "<Installation gcd(RingElement, ZZ)>",
+        "<Installation gcd(RingElement, RingElement)>",
+        "<Installation gcd(ZZ, QQ)>",
+        "<Installation gcd(QQ, ZZ)>",
+        "<Installation gcd(QQ, QQ)>",
+        "<Installation gcd(Sequence)>",
+        "<Installation gcd(List)>",
+        "<Installation gcd(ZZ, ZZ)>",
+        "<Installation gcd(QQ)>",
+        "<Installation gcd(ZZ)>",
+        "<Installation gcd(RingElement)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$gcd",
+        "full_doc": "... (1815 bytes) ...",
+        "parsed_headline": "gcd  -- greatest common divisor"
+    }
+}
+```

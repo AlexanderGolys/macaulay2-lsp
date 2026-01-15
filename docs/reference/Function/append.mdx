@@ -5,51 +5,94 @@ kind: Function
 
 # append
 
-**Type:** `Function`
+**append  -- add an element to the end of a list**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-append, -- add an element to the end of a list, class => element, Usage: , append(L, x), class => language-macaulay2, Inputs:, L, , , a , Macaulay2Doc :: BasicList, basic list, , , x, , , a , Macaulay2Doc :: Thing, thing, , , Outputs:, a , Macaulay2Doc :: BasicList, basic list, , , the list obtained by adding the element , x, to the end of list , L, , Description, class => examples, i1 : append({1, 7, 8, 3, 3)
-
-o1 = {1, 7, 8, 3, 3
-
-o1 : List, class => language-macaulay2, i2 : L = {"old", "old", "old";, class => language-macaulay2, i3 : append(L, "new")
-
-o3 = {old, old, old, new
-
-o3 : List, class => language-macaulay2, The new list will be of the same , Macaulay2Doc :: class, as , L, ., class => examples, i4 : K = (a, b, c);, class => language-macaulay2, i5 : append(K, z)
-
-o5 = (a, b, c, z)
-
-o5 : Sequence, class => language-macaulay2, Only a single element can be appended with this function. To append the elements of a list, use , Macaulay2Doc :: join, . To add the new element to the beginning of the list, or at a particular index, use , Macaulay2Doc :: prepend, or , Macaulay2Doc :: insert, , respectively., class => examples, i6 : join(K, (x, y, z))
-
-o6 = (a, b, c, x, y, z)
-
-o6 : Sequence, class => language-macaulay2, i7 : prepend(z, K)
-
-o7 = (z, a, b, c)
-
-o7 : Sequence, class => language-macaulay2, i8 : insert(1, z, K)
-
-o8 = (a, z, b, c)
-
-o8 : Sequence, class => language-macaulay2, Append always returns a , new, list, rather than modifying the input list, even if , L, is a , Macaulay2Doc :: MutableList, ., class => examples, i9 : L = new MutableList from {2,3,5;, class => language-macaulay2, i10 : peek append(L, 7)
-
-o10 = MutableList{2, 3, 5, 7, class => language-macaulay2, i11 : peek L
-
-o11 = MutableList{2, 3, 5, class => language-macaulay2, Notice that the order of the arguments is switched in , prepend, versus , append, : we write , prepend(x, L), and , append(L, x), . A good way to remember this is that the new element is visually placed , before, or , after, the list, depending on where we want it to appear in the output., See also, Macaulay2Doc :: insert, Macaulay2Doc :: join, Macaulay2Doc :: prepend, Macaulay2Doc :: lists and sequences, class => waystouse, Ways to use , append, :, append(BasicList,Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: append, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/append-doc.m2:54:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `append(BasicList, Thing)`
+The new list will be of the same [class](../Function/op_Coredollar_class.mdx) as `L` .Only a single element can be appended with this function. To append the elements of a list use [join](../Function/join.mdx). To add the new element to the beginning of the list or at a particular index use [prepend](../Function/op_Coredollar_prepend.mdx) or [insert](../Method/op_Coredollar_insert.mdx) respectively.Append always returns a *new*  list rather than modifying the input list even if `L`  is a [MutableList](../Type/op_Coredollar_MutableList.mdx).Notice that the order of the arguments is switched in `prepend`  versus `append` : we write `prepend(x L)`  and `append(L x)` . A good way to remember this is that the new element is visually placed *before*  or *after*  the list depending on where we want it to appear in the output.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+append(L x)
+```
 
-## See Also
+```macaulay2
+append({1, 7, 8, 3} 3)
 
+```
+
+```text
+{1, 7, 8, 3, 3}
+
+List
+```
+
+```macaulay2
+append(L "new")
+
+```
+
+```text
+{old, old, old, new}
+
+List
+```
+
+```macaulay2
+append(K z)
+
+```
+
+```text
+(a b c z)
+
+Sequence
+```
+
+```macaulay2
+peek append(L 7)
+
+```
+
+```text
+MutableList{2, 3, 5, 7}
+```
+
+## Additional Information
+
+- Inputs:
+- `L` a [ basic list](../Type/op_Coredollar_BasicList.mdx)
+- `x` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- a [ basic list](../Type/op_Coredollar_BasicList.mdx) the list obtained by adding the element `x` to the end of list `L`
+
+
+### See also
+
+
+- Macaulay2Doc:: insert
+- Macaulay2Doc:: join
+- Macaulay2Doc:: prepend
+- Macaulay2Doc:: lists and sequences
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "append",
+    "safe_name": "op_Coredollar_append",
+    "type": "CompiledFunction",
+    "description": "The new list will be of the same [class](../Function/op_Coredollar_class.mdx) as `L` .Only a single ...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$append",
+        "full_doc": "... (3194 bytes) ...",
+        "parsed_headline": "append  -- add an element to the end of a list"
+    }
+}
+```

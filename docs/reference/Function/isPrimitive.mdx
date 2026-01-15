@@ -5,27 +5,49 @@ kind: Function
 
 # isPrimitive
 
-**Type:** `Function`
+**isPrimitive  -- whether an element is a primitive element of a finite field**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-isPrimitive, -- whether an element is a primitive element of a finite field, Description, isPrimitive(f), -- Given an element , f, in a quotient of a polynomial ring , R, over a finite field , K, which is itself a finite field, with the ring being finite dimensional over the field, determine if , f, generates the multiplicative group of this field., class => examples, i1 : R = ZZ/5[t]/(t^2+t+1);, class => language-macaulay2, i2 : isPrimitive t
-
-o2 = false, class => language-macaulay2, i3 : isPrimitive (t-1)
-
-o3 = true, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: isPrimitive, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/GF-doc.m2:79:0, .
+`isPrimitive(f)`  -- Given an element `f`  in a quotient of a polynomial ring `R`  over a finite field `K` which is itself a finite field with the ring being finite dimensional over the field determine if `f`  generates the multiplicative group of this field.
 
 ## Examples
 
 ```macaulay2
-i1 : R = ZZ/5[t]/(t^2+t+1);
+isPrimitive t
 
-i2 : isPrimitive t
-
-o2 = false
 ```
 
-## See Also
+```text
+false
+```
 
+```macaulay2
+isPrimitive (t-1)
+
+```
+
+```text
+true
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "isPrimitive",
+    "safe_name": "isPrimitive",
+    "type": "FunctionClosure",
+    "description": "`isPrimitive(f)`  -- Given an element `f`  in a quotient of a polynomial ring `R`  over a finite fie...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "isPrimitive",
+        "full_doc": "... (974 bytes) ...",
+        "parsed_headline": "isPrimitive  -- whether an element is a primitive element of a finite field"
+    }
+}
+```

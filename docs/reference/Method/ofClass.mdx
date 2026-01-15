@@ -1,0 +1,86 @@
+---
+title: "ofClass"
+kind: Method
+---
+
+# ofClass
+
+**ofClass  -- English phrases for types**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+When viewed in html words in the phrase hot link(s) to the documentation node(s) for the class(es).
+
+## Installed For
+
+### ofClass([ImmutableType](../Type/ImmutableType.mdx))
+
+### ofClass([List](../Type/List.mdx))
+
+### ofClass([Type](../Type/Type.mdx)) -> [Sequence](../Type/Sequence.mdx)
+
+## Examples
+
+```macaulay2
+ofClass T
+```
+
+```macaulay2
+ofClass class 3
+
+```
+
+```text
+an "integer"
+```
+
+```macaulay2
+ofClass Ring
+
+```
+
+```text
+a "ring"
+```
+
+```macaulay2
+SPAN ofClass {HashTable, ProjectiveVariety}
+
+```
+
+```text
+a "hash table" or a "projective variety"
+```
+
+## Additional Information
+
+- Inputs:
+- `T` a [ type](../Type/op_Coredollar_Type.mdx) an [ immutable type](../Type/op_Coredollar_ImmutableType.mdx) or a [ list](../Type/op_Coredollar_List.mdx) of types
+- Outputs:
+- a [ sequence](../Type/Sequence.mdx) an English phrase in hypertext using a synonym for each type together with appropriate indefinite articles and if a list is presented the word *or* as a conjunction at the end
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "ofClass",
+    "safe_name": "op_Coredollar_ofClass",
+    "type": "MethodFunction",
+    "description": "When viewed in html words in the phrase hot link(s) to the documentation node(s) for the class(es)....",
+    "installations": [
+        "<Installation ofClass(ImmutableType)>",
+        "<Installation ofClass(Type)>",
+        "<Installation ofClass(List)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$ofClass",
+        "full_doc": "... (2550 bytes) ...",
+        "parsed_headline": "ofClass  -- English phrases for types"
+    }
+}
+```

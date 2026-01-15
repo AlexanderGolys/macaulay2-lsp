@@ -5,17 +5,50 @@ kind: Function
 
 # input
 
-**Type:** `Function`
+**input  -- read Macaulay2 commands and echo**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-input, -- read Macaulay2 commands and echo, class => element, Usage: , input fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, Consequences:, reads and executes the commands found in the file whose name is contained in the string , fn, , echoing the input, printing the values, and incrementing the line number, Description, The file is sought in the directory containing the file currently being loaded, if any, and then along the , Macaulay2Doc :: path, , unless the name of the file begins with , /, , , ~/, , , $, , or , !, . If the file begins with , ./, or , ../, , then it looks instead in the directory of the file currently being loaded (see , Macaulay2Doc :: currentFileDirectory, ). If no file is being loaded it will look in the current directory (see , Macaulay2Doc :: currentDirectory, )., If one of the top level expressions in the file evaluates to the symbol , Macaulay2Doc :: end, the reading of the file is stopped at that point., If an error occurs while evaluating the expressions in the file, reading is stopped., See also, Macaulay2Doc :: path, Macaulay2Doc :: needs, Macaulay2Doc :: load, class => waystouse, For the programmer, The object , Macaulay2Doc :: input, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:190:0, .
+The file is sought in the directory containing the file currently being loaded if any and then along the [path](../Instance/path.mdx)  unless the name of the file begins with `/`  `~/`  `$`  or `!` . If the file begins with `./`  or `../`  then it looks instead in the directory of the file currently being loaded (see [currentFileDirectory](../Instance/currentFileDirectory.mdx) ).  If no file is being loaded it will look in the current directory (see [currentDirectory](../Function/currentDirectory.mdx) ).If one of the top level expressions in the file evaluates to the symbol [end](../Method/op_Coredollar_end.mdx)  the reading of the file is stopped at that point.If an error occurs while evaluating the expressions in the file reading is stopped.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+input fn
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `fn` a [ string](../Type/op_Coredollar_String.mdx)
+- Consequences:
+- reads and executes the commands found in the file whose name is contained in the string `fn` echoing the input printing the values and incrementing the line number
+
+
+### See also
+
+
+- Macaulay2Doc:: path
+- Macaulay2Doc:: needs
+- Macaulay2Doc:: load
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "input",
+    "safe_name": "input",
+    "type": "FunctionClosure",
+    "description": "The file is sought in the directory containing the file currently being loaded if any and then along...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "input",
+        "full_doc": "... (1655 bytes) ...",
+        "parsed_headline": "input  -- read Macaulay2 commands and echo"
+    }
+}
+```

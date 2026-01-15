@@ -1,0 +1,110 @@
+---
+title: "SVD"
+kind: Method
+---
+
+# SVD
+
+**SVD  -- singular value decomposition of a matrix**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ If `Sigma`  is the diagonal `m`  by `n`  matrix whose `(ii)`  entry is the `i` -th element of `S`  then `M = U Sigma Vt` .  This is the singular value decomposition of `M` .  The entries of `S`  are (up to roundoff error) the eigenvalues of the Hermitian matrix `M * (conjugate transpose M)` M may also be a [MutableMatrix](../Type/op_Coredollar_MutableMatrix.mdx)  in which case the returned values `U`  and `Vt`  are also [ mutable matrices](../Type/op_Coredollar_MutableMatrix.mdx) . If `M`  is over [CC](../Type/op_x226_x132_x130.mdx)  then `U`  and `Vt`  are unitary matrices over [CC](../Type/op_x226_x132_x130.mdx) . If `M`  is over [RR](../Type/op_x226_x132_x157.mdx)  `U`  and `Vt`  are orthogonal over `RR` . We can clean the small entries from the result above with [clean](../Method/clean.mdx) . Alternatively if the only issue is display of the matrix we may set the printing accuracy. Now let's try the divide and conquer algorithm and compare answers. The SVD routine calls on the SVD algorithms in the LAPACK and eigen libraries.
+
+## Installed For
+
+### SVD([Matrix](../Type/Matrix.mdx)) -> [VerticalList](../Type/VerticalList.mdx)
+
+### SVD([MutableMatrix](../Type/MutableMatrix.mdx))
+
+## Options
+
+- [DivideConquer](../Method/DivideConquer.mdx) => true
+
+## Examples
+
+```macaulay2
+(SUVt) = SVD M
+```
+
+```macaulay2
+(SUV) = SVD(M)
+
+```
+
+```text
+({88 } | -.016 -.4  -.92  | | -.014 -.038 -.11 -.32 -.94  |)
+      {3.9}  | -.21  -.89 .4    |  | -.28  -.41  -.57 -.59 .29   |
+      {.8 }  | -.98  .2   -.068 |  | -.74  -.41  .066 .51  -.15  |
+                                   | .084  .33   -.81 .47  -.081 |
+                                   | -.61  .74   .077 -.27 .062  |
+
+Sequence
+```
+
+```macaulay2
+(S' U' V') = SVD(M | -.02 -.4  -.92 | | -.01 -.04 -.11 -.32 -.94 |)
+       {3.9}  | -.21 -.89 .4   |  | -.28 -.41 -.57 -.59 .29  |
+       {.8 }  | -.98 .2   -.07 |  | -.74 -.41 .07  .51  -.15 |
+                                  | .08  .33  -.81 .47  -.08 |
+                                  | -.61 .74  .08  -.27 .06  |
+
+```
+
+```text
+Sequence
+```
+
+## Additional Information
+
+- Inputs:
+- `M` a [ matrix](../Type/op_Coredollar_Matrix.mdx) over [RR](../Type/op_x226_x132_x157.mdx) or [CC](../Type/op_x226_x132_x130.mdx) of size `m` by `n`
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- [](../Instance/SVD(....mdx)```...` default value true whether to use the LAPACK divide and conquer SVD algorithm
+- Outputs:
+- `S` a [ vertical list](../Type/VerticalList.mdx) the list of singular values
+- `U` a [ matrix](../Type/op_Coredollar_Matrix.mdx) an orthogonal (unitary) matrix of size `m` by `m`
+- `Vt` a [ matrix](../Type/op_Coredollar_Matrix.mdx) an orthogonal (unitary) matrix of size `n` by `n`
+
+
+### See also
+
+
+- Macaulay2Doc:: eigenvalues
+- Macaulay2Doc:: eigenvectors
+- Macaulay2Doc:: norm
+- Macaulay2Doc:: clean
+- Macaulay2Doc:: printingAccuracy
+- Macaulay2Doc:: printingPrecision
+
+[SVD(...](../Instance/SVD(....mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "SVD",
+    "safe_name": "op_Coredollar_SVD",
+    "type": "MethodFunctionWithOptions",
+    "description": " If `Sigma`  is the diagonal `m`  by `n`  matrix whose `(ii)`  entry is the `i` -th element of `S`  ...",
+    "installations": [
+        "<Installation SVD(MutableMatrix)>",
+        "<Installation SVD(Matrix)>"
+    ],
+    "options": [
+        {
+            "name": "DivideConquer",
+            "default": "true"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$SVD",
+        "full_doc": "... (5344 bytes) ...",
+        "parsed_headline": "SVD  -- singular value decomposition of a matrix"
+    }
+}
+```

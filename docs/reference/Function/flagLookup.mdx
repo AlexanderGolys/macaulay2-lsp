@@ -5,17 +5,44 @@ kind: Function
 
 # flagLookup
 
-**Type:** `Function`
+**flagLookup  -- flag a symbol**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-flagLookup, -- flag a symbol, class => element, Usage: , flagLookup x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Symbol, symbol, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether each subsequent reference to the symbol , x, will result in an error message, Consequences:, The first use arranges for each subsequent reference to the symbol , x, to result in an error message. The second use cancels the arrangement. Each subsequent use toggles the state., Description, To get access to a flagged symbol without signalling an error, use , Macaulay2Doc :: getGlobalSymbol, ., class => waystouse, For the programmer, The object , Macaulay2Doc :: flagLookup, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_debugging.m2:294:0, .
+To get access to a flagged symbol without signalling an error use [getGlobalSymbol](../Function/getGlobalSymbol.mdx) .
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+flagLookup x
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `x` a [ symbol](../Type/op_Coredollar_Symbol.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether each subsequent reference to the symbol `x` will result in an error message
+- Consequences:
+- The first use arranges for each subsequent reference to the symbol `x` to result in an error message. The second use cancels the arrangement. Each subsequent use toggles the state.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "flagLookup",
+    "safe_name": "op_Coredollar_flagLookup",
+    "type": "CompiledFunction",
+    "description": "To get access to a flagged symbol without signalling an error use [getGlobalSymbol](../Function/getG...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$flagLookup",
+        "full_doc": "... (1068 bytes) ...",
+        "parsed_headline": "flagLookup  -- flag a symbol"
+    }
+}
+```

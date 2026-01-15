@@ -5,48 +5,98 @@ kind: Function
 
 # lines
 
-**Type:** `Function`
+**lines  -- split a string into lines**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-lines, -- split a string into lines, class => element, Usage: , lines s, class => language-macaulay2, lines(nl, s), class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, , , nl, , , a , Macaulay2Doc :: String, string, , , Outputs:, a , Macaulay2Doc :: List, list, , , an array of strings obtained from the string , s, by breaking it at the characters specified by the string , nl, Description, The form , lines s, is designed to break lines correctly when the file follows the Unix or MS-DOS convention. In other words, it will break a line at , \r\n, or , \n, ., class => examples, i1 : lines "a\nb\nc\n"
-
-o1 = {a, b, c
-
-o1 : List, class => language-macaulay2, i2 : peek oo
-
-o2 = {"a", "b", "c", class => language-macaulay2, i3 : lines "a\nb\nc\nd"
-
-o3 = {a, b, c, d
-
-o3 : List, class => language-macaulay2, i4 : peek oo
-
-o4 = {"a", "b", "c", "d", class => language-macaulay2, i5 : lines( "\\.", "a.b.c." )
-
-o5 = {a, b, c
-
-o5 : List, class => language-macaulay2, i6 : peek oo
-
-o6 = {"a", "b", "c", class => language-macaulay2, i7 : lines( "\\.", "a.b.c.d" )
-
-o7 = {a, b, c, d
-
-o7 : List, class => language-macaulay2, i8 : peek oo
-
-o8 = {"a", "b", "c", "d", class => language-macaulay2, Caveat, For backwards compatibility, if the pattern is a single character and it is an unescaped special character, such as , +, , , *, , or , ., , then it is treated as a literal character. In future code, the pattern must be escaped., See also, Macaulay2Doc :: newline, Macaulay2Doc :: separate, class => waystouse, Ways to use , lines, :, lines(String), lines(String,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: lines, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/separate-doc.m2:129:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `lines(String)`
-- `lines(String, String)`
+The form `lines s` is designed to break lines correctly when the file follows the Unix or MS-DOS convention. In other words it will break a line at `\r\n` or `\n`.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+lines s
+lines(nl s)
+```
 
-## See Also
+```macaulay2
+lines "a\nb\nc\n"
 
+```
+
+```text
+{a, b, c}
+
+List
+```
+
+```macaulay2
+lines "a\nb\nc\nd"
+
+```
+
+```text
+{a, b, c, d}
+
+List
+```
+
+```macaulay2
+lines( "\\." "a.b.c." )
+
+```
+
+```text
+{a, b, c}
+
+List
+```
+
+```macaulay2
+lines( "\\." "a.b.c.d" )
+
+```
+
+```text
+{a, b, c, d}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ string](../Type/op_Coredollar_String.mdx)
+- `nl` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) an array of strings obtained from the string `s` by breaking it at the characters specified by the string `nl`
+
+
+### Caveat
+
+For backwards compatibility if the pattern is a single character and it is an unescaped special character such as `+``*` or `.` then it is treated as a literal character. In future code the pattern must be escaped.
+### See also
+
+
+- Macaulay2Doc:: newline
+- Macaulay2Doc:: separate
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "lines",
+    "safe_name": "op_Coredollar_lines",
+    "type": "FunctionClosure",
+    "description": "The form `lines s` is designed to break lines correctly when the file follows the Unix or MS-DOS con...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$lines",
+        "full_doc": "... (2413 bytes) ...",
+        "parsed_headline": "lines  -- split a string into lines"
+    }
+}
+```

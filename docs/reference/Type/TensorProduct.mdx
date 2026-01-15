@@ -1,48 +1,71 @@
 ---
 title: "TensorProduct"
 kind: Type
-parent: AssociativeExpression
 ---
 
 # TensorProduct
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [WrapperType](../Type/WrapperType.mdx)
+**TensorProduct  -- the class of all tensor product expressions**
 
 ## Description
 
-An instance of the type [WrapperType](../Type/WrapperType.mdx).
+`TensorProduct`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a tensor product.
 
-## Parent Type
+## Debug info
 
-[AssociativeExpression](../Type/AssociativeExpression.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `**`
-
-- `**(Holder, TensorProduct)`
-- `**(TensorProduct, Holder)`
-- `**(TensorProduct, OneExpression)`
-- `**(OneExpression, TensorProduct)`
-- `**(Expression, TensorProduct)`
-- *... and 2 more signatures*
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [**](../Operator/op_star_star.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [AssociativeExpression](../Type/AssociativeExpression.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "TensorProduct",
+    "safe_name": "op_Coredollar_TensorProduct",
+    "type": null,
+    "description": "`TensorProduct`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a ten...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$TensorProduct",
+        "parent": "AssociativeExpression",
+        "methods": [
+            [
+                "**",
+                "Holder",
+                "TensorProduct"
+            ],
+            [
+                "**",
+                "TensorProduct",
+                "Holder"
+            ],
+            [
+                "**",
+                "TensorProduct",
+                "OneExpression"
+            ],
+            [
+                "**",
+                "OneExpression",
+                "TensorProduct"
+            ],
+            [
+                "**",
+                "Expression",
+                "TensorProduct"
+            ],
+            [
+                "**",
+                "TensorProduct",
+                "Expression"
+            ],
+            [
+                "**",
+                "TensorProduct",
+                "TensorProduct"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (691 bytes) ...",
+        "parsed_headline": "TensorProduct  -- the class of all tensor product expressions"
+    }
+}
+```

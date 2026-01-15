@@ -1,182 +1,718 @@
 ---
 title: "RRi"
 kind: Type
-parent: InexactNumber
 ---
 
 # RRi
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [InexactFieldFamily](../Type/InexactFieldFamily.mdx)
+**RRi  -- the class of all real intervals**
 
 ## Description
 
-An instance of the type [InexactFieldFamily](../Type/InexactFieldFamily.mdx).
+ A real interval is entered as a pair of real numbers to the interval function.  It is stored internally as an arbitrary precision interval using the [MPFI](../Instance/MPFI.mdx)  library. The precision is measured in bits is visible in the ring displayed on the second of each pair of output lines and can be recovered using [precision](../Method/op_Coredollar_precision.mdx) . For real intervals the functions [class](../Function/op_Coredollar_class.mdx)  and [ring](../Method/op_Coredollar_ring.mdx)  yield different results.  That allows numbers of various precisions to be used without creating a new ring for each precision. The precision can be specified on input by specifying the precision of both input [RR](../Type/op_x226_x132_x157.mdx)  numbers. Alternatively the precision can be specified by including the option `Precision` . Intervals can also be created using [span(Sequence)](../Instance/span(Sequence).mdx)  to create the smallest interval containing the inputs. Operations using intervals are computed as sets so that the resulting intervals contain all possible outputs from pairs of points in input intervals. The notion of equality tested by [==](../Method/op_Coredollar_eq_eq.mdx)  amounts to checking the equality of the endpoints of intervals. The notion of equality tested by [===](../Method/op_Coredollar_eq_eq_eq.mdx)  takes into account the precision of the inputs as well. The notion of inequalities for intervals amounts to testing the inequality for all points in the intervals.  In particular [<=](../Method/op_Coredollar_lt_eq.mdx)  is not the same as [<](../Method/op_Coredollar_lt.mdx)  or [==](../Method/op_Coredollar_eq_eq.mdx) . Transcendental functions on intervals produce intervals containing the image of the function on the interval. Transcendental functions are available to high precision with [numericInterval](../Method/numericInterval.mdx) .
 
-## Parent Type
+## Additional Information
 
-[InexactNumber](../Type/InexactNumber.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `*`
-
-- `*(RR, RRi)`
-
-### `+`
-
-- `+(RRi)`
-- `+(ZZ, RRi)`
-- `+(RRi, RRi)`
-- `+(QQ, RRi)`
-- `+(RRi, QQ)`
-- *... and 2 more signatures*
-
-### `-`
-
-- `-(RRi)`
-- `-(RR, RRi)`
-- `-(RRi, RR)`
-- `-(RRi, QQ)`
-- `-(QQ, RRi)`
-- *... and 3 more signatures*
-
-### `/`
-
-- `/(ZZ, RRi)`
-- `/(RRi, RR)`
-- `/(RRi, RRi)`
-- `/(RRi, ZZ)`
-- `/(RRi, QQ)`
-- *... and 2 more signatures*
-
-### `==`
-
-- `==(ZZ, RRi)`
-- `==(RRi, RRi)`
-- `==(RR, RRi)`
-- `==(RRi, ZZ)`
-
-### `NewFromMethod`
-
-- `NewFromMethod(RRi, RawRingElement)`
-
-### `_`
-
-- `_(RRi, EngineRing)`
-
-### `intersect`
-
-- `intersect(RRi, RRi)`
-- `intersect(RRi)`
-
-### `isMember`
-
-- `isMember(RR, RRi)`
-- `isMember(QQ, RRi)`
-- `isMember(ZZ, RRi)`
-
-### `isReal`
-
-- `isReal(RRi)`
-
-### `isSubset`
-
-- `isSubset(RRi, RRi)`
-
-### `lift`
-
-- `lift(RRi, RR_*)`
-- `lift(RRi, QQ)`
-- `lift(RRi, ZZ)`
-
-### `liftable`
-
-- `liftable(RRi, RR)`
-- `liftable(RRi, QQ)`
-- `liftable(RRi, ZZ)`
-
-### `numeric`
-
-- `numeric(ZZ, RRi)`
-
-### `promote`
-
-- `promote(RRi, RRi_*)`
-
-### `ring`
-
-- `ring(RRi)`
-
-### `round`
-
-- `round(ZZ, RRi)`
-
-### `size2`
-
-- `size2(RRi)`
-
-### `span`
-
-- `span(RRi)`
-
-### `texMath`
-
-- `texMath(RRi)`
-
-### `toExternalString`
-
-- `toExternalString(RRi)`
+### See also
 
 
-*Showing 50 of 138 methods*
+- Macaulay2Doc:: toRRi
+- Macaulay2Doc:: numericInterval
+- Macaulay2Doc:: precision
+- Macaulay2Doc:: interval
+- Macaulay2Doc:: span(Sequence)
+- Macaulay2Doc:: span(List)
 
-## Used In
+[toRRi](../Function/toRRi.mdx)[interval](../Method/interval.mdx)[diameter](../Method/diameter.mdx)[left](../Function/op_Coredollar_left.mdx)[right](../Function/op_Coredollar_right.mdx)[midpoint](../Function/midpoint.mdx)[numericInterval](../Method/numericInterval.mdx)[intersect(RRi](../Instance/intersect(RRi.mdx)[isMember(QQ](../Instance/isMember(QQ.mdx)[isEmpty(RRi)](../Instance/isEmpty(RRi).mdx)[isSubset(RRi](../Instance/isSubset(RRi.mdx)[span](../Method/span.mdx)[span(List)](../Instance/span(List).mdx)[span(Sequence)](../Instance/span(Sequence).mdx)
 
-This type is used in the following methods/operators:
+## Debug info
 
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [/](../Operator/op_slash.mdx)
-- [<<](../Operator/op_lt_lt.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [>>](../Operator/op_gt_gt.mdx)
-- [Beta](../Function/Beta.mdx)
-- [Digamma](../Function/Digamma.mdx)
-- [Gamma](../Function/Gamma.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [_](../Operator/_.mdx)
-- [abs](../Function/abs.mdx)
-- [acos](../Function/acos.mdx)
-- [asin](../Function/asin.mdx)
-- [atan](../Function/atan.mdx)
-- [atan2](../Function/atan2.mdx)
-- [cos](../Function/cos.mdx)
-- [cosh](../Function/cosh.mdx)
-- [cot](../Function/cot.mdx)
-- [coth](../Function/coth.mdx)
-- [csc](../Function/csc.mdx)
-- [csch](../Function/csch.mdx)
-- [diameter](../Function/diameter.mdx)
-- [eint](../Function/eint.mdx)
-- [erf](../Function/erf.mdx)
-- [erfc](../Function/erfc.mdx)
-- [exp](../Function/exp.mdx)
-- [expm1](../Function/expm1.mdx)
-- [intersect](../Function/intersect.mdx)
-
-*... and 20 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [InexactNumber](../Type/InexactNumber.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "RRi",
+    "safe_name": "RRi",
+    "type": null,
+    "description": " A real interval is entered as a pair of real numbers to the interval function.  It is stored intern...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "RRi",
+        "parent": "InexactNumber",
+        "methods": [
+            [
+                "_",
+                "RRi",
+                "EngineRing"
+            ],
+            [
+                "isMember",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "isMember",
+                "RR",
+                "RRi"
+            ],
+            [
+                "isMember",
+                "ZZ",
+                "RRi"
+            ],
+            [
+                "isSubset",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "toExternalString",
+                "RRi"
+            ],
+            [
+                "intersect",
+                "RRi"
+            ],
+            [
+                "span",
+                "RRi"
+            ],
+            [
+                "intersect",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "promote",
+                "RRi",
+                "RRi_*"
+            ],
+            [
+                "liftable",
+                "RRi",
+                "RR"
+            ],
+            [
+                "lift",
+                "RRi",
+                "RR_*"
+            ],
+            [
+                "numeric",
+                "ZZ",
+                "RRi"
+            ],
+            [
+                "liftable",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "liftable",
+                "RRi",
+                "ZZ"
+            ],
+            [
+                "lift",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "lift",
+                "RRi",
+                "ZZ"
+            ],
+            [
+                "ring",
+                "RRi"
+            ],
+            [
+                "NewFromMethod",
+                "RRi",
+                "RawRingElement"
+            ],
+            [
+                "round",
+                "ZZ",
+                "RRi"
+            ],
+            [
+                "texMath",
+                "RRi"
+            ],
+            [
+                "isReal",
+                "RRi"
+            ],
+            [
+                "size2",
+                "RRi"
+            ],
+            [
+                "+",
+                "RRi"
+            ],
+            [
+                "-",
+                "RRi"
+            ],
+            [
+                "-",
+                "RR",
+                "RRi"
+            ],
+            [
+                "/",
+                "ZZ",
+                "RRi"
+            ],
+            [
+                "+",
+                "ZZ",
+                "RRi"
+            ],
+            [
+                "==",
+                "ZZ",
+                "RRi"
+            ],
+            [
+                "==",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "==",
+                "RRi",
+                "RR"
+            ],
+            [
+                "+",
+                "RRi",
+                "ZZ"
+            ],
+            [
+                "+",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "+",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "/",
+                "RRi",
+                "ZZ"
+            ],
+            [
+                "+",
+                "RRi",
+                "RR"
+            ],
+            [
+                "/",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "/",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "/",
+                "RRi",
+                "RR"
+            ],
+            [
+                "==",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "+",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "/",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "==",
+                "RR",
+                "RRi"
+            ],
+            [
+                "-",
+                "ZZ",
+                "RRi"
+            ],
+            [
+                "+",
+                "RR",
+                "RRi"
+            ],
+            [
+                "/",
+                "RR",
+                "RRi"
+            ],
+            [
+                "==",
+                "RRi",
+                "ZZ"
+            ],
+            [
+                "-",
+                "RRi",
+                "RR"
+            ],
+            [
+                "-",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "-",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "-",
+                "RRi",
+                "ZZ"
+            ],
+            [
+                "==",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "*",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "*",
+                "RR",
+                "RRi"
+            ],
+            [
+                "*",
+                "ZZ",
+                "RRi"
+            ],
+            [
+                "*",
+                "RRi",
+                "ZZ"
+            ],
+            [
+                "*",
+                "RRi",
+                "QQ"
+            ],
+            [
+                "-",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "*",
+                "QQ",
+                "RRi"
+            ],
+            [
+                "*",
+                "RRi",
+                "RR"
+            ],
+            [
+                "log",
+                "Number",
+                "RRi"
+            ],
+            [
+                "regularizedGamma",
+                "Number",
+                "RRi"
+            ],
+            [
+                "atan2",
+                "Number",
+                "RRi"
+            ],
+            [
+                "Beta",
+                "Number",
+                "RRi"
+            ],
+            [
+                "Gamma",
+                "Number",
+                "RRi"
+            ],
+            [
+                "atan2",
+                "RRi",
+                "Number"
+            ],
+            [
+                "log",
+                "RRi",
+                "Number"
+            ],
+            [
+                "Beta",
+                "RRi",
+                "Number"
+            ],
+            [
+                "Gamma",
+                "RRi",
+                "Number"
+            ],
+            [
+                "regularizedGamma",
+                "RRi",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "RRi",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "RR",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "Number",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "Number",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "Number",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "RRi",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RRi",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "RR",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "Number",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "Number",
+                "RRi",
+                "Number"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "Number",
+                "Number"
+            ],
+            [
+                "asin",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RRi",
+                "RR"
+            ],
+            [
+                "cos",
+                "RRi"
+            ],
+            [
+                "atan2",
+                "RR",
+                "RRi"
+            ],
+            [
+                "csch",
+                "RRi"
+            ],
+            [
+                "cot",
+                "RRi"
+            ],
+            [
+                ">>",
+                "RRi",
+                "ZZ"
+            ],
+            [
+                "Gamma",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "atan2",
+                "RRi",
+                "RR"
+            ],
+            [
+                "log1p",
+                "RRi"
+            ],
+            [
+                "lngamma",
+                "RRi"
+            ],
+            [
+                "expm1",
+                "RRi"
+            ],
+            [
+                "isEmpty",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RR",
+                "RRi"
+            ],
+            [
+                "erfc",
+                "RRi"
+            ],
+            [
+                "tan",
+                "RRi"
+            ],
+            [
+                "sec",
+                "RRi"
+            ],
+            [
+                "sech",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "RR",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "Gamma",
+                "RRi"
+            ],
+            [
+                "atan2",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "abs",
+                "RRi"
+            ],
+            [
+                "Beta",
+                "RR",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "RRi",
+                "RR"
+            ],
+            [
+                "coth",
+                "RRi"
+            ],
+            [
+                "Gamma",
+                "RRi",
+                "RR"
+            ],
+            [
+                "acos",
+                "RRi"
+            ],
+            [
+                "numeric",
+                "RRi"
+            ],
+            [
+                "regularizedGamma",
+                "RRi",
+                "RR"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "RR",
+                "RRi"
+            ],
+            [
+                "Beta",
+                "RRi",
+                "RR"
+            ],
+            [
+                "<<",
+                "RRi",
+                "ZZ"
+            ],
+            [
+                "log",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "log",
+                "RRi"
+            ],
+            [
+                "log",
+                "RR",
+                "RRi"
+            ],
+            [
+                "csc",
+                "RRi"
+            ],
+            [
+                "exp",
+                "RRi"
+            ],
+            [
+                "regularizedBeta",
+                "RRi",
+                "RR",
+                "RR"
+            ],
+            [
+                "cosh",
+                "RRi"
+            ],
+            [
+                "zeta",
+                "RRi"
+            ],
+            [
+                "Gamma",
+                "RR",
+                "RRi"
+            ],
+            [
+                "eint",
+                "RRi"
+            ],
+            [
+                "inverseErf",
+                "RRi"
+            ],
+            [
+                "sin",
+                "RRi"
+            ],
+            [
+                "regularizedGamma",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "tanh",
+                "RRi"
+            ],
+            [
+                "erf",
+                "RRi"
+            ],
+            [
+                "sinh",
+                "RRi"
+            ],
+            [
+                "Beta",
+                "RRi",
+                "RRi"
+            ],
+            [
+                "log",
+                "RRi",
+                "RR"
+            ],
+            [
+                "sqrt",
+                "RRi"
+            ],
+            [
+                "Digamma",
+                "RRi"
+            ],
+            [
+                "atan",
+                "RRi"
+            ],
+            [
+                "regularizedGamma",
+                "RR",
+                "RRi"
+            ],
+            [
+                "diameter",
+                "RRi"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (13134 bytes) ...",
+        "parsed_headline": "RRi  -- the class of all real intervals"
+    }
+}
+```

@@ -1,0 +1,75 @@
+---
+title: "divideByVariable"
+kind: Method
+---
+
+# divideByVariable
+
+**divideByVariable  -- divide all columns by a (power of a) variable**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+`divideByVariable(mv)`  -- divide each column of the matrix 'm' by as high a power of the variable 'v' as possible.`divideByVariable(mvd)`  -- divide each column of the matrix 'm' by as high a power of the variable 'v' as possible but divide by no more than v^d. We may eliminate this routine.
+
+## Installed For
+
+### divideByVariable([Matrix](../Type/Matrix.mdx), [RingElement](../Type/RingElement.mdx))
+
+### divideByVariable([Matrix](../Type/Matrix.mdx), [RingElement](../Type/RingElement.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+divideByVariable(ma)
+
+```
+
+```text
+(| b  c   | 2)
+      | b2 a2d |
+
+Sequence
+```
+
+```macaulay2
+divideByVariable(ma1)
+
+```
+
+```text
+(| b  ac  | 1)
+      | b2 a3d |
+
+Sequence
+```
+
+## Additional Information
+
+### Caveat
+
+ You can only divide by a variable not a monomial and you have little control on what power will be divided.  This routine is mostly used by the saturation commands as a fast internal way of dividing.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "divideByVariable",
+    "safe_name": "op_Coredollar_divideByVariable",
+    "type": "MethodFunction",
+    "description": "`divideByVariable(mv)`  -- divide each column of the matrix 'm' by as high a power of the variable '...",
+    "installations": [
+        "<Installation divideByVariable(Matrix, RingElement)>",
+        "<Installation divideByVariable(Matrix, RingElement, ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$divideByVariable",
+        "full_doc": "... (1721 bytes) ...",
+        "parsed_headline": "divideByVariable  -- divide all columns by a (power of a) variable"
+    }
+}
+```

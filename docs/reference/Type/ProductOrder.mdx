@@ -1,29 +1,42 @@
 ---
 title: "ProductOrder"
 kind: Type
-parent: BasicList
 ---
 
 # ProductOrder
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [SelfInitializingType](../Type/SelfInitializingType.mdx)
+**ProductOrder  -- product ordering**
 
 ## Description
 
-An instance of the type [SelfInitializingType](../Type/SelfInitializingType.mdx).
+`ProductOrder` {n1, ..., nr} -- an optional argument of [MonomialOrder](../Instance/MonomialOrder.mdx)  to indicate that the monomial order is the product of r graded reverse lex orders each with n1 n2 ... nr variables. This syntax is left here for compatibility with previous Macaulay2 versions. The new syntax is `R = ZZ[a..e` .
 
-## Parent Type
+## Additional Information
 
-[BasicList](../Type/BasicList.mdx)
+### See also
 
-## Examples
 
-*No examples available yet. Please contribute!*
+- Macaulay2Doc:: definition of product (block) orders
 
-## See Also
+## Debug info
 
-- [BasicList](../Type/BasicList.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "ProductOrder",
+    "safe_name": "ProductOrder",
+    "type": null,
+    "description": "`ProductOrder` {n1, ..., nr} -- an optional argument of [MonomialOrder](../Instance/MonomialOrder.md...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "ProductOrder",
+        "parent": "BasicList",
+        "methods": [],
+        "instances": [],
+        "full_doc": "... (1104 bytes) ...",
+        "parsed_headline": "ProductOrder  -- product ordering"
+    }
+}
+```

@@ -5,25 +5,70 @@ kind: Function
 
 # characters
 
-**Type:** `Function`
+**characters  -- get characters from a string**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-characters, -- get characters from a string, class => element, Usage: , characters s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: List, list, , , of the characters in the string , s, Description, The characters are represented by strings., , class => examples, i1 : characters "asdf"
-
-o1 = {a, s, d, f
-
-o1 : List, class => language-macaulay2, , utf8 characters are correctly treated:, , class => examples, i2 : characters "π ≈ 3.14159"
-
-o2 = {π, , ≈, , 3, ., 1, 4, 1, 5, 9
-
-o2 : List, class => language-macaulay2, , To get the one-byte characters of the string, use , Macaulay2Doc :: toList, instead., See also, Macaulay2Doc :: String, class => waystouse, For the programmer, The object , Macaulay2Doc :: characters, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/characters-doc.m2:26:0, .
+ The characters are represented by strings. utf8 characters are correctly treated: To get the one-byte characters of the string use [toList](../Method/toList.mdx)  instead.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+characters s
+```
 
-## See Also
+```macaulay2
+characters "asdf"
 
+```
+
+```text
+{a, s, d, f}
+
+List
+```
+
+```macaulay2
+characters "π ≈ 3.14159"
+
+```
+
+```text
+{π,  , ≈,  , 3, ., 1, 4, 1, 5, 9}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) of the characters in the string `s`
+
+
+### See also
+
+
+- Macaulay2Doc:: String
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "characters",
+    "safe_name": "op_Coredollar_characters",
+    "type": "CompiledFunction",
+    "description": " The characters are represented by strings. utf8 characters are correctly treated: To get the one-by...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$characters",
+        "full_doc": "... (1248 bytes) ...",
+        "parsed_headline": "characters  -- get characters from a string"
+    }
+}
+```

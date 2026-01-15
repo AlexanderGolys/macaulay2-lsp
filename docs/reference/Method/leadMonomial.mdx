@@ -1,0 +1,88 @@
+---
+title: "leadMonomial"
+kind: Method
+---
+
+# leadMonomial
+
+**leadMonomial  -- the leading monomial of a ring element**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+The leading term is with respect to the monomial ordering in the ring. See [monomial orderings](../Instance/monomial orderings.mdx) for details.
+
+## Installed For
+
+### leadMonomial([RingElement](../Type/RingElement.mdx)) -> [RingElement](../Type/RingElement.mdx)
+
+## Examples
+
+```macaulay2
+leadMonomial f
+```
+
+```macaulay2
+leadMonomial f
+
+        3
+```
+
+```text
+b*c
+
+R
+```
+
+```macaulay2
+leadMonomial g
+
+        2
+```
+
+```text
+a*b
+
+S
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ ring element](../Type/RingElement.mdx) a polynomial
+- Outputs:
+- a [ ring element](../Type/RingElement.mdx) the monomial with no coefficient of the leading term of `f`
+
+
+### See also
+
+
+- Macaulay2Doc:: leadComponent
+- Macaulay2Doc:: leadMonomial
+- Macaulay2Doc:: leadTerm
+- Macaulay2Doc:: monomials
+- Macaulay2Doc:: someTerms
+- Macaulay2Doc:: terms
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "leadMonomial",
+    "safe_name": "leadMonomial",
+    "type": "MethodFunction",
+    "description": "The leading term is with respect to the monomial ordering in the ring. See [monomial orderings](../I...",
+    "installations": [
+        "<Installation leadMonomial(RingElement)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "leadMonomial",
+        "full_doc": "... (1733 bytes) ...",
+        "parsed_headline": "leadMonomial  -- the leading monomial of a ring element"
+    }
+}
+```

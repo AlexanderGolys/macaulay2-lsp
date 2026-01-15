@@ -1,184 +1,1551 @@
 ---
 title: "Module"
 kind: Type
-parent: ImmutableType
 ---
 
 # Module
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Module  -- the class of all modules**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ For basic information about modules in *Macaulay2*  see [modules](../Instance/modules.mdx) . Common ways to make a module:
+- Macaulay2Doc:: Ring ^ ZZ
+- Macaulay2Doc:: Ring ^ List
+- Macaulay2Doc:: cokernel(Matrix)
+- Macaulay2Doc:: image(Matrix)
+- Macaulay2Doc:: kernel(Matrix)
 
-## Parent Type
+ Common ways to get information about modules:
+- Macaulay2Doc:: ring(Module)
+- Macaulay2Doc:: numgens(Module)
+- Macaulay2Doc:: degrees(Module)
+- Macaulay2Doc:: generators(Module)
+- Macaulay2Doc:: relations(Module)
+- Macaulay2Doc:: isFreeModule
+- Macaulay2Doc:: isHomogeneous(Module)
 
-[ImmutableType](../Type/ImmutableType.mdx)
+ Numerical information about a module:
+- Macaulay2Doc:: codim(Module)
+- Macaulay2Doc:: dim(Module)
+- Macaulay2Doc:: rank(Module)
 
-## Methods
+ Submodules quotients and subquotient modules:
+- Macaulay2Doc:: ambient(Module)
+- Macaulay2Doc:: cover(Module)
+- Macaulay2Doc:: super(Module)
+- Macaulay2Doc:: Module / Module
+- Macaulay2Doc:: subquotient(MatrixMatrix)
+- Macaulay2Doc:: isSubset(ModuleModule)
 
-Methods that can be used with this type:
+ Common operations on modules:
+- Macaulay2Doc:: Module + Module
+- Macaulay2Doc:: Module == Module
+- Macaulay2Doc:: Module ++ Module
+- Macaulay2Doc:: Module ^ List
+- Macaulay2Doc:: Module ** Module
+- Macaulay2Doc:: Module ^** ZZ
+- Macaulay2Doc:: Module _ List
 
-### `*`
+ Minimalization:
+- Macaulay2Doc:: mingens(Module)
+- Macaulay2Doc:: trim(Module)
+- Macaulay2Doc:: minimalPresentation(Module)
 
-- `*(Ideal, Module)`
+ Graded modules:
+- Macaulay2Doc:: basis
+- Truncations:: truncate(ZZModule)
+- Macaulay2Doc:: degree(Module)
+- Varieties:: genera(Module)
+- Macaulay2Doc:: hilbertSeries(Module)
+- Macaulay2Doc:: hilbertFunction(ZZModule)
+- Macaulay2Doc:: poincare(Module)
+- Macaulay2Doc:: regularity(Module)
 
-### `Ext`
+ Annihilators quotients and Gröbner bases:
+- Macaulay2Doc:: gb(Module)
+- Saturation:: Ideal: Ideal
+- Saturation:: annihilator(Module)
+- Saturation:: saturate(ModuleIdeal)
 
-- `Ext(ZZ, Module, Ring)`
-- `Ext(ZZ, Ring, Module)`
-- `Ext(ZZ, Module, Ideal)`
-- `Ext(ZZ, Ideal, Module)`
-- `Ext(Ideal, Module)`
-- *... and 3 more signatures*
+ Common homological computations:
+- OldChainComplexes:: resolution(Module)
+- Macaulay2Doc:: pdim(Module)
+- Macaulay2Doc:: Hom
+- Macaulay2Doc:: homomorphism(Matrix)
+- Macaulay2Doc:: Ext^ZZ(ModuleModule)
+- Macaulay2Doc:: Tor_ZZ(ModuleModule)
+- Macaulay2Doc:: HH^ZZ Module
+- Macaulay2Doc:: homology(MatrixMatrix)
+- Macaulay2Doc:: fittingIdeal(ZZModule)
 
-### `Tor`
-
-- `Tor(ZZ, Ideal, Module)`
-- `Tor(ZZ, Ring, Module)`
-- `Tor(ZZ, Module, Ideal)`
-- `Tor(ZZ, Module, Ring)`
-- `Tor(ZZ, Module, Matrix)`
-- *... and 1 more signatures*
-
-### `basis`
-
-- `basis(Module)`
-- `basis(List, Module)`
-- `basis(ZZ, Module)`
-- `basis(InfiniteNumber, List, Module)`
-- `basis(InfiniteNumber, InfiniteNumber, Module)`
-- *... and 7 more signatures*
-
-### `betti`
-
-- `betti(Module)`
-
-### `degree`
-
-- `degree(Module)`
-
-### `dim`
-
-- `dim(Module)`
-
-### `euler`
-
-- `euler(Module)`
-
-### `eulers`
-
-- `eulers(Module)`
-
-### `gb`
-
-- `gb(Module)`
-
-### `gbRemove`
-
-- `gbRemove(Module)`
-
-### `gbSnapshot`
-
-- `gbSnapshot(Module)`
-
-### `genera`
-
-- `genera(Module)`
-
-### `genus`
-
-- `genus(Module)`
-
-### `groebnerBasis`
-
-- `groebnerBasis(Module)`
-
-### `hilbertPolynomial`
-
-- `hilbertPolynomial(Module)`
-
-### `hilbertSeries`
-
-- `hilbertSeries(Module)`
-
-### `installHilbertFunction`
-
-- `installHilbertFunction(Module, RingElement)`
-
-### `length`
-
-- `length(Module)`
-
-### `multidegree`
-
-- `multidegree(Module)`
-
-### `part`
-
-- `part(List, Module)`
-- `part(ZZ, Module)`
-
-### `poincare`
-
-- `poincare(Module)`
-
-### `random`
-
-- `random(Module, Module)`
-- `random(ZZ, Module)`
-- `random(List, Module)`
-- `random(Module)`
+ Multilinear algebra:
+- Macaulay2Doc:: exteriorPower(ZZModule)
 
 
-*Showing 50 of 291 methods*
 
-## Used In
+## Additional Information
 
-This type is used in the following methods/operators:
+[symmetricAlgebra(Module)](../Instance/symmetricAlgebra(Module).mdx)[symmetricPower(ZZ](../Instance/symmetricPower(ZZ.mdx)[exteriorPower(ZZ](../Instance/exteriorPower(ZZ.mdx)[formation(Module)](../Instance/formation(Module).mdx)[Module + Module](../Instance/Module + Module.mdx)[dual(Module)](../Instance/dual(Module).mdx)[Module Array](../Instance/Module Array.mdx)[ambient](../Method/op_Coredollar_ambient.mdx)[ambient(Module)](../Instance/ambient(Module).mdx)[super(Module)](../Instance/super(Module).mdx)[cover](../Method/cover.mdx)[cover(Module)](../Instance/cover(Module).mdx)[coverMap(Module)](../Instance/coverMap(Module).mdx)[length(Module)](../Instance/length(Module).mdx)[dim(Module)](../Instance/dim(Module).mdx)[Module ++ Module](../Instance/Module ++ Module.mdx)[factor(Module)](../Instance/factor(Module).mdx)[hilbertPolynomial(Module)](../Instance/hilbertPolynomial(Module).mdx)[inducedMap](../Method/op_Coredollar_inducedMap.mdx)[isSubset(Module](../Instance/isSubset(Module.mdx)[map(Module)](../Instance/map(Module).mdx)[mingens(Module)](../Instance/mingens(Module).mdx)[minimalPresentation(Module)](../Instance/minimalPresentation(Module).mdx)[numgens(Module)](../Instance/numgens(Module).mdx)[pdim(Module)](../Instance/pdim(Module).mdx)[presentation(Module)](../Instance/presentation(Module).mdx)[pushForward(RingMap](../Instance/pushForward(RingMap.mdx)[isSubquotient(Module](../Instance/isSubquotient(Module.mdx)[tensor(Module](../Instance/tensor(Module.mdx)[Module ** Ring](../Instance/Module ** Ring.mdx)[tensor(Matrix](../Instance/tensor(Matrix.mdx)[Module ^** ZZ](../Instance/Module ^** ZZ.mdx)[wedgeProduct(ZZ](../Instance/wedgeProduct(ZZ.mdx)[Module ^ ZZ](../Instance/Module ^ ZZ.mdx)[Module ^ Array](../Instance/Module ^ Array.mdx)[Module ^ List](../Instance/Module ^ List.mdx)[Module / Module](../Instance/Module / Module.mdx)[Module _ List](../Instance/Module _ List.mdx)[ZZ _ Module](../Instance/ZZ _ Module.mdx)[Module _ Array](../Instance/Module _ Array.mdx)[truncate](../Method/truncate.mdx)
 
-- [%](../Operator/op_percent.mdx)
-- [*](../Operator/op_star.mdx)
-- [**](../Operator/op_star_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [++](../Operator/op_plus_plus.mdx)
-- [/](../Operator/op_slash.mdx)
-- [:](../Operator/op_colon.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [?](../Operator/op_question.mdx)
-- [Ext](../Instance/Ext.mdx)
-- [Hom](../Function/Hom.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [Tor](../Instance/Tor.mdx)
-- [^](../Operator/op_caret.mdx)
-- [^**](../Operator/op_caret_star_star.mdx)
-- [^~](../Operator/op_caret_tilde.mdx)
-- [_](../Operator/_.mdx)
-- [_*](../Operator/op_underscore_star.mdx)
-- [adjoint](../Function/adjoint.mdx)
-- [adjoint'](../Function/op_adjointx39.mdx)
-- [ambient](../Function/ambient.mdx)
-- [analyticSpread](../Type/analyticSpread.mdx)
-- [annihilator](../Function/annihilator.mdx)
-- [associatedPrimes](../Type/associatedPrimes.mdx)
-- [basis](../Function/basis.mdx)
-- [betti](../Function/betti.mdx)
-- [checkDegrees](../Type/checkDegrees.mdx)
-- [codim](../Function/codim.mdx)
-- [cohomology](../Function/cohomology.mdx)
+## Debug info
 
-*... and 20 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [ImmutableType](../Type/ImmutableType.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Module",
+    "safe_name": "op_Coredollar_Module",
+    "type": null,
+    "description": " For basic information about modules in *Macaulay2*  see [modules](../Instance/modules.mdx) . Common...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Module",
+        "parent": "ImmutableType",
+        "methods": [
+            [
+                "basis",
+                "Module"
+            ],
+            [
+                "basis",
+                "List",
+                "Module"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "List",
+                "Module"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "Module"
+            ],
+            [
+                "basis",
+                "List",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "basis",
+                "List",
+                "InfiniteNumber",
+                "Module"
+            ],
+            [
+                "basis",
+                "List",
+                "List",
+                "Module"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "InfiniteNumber",
+                "Module"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "List",
+                "Module"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "part",
+                "List",
+                "Module"
+            ],
+            [
+                "part",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "betti",
+                "Module"
+            ],
+            [
+                "*",
+                "Ideal",
+                "Module"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Module",
+                "Ring"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Module",
+                "Ideal"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Ideal",
+                "Module"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Ring",
+                "Module"
+            ],
+            [
+                "Ext",
+                "Module",
+                "Ideal"
+            ],
+            [
+                "Ext",
+                "Ideal",
+                "Module"
+            ],
+            [
+                "Ext",
+                "Module",
+                "Ring"
+            ],
+            [
+                "Ext",
+                "Ring",
+                "Module"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Module",
+                "Ideal"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Module",
+                "Ring"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Ideal",
+                "Module"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Ring",
+                "Module"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Matrix",
+                "Module"
+            ],
+            [
+                "gb",
+                "Module"
+            ],
+            [
+                "gbSnapshot",
+                "Module"
+            ],
+            [
+                "gbRemove",
+                "Module"
+            ],
+            [
+                "groebnerBasis",
+                "Module"
+            ],
+            [
+                "random",
+                "Module",
+                "Module"
+            ],
+            [
+                "random",
+                "List",
+                "Module"
+            ],
+            [
+                "random",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "random",
+                "Module"
+            ],
+            [
+                "poincare",
+                "Module"
+            ],
+            [
+                "installHilbertFunction",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "dim",
+                "Module"
+            ],
+            [
+                "degree",
+                "Module"
+            ],
+            [
+                "multidegree",
+                "Module"
+            ],
+            [
+                "length",
+                "Module"
+            ],
+            [
+                "hilbertPolynomial",
+                "Module"
+            ],
+            [
+                "euler",
+                "Module"
+            ],
+            [
+                "eulers",
+                "Module"
+            ],
+            [
+                "genus",
+                "Module"
+            ],
+            [
+                "genera",
+                "Module"
+            ],
+            [
+                "hilbertSeries",
+                "Module"
+            ],
+            [
+                "hilbertFunction",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "hilbertFunction",
+                "List",
+                "Module"
+            ],
+            [
+                "hilbertFunction",
+                "Module"
+            ],
+            [
+                "Hom",
+                "Ring",
+                "Module"
+            ],
+            [
+                "Hom",
+                "Ideal",
+                "Module"
+            ],
+            [
+                "Hom",
+                "Module",
+                "Ideal"
+            ],
+            [
+                "Hom",
+                "Module",
+                "Ring"
+            ],
+            [
+                "Hom",
+                "Module",
+                "Module"
+            ],
+            [
+                "Hom",
+                "Matrix",
+                "Module"
+            ],
+            [
+                "Hom",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "reshape",
+                "Module",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "adjoint'",
+                "Matrix",
+                "Module",
+                "Module"
+            ],
+            [
+                "adjoint",
+                "Matrix",
+                "Module",
+                "Module"
+            ],
+            [
+                "cohomology",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "RawMatrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "RawMatrix"
+            ],
+            [
+                "isDirectSum",
+                "Module"
+            ],
+            [
+                "components",
+                "Module"
+            ],
+            [
+                "formation",
+                "Module"
+            ],
+            [
+                "directSum",
+                "Module"
+            ],
+            [
+                "^",
+                "Module",
+                "ZZ"
+            ],
+            [
+                "map",
+                "Module"
+            ],
+            [
+                "map",
+                "Module",
+                "ZZ",
+                "ZZ"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "ZZ"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "Number"
+            ],
+            [
+                "isSubquotient",
+                "Module",
+                "Module"
+            ],
+            [
+                "inducedMap",
+                "Module",
+                "Module"
+            ],
+            [
+                "inducedMap",
+                "Module",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "inducedMap",
+                "Module",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "inducedMap",
+                "Nothing",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "inducesWellDefinedMap",
+                "Module",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "inducesWellDefinedMap",
+                "Module",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "inducesWellDefinedMap",
+                "Nothing",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "generators",
+                "Module"
+            ],
+            [
+                "_*",
+                "Module"
+            ],
+            [
+                "relations",
+                "Module"
+            ],
+            [
+                "coverMap",
+                "Module"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "Function"
+            ],
+            [
+                "map",
+                "Module",
+                "ZZ",
+                "Function"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "List"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "List"
+            ],
+            [
+                "map",
+                "Module",
+                "ZZ",
+                "List"
+            ],
+            [
+                "subquotient",
+                "Module",
+                "Matrix",
+                "Matrix"
+            ],
+            [
+                "subquotient",
+                "Module",
+                "Nothing",
+                "Matrix"
+            ],
+            [
+                "subquotient",
+                "Module",
+                "Matrix",
+                "Nothing"
+            ],
+            [
+                "subquotient",
+                "Module",
+                "Nothing",
+                "Nothing"
+            ],
+            [
+                "**",
+                "Matrix",
+                "Module"
+            ],
+            [
+                "**",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "comodule",
+                "Module"
+            ],
+            [
+                "quotient",
+                "Module"
+            ],
+            [
+                "generator",
+                "Module"
+            ],
+            [
+                "/",
+                "Module",
+                "Ideal"
+            ],
+            [
+                "==",
+                "Ideal",
+                "Module"
+            ],
+            [
+                "==",
+                "Module",
+                "Ideal"
+            ],
+            [
+                "isSubset",
+                "Ideal",
+                "Module"
+            ],
+            [
+                "isSubset",
+                "Module",
+                "Ideal"
+            ],
+            [
+                "ideal",
+                "Module"
+            ],
+            [
+                "mingens",
+                "Module"
+            ],
+            [
+                "trim",
+                "Module"
+            ],
+            [
+                "%",
+                "Matrix",
+                "Module"
+            ],
+            [
+                "homogenize",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "homogenize",
+                "Module",
+                "RingElement",
+                "List"
+            ],
+            [
+                "rank",
+                "Module"
+            ],
+            [
+                "isHomogeneous",
+                "Module"
+            ],
+            [
+                "NewFromMethod",
+                "Module",
+                "List"
+            ],
+            [
+                "NewFromMethod",
+                "Module",
+                "Ring",
+                "RawFreeModule"
+            ],
+            [
+                "vector",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "vector",
+                "Module",
+                "List"
+            ],
+            [
+                "vector",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "vector",
+                "Module",
+                "Number"
+            ],
+            [
+                "ring",
+                "Module"
+            ],
+            [
+                "lift",
+                "Module",
+                "InexactNumber"
+            ],
+            [
+                "lift",
+                "Module",
+                "Number"
+            ],
+            [
+                "lift",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "lift",
+                "Module",
+                "InexactNumber'"
+            ],
+            [
+                "promote",
+                "Module",
+                "InexactNumber"
+            ],
+            [
+                "promote",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "promote",
+                "Module",
+                "Number"
+            ],
+            [
+                "promote",
+                "Module",
+                "InexactNumber'"
+            ],
+            [
+                "isModule",
+                "Module"
+            ],
+            [
+                "isFreeModule",
+                "Module"
+            ],
+            [
+                "isSubmodule",
+                "Module"
+            ],
+            [
+                "isQuotientModule",
+                "Module"
+            ],
+            [
+                "isIdeal",
+                "Module"
+            ],
+            [
+                "numgens",
+                "Module"
+            ],
+            [
+                "expression",
+                "Module"
+            ],
+            [
+                "toString",
+                "Module"
+            ],
+            [
+                "net",
+                "Module"
+            ],
+            [
+                "texMath",
+                "Module"
+            ],
+            [
+                "describe",
+                "Module"
+            ],
+            [
+                "toExternalString",
+                "Module"
+            ],
+            [
+                "degrees",
+                "Module"
+            ],
+            [
+                "==",
+                "Module",
+                "Module"
+            ],
+            [
+                "==",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "==",
+                "Module",
+                "ZZ"
+            ],
+            [
+                "isSubset",
+                "Module",
+                "Module"
+            ],
+            [
+                "?",
+                "Module",
+                "Module"
+            ],
+            [
+                "schreyerOrder",
+                "Module"
+            ],
+            [
+                "ambient",
+                "Module"
+            ],
+            [
+                "cover",
+                "Module"
+            ],
+            [
+                "super",
+                "Module"
+            ],
+            [
+                "*",
+                "RingElement",
+                "Module"
+            ],
+            [
+                "*",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "*",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "*",
+                "Module",
+                "ZZ"
+            ],
+            [
+                "+",
+                "Module",
+                "Module"
+            ],
+            [
+                "**",
+                "Module",
+                "Module"
+            ],
+            [
+                "^**",
+                "Module",
+                "ZZ"
+            ],
+            [
+                "tensorAssociativity",
+                "Module",
+                "Module",
+                "Module"
+            ],
+            [
+                "**",
+                "Module",
+                "Ring"
+            ],
+            [
+                "**",
+                "Ring",
+                "Module"
+            ],
+            [
+                "presentation",
+                "Module"
+            ],
+            [
+                "prune",
+                "Module"
+            ],
+            [
+                "minimalPresentation",
+                "Module"
+            ],
+            [
+                "factor",
+                "Module"
+            ],
+            [
+                "flip",
+                "Module",
+                "Module"
+            ],
+            [
+                "/",
+                "Module",
+                "Module"
+            ],
+            [
+                "/",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "/",
+                "Module",
+                "Sequence"
+            ],
+            [
+                "/",
+                "Module",
+                "List"
+            ],
+            [
+                "/",
+                "Module",
+                "Vector"
+            ],
+            [
+                "_",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "_",
+                "Module",
+                "ZZ"
+            ],
+            [
+                "^",
+                "Module",
+                "Array"
+            ],
+            [
+                "_",
+                "Module",
+                "Array"
+            ],
+            [
+                "^",
+                "Module",
+                "List"
+            ],
+            [
+                "_",
+                "Module",
+                "List"
+            ],
+            [
+                "monomialIdeal",
+                "Module"
+            ],
+            [
+                "isMonomialIdeal",
+                "Module"
+            ],
+            [
+                "isSquareFree",
+                "Module"
+            ],
+            [
+                "symmetricAlgebra",
+                "Module"
+            ],
+            [
+                "symmetricPower",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "exteriorPower",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "wedgeProduct",
+                "ZZ",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "fittingIdeal",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "tensor",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "dual",
+                "Module"
+            ],
+            [
+                "tensor",
+                "Matrix",
+                "Module"
+            ],
+            [
+                "intersect",
+                "Module"
+            ],
+            [
+                "tensor",
+                "Module",
+                "Module"
+            ],
+            [
+                "intersect",
+                "Module",
+                "Module"
+            ],
+            [
+                "codim",
+                "Module"
+            ],
+            [
+                "truncate",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "tensor",
+                "RingMap",
+                "Module"
+            ],
+            [
+                "truncate",
+                "List",
+                "Module"
+            ],
+            [
+                "compose",
+                "Module",
+                "Module",
+                "Module"
+            ],
+            [
+                "pushForward",
+                "RingMap",
+                "Module"
+            ],
+            [
+                "/",
+                "Ring",
+                "Module"
+            ],
+            [
+                "SPACE",
+                "RingMap",
+                "Module"
+            ],
+            [
+                "**",
+                "RingMap",
+                "Module"
+            ],
+            [
+                "preimage",
+                "Matrix",
+                "Module"
+            ],
+            [
+                "substitute",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "substitute",
+                "Module",
+                "Ring"
+            ],
+            [
+                "substitute",
+                "Module",
+                "RingFamily"
+            ],
+            [
+                "substitute",
+                "Module",
+                "List"
+            ],
+            [
+                "substitute",
+                "Module",
+                "Option"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "Nothing",
+                "RawMatrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "RingMap",
+                "RawMatrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "RingMap",
+                "RawMatrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "RingMap",
+                "Matrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "RingMap",
+                "Matrix"
+            ],
+            [
+                "map",
+                "Module",
+                "Module",
+                "RingMap",
+                "List"
+            ],
+            [
+                "map",
+                "Module",
+                "Nothing",
+                "RingMap",
+                "List"
+            ],
+            [
+                "map",
+                "Module",
+                "RingMap"
+            ],
+            [
+                "checkDegrees",
+                "Module",
+                "Module"
+            ],
+            [
+                "isIsomorphic",
+                "Module",
+                "Module"
+            ],
+            [
+                "isomorphism",
+                "Module",
+                "Module"
+            ],
+            [
+                "minimalBetti",
+                "Module"
+            ],
+            [
+                "pdim",
+                "Module"
+            ],
+            [
+                "regularity",
+                "Module"
+            ],
+            [
+                "**",
+                "ChainComplex",
+                "Module"
+            ],
+            [
+                "**",
+                "Module",
+                "ChainComplex"
+            ],
+            [
+                "**",
+                "Module",
+                "ChainComplexMap"
+            ],
+            [
+                "**",
+                "ChainComplexMap",
+                "Module"
+            ],
+            [
+                "Hom",
+                "ChainComplex",
+                "Module"
+            ],
+            [
+                "Hom",
+                "Module",
+                "ChainComplex"
+            ],
+            [
+                "Hom",
+                "ChainComplexMap",
+                "Module"
+            ],
+            [
+                "Hom",
+                "Module",
+                "ChainComplexMap"
+            ],
+            [
+                "SPACE",
+                "Module",
+                "Array"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Module",
+                "Module"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Matrix",
+                "Module"
+            ],
+            [
+                "Ext",
+                "ZZ",
+                "Module",
+                "Matrix"
+            ],
+            [
+                "Ext",
+                "Module",
+                "Module"
+            ],
+            [
+                "**",
+                "GradedModule",
+                "Module"
+            ],
+            [
+                "**",
+                "Module",
+                "GradedModule"
+            ],
+            [
+                "gradedModule",
+                "Module"
+            ],
+            [
+                "++",
+                "GradedModule",
+                "Module"
+            ],
+            [
+                "++",
+                "Module",
+                "GradedModule"
+            ],
+            [
+                "resolution",
+                "Module"
+            ],
+            [
+                "Tor",
+                "ZZ",
+                "Module",
+                "Module"
+            ],
+            [
+                "isPrimary",
+                "Module",
+                "Module"
+            ],
+            [
+                "associatedPrimes",
+                "Module"
+            ],
+            [
+                "primaryDecomposition",
+                "Module"
+            ],
+            [
+                "topComponents",
+                "Module"
+            ],
+            [
+                "topComponents",
+                "Module",
+                "ZZ"
+            ],
+            [
+                "removeLowestDimension",
+                "Module"
+            ],
+            [
+                "kernelOfLocalization",
+                "Module",
+                "Ideal"
+            ],
+            [
+                "symmetricAlgebraIdeal",
+                "Module"
+            ],
+            [
+                "versalEmbedding",
+                "Module"
+            ],
+            [
+                "reesIdeal",
+                "Module"
+            ],
+            [
+                "reesIdeal",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "reesAlgebra",
+                "Module"
+            ],
+            [
+                "reesAlgebra",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "isLinearType",
+                "Module"
+            ],
+            [
+                "isLinearType",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "specialFiberIdeal",
+                "Module"
+            ],
+            [
+                "specialFiberIdeal",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "specialFiber",
+                "Module"
+            ],
+            [
+                "specialFiber",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "isReduction",
+                "Module",
+                "Module"
+            ],
+            [
+                "isReduction",
+                "Module",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "analyticSpread",
+                "Module"
+            ],
+            [
+                "analyticSpread",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "expectedReesIdeal",
+                "Module"
+            ],
+            [
+                "quotient",
+                "Module",
+                "Ideal"
+            ],
+            [
+                "quotient",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "quotient",
+                "Module",
+                "Number"
+            ],
+            [
+                ":",
+                "Module",
+                "Ideal"
+            ],
+            [
+                ":",
+                "Module",
+                "Number"
+            ],
+            [
+                ":",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "quotient",
+                "Module",
+                "Module"
+            ],
+            [
+                ":",
+                "Module",
+                "Module"
+            ],
+            [
+                "saturate",
+                "Module",
+                "Ideal"
+            ],
+            [
+                "saturate",
+                "Module",
+                "RingElement"
+            ],
+            [
+                "saturate",
+                "Module",
+                "Number"
+            ],
+            [
+                "saturate",
+                "Module"
+            ],
+            [
+                "saturate",
+                "Module",
+                "List"
+            ],
+            [
+                "isSupportedInZeroLocus",
+                "Ideal",
+                "Module"
+            ],
+            [
+                "annihilator",
+                "Module"
+            ],
+            [
+                "sheaf",
+                "Module"
+            ],
+            [
+                "^~",
+                "Module"
+            ],
+            [
+                "sheaf",
+                "Variety",
+                "Module"
+            ],
+            [
+                "==",
+                "CoherentSheaf",
+                "Module"
+            ],
+            [
+                "==",
+                "Module",
+                "CoherentSheaf"
+            ],
+            [
+                "map",
+                "CoherentSheaf",
+                "Module",
+                "ZZ"
+            ],
+            [
+                "map",
+                "Module",
+                "CoherentSheaf",
+                "ZZ"
+            ],
+            [
+                "++",
+                "Module",
+                "Module"
+            ],
+            [
+                "module",
+                "Module"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (29170 bytes) ...",
+        "parsed_headline": "Module  -- the class of all modules"
+    }
+}
+```

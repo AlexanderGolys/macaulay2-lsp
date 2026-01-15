@@ -1,0 +1,91 @@
+---
+title: "leadCoefficient"
+kind: Method
+---
+
+# leadCoefficient
+
+**leadCoefficient  -- the coefficient of the leading term**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+The leading term is with respect to the monomial ordering in the ring. See [monomial orderings](../Instance/monomial orderings.mdx) for details.
+
+## Installed For
+
+### leadCoefficient([RingElement](../Type/RingElement.mdx)) -> [RingElement](../Type/RingElement.mdx)
+
+## Examples
+
+```macaulay2
+leadCoefficient f
+```
+
+```macaulay2
+leadCoefficient f
+
+```
+
+```text
+-2
+
+     ZZ
+--
+      5
+```
+
+```macaulay2
+leadCoefficient g
+
+```
+
+```text
+1
+
+     ZZ
+--
+      5
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ ring element](../Type/RingElement.mdx) a polynomial
+- Outputs:
+- a [ ring element](../Type/RingElement.mdx) an element of the [coefficientRing](../Method/op_Coredollar_coefficientRing.mdx) of the ring of `f`
+
+
+### See also
+
+
+- Macaulay2Doc:: coefficients
+- Macaulay2Doc:: coefficientRing
+- Macaulay2Doc:: leadComponent
+- Macaulay2Doc:: leadMonomial
+- Macaulay2Doc:: leadTerm
+- Macaulay2Doc:: someTerms
+- Macaulay2Doc:: terms
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "leadCoefficient",
+    "safe_name": "op_Coredollar_leadCoefficient",
+    "type": "MethodFunction",
+    "description": "The leading term is with respect to the monomial ordering in the ring. See [monomial orderings](../I...",
+    "installations": [
+        "<Installation leadCoefficient(RingElement)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$leadCoefficient",
+        "full_doc": "... (1830 bytes) ...",
+        "parsed_headline": "leadCoefficient  -- the coefficient of the leading term"
+    }
+}
+```

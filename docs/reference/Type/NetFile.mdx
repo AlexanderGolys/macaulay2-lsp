@@ -1,50 +1,60 @@
 ---
 title: "NetFile"
 kind: Type
-parent: Thing
 ---
 
 # NetFile
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**NetFile  -- the class of all net files**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ This class is experimental.  Net files are intended to supplant output files eventually.  Whereas a file is a stream of bytes or in some non-unix operating systems a sequence of lines each of which is a sequence of bytes a net file is a sequence of lines each of which is a net.  Each output line is assembled by joining nets one by one.
 
-## Parent Type
+## Additional Information
 
-[Thing](../Type/Thing.mdx)
+[newNetFile](../Function/op_Coredollar_newNetFile.mdx)[getNetFile](../Function/op_Coredollar_getNetFile.mdx)
 
-## Methods
+## Debug info
 
-Methods that can be used with this type:
-
-### `<<`
-
-- `<<(NetFile, Manipulator)`
-- `<<(NetFile, Net)`
-- `<<(NetFile, String)`
-
-### `SPACE`
-
-- `SPACE(Manipulator, NetFile)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [<<](../Operator/op_lt_lt.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Thing](../Type/Thing.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "NetFile",
+    "safe_name": "op_Coredollar_NetFile",
+    "type": null,
+    "description": " This class is experimental.  Net files are intended to supplant output files eventually.  Whereas a...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$NetFile",
+        "parent": "Thing",
+        "methods": [
+            [
+                "SPACE",
+                "Manipulator",
+                "NetFile"
+            ],
+            [
+                "<<",
+                "NetFile",
+                "Manipulator"
+            ],
+            [
+                "<<",
+                "NetFile",
+                "Net"
+            ],
+            [
+                "<<",
+                "NetFile",
+                "String"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (2028 bytes) ...",
+        "parsed_headline": "NetFile  -- the class of all net files"
+    }
+}
+```

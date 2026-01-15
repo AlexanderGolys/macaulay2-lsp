@@ -5,19 +5,67 @@ kind: Instance
 
 # coverageSummary
 
-:::warning[Stub Documentation]
-This is a placeholder documentation entry. The full documentation for this instance needs to be extracted from Macaulay2.
-:::
+**coverageSummary  -- profile a computation**
 
 **Type:** [Command](../Type/Command.mdx)
 
 ## Description
 
-An instance of the type [Command](../Type/Command.mdx).
+Running a computation with the `profile` keyword enables the Macaulay2 profiler which measures and stores the frequency of particular instructions for aid in analyzing and optimizing the computation.Afterwards running `profileSummary` and `coverageSummary` produces easy to read tables summarizing the accumulated data so far in different ways.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+profile f()
+profileSummary f
+coverageSummary f
+```
 
-## See Also
+```macaulay2
+coverageSummary
 
+```
+
+```text
+covered lines:
+     ../../m2/lists.m2:145:24-145:32
+     ../../m2/lists.m2:145:34-145:58
+     ../../m2/matrix.m2:12:5-12:35
+     ../../m2/matrix.m2:13:5-13:46
+     ../../m2/matrix.m2:14:5-14:40
+     ../../m2/matrix.m2:15:5-15:30
+     ../../m2/matrix.m2:16:5-16:80
+     ../../m2/matrix.m2:17:5-17:17
+     ../../m2/matrix.m2:72:4-72:40
+     ../../m2/matrix1.m2:44:8-44:16
+     ../../m2/matrix1.m2:45:10-49:22
+     ../../m2/matrix1.m2:47:23-47:37
+     ../../m2/matrix1.m2:47:43-47:71
+     ../../m2/matrix1.m2:93:5-93:16
+...
+   (output truncated)
+```
+
+## Additional Information
+
+- Consequences:
+- The hash table `ProfileTable` is updated with the profiling measurement data.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Instance",
+    "name": "coverageSummary",
+    "safe_name": "coverageSummary",
+    "type": "Command",
+    "description": "Running a computation with the `profile` keyword enables the Macaulay2 profiler which measures and s...",
+    "extra": {
+        "isSymbol": false,
+        "codeName": "coverageSummary",
+        "full_doc": "... (4993 bytes) ...",
+        "stub": true,
+        "parsed_headline": "coverageSummary  -- profile a computation"
+    }
+}
+```

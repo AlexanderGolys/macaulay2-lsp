@@ -1,0 +1,293 @@
+---
+title: "lift"
+kind: Method
+---
+
+# lift
+
+**lift  -- lift to another ring**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+(Disambiguation: for division of matrices which is thought of as lifting one homomorphism over another see instead [Matrix // Matrix](../Instance/Matrix // Matrix.mdx) .  For lifting a map between modules to a map between their free resolutions see [extend](../Method/extend.mdx) .)The ring `R`  should be one of the base rings associated with the ring of `f` .  An error is raised if `f`  cannot be lifted to `R` .The first example is lifting from the fraction field of R to R.Another use of lift is to take polynomials in a quotient ring and lift them to the polynomial ring.Elements may be lifted to any base ring if such a lift exists.The functions `lift`  and [substitute](../Method/sub.mdx)  are useful to move numbers from one kind of coefficient ring to another.A continued fraction method is used to lift a real number to a rational number whereas [promote](../Method/op_Coredollar_promote.mdx)  uses the internal binary representation.For numbers and ring elements an alternate syntax with [^](../Method/op_Coredollar_caret.mdx)  is available analogous to the use of [_](../Method/op_Coredollar_underscore.mdx)  for [promote](../Method/op_Coredollar_promote.mdx) .
+
+## Installed For
+
+### lift([BettiTally](../Type/BettiTally.mdx), [ZZ](../Type/ZZ.mdx))
+
+### lift([CC](../Type/CC.mdx), [QQ](../Type/QQ.mdx))
+
+### lift([CC](../Type/CC.mdx), [RR_*](../Type/op_RRunderscore_star.mdx))
+
+### lift([CC](../Type/CC.mdx), [ZZ](../Type/ZZ.mdx))
+
+### lift([Ideal](../Type/Ideal.mdx), [QQ](../Type/QQ.mdx))
+
+### lift([Ideal](../Type/Ideal.mdx), [RingElement](../Type/RingElement.mdx))
+
+### lift([Ideal](../Type/Ideal.mdx), [ZZ](../Type/ZZ.mdx))
+
+### lift([IndexedVariable](../Type/IndexedVariable.mdx), [MonoidElement](../Type/MonoidElement.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [CC_*](../Type/op_CCunderscore_star.mdx), [CC_*](../Type/op_CCunderscore_star.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [CC_*](../Type/op_CCunderscore_star.mdx), [QQ](../Type/QQ.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [CC_*](../Type/op_CCunderscore_star.mdx), [RR_*](../Type/op_RRunderscore_star.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [CC_*](../Type/op_CCunderscore_star.mdx), [ZZ](../Type/ZZ.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [InexactNumber'](../Type/InexactNumberprime.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [InexactNumber](../Type/InexactNumber.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [Number](../Type/Number.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [QQ](../Type/QQ.mdx), [QQ](../Type/QQ.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [QQ](../Type/QQ.mdx), [ZZ](../Type/ZZ.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [RR_*](../Type/op_RRunderscore_star.mdx), [QQ](../Type/QQ.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [RR_*](../Type/op_RRunderscore_star.mdx), [RR_*](../Type/op_RRunderscore_star.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [RR_*](../Type/op_RRunderscore_star.mdx), [ZZ](../Type/ZZ.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [RRi_*](../Type/op_RRiunderscore_star.mdx), [QQ](../Type/QQ.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [RRi_*](../Type/op_RRiunderscore_star.mdx), [RR_*](../Type/op_RRunderscore_star.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [RRi_*](../Type/op_RRiunderscore_star.mdx), [ZZ](../Type/ZZ.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [RingElement](../Type/RingElement.mdx))
+
+### lift([Matrix](../Type/Matrix.mdx), [ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx))
+
+### lift([Module](../Type/Module.mdx), [InexactNumber'](../Type/InexactNumberprime.mdx))
+
+### lift([Module](../Type/Module.mdx), [InexactNumber](../Type/InexactNumber.mdx))
+
+### lift([Module](../Type/Module.mdx), [Number](../Type/Number.mdx))
+
+### lift([Module](../Type/Module.mdx), [RingElement](../Type/RingElement.mdx))
+
+### lift([MutableMatrix](../Type/MutableMatrix.mdx), [InexactNumber'](../Type/InexactNumberprime.mdx))
+
+
+*... and 17 more*
+
+## Options
+
+- [Verify](../Option/Verify.mdx) => true
+
+## Examples
+
+```macaulay2
+lift(fR)
+```
+
+```macaulay2
+lift(4/2ZZ)
+
+```
+
+```text
+2
+```
+
+```macaulay2
+lift(fR)
+
+      2
+```
+
+```text
+x  + 2x + 1
+
+R
+```
+
+```macaulay2
+lift(fA)
+
+                 2
+```
+
+```text
+2a*c*d + c*d  + 6a*c + b*c + 6c*d + 9c
+
+A
+```
+
+```macaulay2
+lift(jfA)
+
+```
+
+```text
+{1} | 2cd+6c           |
+      {1} | c                |
+      {1} | 2ad+d2+6a+b+6d+9 |
+      {1} | 2ac+2cd+6c       |
+
+              4      1
+Matrix A  <-- A
+```
+
+```macaulay2
+lift(gA)
+
+```
+
+```text
+-4
+
+A
+```
+
+```macaulay2
+lift(gQQ)
+
+```
+
+```text
+-4
+
+QQ
+```
+
+```macaulay2
+lift(lift(gQQ)ZZ)
+
+```
+
+```text
+-4
+```
+
+```macaulay2
+lift(3.0ZZ)
+
+```
+
+```text
+3
+```
+
+```macaulay2
+lift(3.0QQ)
+
+```
+
+```text
+3
+
+QQ
+```
+
+```macaulay2
+lift(123/2341.QQ)
+
+       123
+```
+
+```text
+----
+      2341
+
+QQ
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ ring element](../Type/RingElement.mdx) [ ideal](../Type/op_Coredollar_Ideal.mdx) or [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- `R` a [ ring](../Type/Ring.mdx)
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `Verify```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true whether to give an error message if lifting is not possible or alternatively to return [null](../Instance/null.mdx)
+- Outputs:
+- a [ ring element](../Type/RingElement.mdx) [ ideal](../Type/op_Coredollar_Ideal.mdx) or [ matrix](../Type/op_Coredollar_Matrix.mdx) over the ring `R`
+
+
+### See also
+
+
+- Macaulay2Doc:: baseRings
+- Macaulay2Doc:: promote
+
+[liftable](../Method/liftable.mdx)[setupLift](../Method/setupLift.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "lift",
+    "safe_name": "op_Coredollar_lift",
+    "type": "MethodFunctionWithOptions",
+    "description": "(Disambiguation: for division of matrices which is thought of as lifting one homomorphism over anoth...",
+    "installations": [
+        "<Installation lift(BettiTally, ZZ)>",
+        "<Installation lift(ZZ, ZZ)>",
+        "<Installation lift(Ideal, ZZ)>",
+        "<Installation lift(Ideal, QQ)>",
+        "<Installation lift(Ideal, RingElement)>",
+        "<Installation lift(Matrix, InexactNumber)>",
+        "<Installation lift(Matrix, Number)>",
+        "<Installation lift(Matrix, InexactNumber')>",
+        "<Installation lift(Matrix, RingElement)>",
+        "<Installation lift(Matrix, QQ, QQ)>",
+        "<Installation lift(Matrix, ZZ, ZZ)>",
+        "<Installation lift(Matrix, QQ, ZZ)>",
+        "<Installation lift(Matrix, CC_*, CC_*)>",
+        "<Installation lift(Matrix, RR_*, RR_*)>",
+        "<Installation lift(Matrix, RRi_*, QQ)>",
+        "<Installation lift(Matrix, RRi_*, ZZ)>",
+        "<Installation lift(Matrix, RR_*, QQ)>",
+        "<Installation lift(Matrix, RR_*, ZZ)>",
+        "<Installation lift(Matrix, CC_*, QQ)>",
+        "<Installation lift(Matrix, CC_*, ZZ)>",
+        "<Installation lift(Matrix, RRi_*, RR_*)>",
+        "<Installation lift(Matrix, CC_*, RR_*)>",
+        "<Installation lift(Vector, RingElement)>",
+        "<Installation lift(Vector, Number)>",
+        "<Installation lift(Vector, InexactNumber')>",
+        "<Installation lift(Vector, InexactNumber)>",
+        "<Installation lift(Module, InexactNumber)>",
+        "<Installation lift(Module, InexactNumber')>",
+        "<Installation lift(Module, RingElement)>",
+        "<Installation lift(Module, Number)>",
+        "<Installation lift(IndexedVariable, MonoidElement)>",
+        "<Installation lift(RingElement, MonoidElement)>",
+        "<Installation lift(MutableMatrix, InexactNumber)>",
+        "<Installation lift(MutableMatrix, InexactNumber')>",
+        "<Installation lift(MutableMatrix, RingElement)>",
+        "<Installation lift(MutableMatrix, Number)>",
+        "<Installation lift(QQ, ZZ)>",
+        "<Installation lift(QQ, QQ)>",
+        "<Installation lift(Number, InexactNumber)>",
+        "<Installation lift(CC, RR_*)>",
+        "<Installation lift(RRi, RR_*)>",
+        "<Installation lift(RR, QQ)>",
+        "<Installation lift(RR, ZZ)>",
+        "<Installation lift(CC, QQ)>",
+        "<Installation lift(CC, ZZ)>",
+        "<Installation lift(RRi, QQ)>",
+        "<Installation lift(RRi, ZZ)>"
+    ],
+    "options": [
+        {
+            "name": "Verify",
+            "default": "true"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$lift",
+        "full_doc": "... (6696 bytes) ...",
+        "parsed_headline": "lift  -- lift to another ring"
+    }
+}
+```

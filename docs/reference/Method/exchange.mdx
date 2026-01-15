@@ -1,0 +1,63 @@
+---
+title: "exchange"
+kind: Method
+---
+
+# exchange
+
+**exchange  -- exchange the value of an atomic integer**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+The value of y is stored in x and the original value of x is returned.  This operation occurs atomically and is thread safe.
+
+## Installed For
+
+### exchange([AtomicInt](../Type/AtomicInt.mdx), [ZZ](../Type/ZZ.mdx)) -> [ZZ](../Type/ZZ.mdx)
+
+## Examples
+
+```macaulay2
+exchange(x y)
+```
+
+```macaulay2
+exchange(x 5)
+
+```
+
+```text
+0
+```
+
+## Additional Information
+
+- Inputs:
+- `x` an [ atomic integer](../Type/op_Coredollar_AtomicInt.mdx)
+- `y` an [ integer](../Type/ZZ.mdx)
+- Outputs:
+- an [ integer](../Type/ZZ.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "exchange",
+    "safe_name": "exchange",
+    "type": "MethodFunction",
+    "description": "The value of y is stored in x and the original value of x is returned.  This operation occurs atomic...",
+    "installations": [
+        "<Installation exchange(AtomicInt, ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "exchange",
+        "full_doc": "... (1300 bytes) ...",
+        "parsed_headline": "exchange  -- exchange the value of an atomic integer"
+    }
+}
+```

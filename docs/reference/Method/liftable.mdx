@@ -1,0 +1,115 @@
+---
+title: "liftable"
+kind: Method
+---
+
+# liftable
+
+**liftable  -- whether lifting to another ring is possible**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ The ring `R`  should be one of the base rings associated with the ring of `f` .
+
+## Installed For
+
+### liftable([CC](../Type/CC.mdx), [RR_*](../Type/op_RRunderscore_star.mdx))
+
+### liftable([Number](../Type/Number.mdx), [InexactNumber](../Type/InexactNumber.mdx))
+
+### liftable([Number](../Type/Number.mdx), [Number](../Type/Number.mdx))
+
+### liftable([Number](../Type/Number.mdx), [RingElement](../Type/RingElement.mdx))
+
+### liftable([QQ](../Type/QQ.mdx), [ZZ](../Type/ZZ.mdx))
+
+### liftable([RRi](../Type/RRi.mdx), [QQ](../Type/QQ.mdx))
+
+### liftable([RRi](../Type/RRi.mdx), [RR](../Type/RR.mdx))
+
+### liftable([RRi](../Type/RRi.mdx), [ZZ](../Type/ZZ.mdx))
+
+### liftable([RingElement](../Type/RingElement.mdx), [Number](../Type/Number.mdx))
+
+### liftable([RingElement](../Type/RingElement.mdx), [RingElement](../Type/RingElement.mdx))
+
+## Examples
+
+```macaulay2
+liftable(fR)
+```
+
+```macaulay2
+liftable ((x-1)*(x+1)-x^2 ZZ)
+
+```
+
+```text
+true
+```
+
+```macaulay2
+liftable(3/4ZZ)
+
+```
+
+```text
+false
+```
+
+```macaulay2
+liftable((3/4)*4ZZ)
+
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ ring element](../Type/RingElement.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx)
+- `R` a [ ring](../Type/Ring.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `f` can be lifted to the ring `R`
+
+
+### See also
+
+
+- Macaulay2Doc:: lift
+- Macaulay2Doc:: baseRings
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "liftable",
+    "safe_name": "liftable",
+    "type": "MethodFunction",
+    "description": " The ring `R`  should be one of the base rings associated with the ring of `f` ....",
+    "installations": [
+        "<Installation liftable(QQ, ZZ)>",
+        "<Installation liftable(Number, InexactNumber)>",
+        "<Installation liftable(CC, RR_*)>",
+        "<Installation liftable(RRi, RR)>",
+        "<Installation liftable(RRi, QQ)>",
+        "<Installation liftable(RRi, ZZ)>",
+        "<Installation liftable(RingElement, RingElement)>",
+        "<Installation liftable(Number, Number)>",
+        "<Installation liftable(Number, RingElement)>",
+        "<Installation liftable(RingElement, Number)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "liftable",
+        "full_doc": "... (1452 bytes) ...",
+        "parsed_headline": "liftable  -- whether lifting to another ring is possible"
+    }
+}
+```

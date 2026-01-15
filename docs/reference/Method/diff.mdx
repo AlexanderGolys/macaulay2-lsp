@@ -1,0 +1,139 @@
+---
+title: "diff"
+kind: Method
+---
+
+# diff
+
+**diff  -- differentiate or take difference**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ This function has two different uses.  The most common use is for differentiation: differentiate the second input by the first. The second use less common but sometimes useful is to compute the difference polynomial of a Hilbert polynomial. The arguments can also be ring elements or vectors.
+
+## Installed For
+
+### diff([Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx))
+
+### diff([Matrix](../Type/Matrix.mdx), [RingElement](../Type/RingElement.mdx))
+
+### diff([Matrix](../Type/Matrix.mdx), [Vector](../Type/Vector.mdx))
+
+### diff([ProjectiveHilbertPolynomial](../Type/ProjectiveHilbertPolynomial.mdx))
+
+### diff([ProjectiveHilbertPolynomial](../Type/ProjectiveHilbertPolynomial.mdx), [ZZ](../Type/ZZ.mdx))
+
+### diff([RingElement](../Type/RingElement.mdx), [Matrix](../Type/Matrix.mdx))
+
+### diff([RingElement](../Type/RingElement.mdx), [RingElement](../Type/RingElement.mdx))
+
+### diff([RingElement](../Type/RingElement.mdx), [Vector](../Type/Vector.mdx))
+
+### diff([Vector](../Type/Vector.mdx), [Matrix](../Type/Matrix.mdx))
+
+### diff([Vector](../Type/Vector.mdx), [RingElement](../Type/RingElement.mdx))
+
+### diff([Vector](../Type/Vector.mdx), [Vector](../Type/Vector.mdx))
+
+## Examples
+
+```macaulay2
+diff(fg) or diff(P) or diff(Pi)
+```
+
+```macaulay2
+diff(transpose vars R f)
+
+```
+
+```text
+{1} | 2x y z y 0  0 z 0 0  |
+     {1} | 0  x 0 x 2y z 0 z 0  |
+     {1} | 0  0 x 0 0  y x y 2z |
+
+             3      9
+Matrix R  <-- R
+```
+
+```macaulay2
+diff(x f)
+
+```
+
+```text
+| 2x y z y 0 0 z 0 0 |
+
+             1      9
+Matrix R  <-- R
+```
+
+```macaulay2
+diff(y f)
+
+```
+
+```text
+| 0 x 0 x 2y z 0 z 0 |
+
+             1      9
+Matrix R  <-- R
+```
+
+```macaulay2
+diff(z f)
+
+```
+
+```text
+| 0 0 x 0 0 y x y 2z |
+
+             1      9
+Matrix R  <-- R
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: diff and contract
+- Macaulay2Doc:: diff'
+- Macaulay2Doc:: contract
+- Macaulay2Doc:: jacobian
+- Macaulay2Doc:: hilbertPolynomial
+
+differentiation[diff(RingElement](../Instance/diff(RingElement.mdx)[diff(RingElement](../Instance/diff(RingElement.mdx)[diff(Matrix](../Instance/diff(Matrix.mdx)[diff(Matrix](../Instance/diff(Matrix.mdx) difference operator for Hilbert polynomials[diff(ProjectiveHilbertPolynomial)](../Instance/diff(ProjectiveHilbertPolynomial).mdx)[diff(ProjectiveHilbertPolynomial](../Instance/diff(ProjectiveHilbertPolynomial.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "diff",
+    "safe_name": "op_Coredollar_diff",
+    "type": "MethodFunction",
+    "description": " This function has two different uses.  The most common use is for differentiation: differentiate th...",
+    "installations": [
+        "<Installation diff(Matrix, Matrix)>",
+        "<Installation diff(ProjectiveHilbertPolynomial, ZZ)>",
+        "<Installation diff(ProjectiveHilbertPolynomial)>",
+        "<Installation diff(RingElement, RingElement)>",
+        "<Installation diff(Matrix, RingElement)>",
+        "<Installation diff(RingElement, Matrix)>",
+        "<Installation diff(Vector, RingElement)>",
+        "<Installation diff(RingElement, Vector)>",
+        "<Installation diff(Vector, Vector)>",
+        "<Installation diff(Matrix, Vector)>",
+        "<Installation diff(Vector, Matrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$diff",
+        "full_doc": "... (3158 bytes) ...",
+        "parsed_headline": "diff  -- differentiate or take difference"
+    }
+}
+```

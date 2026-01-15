@@ -5,19 +5,40 @@ kind: Instance
 
 # restart
 
-:::warning[Stub Documentation]
-This is a placeholder documentation entry. The full documentation for this instance needs to be extracted from Macaulay2.
-:::
+**restart  -- restart Macaulay2**
 
 **Type:** [Command](../Type/Command.mdx)
 
 ## Description
 
-An instance of the type [Command](../Type/Command.mdx).
+Functions previously registered with [addEndFunction](../Function/op_Coredollar_addEndFunction.mdx)  will be called before the current instance of the program terminates.  Then the program will be invoked afresh as described in [invoking the Macaulay2 program](../Instance/invoking the Macaulay2 program.mdx) .
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+restart
+```
 
-## See Also
+## Additional Information
 
+- Consequences:
+- the program will be restarted from the beginning
+
+## Debug info
+
+```python
+{
+    "obj_type": "Instance",
+    "name": "restart",
+    "safe_name": "restart",
+    "type": "Command",
+    "description": "Functions previously registered with [addEndFunction](../Function/op_Coredollar_addEndFunction.mdx) ...",
+    "extra": {
+        "isSymbol": false,
+        "codeName": "restart",
+        "full_doc": "... (789 bytes) ...",
+        "stub": true,
+        "parsed_headline": "restart  -- restart Macaulay2"
+    }
+}
+```

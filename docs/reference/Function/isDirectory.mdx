@@ -5,35 +5,67 @@ kind: Function
 
 # isDirectory
 
-**Type:** `Function`
+**isDirectory  -- whether a file is a directory**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-isDirectory, -- whether a file is a directory, class => element, Usage: , isDirectory fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, , , a filename or path, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , fn, is the path to a directory, Description, class => examples, i1 : isDirectory "."
-
-o1 = true, class => language-macaulay2, i2 : fn = temporaryFileName()
-
-o2 = /tmp/M2-704998-0/0, class => language-macaulay2, i3 : fn << "hi there" << close
-
-o3 = /tmp/M2-704998-0/0
-
-o3 : File, class => language-macaulay2, i4 : isDirectory fn
-
-o4 = false, class => language-macaulay2, i5 : removeFile fn, class => language-macaulay2, See also, Macaulay2Doc :: isRegularFile, Macaulay2Doc :: readlink, class => waystouse, For the programmer, The object , Macaulay2Doc :: isDirectory, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isDirectory-doc.m2:20:0, .
+isDirectory  -- whether a file is a directory
 
 ## Examples
 
 ```macaulay2
-i1 : isDirectory "."
-
-o1 = true
-
-i2 : fn = temporaryFileName()
-
-o2 = /tmp/M2-704998-0/0
+isDirectory fn
 ```
 
-## See Also
+```macaulay2
+isDirectory "."
 
+```
+
+```text
+true
+```
+
+```macaulay2
+isDirectory fn
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `fn` a [ string](../Type/op_Coredollar_String.mdx) a filename or path
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `fn` is the path to a directory
+
+
+### See also
+
+
+- Macaulay2Doc:: isRegularFile
+- Macaulay2Doc:: readlink
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "isDirectory",
+    "safe_name": "op_Coredollar_isDirectory",
+    "type": "CompiledFunction",
+    "description": "isDirectory  -- whether a file is a directory...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isDirectory",
+        "full_doc": "... (1324 bytes) ...",
+        "parsed_headline": "isDirectory  -- whether a file is a directory"
+    }
+}
+```

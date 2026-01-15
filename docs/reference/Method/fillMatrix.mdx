@@ -1,0 +1,119 @@
+---
+title: "fillMatrix"
+kind: Method
+---
+
+# fillMatrix
+
+**fillMatrix  -- fill a mutable matrix with random numbers**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+fillMatrix  -- fill a mutable matrix with random numbers
+
+## Installed For
+
+### fillMatrix([MutableMatrix](../Type/MutableMatrix.mdx))
+
+### fillMatrix([MutableMatrix](../Type/MutableMatrix.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Options
+
+- [Height](../Option/Height.mdx) => 10
+- [Density](../Method/Density.mdx) => 1
+- [UpperTriangular](../Option/UpperTriangular.mdx) => false
+
+## Examples
+
+```macaulay2
+fillMatrix M
+fillMatrix(Mn)
+```
+
+```macaulay2
+fillMatrix(mutableMatrix(RR510))
+
+```
+
+```text
+| .89  .71 .91  .71 .35 .54 .19  .39 .28 .89  |
+     | .67  .89 .31  .13 .56 .87 .4   .56 .61 .17  |
+     | .29  .23 .074 .25 .25 .42 .62  .87 .97 .97  |
+     | .63  .46 .81  .74 .15 .61 .015 .7  .68 .065 |
+     | .026 .78 .36  .11 .83 .85 .22  .68 .91 .88  |
+
+MutableMatrix
+```
+
+```macaulay2
+fillMatrix(mutableMatrix(ZZ510)
+```
+
+```macaulay2
+fillMatrix(mutableMatrix(QQ510)
+```
+
+```macaulay2
+fillMatrix(mutableMatrix(ZZ510)25
+```
+
+## Additional Information
+
+- Function: [fillMatrix](../Method/op_Coredollar_fillMatrix.mdx)
+- Inputs:
+- `M` a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx)
+- `n` an [ integer](../Type/ZZ.mdx) if specified the maximum number of entries to replace
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `Density```a [ real number](../Type/op_x226_x132_x157.mdx) default value 1 the fraction of entries of `M` to be replaced if `n` is not specified
+- `UpperTriangular```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to fill entries only above the diagonal
+- `Height```an [ integer](../Type/ZZ.mdx) default value 10 a bound on the absolute values of the generated random numbers
+- Outputs:
+- `M`
+- Consequences:
+- some entries of M are replaced with randomly generated numbers whose size depends on the value of the option `Height`
+
+
+### See also
+
+
+- Macaulay2Doc:: setRandomSeed
+- Macaulay2Doc:: random
+- Macaulay2Doc:: mutableMatrix
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "fillMatrix",
+    "safe_name": "op_Coredollar_fillMatrix",
+    "type": "MethodFunctionWithOptions",
+    "description": "fillMatrix  -- fill a mutable matrix with random numbers...",
+    "installations": [
+        "<Installation fillMatrix(MutableMatrix)>",
+        "<Installation fillMatrix(MutableMatrix, ZZ)>"
+    ],
+    "options": [
+        {
+            "name": "Height",
+            "default": "10"
+        },
+        {
+            "name": "Density",
+            "default": "1"
+        },
+        {
+            "name": "UpperTriangular",
+            "default": "false"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$fillMatrix",
+        "full_doc": "... (3614 bytes) ...",
+        "parsed_headline": "fillMatrix  -- fill a mutable matrix with random numbers"
+    }
+}
+```

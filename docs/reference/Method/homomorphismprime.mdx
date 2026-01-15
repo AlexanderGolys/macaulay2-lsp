@@ -1,0 +1,84 @@
+---
+title: "homomorphism'"
+kind: Method
+---
+
+# homomorphism'
+
+**homomorphism'  -- get the element of Hom from a homomorphism**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+We can undo the process with [homomorphism](../Method/op_Coredollar_homomorphism.mdx).
+
+## Installed For
+
+### homomorphism'([Matrix](../Type/Matrix.mdx)) -> [Matrix](../Type/Matrix.mdx)
+
+## Options
+
+- [Strategy](../Option/Strategy.mdx) => null
+- [DegreeLimit](../Option/DegreeLimit.mdx) => null
+- [MinimalGenerators](../Option/MinimalGenerators.mdx) => true
+
+## Examples
+
+```macaulay2
+homomorphism' f
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ matrix](../Type/op_Coredollar_Matrix.mdx) of the form $M \to N$
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `DegreeLimit```an [ integer](../Type/ZZ.mdx) or a [ list](../Type/op_Coredollar_List.mdx) default value null see [Hom(...](../Instance/Hom(....mdx)
+- `MinimalGenerators```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true see [Hom(...](../Instance/Hom(....mdx)
+- `Strategy```a [ thing](../Type/Thing.mdx) default value null see [Hom(...](../Instance/Hom(....mdx)
+- Outputs:
+- a [ matrix](../Type/op_Coredollar_Matrix.mdx) the map $R^1 \to \mathrm{Hom}(MN)$ corresponding to the map $f \in \mathrm{Hom}(MN)$
+
+
+### See also
+
+
+- Macaulay2Doc:: Hom
+- Macaulay2Doc:: homomorphism
+- Macaulay2Doc:: adjoint
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "homomorphism'",
+    "safe_name": "op_Coredollar_homomorphismprime",
+    "type": "MethodFunctionWithOptions",
+    "description": "We can undo the process with [homomorphism](../Method/op_Coredollar_homomorphism.mdx)....",
+    "installations": [
+        "<Installation homomorphism'(Matrix)>"
+    ],
+    "options": [
+        {
+            "name": "Strategy",
+            "default": "null"
+        },
+        {
+            "name": "DegreeLimit",
+            "default": "null"
+        },
+        {
+            "name": "MinimalGenerators",
+            "default": "true"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$homomorphism'",
+        "full_doc": "... (3121 bytes) ...",
+        "parsed_headline": "homomorphism'  -- get the element of Hom from a homomorphism"
+    }
+}
+```

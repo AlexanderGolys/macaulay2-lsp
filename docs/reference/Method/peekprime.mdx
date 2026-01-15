@@ -1,0 +1,108 @@
+---
+title: "peek'"
+kind: Method
+---
+
+# peek'
+
+**peek'  -- examine contents of an object**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+peek'  -- examine contents of an object
+
+## Installed For
+
+### peek'([ZZ](../Type/ZZ.mdx), [BasicList](../Type/BasicList.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [Constant](../Type/Constant.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [Dictionary](../Type/Dictionary.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [HashTable](../Type/HashTable.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [IndeterminateNumber](../Type/IndeterminateNumber.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [InfiniteNumber](../Type/InfiniteNumber.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [List](../Type/List.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [Net](../Type/Net.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [Nothing](../Type/Nothing.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [Sequence](../Type/Sequence.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [String](../Type/String.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [Symbol](../Type/Symbol.mdx))
+
+### peek'([ZZ](../Type/ZZ.mdx), [Thing](../Type/Thing.mdx)) -> [Net](../Type/Net.mdx)
+
+### peek'([ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+peek'(n o)
+```
+
+```macaulay2
+peek'_2 s
+
+```
+
+```text
+Product{Power{2, 4}, Power{7, 1}}
+```
+
+## Additional Information
+
+- Inputs:
+- `n` an [ integer](../Type/ZZ.mdx)
+- `o` a [ thing](../Type/Thing.mdx) any Macaulay2 object
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) laying out the contents of `o` bypassing installed formatting and printing methods to depth `n`
+
+
+### See also
+
+
+- Macaulay2Doc:: peek
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "peek'",
+    "safe_name": "peekprime",
+    "type": "MethodFunction",
+    "description": "peek'  -- examine contents of an object...",
+    "installations": [
+        "<Installation peek'(ZZ, ZZ)>",
+        "<Installation peek'(ZZ, Nothing)>",
+        "<Installation peek'(ZZ, Symbol)>",
+        "<Installation peek'(ZZ, Thing)>",
+        "<Installation peek'(ZZ, IndeterminateNumber)>",
+        "<Installation peek'(ZZ, InfiniteNumber)>",
+        "<Installation peek'(ZZ, Constant)>",
+        "<Installation peek'(ZZ, BasicList)>",
+        "<Installation peek'(ZZ, List)>",
+        "<Installation peek'(ZZ, String)>",
+        "<Installation peek'(ZZ, Net)>",
+        "<Installation peek'(ZZ, Sequence)>",
+        "<Installation peek'(ZZ, HashTable)>",
+        "<Installation peek'(ZZ, Dictionary)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "peek'",
+        "full_doc": "... (1350 bytes) ...",
+        "parsed_headline": "peek'  -- examine contents of an object"
+    }
+}
+```

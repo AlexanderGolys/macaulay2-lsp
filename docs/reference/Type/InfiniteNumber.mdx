@@ -1,151 +1,608 @@
 ---
 title: "InfiniteNumber"
 kind: Type
-parent: Number
 ---
 
 # InfiniteNumber
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**InfiniteNumber  -- the class of all infinite numbers**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+InfiniteNumber  -- the class of all infinite numbers
 
-## Parent Type
+## Additional Information
 
-[Number](../Type/Number.mdx)
+empty documentation body[isFinite](../Method/isFinite.mdx)[isInfinite](../Method/op_Coredollar_isInfinite.mdx)[infinity](../Instance/infinity.mdx)
 
-## Instances
+## Debug info
 
-Direct instances of this type:
-
-- `infinity`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `*`
-
-- `*(InfiniteNumber, Matrix)`
-- `*(Matrix, InfiniteNumber)`
-
-### `+`
-
-- `+(InfiniteNumber, InfiniteNumber)`
-
-### `-`
-
-- `-(InfiniteNumber)`
-
-### `..`
-
-- `..(ZZ, InfiniteNumber)`
-- `..(InfiniteNumber, InfiniteNumber)`
-- `..(InfiniteNumber, ZZ)`
-
-### `..<`
-
-- `..<(InfiniteNumber, ZZ)`
-- `..<(ZZ, InfiniteNumber)`
-- `..<(InfiniteNumber, InfiniteNumber)`
-
-### `?`
-
-- `?(InfiniteNumber, InfiniteNumber)`
-
-### `basis`
-
-- `basis(InfiniteNumber, InfiniteNumber, Module)`
-- `basis(InfiniteNumber, List, Module)`
-- `basis(InfiniteNumber, ZZ, Module)`
-- `basis(List, InfiniteNumber, Module)`
-- `basis(ZZ, InfiniteNumber, Module)`
-- *... and 15 more signatures*
-
-### `integrate`
-
-- `integrate(Function, Number, InfiniteNumber)`
-- `integrate(Function, InfiniteNumber, Number)`
-- `integrate(Function, InfiniteNumber, InfiniteNumber)`
-
-### `mathML`
-
-- `mathML(InfiniteNumber)`
-
-### `net`
-
-- `net(InfiniteNumber)`
-
-### `norm`
-
-- `norm(InfiniteNumber, RingElement)`
-- `norm(InfiniteNumber, Number)`
-- `norm(InfiniteNumber, Matrix)`
-
-### `part`
-
-- `part(InfiniteNumber, ZZ, VisibleList, RingElement)`
-- `part(ZZ, InfiniteNumber, VisibleList, RingElement)`
-- `part(InfiniteNumber, InfiniteNumber, VisibleList, RingElement)`
-- `part(InfiniteNumber, ZZ, RingElement)`
-- `part(ZZ, InfiniteNumber, RingElement)`
-- *... and 4 more signatures*
-
-### `toExternalString`
-
-- `toExternalString(InfiniteNumber)`
-
-### `toString`
-
-- `toString(InfiniteNumber)`
-
-
-*Showing 50 of 108 methods*
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [..](../Operator/op_dot_dot.mdx)
-- [..<](../Operator/op_dot_dot_lt.mdx)
-- [/](../Operator/op_slash.mdx)
-- [//](../Operator/op_slash_slash.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [>](../Operator/op_gt.mdx)
-- [>=](../Operator/op_gt_eq.mdx)
-- [?](../Operator/op_question.mdx)
-- [^](../Operator/op_caret.mdx)
-- [basis](../Function/basis.mdx)
-- [integrate](../Function/integrate.mdx)
-- [isFinite](../Function/isFinite.mdx)
-- [isInfinite](../Function/isInfinite.mdx)
-- [isReal](../Function/isReal.mdx)
-- [map](../Function/map.mdx)
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-- [norm](../Function/norm.mdx)
-- [numeric](../Function/numeric.mdx)
-- [part](../Function/part.mdx)
-- [peek'](../Function/op_peekx39.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-- [toString](../Function/toString.mdx)
-- [truncate](../Function/truncate.mdx)
-- [truncateOutput](../Function/truncateOutput.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Number](../Type/Number.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "InfiniteNumber",
+    "safe_name": "InfiniteNumber",
+    "type": null,
+    "description": "InfiniteNumber  -- the class of all infinite numbers...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "InfiniteNumber",
+        "parent": "Number",
+        "methods": [
+            [
+                "basis",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "Module"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "List",
+                "Module"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "ZZ",
+                "Module"
+            ],
+            [
+                "basis",
+                "List",
+                "InfiniteNumber",
+                "Module"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "InfiniteNumber",
+                "Module"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "Ideal"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "ZZ",
+                "Ideal"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "InfiniteNumber",
+                "Ideal"
+            ],
+            [
+                "basis",
+                "List",
+                "InfiniteNumber",
+                "Ideal"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "List",
+                "Ideal"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "Ring"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "ZZ",
+                "Ring"
+            ],
+            [
+                "basis",
+                "List",
+                "InfiniteNumber",
+                "Ring"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "List",
+                "Ring"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "InfiniteNumber",
+                "Ring"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "Matrix"
+            ],
+            [
+                "basis",
+                "ZZ",
+                "InfiniteNumber",
+                "Matrix"
+            ],
+            [
+                "basis",
+                "List",
+                "InfiniteNumber",
+                "Matrix"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "ZZ",
+                "Matrix"
+            ],
+            [
+                "basis",
+                "InfiniteNumber",
+                "List",
+                "Matrix"
+            ],
+            [
+                "norm",
+                "InfiniteNumber",
+                "RingElement"
+            ],
+            [
+                "norm",
+                "InfiniteNumber",
+                "Number"
+            ],
+            [
+                "part",
+                "InfiniteNumber",
+                "ZZ",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "ZZ",
+                "InfiniteNumber",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "VisibleList",
+                "RingElement"
+            ],
+            [
+                "part",
+                "InfiniteNumber",
+                "ZZ",
+                "RingElement"
+            ],
+            [
+                "part",
+                "ZZ",
+                "InfiniteNumber",
+                "RingElement"
+            ],
+            [
+                "part",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "RingElement"
+            ],
+            [
+                "part",
+                "ZZ",
+                "InfiniteNumber",
+                "Number"
+            ],
+            [
+                "part",
+                "InfiniteNumber",
+                "ZZ",
+                "Number"
+            ],
+            [
+                "part",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "Number"
+            ],
+            [
+                "..",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "..",
+                "InfiniteNumber",
+                "ZZ"
+            ],
+            [
+                "..",
+                "ZZ",
+                "InfiniteNumber"
+            ],
+            [
+                "..<",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "..<",
+                "ZZ",
+                "InfiniteNumber"
+            ],
+            [
+                "..<",
+                "InfiniteNumber",
+                "ZZ"
+            ],
+            [
+                "integrate",
+                "Function",
+                "Number",
+                "InfiniteNumber"
+            ],
+            [
+                "integrate",
+                "Function",
+                "InfiniteNumber",
+                "Number"
+            ],
+            [
+                "integrate",
+                "Function",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "mathML",
+                "InfiniteNumber"
+            ],
+            [
+                "*",
+                "InfiniteNumber",
+                "Matrix"
+            ],
+            [
+                "*",
+                "Matrix",
+                "InfiniteNumber"
+            ],
+            [
+                "norm",
+                "InfiniteNumber",
+                "Matrix"
+            ],
+            [
+                "-",
+                "InfiniteNumber"
+            ],
+            [
+                "toString",
+                "InfiniteNumber"
+            ],
+            [
+                "toExternalString",
+                "InfiniteNumber"
+            ],
+            [
+                "net",
+                "InfiniteNumber"
+            ],
+            [
+                "?",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "+",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "-",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "*",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "/",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "//",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "^",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "==",
+                "InfiniteNumber",
+                "InfiniteNumber"
+            ],
+            [
+                "isFinite",
+                "InfiniteNumber"
+            ],
+            [
+                "+",
+                "InfiniteNumber",
+                "Number"
+            ],
+            [
+                "+",
+                "Number",
+                "InfiniteNumber"
+            ],
+            [
+                "-",
+                "InfiniteNumber",
+                "Number"
+            ],
+            [
+                "-",
+                "Number",
+                "InfiniteNumber"
+            ],
+            [
+                "+",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "-",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "+",
+                "CC",
+                "InfiniteNumber"
+            ],
+            [
+                "-",
+                "CC",
+                "InfiniteNumber"
+            ],
+            [
+                "*",
+                "InfiniteNumber",
+                "QQ"
+            ],
+            [
+                "*",
+                "InfiniteNumber",
+                "ZZ"
+            ],
+            [
+                "*",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "*",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "*",
+                "Number",
+                "InfiniteNumber"
+            ],
+            [
+                "//",
+                "Number",
+                "InfiniteNumber"
+            ],
+            [
+                "/",
+                "Number",
+                "InfiniteNumber"
+            ],
+            [
+                "//",
+                "InfiniteNumber",
+                "Number"
+            ],
+            [
+                "/",
+                "InfiniteNumber",
+                "Number"
+            ],
+            [
+                "/",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "//",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "/",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "//",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "^",
+                "InfiniteNumber",
+                "ZZ"
+            ],
+            [
+                "^",
+                "InfiniteNumber",
+                "QQ"
+            ],
+            [
+                "^",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "^",
+                "ZZ",
+                "InfiniteNumber"
+            ],
+            [
+                "^",
+                "RR",
+                "InfiniteNumber"
+            ],
+            [
+                "^",
+                "QQ",
+                "InfiniteNumber"
+            ],
+            [
+                "==",
+                "Number",
+                "InfiniteNumber"
+            ],
+            [
+                "==",
+                "InfiniteNumber",
+                "Number"
+            ],
+            [
+                "?",
+                "Thing",
+                "InfiniteNumber"
+            ],
+            [
+                "?",
+                "InfiniteNumber",
+                "Thing"
+            ],
+            [
+                "==",
+                "RR",
+                "InfiniteNumber"
+            ],
+            [
+                "==",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "?",
+                "RR",
+                "InfiniteNumber"
+            ],
+            [
+                "?",
+                "InfiniteNumber",
+                "RR"
+            ],
+            [
+                "?",
+                "CC",
+                "InfiniteNumber"
+            ],
+            [
+                "?",
+                "InfiniteNumber",
+                "CC"
+            ],
+            [
+                "texMath",
+                "InfiniteNumber"
+            ],
+            [
+                "truncate",
+                "InfiniteNumber",
+                "InfiniteNumber",
+                "Matrix"
+            ],
+            [
+                "truncate",
+                "Nothing",
+                "InfiniteNumber",
+                "Matrix"
+            ],
+            [
+                "truncate",
+                "InfiniteNumber",
+                "Thing"
+            ],
+            [
+                "peek'",
+                "ZZ",
+                "InfiniteNumber"
+            ],
+            [
+                "truncateOutput",
+                "InfiniteNumber"
+            ],
+            [
+                "numeric",
+                "InfiniteNumber"
+            ],
+            [
+                "numeric",
+                "ZZ",
+                "InfiniteNumber"
+            ],
+            [
+                "numeric",
+                "InfiniteNumber",
+                "Constant"
+            ],
+            [
+                "isReal",
+                "InfiniteNumber"
+            ],
+            [
+                "isInfinite",
+                "InfiniteNumber"
+            ],
+            [
+                ">",
+                "InfiniteNumber"
+            ],
+            [
+                ">=",
+                "InfiniteNumber"
+            ],
+            [
+                "map",
+                "CoherentSheaf",
+                "CoherentSheaf",
+                "Matrix",
+                "InfiniteNumber"
+            ]
+        ],
+        "instances": [
+            "infinity"
+        ],
+        "full_doc": "... (5683 bytes) ...",
+        "parsed_headline": "InfiniteNumber  -- the class of all infinite numbers"
+    }
+}
+```

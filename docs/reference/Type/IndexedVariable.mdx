@@ -1,106 +1,113 @@
 ---
 title: "IndexedVariable"
 kind: Type
-parent: BasicList
 ---
 
 # IndexedVariable
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**IndexedVariable  -- the class of all indexed variables**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ Indexed variables provide the possibility of producing polynomial rings `R[x_0 x_1 ... x_(n-1)]`  in n variables where n is not known in advance.  If `x`  is an symbol and i is an integer then `x_i`  produces an indexed variable. After this has been done an assignment `x_i=v`  will assign another value to it.  A new sequence of indexed variables of length n assigned to the symbol `x`  can be produced with `x_1 .. x_n`  and that sequence can be used in constructing a polynomial ring. Warning: the values of the indexed variables `t_i`  are stored in a global location behind the scenes so may not get garbage collected even if `t`  is a local variable.
 
-## Parent Type
+## Additional Information
 
-[BasicList](../Type/BasicList.mdx)
+[value(IndexedVariable)](../Instance/value(IndexedVariable).mdx)[IndexedVariable .. IndexedVariable](../Instance/IndexedVariable .. IndexedVariable.mdx)[IndexedVariable ..< IndexedVariable](../Instance/IndexedVariable ..< IndexedVariable.mdx)[baseName](../Method/baseName.mdx)
 
-## Methods
+## Debug info
 
-Methods that can be used with this type:
-
-### `..`
-
-- `..(IndexedVariable, IndexedVariable)`
-
-### `..<`
-
-- `..<(IndexedVariable, IndexedVariable)`
-
-### `<-`
-
-- `<-(IndexedVariable)`
-
-### `?`
-
-- `?(IndexedVariable, IndexedVariable)`
-- `?(Symbol, IndexedVariable)`
-
-### `_`
-
-- `_(IndexedVariable, Monoid)`
-- `_(IndexedVariable, Ring)`
-- `_(Ring, IndexedVariable)`
-
-### `baseName`
-
-- `baseName(IndexedVariable)`
-
-### `expression`
-
-- `expression(IndexedVariable)`
-
-### `lift`
-
-- `lift(IndexedVariable, MonoidElement)`
-
-### `net`
-
-- `net(IndexedVariable)`
-
-### `promote`
-
-- `promote(IndexedVariable, RingElement)`
-
-### `texMath`
-
-- `texMath(IndexedVariable)`
-
-### `toString`
-
-- `toString(IndexedVariable)`
-
-### `value`
-
-- `value(IndexedVariable)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [..](../Operator/op_dot_dot.mdx)
-- [..<](../Operator/op_dot_dot_lt.mdx)
-- [<-](../Operator/op_lt_minus.mdx)
-- [?](../Operator/op_question.mdx)
-- [_](../Operator/_.mdx)
-- [baseName](../Function/baseName.mdx)
-- [expression](../Function/expression.mdx)
-- [lift](../Function/lift.mdx)
-- [net](../Function/net.mdx)
-- [promote](../Function/promote.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toString](../Function/toString.mdx)
-- [value](../Function/value.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [BasicList](../Type/BasicList.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "IndexedVariable",
+    "safe_name": "IndexedVariable",
+    "type": null,
+    "description": " Indexed variables provide the possibility of producing polynomial rings `R[x_0 x_1 ... x_(n-1)]`  i...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "IndexedVariable",
+        "parent": "BasicList",
+        "methods": [
+            [
+                "promote",
+                "IndexedVariable",
+                "RingElement"
+            ],
+            [
+                "lift",
+                "IndexedVariable",
+                "MonoidElement"
+            ],
+            [
+                "_",
+                "IndexedVariable",
+                "Monoid"
+            ],
+            [
+                "_",
+                "IndexedVariable",
+                "Ring"
+            ],
+            [
+                "_",
+                "Ring",
+                "IndexedVariable"
+            ],
+            [
+                "expression",
+                "IndexedVariable"
+            ],
+            [
+                "net",
+                "IndexedVariable"
+            ],
+            [
+                "toString",
+                "IndexedVariable"
+            ],
+            [
+                "texMath",
+                "IndexedVariable"
+            ],
+            [
+                "?",
+                "IndexedVariable",
+                "IndexedVariable"
+            ],
+            [
+                "?",
+                "Symbol",
+                "IndexedVariable"
+            ],
+            [
+                "value",
+                "IndexedVariable"
+            ],
+            [
+                "<-",
+                "IndexedVariable"
+            ],
+            [
+                "..",
+                "IndexedVariable",
+                "IndexedVariable"
+            ],
+            [
+                "..<",
+                "IndexedVariable",
+                "IndexedVariable"
+            ],
+            [
+                "baseName",
+                "IndexedVariable"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (2428 bytes) ...",
+        "parsed_headline": "IndexedVariable  -- the class of all indexed variables"
+    }
+}
+```

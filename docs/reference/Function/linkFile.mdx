@@ -5,23 +5,50 @@ kind: Function
 
 # linkFile
 
-**Type:** `Function`
+**linkFile  -- make a new link to a file**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-linkFile, -- make a new link to a file, class => element, Usage: , linkFile(o,n), class => language-macaulay2, Inputs:, o, , , a , Macaulay2Doc :: String, string, , , the path to an existing file, n, , , a , Macaulay2Doc :: String, string, , , a new path to the file, Consequences:, a new link , n, is made to the existing file reachable using the path , o, empty documentation body, See also, Macaulay2Doc :: moveFile, Macaulay2Doc :: copyFile, class => waystouse, Ways to use , linkFile, :, Macaulay2Doc :: linkFile(String,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: linkFile, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1667:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `linkFile(String, String)`
+linkFile  -- make a new link to a file
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+linkFile(on)
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `o` a [ string](../Type/op_Coredollar_String.mdx) the path to an existing file
+- `n` a [ string](../Type/op_Coredollar_String.mdx) a new path to the file
+- Consequences:
+- a new link `n` is made to the existing file reachable using the path `o`
+
+empty documentation body
+### See also
+
+
+- Macaulay2Doc:: moveFile
+- Macaulay2Doc:: copyFile
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "linkFile",
+    "safe_name": "linkFile",
+    "type": "CompiledFunction",
+    "description": "linkFile  -- make a new link to a file...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "linkFile",
+        "full_doc": "... (1037 bytes) ...",
+        "parsed_headline": "linkFile  -- make a new link to a file"
+    }
+}
+```

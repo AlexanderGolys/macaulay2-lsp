@@ -5,19 +5,29 @@ kind: Instance
 
 # closeIn
 
-:::warning[Stub Documentation]
-This is a placeholder documentation entry. The full documentation for this instance needs to be extracted from Macaulay2.
-:::
+**closeIn  -- close an input file**
 
 **Type:** [Manipulator](../Type/Manipulator.mdx)
 
 ## Description
 
-An instance of the type [Manipulator](../Type/Manipulator.mdx).
+`f << closeIn`  -- closes the input file `f` .`closeIn f`  -- closes the input file `f` . If the file was open only for input then [close](../Instance/close.mdx)  is easier to use and has the same effect. If the file was open for both input and output it remains open for output.
 
-## Examples
+## Debug info
 
-*No examples available yet. Please contribute!*
-
-## See Also
-
+```python
+{
+    "obj_type": "Instance",
+    "name": "closeIn",
+    "safe_name": "op_Coredollar_closeIn",
+    "type": "Manipulator",
+    "description": "`f << closeIn`  -- closes the input file `f` .`closeIn f`  -- closes the input file `f` . If the fil...",
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$closeIn",
+        "full_doc": "... (1488 bytes) ...",
+        "stub": true,
+        "parsed_headline": "closeIn  -- close an input file"
+    }
+}
+```

@@ -1,0 +1,73 @@
+---
+title: "compareExchange"
+kind: Method
+---
+
+# compareExchange
+
+**compareExchange  -- compare and possibly exchange the value of an atomic integer**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+The values of x and y are compared.  If they agree then [true](../Instance/op_Coredollar_true.mdx) is returned and the value of z is stored in x.  Otherwise[false](../Instance/op_Coredollar_blockMatrixForm.mdx) is returned.  This operation occurs atomically and is thread safe.
+
+## Installed For
+
+### compareExchange([AtomicInt](../Type/AtomicInt.mdx), [ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+## Examples
+
+```macaulay2
+compareExchange(x y z)
+```
+
+```macaulay2
+compareExchange(x 2 3)
+
+```
+
+```text
+false
+```
+
+```macaulay2
+compareExchange(x 0 3)
+
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `x` an [ atomic integer](../Type/op_Coredollar_AtomicInt.mdx)
+- `y` an [ integer](../Type/ZZ.mdx)
+- `z` an [ integer](../Type/ZZ.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "compareExchange",
+    "safe_name": "compareExchange",
+    "type": "MethodFunction",
+    "description": "The values of x and y are compared.  If they agree then [true](../Instance/op_Coredollar_true.mdx) i...",
+    "installations": [
+        "<Installation compareExchange(AtomicInt, ZZ, ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "compareExchange",
+        "full_doc": "... (1767 bytes) ...",
+        "parsed_headline": "compareExchange  -- compare and possibly exchange the value of an atomic integer"
+    }
+}
+```

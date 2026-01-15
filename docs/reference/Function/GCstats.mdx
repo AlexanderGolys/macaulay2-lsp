@@ -5,33 +5,36 @@ kind: Function
 
 # GCstats
 
-**Type:** `Function`
+**GCstats  -- information about the status of the garbage collector**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-GCstats, -- information about the status of the garbage collector, Description, Macaulay2 uses the Hans Boehm , Macaulay2Doc :: GC garbage collector, garbage collector, to reclaim unused memory. The function , GCstats, provides information about its status, such as the total number of bytes allocated, the current heap size, the number of garbage collections done, the number of threads used in each collection, the total cpu time spent in garbage collection, etc., class => examples, i1 : s = GCstats()
+Macaulay2 uses the Hans Boehm [ garbage collector](../Instance/GC garbage collector.mdx)  to reclaim unused memory.  The function `GCstats`  provides information about its status such as the total number of bytes allocated the current heap size the number of garbage collections done the number of threads used in each collection the total cpu time spent in garbage collection etc.The value returned is a hash table from which individual bits of information can be easily extracted as follows.Any entries whose keys are all upper case give the values of environment variables affecting the operation of the garbage collector that have been specified by the user.For further information about the individual items in the table we refer the user to the source code and documentation of the garbage collector.
 
-o1 = HashTable{"bytesAlloc" => 43409922458 
- "GC_free_space_divisor" => 3
- "GC_LARGE_ALLOC_WARN_INTERVAL" => 1
- "gcCpuTimeSecs" => 0
- "heapSize" => 226484224
- "numGCs" => 786
- "numGCThreads" => 16
+## Additional Information
 
-o1 : HashTable, class => language-macaulay2, The value returned is a hash table, from which individual bits of information can be easily extracted, as follows., class => examples, i2 : s#"heapSize"
+### See also
 
-o2 = 226484224, class => language-macaulay2, Any entries whose keys are all upper case give the values of environment variables affecting the operation of the garbage collector that have been specified by the user., For further information about the individual items in the table, we refer the user to the source code and documentation of the garbage collector., See also, Macaulay2Doc :: GC garbage collector, class => waystouse, For the programmer, The object , Macaulay2Doc :: GCstats, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:29:0, .
 
-## Examples
+- Macaulay2Doc:: GC garbage collector
 
-```macaulay2
-i2 : s#"heapSize"
+## Debug info
 
-o2 = 226484224
+```python
+{
+    "obj_type": "Function",
+    "name": "GCstats",
+    "safe_name": "op_Coredollar_GCstats",
+    "type": "CompiledFunction",
+    "description": "Macaulay2 uses the Hans Boehm [ garbage collector](../Instance/GC garbage collector.mdx)  to reclaim...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$GCstats",
+        "full_doc": "... (1844 bytes) ...",
+        "parsed_headline": "GCstats  -- information about the status of the garbage collector"
+    }
+}
 ```
-
-## See Also
-

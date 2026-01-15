@@ -5,17 +5,54 @@ kind: Function
 
 # getIOThreadMode
 
-**Type:** `Function`
+**getIOThreadMode  -- get I/O thread mode**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-getIOThreadMode, -- get I/O thread mode, class => element, Usage: , getIOThreadMode(), class => language-macaulay2, getIOThreadMode f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: File, file, , , Consequences:, returns the I/O thread mode for the file , f, , or if no file is given, , Macaulay2Doc :: stdio, , as an integer: , 0 for unsynchronized, 1 for synchronized, 2 for exclusive, empty documentation body, See also, Macaulay2Doc :: setIOUnSynchronized, Macaulay2Doc :: setIOSynchronized, Macaulay2Doc :: setIOExclusive, class => waystouse, For the programmer, The object , Macaulay2Doc :: getIOThreadMode, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
+getIOThreadMode  -- get I/O thread mode
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+getIOThreadMode()
+getIOThreadMode f
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `f` a [ file](../Type/op_Coredollar_File.mdx)
+- Consequences:
+- returns the I/O thread mode for the file f or if no file is given[stdio](../Instance/op_Coredollar_stdio.mdx) as an integer: 
+- 0 for unsynchronized
+- 1 for synchronized
+- 2 for exclusive
+
+empty documentation body
+### See also
+
+
+- Macaulay2Doc:: setIOUnSynchronized
+- Macaulay2Doc:: setIOSynchronized
+- Macaulay2Doc:: setIOExclusive
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "getIOThreadMode",
+    "safe_name": "getIOThreadMode",
+    "type": "CompiledFunction",
+    "description": "getIOThreadMode  -- get I/O thread mode...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "getIOThreadMode",
+        "full_doc": "... (1050 bytes) ...",
+        "parsed_headline": "getIOThreadMode  -- get I/O thread mode"
+    }
+}
+```

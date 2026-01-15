@@ -1,0 +1,111 @@
+---
+title: "reducedRowEchelonForm"
+kind: Method
+---
+
+# reducedRowEchelonForm
+
+**reducedRowEchelonForm  -- compute the reduced row echelon form of a matrix or mutable matrix over a field**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+A matrix over a field is in reduced row echelon form if (1) all rows consisting only of zeros are at the bottom (2) the leading coefficient  (called the pivot) of a nonzero row is always strictly to the right of the leading coefficient of the row above it and (3) the leading coefficient of each nonzero row is 1.  See https://en.wikipedia.org/wiki/Row_echelon_form Row echelon form for more discussion.Given a matrix `A`  (over a field) there is a unique matrix `R`  such that (1) the row spans of `A`  and `R`  are the same and (2) `R`  is in reduced row echelon form.If the matrix `A`  is over either a finite field or the rationals then this returns the unique reduced row echelon form for the matrix which is unique.This function is useful while learning the concepts and algorithms of linear algebra.  In practice though one tends to use LU decompositions rather than reduced row echelon forms.In fact this function doesn't work over the reals or complexes (due to often poor numerical stability) as an LU decomposition is better for solving systems over the real numbers.  If numerical stability is an issue using a singular value decomposition (SVD) is also a good idea.This function also works over finite fields.It is not yet implemented over fraction fields and extension fields. Use [LUdecomposition](../Method/LUdecomposition.mdx) instead.Even though it is not implemented currently as a canned routine we can put `A`  into reduced row echelon form using elementary row operations.  Recall that rows and columns in Macaulay2 are indexed starting with 0.At this point the matrix is in row echelon form. We clear out the entries above the pivots to place it into reduced row echelon form.
+
+## Installed For
+
+### reducedRowEchelonForm([Matrix](../Type/Matrix.mdx)) -> [Matrix](../Type/Matrix.mdx)
+
+### reducedRowEchelonForm([MutableMatrix](../Type/MutableMatrix.mdx))
+
+## Examples
+
+```macaulay2
+R = reducedRowEchelonForm A
+```
+
+```macaulay2
+R = reducedRowEchelonForm A
+
+```
+
+```text
+| 1 0 3  0 5 |
+     | 0 1 -2 0 2 |
+     | 0 0 0  1 7 |
+
+              3       5
+Matrix QQ  <-- QQ
+```
+
+```macaulay2
+reducedRowEchelonForm A5
+
+```
+
+```text
+| 1 0 -2 0 0 |
+     | 0 1 -2 0 2 |
+     | 0 0 0  1 2 |
+
+             ZZ 3      ZZ 5
+Matrix (--)  <-- (--)
+              5         5
+```
+
+```macaulay2
+R9 = reducedRowEchelonForm A9
+
+```
+
+```text
+| 1 -1 -1 0 0 |
+      | 0 0  0  1 1 |
+      | 0 0  0  0 0 |
+
+                   3           5
+Matrix (GF 9)  <-- (GF 9)
+```
+
+## Additional Information
+
+- Inputs:
+- `A` a [ matrix](../Type/op_Coredollar_Matrix.mdx) or a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx) a matrix over either a finite field or the rationals
+- Outputs:
+- `R` a [ matrix](../Type/op_Coredollar_Matrix.mdx) or a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx) the same type as `A` the reduced row echelon form of `A`
+
+
+### See also
+
+
+- Macaulay2Doc:: rowAdd
+- Macaulay2Doc:: rowMult
+- Macaulay2Doc:: rowPermute
+- Macaulay2Doc:: rowSwap
+- Macaulay2Doc:: LUdecomposition
+- Macaulay2Doc:: SVD
+- Macaulay2Doc:: rank(Matrix)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "reducedRowEchelonForm",
+    "safe_name": "reducedRowEchelonForm",
+    "type": "MethodFunction",
+    "description": "A matrix over a field is in reduced row echelon form if (1) all rows consisting only of zeros are at...",
+    "installations": [
+        "<Installation reducedRowEchelonForm(Matrix)>",
+        "<Installation reducedRowEchelonForm(MutableMatrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "reducedRowEchelonForm",
+        "full_doc": "... (11008 bytes) ...",
+        "parsed_headline": "reducedRowEchelonForm  -- compute the reduced row echelon form of a matrix or mutable matrix over a field"
+    }
+}
+```

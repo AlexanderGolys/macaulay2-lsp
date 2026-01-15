@@ -1,0 +1,74 @@
+---
+title: "selectKeys"
+kind: Method
+---
+
+# selectKeys
+
+**selectKeys  -- select a part of a hash table by keys**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+selectKeys  -- select a part of a hash table by keys
+
+## Installed For
+
+### selectKeys([HashTable](../Type/HashTable.mdx), [Function](../Type/Function.mdx))
+
+### selectKeys([ZZ](../Type/ZZ.mdx), [HashTable](../Type/HashTable.mdx), [Function](../Type/Function.mdx)) -> [HashTable](../Type/HashTable.mdx)
+
+## Examples
+
+```macaulay2
+selectKeys(x f)
+selectKeys(n x f)
+```
+
+```macaulay2
+selectKeys(x
+```
+
+```macaulay2
+selectKeys(2 x
+```
+
+## Additional Information
+
+- Inputs:
+- `n` an [ integer](../Type/ZZ.mdx)
+- `x` a [ hash table](../Type/op_Coredollar_HashTable.mdx) must be immutable;
+- `f` a [ function](../Type/Function.mdx)
+- Outputs:
+- a [ hash table](../Type/op_Coredollar_HashTable.mdx) containing all (or n if it is given) key-value pairs (kv) from x for which `f k` evaluates to true.
+
+
+### See also
+
+
+- Macaulay2Doc:: selectValues
+- Macaulay2Doc:: selectPairs
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "selectKeys",
+    "safe_name": "op_Coredollar_selectKeys",
+    "type": "MethodFunction",
+    "description": "selectKeys  -- select a part of a hash table by keys...",
+    "installations": [
+        "<Installation selectKeys(ZZ, HashTable, Function)>",
+        "<Installation selectKeys(HashTable, Function)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$selectKeys",
+        "full_doc": "... (1910 bytes) ...",
+        "parsed_headline": "selectKeys  -- select a part of a hash table by keys"
+    }
+}
+```

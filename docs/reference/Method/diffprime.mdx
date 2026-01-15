@@ -1,0 +1,61 @@
+---
+title: "diff'"
+kind: Method
+---
+
+# diff'
+
+**diff'  -- differentiate a matrix by a matrix the dual notion**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+diff'  -- differentiate a matrix by a matrix the dual notion
+
+## Installed For
+
+### diff'([Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx)) -> [Matrix](../Type/Matrix.mdx)
+
+## Examples
+
+```macaulay2
+h = diff'(mn)
+```
+
+## Additional Information
+
+- Inputs:
+- `m` a [ matrix](../Type/op_Coredollar_Matrix.mdx) a map `m: F <--- P` between free modules of ranks f and p.
+- `n` a [ matrix](../Type/op_Coredollar_Matrix.mdx) a map `n: G <--- Q` between free modules of ranks g and q.
+- Outputs:
+- `h` a [ matrix](../Type/op_Coredollar_Matrix.mdx) a matrix with the shape `h: F ** dual G <--- P ** dual Q` whose entry in the slot `h_{g*i+jq*k+l}` is the result of differentiating `n_{jl}` by `m_{ik}`
+
+empty documentation body
+### See also
+
+
+- Macaulay2Doc:: diff
+- Macaulay2Doc:: diff and contract
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "diff'",
+    "safe_name": "diffprime",
+    "type": "MethodFunction",
+    "description": "diff'  -- differentiate a matrix by a matrix the dual notion...",
+    "installations": [
+        "<Installation diff'(Matrix, Matrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "diff'",
+        "full_doc": "... (1309 bytes) ...",
+        "parsed_headline": "diff'  -- differentiate a matrix by a matrix the dual notion"
+    }
+}
+```

@@ -1,94 +1,345 @@
 ---
 title: "FunctionClosure"
 kind: Type
-parent: Function
 ---
 
 # FunctionClosure
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**FunctionClosure  -- the class of all function closures**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ Functions created by the operator [->](../Method/op_Coredollar_minus_gt.mdx)  are function closures.
 
-## Parent Type
+## Additional Information
 
-[Function](../Type/Function.mdx)
+[uncurry](../Function/op_Coredollar_uncurry.mdx)
 
-## Subtypes
+## Debug info
 
-Direct subtypes of this type:
-
-- [Iterator](../Type/Iterator.mdx)
-- [MethodFunctionBinary](../Type/MethodFunctionBinary.mdx)
-- [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
-- [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `homology`
-- `trim`
-- `Hom`
-- `tex`
-- `installPackage`
-- `intersectInP`
-- `symlinkDirectory`
-- `vars`
-- `notImplemented`
-- `jacobianDual`
-- `applyPairsSafe`
-- `gradedModule`
-- `kernel`
-- `findFiles`
-- `basis`
-- `solve`
-- `SVD`
-- `homomorphism'`
-- `package`
-- `adjoint`
-
-*... and 269 more*
-
-## Methods
-
-Methods that can be used with this type:
-
-### `disassemble`
-
-- `disassemble(FunctionClosure)`
-
-### `frames`
-
-- `frames(FunctionClosure)`
-
-### `localDictionaries`
-
-- `localDictionaries(FunctionClosure)`
-
-### `pseudocode`
-
-- `pseudocode(FunctionClosure)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [disassemble](../Function/disassemble.mdx)
-- [frames](../Function/frames.mdx)
-- [localDictionaries](../Function/localDictionaries.mdx)
-- [pseudocode](../Function/pseudocode.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Function](../Type/Function.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "FunctionClosure",
+    "safe_name": "op_Coredollar_FunctionClosure",
+    "type": null,
+    "description": " Functions created by the operator [->](../Method/op_Coredollar_minus_gt.mdx)  are function closures...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$FunctionClosure",
+        "parent": "Function",
+        "methods": [
+            [
+                "localDictionaries",
+                "FunctionClosure"
+            ],
+            [
+                "frames",
+                "FunctionClosure"
+            ],
+            [
+                "pseudocode",
+                "FunctionClosure"
+            ],
+            [
+                "disassemble",
+                "FunctionClosure"
+            ]
+        ],
+        "instances": [
+            "homology",
+            "trim",
+            "Hom",
+            "tex",
+            "installPackage",
+            "intersectInP",
+            "symlinkDirectory",
+            "vars",
+            "notImplemented",
+            "jacobianDual",
+            "gradedModule",
+            "kernel",
+            "findFiles",
+            "basis",
+            "solve",
+            "SVD",
+            "homomorphism'",
+            "package",
+            "adjoint",
+            "regex",
+            "sheafMap",
+            "showHtml",
+            "examples",
+            "monomialIdeal",
+            "pushForward",
+            "eigenvalues",
+            "hilbertBasis",
+            "min",
+            "undocumented",
+            "flattenRing",
+            "symmetricKernel",
+            "ideal",
+            "determinant",
+            "toAbsolutePath",
+            "tensor",
+            "radical",
+            "syzygyScheme",
+            "sortColumns",
+            "analyticSpread",
+            "specialFiberIdeal",
+            "set",
+            "gradedModuleMap",
+            "same",
+            "hilbertSeries",
+            "isReduction",
+            "globalAssignFunction",
+            "quotient",
+            "toString",
+            "iterator",
+            "monomialCurveIdeal",
+            "addEndFunction",
+            "globalAssign",
+            "regexQuote",
+            "mingens",
+            "modulo",
+            "pretty",
+            "copyDirectory",
+            "associatedPrimes",
+            "dual",
+            "loadPackage",
+            "randomMutableMatrix",
+            "regSeqInIdeal",
+            "newPackage",
+            "installedPackages",
+            "isSorted",
+            "mutableMatrix",
+            "cohomology",
+            "findProgram",
+            "getSymbol",
+            "copyFile",
+            "beginDocumentation",
+            "memoizeClear",
+            "last",
+            "canonicalBundle",
+            "expression",
+            "codim",
+            "isVeryAmple",
+            "needs",
+            "options",
+            "graphRing",
+            "isReflexive",
+            "mathML",
+            "zero",
+            "normalCone",
+            "resultant",
+            "resolution",
+            "pullback",
+            "maxPosition",
+            "print",
+            "makeS2",
+            "smithNormalForm",
+            "info",
+            "chainComplex",
+            "saturate",
+            "first",
+            "replace",
+            "reesIdeal",
+            "End",
+            "hold",
+            "Schubert",
+            "random",
+            "hilbertPolynomial",
+            "gcdLLL",
+            "isTable",
+            "interval",
+            "directProduct",
+            "centerString",
+            "betti",
+            "runLengthEncode",
+            "isIsomorphic",
+            "isLinearType",
+            "describe",
+            "LLL",
+            "demark",
+            "union",
+            "globalAssignment",
+            "exportMutable",
+            "syz",
+            "minimalPrimes",
+            "gb",
+            "globalReleaseFunction",
+            "isPrimitive",
+            "seeParsing",
+            "GF",
+            "method",
+            "conwayPolynomial",
+            "associatedGradedRing",
+            "symmetricAlgebraIdeal",
+            "groebnerBasis",
+            "simpleDocFrob",
+            "load",
+            "length",
+            "toUpper",
+            "exteriorPower",
+            "needsPackage",
+            "independentSets",
+            "moveFile",
+            "integralClosure",
+            "select",
+            "applicationDirectory",
+            "benchmark",
+            "lines",
+            "checkDegrees",
+            "applyTable",
+            "ancestors",
+            "mod",
+            "uninstallPackage",
+            "forceGB",
+            "gcd",
+            "tangentCone",
+            "check",
+            "lift",
+            "cacheValue",
+            "rsort",
+            "toExternalString",
+            "even",
+            "extend",
+            "document",
+            "primaryComponent",
+            "quotient'",
+            "intersect",
+            "separate",
+            "fillMatrix",
+            "icFracP",
+            "position",
+            "Grassmannian",
+            "getSafeName",
+            "odd",
+            "sheafHom",
+            "transpose",
+            "makePackageIndex",
+            "monoid",
+            "toLower",
+            "fromDual",
+            "capture",
+            "jq",
+            "number",
+            "EXAMPLE",
+            "span",
+            "installMinprimes",
+            "factor",
+            "locate",
+            "polarize",
+            "peek",
+            "minimalPresentation",
+            "map",
+            "minors",
+            "tutorial",
+            "isLLL",
+            "max",
+            "addHook",
+            "truncate",
+            "uninstallAllPackages",
+            "kernelLLL",
+            "idealizer",
+            "isPrime",
+            "isPrimary",
+            "radicalContainment",
+            "isSmooth",
+            "runProgram",
+            "columnate",
+            "inverseSystem",
+            "multiplicity",
+            "idealSheaf",
+            "oeis",
+            "use",
+            "monomials",
+            "rays",
+            "about",
+            "subtable",
+            "userSymbols",
+            "tangentSheaf",
+            "compose",
+            "regularity",
+            "SYNOPSIS",
+            "toDual",
+            "printerr",
+            "temporaryFileName",
+            "hypertext",
+            "minPosition",
+            "memoizeValues",
+            "net",
+            "sort",
+            "directSum",
+            "hermite",
+            "minimalBetti",
+            "parallelApply",
+            "graphIdeal",
+            "primaryDecomposition",
+            "prune",
+            "html",
+            "hooks",
+            "inducedMap",
+            "makeDocumentTag",
+            "methods",
+            "specialFiber",
+            "uniform",
+            "export",
+            "annihilator",
+            "toList",
+            "commonest",
+            "getNonUnit",
+            "matrix",
+            "currentPosition",
+            "pager",
+            "distinguished",
+            "match",
+            "reesAlgebra",
+            "input",
+            "table",
+            "texMath",
+            "readPackage",
+            "unique",
+            "roots",
+            "minimalReduction",
+            "setRandomSeed",
+            "lcm",
+            "ringFromFractions",
+            "netList",
+            "coefficients",
+            "on",
+            "discriminant",
+            "findHeft",
+            "eigenvectors",
+            "runHooks",
+            "showTex",
+            "getPrimeWithRootOfUnity",
+            "code",
+            "newRing",
+            "symmetricAlgebra",
+            "decompose",
+            "status",
+            "escapeString",
+            "isExact",
+            "isPseudoprime",
+            "format",
+            "baseFilename",
+            "synonym",
+            "stashValue",
+            "cotangentSheaf",
+            "generators",
+            "isomorphism",
+            "flatten",
+            "mutableIdentity",
+            "markedGB",
+            "error",
+            "localize",
+            "separateRegexp"
+        ],
+        "full_doc": "... (3796 bytes) ...",
+        "parsed_headline": "FunctionClosure  -- the class of all function closures"
+    }
+}
+```

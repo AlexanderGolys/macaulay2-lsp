@@ -1,0 +1,98 @@
+---
+title: "homomorphism"
+kind: Method
+---
+
+# homomorphism
+
+**homomorphism  -- get the homomorphism from element of Hom**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+When `H = Hom(MN)` is computed information about computing the morphisms corresponding to its elements is stored in `H`.The source and target are what they should be.Except for a possible redistribution of degrees between the map and modules we can undo the process with [homomorphism'](../Method/op_Coredollar_homomorphismprime.mdx).After [ pruning](../Instance/minimalPresentation(Module).mdx) a Hom module one cannot use homomorphism directly. Instead first apply the pruning map:
+
+## Installed For
+
+### homomorphism([Matrix](../Type/Matrix.mdx))
+
+### homomorphism([Vector](../Type/Vector.mdx)) -> [Matrix](../Type/Matrix.mdx)
+
+## Examples
+
+```macaulay2
+homomorphism f
+```
+
+```macaulay2
+g = homomorphism f
+
+```
+
+```text
+| y x2 |
+
+Matrix
+```
+
+```macaulay2
+f' = homomorphism' g
+
+```
+
+```text
+{0} | 0 |
+     {1} | 1 |
+
+                   1
+Matrix H <-- R
+```
+
+```macaulay2
+homomorphism(H1.cache.pruningMap * H1_{1})
+
+```
+
+```text
+| y x2 |
+
+Matrix
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ vector](../Type/op_Coredollar_Vector.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx) corresponding to an element in $\mathrm{Hom}(MN)$ or a map $R^1 \to \mathrm{Hom}(MN)$
+- Outputs:
+- a [ matrix](../Type/op_Coredollar_Matrix.mdx) the map $M \to N$ corresponding to the element $f \in \mathrm{Hom}(MN)$
+
+
+### See also
+
+
+- Macaulay2Doc:: Hom
+- Macaulay2Doc:: homomorphism'
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "homomorphism",
+    "safe_name": "op_Coredollar_homomorphism",
+    "type": "MethodFunction",
+    "description": "When `H = Hom(MN)` is computed information about computing the morphisms corresponding to its elemen...",
+    "installations": [
+        "<Installation homomorphism(Matrix)>",
+        "<Installation homomorphism(Vector)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$homomorphism",
+        "full_doc": "... (3446 bytes) ...",
+        "parsed_headline": "homomorphism  -- get the homomorphism from element of Hom"
+    }
+}
+```

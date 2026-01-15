@@ -1,0 +1,184 @@
+---
+title: "code"
+kind: Method
+---
+
+# code
+
+**code  -- display source code**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+
+### Synopsis
+
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx) or a [ command](../Type/op_Coredollar_Command.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the source code of the function or command`f`
+
+
+### Synopsis
+
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx) or a [ keyword](../Type/op_Coredollar_Keyword.mdx)
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the source code of method for applying `f` to an argument of type `X`
+
+
+### Synopsis
+
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx) or a [ keyword](../Type/op_Coredollar_Keyword.mdx)
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- `Y` a [ type](../Type/op_Coredollar_Type.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the source code of method for applying `f` to arguments of type `X` and `Y`
+
+
+### Synopsis
+
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx) or a [ keyword](../Type/op_Coredollar_Keyword.mdx)
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- `Y` a [ type](../Type/op_Coredollar_Type.mdx)
+- `Z` a [ type](../Type/op_Coredollar_Type.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the source code of method for applying `f` to arguments of type `X` `Y` and `Z`
+
+
+### Synopsis
+
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx) or a [ keyword](../Type/op_Coredollar_Keyword.mdx)
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- `Y` a [ type](../Type/op_Coredollar_Type.mdx)
+- `Z` a [ type](../Type/op_Coredollar_Type.mdx)
+- `T` a [ type](../Type/op_Coredollar_Type.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the source code of method for applying `f` to arguments of type `X` `Y` `Z` and `T`
+
+
+### Synopsis
+
+
+- Inputs:
+- `{v,w,...}` a [ list](../Type/op_Coredollar_List.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) the source code of the functions or commands`vw...`. Such a list can be obtained for example with [methods](../Method/op_Coredollar_methods.mdx).
+
+
+
+## Installed For
+
+### code([Command](../Type/Command.mdx))
+
+### code([FilePosition](../Type/FilePosition.mdx))
+
+### code([Function](../Type/Function.mdx))
+
+### code([List](../Type/List.mdx)) -> [Net](../Type/Net.mdx)
+
+### code([Nothing](../Type/Nothing.mdx))
+
+### code([Pseudocode](../Type/Pseudocode.mdx))
+
+### code([Sequence](../Type/Sequence.mdx))
+
+### code([Symbol](../Type/Symbol.mdx))
+
+### code([TestInput](../Type/TestInput.mdx))
+
+### code([ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+code listUserSymbols
+
+```
+
+```text
+../../m2/debugging.m2:198:28-198:64: --source code:
+     listUserSymbols = Command ( type -> listSymbols userSymbols type )
+```
+
+```macaulay2
+code(res opts)
+```
+
+```macaulay2
+code(symbol : Ideal J) -> quotient(I J)
+```
+
+```macaulay2
+code methods use
+
+```
+
+```text
+-- code for method: use(Ring)
+     ../../m2/enginering.m2:388:12-393:7: --source code:
+     use Ring := R -> (
+          if R.?ring then use R.ring;                            -- I'm not sure what this is for.  Which rings have this key?
+          generators R;
+          if R.?generators and R.?generatorSymbols then scan(R.generatorSymbolsR.generators(symval) -> sym <- val);
+          if R.?use then R.use R;
+          R)
+     ------------------------------------------------------------------------
+     -- code for method: use(Monoid)
+     ../../m2/monoids.m2:193:21-193:56: --source code:
+     use        Monoid := M ->(if M.?use     then M.use M; M)
+     ------------------------------------------------------------------------
+     -- code for method: use(Package)
+     ../../m2/packages.m2:550:15-555:42: --source code:
+...
+   (output truncated)
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: edit
+- Macaulay2Doc:: methods
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "code",
+    "safe_name": "op_Coredollar_code",
+    "type": "MethodFunctionSingle",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `f` a [ function](../Type/Function.mdx) or a [ command](../Type/op_Cored...",
+    "installations": [
+        "<Installation code(TestInput)>",
+        "<Installation code(FilePosition)>",
+        "<Installation code(Pseudocode)>",
+        "<Installation code(Symbol)>",
+        "<Installation code(Sequence)>",
+        "<Installation code(Function)>",
+        "<Installation code(Command)>",
+        "<Installation code(List)>",
+        "<Installation code(ZZ)>",
+        "<Installation code(Nothing)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$code",
+        "full_doc": "... (6277 bytes) ...",
+        "parsed_headline": "code  -- display source code"
+    }
+}
+```

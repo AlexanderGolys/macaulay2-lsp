@@ -1,0 +1,70 @@
+---
+title: "regexQuote"
+kind: Method
+---
+
+# regexQuote
+
+**regexQuote  -- escape special characters in regular expressions**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+regexQuote  -- escape special characters in regular expressions
+
+## Installed For
+
+### regexQuote([String](../Type/String.mdx)) -> [String](../Type/String.mdx)
+
+## Examples
+
+```macaulay2
+regexQuote s
+```
+
+```macaulay2
+regexQuote "2+2"
+
+```
+
+```text
+2\+2
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) obtained from `s` by escaping all of the characters that have special meanings in regular expressions (`\ ^ $. | ? * + ( ) [ ] {, }`) with a `\`.
+
+
+### See also
+
+
+- Macaulay2Doc:: regular expressions
+- Macaulay2Doc:: regex
+- Macaulay2Doc:: match
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "regexQuote",
+    "safe_name": "op_Coredollar_regexQuote",
+    "type": "MethodFunctionSingle",
+    "description": "regexQuote  -- escape special characters in regular expressions...",
+    "installations": [
+        "<Installation regexQuote(String)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$regexQuote",
+        "full_doc": "... (1416 bytes) ...",
+        "parsed_headline": "regexQuote  -- escape special characters in regular expressions"
+    }
+}
+```

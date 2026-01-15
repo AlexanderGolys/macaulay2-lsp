@@ -5,34 +5,65 @@ kind: Function
 
 # keys
 
-**Type:** `Function`
+**keys  -- keys used in a hash table dictionary or database**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-keys, -- keys used in a hash table, dictionary, or database, class => element, Usage: , keys t, class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: HashTable, hash table, , , a , Macaulay2Doc :: Dictionary, dictionary, , or , a , Macaulay2Doc :: Database, database, , , Outputs:, a , Macaulay2Doc :: List, list, , , the keys occurring in the hash table , t, , Description, class => examples, i1 : x = new HashTable from {a => 1, b => 2
-
-o1 = HashTable{a => 1
- b => 2
-
-o1 : HashTable, class => language-macaulay2, i2 : keys x
-
-o2 = {a, b
-
-o2 : List, class => language-macaulay2, See also, Macaulay2Doc :: hash tables, Macaulay2Doc :: applyKeys, Macaulay2Doc :: pairs, Macaulay2Doc :: scanKeys, Macaulay2Doc :: values, Macaulay2Doc :: #, Macaulay2Doc :: #?, class => waystouse, Ways to use , keys, :, keys(Database), keys(Dictionary), keys(HashTable), class => waystouse, For the programmer, The object , Macaulay2Doc :: keys, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_hashtables.m2:369:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `keys(Database)`
-- `keys(HashTable)`
-- `keys(Dictionary)`
+keys  -- keys used in a hash table dictionary or database
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+keys t
+```
 
-## See Also
+```macaulay2
+keys x
 
+```
+
+```text
+{a, b}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `t` a [ hash table](../Type/op_Coredollar_HashTable.mdx) a [ dictionary](../Type/op_Coredollar_Dictionary.mdx) or a [ database](../Type/Database.mdx)
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) the keys occurring in the hash table `t`
+
+
+### See also
+
+
+- Macaulay2Doc:: hash tables
+- Macaulay2Doc:: applyKeys
+- Macaulay2Doc:: pairs
+- Macaulay2Doc:: scanKeys
+- Macaulay2Doc:: values
+- Macaulay2Doc:: #
+- Macaulay2Doc:: #?
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "keys",
+    "safe_name": "op_Coredollar_keys",
+    "type": "CompiledFunction",
+    "description": "keys  -- keys used in a hash table dictionary or database...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$keys",
+        "full_doc": "... (1499 bytes) ...",
+        "parsed_headline": "keys  -- keys used in a hash table dictionary or database"
+    }
+}
+```

@@ -5,69 +5,69 @@ kind: Function
 
 # combine
 
-**Type:** `Function`
+**combine  -- combine hash tables**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-combine, -- combine hash tables, class => element, Usage: , z = combine(x,y,f,g,h) or z=combine(x,y,f,t,g,h), class => language-macaulay2, Inputs:, x, , , a hash table, y, , , a hash table of the same class as , x, f, , , a function of two variables to be used for combining a key of , x, with a key of , y, to make a new key for , z, ., t, , , a function combining two keys and returning a value, twisting the value returned by , g, based on which keys were used. This argument may be omitted, in which case the , t(p,q), term in the output below is omitted., g, , , a function of two variables to be used for combining a value of , x, with a value of , y, to make a new value for , z, ., h, , , a function of two variables to be used for combining two values returned by , g, when the corresponding keys returned by , f, turn out to be equal. Its first argument will be the value accumulated so far, and its second argument will be a value just provided by , g, ., Outputs:, z, , , a new hash table, of the same class as , x, and , y, , containing the pair , f(p,q) => g(t(p,q),g(b,c)), whenever , x, contains the pair , p => b, and , y, contains the pair , q => c, , except that , h, is used to combine values when two keys coincide. If , f, or , g, evaluates , Macaulay2Doc :: continue, , then nothing is contributed to the resulting hash table. If , h, evaluates , Macaulay2Doc :: continue, , then, at that point, the entry stored under the key , f(p,q), in the hash table under construction is removed., Description, The function , f, is applied to every pair , (p,q), where , p, is a key of , x, and , q, is a key of , y, . The number of times , f, is evaluated is thus the product of the number of keys in , x, and the number of keys in , y, ., , The function , h, should be an associative function, for otherwise the result may depend on internal details about the implementation of hash tables that affect the order in which entries are encountered. If , f, , , t, (if present), , g, , and , h, are commutative functions as well, then the result , z, is a commutative function of , x, and , y, ., , The result is mutable if and only if , x, or , y, is., , This function can be used for multiplying polynomials, where it can be used in code something like this:, combine(x, y, monomialTimes, coeffTimes, coeffPlus), We illustrate that with a simple-minded implementation of the free ring on the English alphabet, representing words as string and polynomials as hash tables that associate coefficients to words., class => examples, i1 : Poly = new Type of HashTable
-
-o1 = Poly
-
-o1 : Type, class => language-macaulay2, i2 : p = new Poly from { "" => 1, "x" => 2, "y" => 3, "cat" => 5 
-
-o2 = Poly{"" => 1 
- "cat" => 5
- "x" => 2
- "y" => 3
-
-o2 : Poly, class => language-macaulay2, i3 : Poly * Poly := (p,q) -> combine(p,q,concatenate,times,plus);, class => language-macaulay2, i4 : p*p
-
-o4 = Poly{"" => 1 
- "cat" => 10
- "catcat" => 25
- "catx" => 10
- "caty" => 15
- "x" => 4
- "xcat" => 10
- "xx" => 4
- "xy" => 6
- "y" => 6
- "ycat" => 15
- "yx" => 6
- "yy" => 9
-
-o4 : Poly, class => language-macaulay2, One may also use this function for multiplying divided powers in a similar manner:, combine(x, y, monomialTimes, divPowCoeff, coeffTimes, coeffPlus), For example:, class => examples, i5 : DivPowPoly = new Type of HashTable
-
-o5 = DivPowPoly
-
-o5 : Type, class => language-macaulay2, i6 : divPowCoeff = (i,j) -> binomial(i+j,i)
-
-o6 = divPowCoeff
-
-o6 : FunctionClosure, class => language-macaulay2, i7 : p = new DivPowPoly from { 0 => 1, 1 => 1 
-
-o7 = DivPowPoly{0 => 1
- 1 => 1
-
-o7 : DivPowPoly, class => language-macaulay2, i8 : DivPowPoly * DivPowPoly := (p,q) -> combine(p,q,plus,divPowCoeff,times,plus);, class => language-macaulay2, i9 : p*p
-
-o9 = DivPowPoly{0 => 1
- 1 => 2
- 2 => 2
-
-o9 : DivPowPoly, class => language-macaulay2, , See also, Macaulay2Doc :: merge, class => waystouse, For the programmer, The object , Macaulay2Doc :: combine, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/combine-doc.m2:75:0, .
+ The function `f`  is applied to every pair `(pq)`  where `p`  is a key of `x`  and `q`  is a key of `y` .  The number of times `f`  is evaluated is thus the product of the number of keys in `x`  and the number of keys in `y` . The function `h`  should be an associative function for otherwise the result may depend on internal details about the implementation of hash tables that affect the order in which entries are encountered.  If `f`  `t`  (if present) `g`  and `h`  are commutative functions as well then the result `z`  is a commutative function of `x`  and `y` . The result is mutable if and only if `x`  or `y`  is. This function can be used for multiplying polynomials where it can be used in code something like this:
+```
+     combine(x y monomialTimes coeffTimes coeffPlus)
+```
+ We illustrate that with a simple-minded implementation of the free ring on the English alphabet representing words as string and polynomials as hash tables that associate coefficients to words. One may also use this function for multiplying divided powers in a similar manner:
+```
+     combine(x y monomialTimes divPowCoeff coeffTimes coeffPlus)
+```
+ For example:
 
 ## Examples
 
 ```macaulay2
-i1 : Poly = new Type of HashTable
-
-o1 = Poly
-
-o1 : Type
+z = combine(xyfgh) or z=combine(xyftgh)
 ```
 
-## See Also
+```macaulay2
+Poly * Poly := (pq) -> combine(pqconcatenatetimesplus);
+```
 
+```macaulay2
+DivPowPoly * DivPowPoly := (pq) -> combine(pqplusdivPowCoefftimesplus);
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a hash table
+- `y` a hash table of the same class as `x`
+- `f` a function of two variables to be used for combining a key of `x` with a key of `y` to make a new key for `z`.
+- `t` a function combining two keys and returning a value twisting the value returned by `g` based on which keys were used. This argument may be omitted in which case the `t(pq)` term in the output below is omitted.
+- `g` a function of two variables to be used for combining a value of `x` with a value of `y` to make a new value for `z`.
+- `h` a function of two variables to be used for combining two values returned by `g` when the corresponding keys returned by `f` turn out to be equal. Its first argument will be the value accumulated so far and its second argument will be a value just provided by `g`.
+- Outputs:
+- `z` a new hash table of the same class as `x` and `y` containing the pair `f(pq)g(bc))` whenever `x` contains the pair `` and `y` contains the pair `` except that `h` is used to combine values when two keys coincide. If `f` or `g` evaluates [continue](../Method/continue.mdx) then nothing is contributed to the resulting hash table. If `h` evaluates [continue](../Method/continue.mdx) then at that point the entry stored under the key `f(pq)` in the hash table under construction is removed.
+
+
+### See also
+
+
+- Macaulay2Doc:: merge
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "combine",
+    "safe_name": "combine",
+    "type": "CompiledFunction",
+    "description": " The function `f`  is applied to every pair `(pq)`  where `p`  is a key of `x`  and `q`  is a key of...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "combine",
+        "full_doc": "... (5007 bytes) ...",
+        "parsed_headline": "combine  -- combine hash tables"
+    }
+}
+```

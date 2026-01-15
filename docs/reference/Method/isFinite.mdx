@@ -1,0 +1,93 @@
+---
+title: "isFinite"
+kind: Method
+---
+
+# isFinite
+
+**isFinite  -- whether a number is finite**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isFinite  -- whether a number is finite
+
+## Installed For
+
+### isFinite([Constant](../Type/Constant.mdx))
+
+### isFinite([InfiniteNumber](../Type/InfiniteNumber.mdx))
+
+### isFinite([Number](../Type/Number.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+## Examples
+
+```macaulay2
+isFinite x
+```
+
+```macaulay2
+isFinite oo
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isFinite oo
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isFinite oo
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ number](../Type/op_Coredollar_Number.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `x` is finite i.e. is not an infinite real number nor *not a number*.
+
+
+### See also
+
+
+- Macaulay2Doc:: isANumber
+- Macaulay2Doc:: isInfinite
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isFinite",
+    "safe_name": "isFinite",
+    "type": "MethodFunction",
+    "description": "isFinite  -- whether a number is finite...",
+    "installations": [
+        "<Installation isFinite(InfiniteNumber)>",
+        "<Installation isFinite(Constant)>",
+        "<Installation isFinite(Number)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "isFinite",
+        "full_doc": "... (1587 bytes) ...",
+        "parsed_headline": "isFinite  -- whether a number is finite"
+    }
+}
+```

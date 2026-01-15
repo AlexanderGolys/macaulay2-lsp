@@ -5,46 +5,76 @@ kind: Function
 
 # scanPairs
 
-**Type:** `Function`
+**scanPairs  -- apply a function to the pairs in a hash table**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-scanPairs, -- apply a function to the pairs in a hash table, class => element, Usage: , scanPairs(t, f), class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: HashTable, hash table, , , a , Macaulay2Doc :: BasicList, basic list, , or , a , Macaulay2Doc :: Dictionary, dictionary, , , or any instance of a class with an , Macaulay2Doc :: iterator, method installed, f, , , a , Macaulay2Doc :: Function, function, , , Description, , scanPairs(t, f), applies the function , f, to each pair , (k, t#k), in the hash table , t, . In other words, , f, is applied to each key , k, paired with its corresponding value , t#k, ., class => examples, i1 : t = hashTable {{1,8,{2,20,{3,4,{4,20
-
-o1 = HashTable{1 => 8 
- 2 => 20
- 3 => 4
- 4 => 20
-
-o1 : HashTable, class => language-macaulay2, i2 : scanPairs(t, (k,v) -> print (k+v))
-9
-22
-7
-24, class => language-macaulay2, i3 : scanPairs(t, (k,v) -> if v==20 then print k)
-2
-4, class => language-macaulay2, If , t, is not a hash table, then , scan(pairs t, f), class => language-macaulay2, is called., class => examples, i4 : scanPairs({4, 5, 6, print)
-(0, 4)
-(1, 5)
-(2, 6), class => language-macaulay2, Caveat, This function requires an immutable hash table. To scan the pairs in a mutable hash table, use , scan(pairs t, f), ., See also, Macaulay2Doc :: hash tables, Macaulay2Doc :: applyPairs, Macaulay2Doc :: pairs, Macaulay2Doc :: scan, Macaulay2Doc :: scanKeys, Macaulay2Doc :: scanValues, class => waystouse, Ways to use , scanPairs, :, scanPairs(HashTable,Function), scanPairs(Thing,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: scanPairs, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_hashtables.m2:615:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `scanPairs(HashTable, Function)`
-- `scanPairs(Thing, Function)`
+`scanPairs(t f)`  applies the function `f`  to each pair `(k t#k)`  in the hash table `t` . In other words `f`  is applied to each key `k`  paired with its corresponding value `t#k` .If `t` is not a hash table then `scan(pairs t f)` is called.
 
 ## Examples
 
 ```macaulay2
-i2 : scanPairs(t, (k,v) -> print (k+v))
+scanPairs(t f)
+```
+
+```macaulay2
+scanPairs(t (kv) -> print (k+v))
 9
 22
 7
 24
 ```
 
-## See Also
+```macaulay2
+scanPairs(t (kv) -> if v==20 then print k)
+2
+4
+```
 
+```macaulay2
+scanPairs({4, 5, 6} print)
+(0 4)
+(1 5)
+(2 6)
+```
+
+## Additional Information
+
+- Inputs:
+- `t` a [ hash table](../Type/op_Coredollar_HashTable.mdx) a [ basic list](../Type/op_Coredollar_BasicList.mdx) or a [ dictionary](../Type/op_Coredollar_Dictionary.mdx) or any instance of a class with an [iterator](../Method/iterator.mdx) method installed
+- `f` a [ function](../Type/Function.mdx)
+
+
+### Caveat
+
+This function requires an immutable hash table.  To scan the pairs in a mutable hash table use `scan(pairs t f)` .
+### See also
+
+
+- Macaulay2Doc:: hash tables
+- Macaulay2Doc:: applyPairs
+- Macaulay2Doc:: pairs
+- Macaulay2Doc:: scan
+- Macaulay2Doc:: scanKeys
+- Macaulay2Doc:: scanValues
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "scanPairs",
+    "safe_name": "op_Coredollar_scanPairs",
+    "type": "CompiledFunction",
+    "description": "`scanPairs(t f)`  applies the function `f`  to each pair `(k t#k)`  in the hash table `t` . In other...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$scanPairs",
+        "full_doc": "... (2372 bytes) ...",
+        "parsed_headline": "scanPairs  -- apply a function to the pairs in a hash table"
+    }
+}
+```

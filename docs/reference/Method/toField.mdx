@@ -1,0 +1,82 @@
+---
+title: "toField"
+kind: Method
+---
+
+# toField
+
+**toField  -- declare that a ring is a field**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+If the engine eventually discovers that some nonzero element of `L`  is not a unit an error will be signalled.  The user may then use [getNonUnit](../Function/op_Coredollar_getNonUnit.mdx)  to obtain a non-invertible element of `L` . If a ring probably is a field it can be used as a field until a contradiction is found and this may be a good way of discovering whether a ring is a field.
+
+## Installed For
+
+### toField([Ring](../Type/Ring.mdx))
+
+## Examples
+
+```macaulay2
+L = toField R
+```
+
+```macaulay2
+L = toField A
+
+```
+
+```text
+L
+
+PolynomialRing
+```
+
+```macaulay2
+L = toField A
+
+```
+
+```text
+L
+
+PolynomialRing
+```
+
+## Additional Information
+
+- Inputs:
+- `R` a [ ring](../Type/Ring.mdx)
+- Outputs:
+- `L` a new ring isomorphic to `R` declared to be a field. Polynomial rings over it will support Gröbner basis operations.
+
+
+### See also
+
+
+- Macaulay2Doc:: getNonUnit
+- Macaulay2Doc:: try
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "toField",
+    "safe_name": "op_Coredollar_toField",
+    "type": "MethodFunction",
+    "description": "If the engine eventually discovers that some nonzero element of `L`  is not a unit an error will be ...",
+    "installations": [
+        "<Installation toField(Ring)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$toField",
+        "full_doc": "... (2345 bytes) ...",
+        "parsed_headline": "toField  -- declare that a ring is a field"
+    }
+}
+```

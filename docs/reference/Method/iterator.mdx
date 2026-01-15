@@ -1,0 +1,89 @@
+---
+title: "iterator"
+kind: Method
+---
+
+# iterator
+
+**iterator  -- get an iterator**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+An iterator is an object that is used to traverse through `x`. Usually but not necessarily this will be an instance of the [Iterator](../Type/Iterator.mdx) class.The class of an iterator should have a [next](../Method/op_Coredollar_next.mdx) method installed that gets the next element of `x`.If `x` contains only a finite number of elements then [next](../Method/op_Coredollar_next.mdx) should return the symbol [StopIteration](../Method/op_Coredollar_StopIteration.mdx) after exhausting them all.Instances of classes with this method installed can be used like lists in [for](../Method/op_Coredollar_for.mdx) loops and [scan](../Function/op_Coredollar_scan.mdx).They can also be passed to [apply](../Function/op_Coredollar_apply.mdx) and [select](../Method/select.mdx).  In each case an [Iterator](../Type/Iterator.mdx) object will be returned that is an iterator for itself.
+
+## Installed For
+
+### iterator([Iterator](../Type/Iterator.mdx))
+
+### iterator([String](../Type/String.mdx))
+
+### iterator([VisibleList](../Type/VisibleList.mdx))
+
+## Examples
+
+```macaulay2
+iterator x
+```
+
+```macaulay2
+iter = iterator {1, 2, 3}
+
+```
+
+```text
+iter
+
+Iterator
+```
+
+```macaulay2
+lookup(iterator String)
+
+```
+
+```text
+FunctionClosure[../../m2/iterators.m2:20:24-27:16]
+
+FunctionClosure
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- a [ thing](../Type/Thing.mdx) likely an [Iterator](../Type/Iterator.mdx);
+
+
+### See also
+
+
+- Macaulay2Doc:: Iterator
+- Macaulay2Doc:: next
+- Macaulay2Doc:: StopIteration
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "iterator",
+    "safe_name": "iterator",
+    "type": "MethodFunctionSingle",
+    "description": "An iterator is an object that is used to traverse through `x`. Usually but not necessarily this will...",
+    "installations": [
+        "<Installation iterator(VisibleList)>",
+        "<Installation iterator(String)>",
+        "<Installation iterator(Iterator)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "iterator",
+        "full_doc": "... (3287 bytes) ...",
+        "parsed_headline": "iterator  -- get an iterator"
+    }
+}
+```

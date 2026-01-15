@@ -1,59 +1,82 @@
 ---
 title: "WrapperType"
 kind: Type
-parent: Type
 ---
 
 # WrapperType
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**WrapperType  -- a class of lists with abbreviated constructors**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[Type](../Type/Type.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `TensorProduct`
-- `Parenthesize`
-- `Describe`
-- `Sum`
-- `Holder`
-- `SheafExpression`
-- `Product`
-- `Minus`
-- `DirectSum`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `SPACE`
-
-- `SPACE(WrapperType, List)`
-- `SPACE(WrapperType, Sequence)`
-- `SPACE(WrapperType, Thing)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [SPACE](../Operator/SPACE.mdx)
+ These are the types `X`  of lists that can be constructed by expressions of the form `abc...`  or for lists of length one by an expression of the form `X a` .  They also act on sequences.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+X = new WrapperType of BasicList
 
-## See Also
+```
 
-- [Type](../Type/Type.mdx) (parent type)
+```text
+X
+
+WrapperType
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: HeaderType
+- Macaulay2Doc:: SelfInitializingType
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "WrapperType",
+    "safe_name": "WrapperType",
+    "type": null,
+    "description": " These are the types `X`  of lists that can be constructed by expressions of the form `abc...`  or f...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "WrapperType",
+        "parent": "Type",
+        "methods": [
+            [
+                "SPACE",
+                "WrapperType",
+                "List"
+            ],
+            [
+                "SPACE",
+                "WrapperType",
+                "Sequence"
+            ],
+            [
+                "SPACE",
+                "WrapperType",
+                "Thing"
+            ]
+        ],
+        "instances": [
+            "TensorProduct",
+            "Parenthesize",
+            "Describe",
+            "Sum",
+            "Holder",
+            "SheafExpression",
+            "Product",
+            "Minus",
+            "DirectSum"
+        ],
+        "full_doc": "... (1680 bytes) ...",
+        "parsed_headline": "WrapperType  -- a class of lists with abbreviated constructors"
+    }
+}
+```

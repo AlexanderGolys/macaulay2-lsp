@@ -1,0 +1,69 @@
+---
+title: "runHooks"
+kind: Method
+---
+
+# runHooks
+
+**runHooks  -- run the hook functions stored in an object**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+Each function `hook` in the hash table of hooks associated to `key` is called with `args` as its argument or sequence of arguments. The optional argument `Strategy` can be used to specify which hook should be run. See [addHook](../Method/op_Coredollar_addHook.mdx) for where the hooks are stored.Any other optional argument for `runHooks` that matches any key in `options hook` will be passed on to `hook`. All other options are ignored.For further explanation and examples of hooks see [using hooks](../Instance/using hooks.mdx).
+
+## Installed For
+
+### runHooks([MutableHashTable](../Type/MutableHashTable.mdx), [Thing](../Type/Thing.mdx), [Thing](../Type/Thing.mdx))
+
+### runHooks([Sequence](../Type/Sequence.mdx), [Thing](../Type/Thing.mdx))
+
+### runHooks([Symbol](../Type/Symbol.mdx), [Thing](../Type/Thing.mdx))
+
+## Examples
+
+```macaulay2
+runHooks(key args)
+runHooks(store key args)
+```
+
+## Additional Information
+
+- Inputs:
+- `key` a [ sequence](../Type/Sequence.mdx) or a [ symbol](../Type/op_Coredollar_Symbol.mdx)
+- `args` a [ thing](../Type/Thing.mdx)
+- `store` a [ mutable hash table](../Type/MutableHashTable.mdx)
+- Outputs:
+- if one of the hook functions returns a non-[null](../Instance/null.mdx) value that value will be returned. Otherwise [null](../Instance/null.mdx) will be returned.
+
+
+### See also
+
+
+- Macaulay2Doc:: hooks
+- Macaulay2Doc:: addHook
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "runHooks",
+    "safe_name": "runHooks",
+    "type": "MethodFunctionWithOptions",
+    "description": "Each function `hook` in the hash table of hooks associated to `key` is called with `args` as its arg...",
+    "installations": [
+        "<Installation runHooks(Symbol, Thing)>",
+        "<Installation runHooks(MutableHashTable, Thing, Thing)>",
+        "<Installation runHooks(Sequence, Thing)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "runHooks",
+        "full_doc": "... (4332 bytes) ...",
+        "parsed_headline": "runHooks  -- run the hook functions stored in an object"
+    }
+}
+```

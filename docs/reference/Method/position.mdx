@@ -1,0 +1,127 @@
+---
+title: "position"
+kind: Method
+---
+
+# position
+
+**position  -- the first element of a list satisfying a condition**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+`position(A f)`  returns the smallest index `i`  such that `f(A#i)`  is true. If no element satisfies the condition[null](../Instance/null.mdx) is returned.Use `position(A B f)`  to return the smallest index `i`  such that `f(A#i B#i)`  is true.The `Reverse`  option will return the largest index instead.Use `position(n f)`  to return the smallest index `i`  such that `f(i)`  is true.To find all indices of elements satisfying the condition see [positions](../Method/op_Coredollar_positions.mdx). To return the elements rather than their indices see [select](../Method/select.mdx). The function [number](../Function/number.mdx) counts the number of elements satisfying the condition.
+
+## Installed For
+
+### position([VisibleList](../Type/VisibleList.mdx), [Function](../Type/Function.mdx))
+
+### position([VisibleList](../Type/VisibleList.mdx), [VisibleList](../Type/VisibleList.mdx), [Function](../Type/Function.mdx))
+
+### position([ZZ](../Type/ZZ.mdx), [Function](../Type/Function.mdx))
+
+## Options
+
+- [Reverse](../Method/Reverse.mdx) => false
+
+## Examples
+
+```macaulay2
+position(A f)
+position(A B f)
+position(A f
+position(n f)
+```
+
+```macaulay2
+position((102043105693) odd)
+
+```
+
+```text
+2
+```
+
+```macaulay2
+position((102043105693) i -> i<0)
+```
+
+```macaulay2
+position((102043105693)(18821273592) (ab) -> a>b)
+
+```
+
+```text
+2
+```
+
+```macaulay2
+position((102043105693) odd
+```
+
+```macaulay2
+position((102043105693)(18821273592) (ab) -> a>b
+```
+
+```macaulay2
+position(17 i -> i^2 % 17 == 13)
+
+```
+
+```text
+8
+```
+
+## Additional Information
+
+- Inputs:
+- `A` a [ visible list](../Type/VisibleList.mdx)
+- `B` a [ visible list](../Type/VisibleList.mdx)
+- `n` an [ integer](../Type/ZZ.mdx)
+- `f` a [ function](../Type/Function.mdx)
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `Reverse````...` default value false
+- Outputs:
+- `p` an [ integer](../Type/ZZ.mdx) the first index to satisfy the boolean function `f`
+
+
+### See also
+
+
+- Macaulay2Doc:: minPosition
+- Macaulay2Doc:: maxPosition
+- Macaulay2Doc:: number
+- Macaulay2Doc:: positions
+- Macaulay2Doc:: select
+- Macaulay2Doc:: take
+- Macaulay2Doc:: lists and sequences
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "position",
+    "safe_name": "position",
+    "type": "MethodFunctionWithOptions",
+    "description": "`position(A f)`  returns the smallest index `i`  such that `f(A#i)`  is true. If no element satisfie...",
+    "installations": [
+        "<Installation position(ZZ, Function)>",
+        "<Installation position(VisibleList, Function)>",
+        "<Installation position(VisibleList, VisibleList, Function)>"
+    ],
+    "options": [
+        {
+            "name": "Reverse",
+            "default": "false"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "position",
+        "full_doc": "... (3807 bytes) ...",
+        "parsed_headline": "position  -- the first element of a list satisfying a condition"
+    }
+}
+```

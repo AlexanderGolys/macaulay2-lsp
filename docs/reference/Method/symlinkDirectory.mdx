@@ -1,0 +1,98 @@
+---
+title: "symlinkDirectory"
+kind: Method
+---
+
+# symlinkDirectory
+
+**symlinkDirectory  -- make symbolic links for all files in a directory tree**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ Now we remove the files and directories we created.
+
+## Installed For
+
+### symlinkDirectory([String](../Type/String.mdx), [String](../Type/String.mdx))
+
+## Options
+
+- [Undo](../Method/Undo.mdx) => false
+- [FollowLinks](../Option/FollowLinks.mdx) => false
+- [Verbose](../Method/Verbose.mdx) => false
+- [Exclude](../Method/Exclude.mdx) => \.~[0-9.]+~$
+
+## Examples
+
+```macaulay2
+symlinkDirectory(srcdst)
+```
+
+```macaulay2
+symlinkDirectory(srcdst
+```
+
+```macaulay2
+symlinkDirectory(srcdst
+```
+
+## Additional Information
+
+- Inputs:
+- `src` a [ string](../Type/op_Coredollar_String.mdx) the path to an existing directory the root of the source directory tree
+- `dst` a [ string](../Type/op_Coredollar_String.mdx) a path to the root of the destination directory tree which may not exist yet
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `Exclude````...` default value "\\.~[0-9.]+~$" a string containing a regular expression or a list of such strings. If the base part of the name of a file in the source tree matches one of the regular expressions then no link to it is created
+- `Undo```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to undo the symbolic links created in a previous application of this function. The directories in the destination directory tree will remain.
+- `FollowLinks```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to follow symbolic links in the source tree to directories
+- `Verbose```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to report the creation or deletion of each symbolic link
+- Consequences:
+- The directory tree rooted at `src` is duplicated by a directory tree rooted at `dst`. The files in the source tree are represented by relative symbolic links in the destination tree to the original files in the source tree.
+
+
+### See also
+
+
+- Macaulay2Doc:: symlinkFile
+- Macaulay2Doc:: copyDirectory
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "symlinkDirectory",
+    "safe_name": "op_Coredollar_symlinkDirectory",
+    "type": "MethodFunctionWithOptions",
+    "description": " Now we remove the files and directories we created....",
+    "installations": [
+        "<Installation symlinkDirectory(String, String)>"
+    ],
+    "options": [
+        {
+            "name": "Undo",
+            "default": "false"
+        },
+        {
+            "name": "FollowLinks",
+            "default": "false"
+        },
+        {
+            "name": "Verbose",
+            "default": "false"
+        },
+        {
+            "name": "Exclude",
+            "default": "\\.~[0-9.]+~$"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$symlinkDirectory",
+        "full_doc": "... (4408 bytes) ...",
+        "parsed_headline": "symlinkDirectory  -- make symbolic links for all files in a directory tree"
+    }
+}
+```

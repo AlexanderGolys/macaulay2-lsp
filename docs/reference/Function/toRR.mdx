@@ -5,33 +5,54 @@ kind: Function
 
 # toRR
 
-**Type:** `Function`
+**toRR  -- convert to high-precision real number**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-toRR, -- convert to high-precision real number, class => element, Usage: , toRR(prec,x), class => language-macaulay2, Inputs:, prec, , , an , Macaulay2Doc :: ZZ, integer, , , the number of bits of precision desired, x, , , a , Macaulay2Doc :: RR, real number, , , an , Macaulay2Doc :: ZZ, integer, , or , a , Macaulay2Doc :: QQ, rational number, Outputs:, a , Macaulay2Doc :: RR, real number, , , the result of converting , x, to a high-precision real number, Description, class => examples, i1 : toRR(200,1/7)
-
-o1 = .1428571428571428571428571428571428571428571428571428571428571
-
-o1 : RR (of precision 200), class => language-macaulay2, i2 : precision oo
-
-o2 = 200, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: toRR, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_rings.m2:269:0, .
+toRR  -- convert to high-precision real number
 
 ## Examples
 
 ```macaulay2
-i1 : toRR(200,1/7)
-
-o1 = .1428571428571428571428571428571428571428571428571428571428571
-
-o1 : RR (of precision 200)
-
-i2 : precision oo
-
-o2 = 200
+toRR(precx)
 ```
 
-## See Also
+```macaulay2
+toRR(2001/7)
 
+```
+
+```text
+.1428571428571428571428571428571428571428571428571428571428571
+
+RR (of precision 200)
+```
+
+## Additional Information
+
+- Inputs:
+- `prec` an [ integer](../Type/ZZ.mdx) the number of bits of precision desired
+- `x` a [ real number](../Type/op_x226_x132_x157.mdx) an [ integer](../Type/ZZ.mdx) or a [ rational number](../Type/op_x226_x132_x154.mdx)
+- Outputs:
+- a [ real number](../Type/op_x226_x132_x157.mdx) the result of converting `x` to a high-precision real number
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "toRR",
+    "safe_name": "op_Coredollar_toRR",
+    "type": "CompiledFunction",
+    "description": "toRR  -- convert to high-precision real number...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$toRR",
+        "full_doc": "... (1201 bytes) ...",
+        "parsed_headline": "toRR  -- convert to high-precision real number"
+    }
+}
+```

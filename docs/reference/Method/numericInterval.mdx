@@ -1,0 +1,67 @@
+---
+title: "numericInterval"
+kind: Method
+---
+
+# numericInterval
+
+**numericInterval  -- convert a constant to an interval**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+Constructs an interval containing `c`  of either the [defaultPrecision](../Instance/defaultPrecision.mdx) or precision `prec`
+
+## Installed For
+
+### numericInterval([Constant](../Type/Constant.mdx))
+
+### numericInterval([ZZ](../Type/ZZ.mdx), [Constant](../Type/Constant.mdx))
+
+## Examples
+
+```macaulay2
+I = numericInterval(c)
+I = numericInterval(precc)
+```
+
+## Additional Information
+
+- Inputs:
+- `c` an instance of the type [Constant](../Type/Constant.mdx)
+- `prec` an [ integer](../Type/ZZ.mdx)
+- Outputs:
+- `I` a [ real interval](../Type/RRi.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: span(List)
+- Macaulay2Doc:: span(Sequence)
+- Macaulay2Doc:: interval
+- Macaulay2Doc:: toRRi
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "numericInterval",
+    "safe_name": "numericInterval",
+    "type": "MethodFunction",
+    "description": "Constructs an interval containing `c`  of either the [defaultPrecision](../Instance/defaultPrecision...",
+    "installations": [
+        "<Installation numericInterval(Constant)>",
+        "<Installation numericInterval(ZZ, Constant)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "numericInterval",
+        "full_doc": "... (1316 bytes) ...",
+        "parsed_headline": "numericInterval  -- convert a constant to an interval"
+    }
+}
+```

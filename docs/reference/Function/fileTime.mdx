@@ -5,23 +5,61 @@ kind: Function
 
 # fileTime
 
-**Type:** `Function`
+**fileTime  -- get or set file modified time**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-fileTime, -- get or set file modified time, class => element, Usage: , fileTime s or fileTime(t,s), class => language-macaulay2, Inputs:, t, , , an , Macaulay2Doc :: ZZ, integer, , , if present, the file-modified-time will be set to this value, s, , , a , Macaulay2Doc :: String, string, , , the name of a file, Outputs:, an , Macaulay2Doc :: ZZ, integer, , , the last modified date of the file with name , s, Consequences:, fileTime(t,s), sets the last modified time for the file , s, to , t, , and returns , null, if no error occurs, Description, The value is the number of seconds since 00:00:00 1970-01-01 UTC, the beginning of the epoch, so the number of seconds ago a file or directory was modified may be found by using the following code., class => examples, i1 : currentTime() - fileTime "."
-
-o1 = 30, class => language-macaulay2, See also, Macaulay2Doc :: currentTime, Macaulay2Doc :: file manipulation, class => waystouse, For the programmer, The object , Macaulay2Doc :: fileTime, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/fileTime-doc.m2:24:0, .
+ The value is the number of seconds since 00:00:00 1970-01-01 UTC the beginning of the epoch so the number of seconds ago a file or directory was modified may be found by using the following code.
 
 ## Examples
 
 ```macaulay2
-i1 : currentTime() - fileTime "."
-
-o1 = 30
+fileTime s  or  fileTime(ts)
 ```
 
-## See Also
+```macaulay2
+currentTime() - fileTime "."
 
+```
+
+```text
+30
+```
+
+## Additional Information
+
+- Inputs:
+- `t` an [ integer](../Type/ZZ.mdx) if present the file-modified-time will be set to this value
+- `s` a [ string](../Type/op_Coredollar_String.mdx) the name of a file
+- Outputs:
+- an [ integer](../Type/ZZ.mdx) the last modified date of the file with name `s`
+- Consequences:
+- `fileTime(ts)` sets the last modified time for the file `s` to `t` and returns `null` if no error occurs
+
+
+### See also
+
+
+- Macaulay2Doc:: currentTime
+- Macaulay2Doc:: file manipulation
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "fileTime",
+    "safe_name": "fileTime",
+    "type": "CompiledFunction",
+    "description": " The value is the number of seconds since 00:00:00 1970-01-01 UTC the beginning of the epoch so the ...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "fileTime",
+        "full_doc": "... (1468 bytes) ...",
+        "parsed_headline": "fileTime  -- get or set file modified time"
+    }
+}
+```

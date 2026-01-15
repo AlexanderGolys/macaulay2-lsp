@@ -1,74 +1,70 @@
 ---
 title: "FilePosition"
 kind: Type
-parent: BasicList
 ---
 
 # FilePosition
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**FilePosition  -- the class of all file positions**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+`FilePosition`  -- a type of list designed to represent a position in a file. It's implemented as a list with 3 5 or 7 elements. The first part is the file name then each pair is a row/column position. A single pair is a position two form a range. The last pair is the central point of interest in that range.
 
-## Parent Type
+## Debug info
 
-[BasicList](../Type/BasicList.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `code`
-
-- `code(FilePosition)`
-
-### `html`
-
-- `html(FilePosition)`
-
-### `hypertext`
-
-- `hypertext(FilePosition)`
-
-### `net`
-
-- `net(FilePosition)`
-
-### `toExternalString`
-
-- `toExternalString(FilePosition)`
-
-### `toString`
-
-- `toString(FilePosition)`
-
-### `|`
-
-- `|(String, FilePosition)`
-- `|(FilePosition, String)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [code](../Function/code.mdx)
-- [html](../Function/html.mdx)
-- [hypertext](../Function/hypertext.mdx)
-- [net](../Function/net.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-- [toString](../Function/toString.mdx)
-- [|](../Operator/op_bar.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [BasicList](../Type/BasicList.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "FilePosition",
+    "safe_name": "op_Coredollar_FilePosition",
+    "type": null,
+    "description": "`FilePosition`  -- a type of list designed to represent a position in a file. It's implemented as a ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$FilePosition",
+        "parent": "BasicList",
+        "methods": [
+            [
+                "html",
+                "FilePosition"
+            ],
+            [
+                "code",
+                "FilePosition"
+            ],
+            [
+                "toExternalString",
+                "FilePosition"
+            ],
+            [
+                "net",
+                "FilePosition"
+            ],
+            [
+                "toString",
+                "FilePosition"
+            ],
+            [
+                "|",
+                "String",
+                "FilePosition"
+            ],
+            [
+                "|",
+                "FilePosition",
+                "String"
+            ],
+            [
+                "hypertext",
+                "FilePosition"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1513 bytes) ...",
+        "parsed_headline": "FilePosition  -- the class of all file positions"
+    }
+}
+```

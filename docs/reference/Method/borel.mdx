@@ -1,0 +1,57 @@
+---
+title: "borel"
+kind: Method
+---
+
+# borel
+
+**borel  -- make a Borel fixed submodule**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+`borel m`  -- make a Borel fixed submodule Yields the matrix with the same target as the matrix `m`  whose columns generate the smallest Borel fixed submodule containing the lead monomials of the columns of `m` .  If `m`  is a monomial ideal then the minimal Borel fixed monomial ideal containing it is returned. For example if R = ZZ/101[a..f] then
+
+## Installed For
+
+### borel([Matrix](../Type/Matrix.mdx))
+
+### borel([MonomialIdeal](../Type/MonomialIdeal.mdx))
+
+## Examples
+
+```macaulay2
+borel matrix {{a*d*e, b^2}}
+
+```
+
+```text
+| a2 ab b2 ac2 acd ad2 ace ade |
+
+             1      8
+Matrix R  <-- R
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "borel",
+    "safe_name": "op_Coredollar_borel",
+    "type": "MethodFunction",
+    "description": "`borel m`  -- make a Borel fixed submodule Yields the matrix with the same target as the matrix `m` ...",
+    "installations": [
+        "<Installation borel(Matrix)>",
+        "<Installation borel(MonomialIdeal)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$borel",
+        "full_doc": "... (1185 bytes) ...",
+        "parsed_headline": "borel  -- make a Borel fixed submodule"
+    }
+}
+```

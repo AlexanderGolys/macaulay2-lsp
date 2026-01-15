@@ -1,0 +1,144 @@
+---
+title: "subsets"
+kind: Method
+---
+
+# subsets
+
+**subsets  -- produce the subsets of a set or list**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+If `A`  is an integer `subsets(A)`  lists the subsets of `\{0, 1, ..., A-1\}` .`A`  can be a list sequence or set. The elements need not be of the same type.If a list contains repetitions so will the subsets of that list. Since a [Set](../Type/op_Coredollar_Set.mdx) has no repetitions neither do its subsets. Also the subsets of a set will again be sets (while the subsets of a list are lists).The subsets of a Sequence are lists not sequences. Also a subset size must  be specified when calling `subsets`  on a sequence.
+
+## Installed For
+
+### subsets([List](../Type/List.mdx))
+
+### subsets([List](../Type/List.mdx), [ZZ](../Type/ZZ.mdx)) -> [List](../Type/List.mdx)
+
+### subsets([Sequence](../Type/Sequence.mdx), [ZZ](../Type/ZZ.mdx))
+
+### subsets([Set](../Type/Set.mdx))
+
+### subsets([Set](../Type/Set.mdx), [ZZ](../Type/ZZ.mdx))
+
+### subsets([ZZ](../Type/ZZ.mdx))
+
+### subsets([ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+subsets(A)
+subsets(A n)
+```
+
+```macaulay2
+subsets(3)
+
+```
+
+```text
+{{}, {0}, {1}, {0, 1}, {2}, {0, 2}, {1, 2}, {0, 1, 2}}
+
+List
+```
+
+```macaulay2
+subsets(5 3)
+
+```
+
+```text
+{{0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}, {0, 1, 4}, {0, 2, 4}, {1,
+     ------------------------------------------------------------------------
+     2, 4}, {0, 3, 4}, {1, 3, 4}, {2, 3, 4}}
+
+List
+```
+
+```macaulay2
+subsets({"apple", "banana", {1,2,3}, 7.1} 3)
+
+```
+
+```text
+{{apple, banana, {1, 2, 3}}, {apple, banana, 7.1}, {apple, {1, 2, 3},
+     ------------------------------------------------------------------------
+     7.1}, {banana, {1, 2, 3}, 7.1}}
+
+List
+```
+
+```macaulay2
+subsets({"apple", "apple", "banana"})
+
+```
+
+```text
+{{}, {apple}, {apple}, {apple, apple}, {banana}, {apple, banana},
+     ------------------------------------------------------------------------
+     {apple, banana}, {apple, apple, banana}}
+
+List
+```
+
+```macaulay2
+subsets(set{"apple", "apple", "banana"})
+
+```
+
+```text
+{set {}, set {banana}, set {apple}, set {banana, apple}}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `A` a [ list](../Type/op_Coredollar_List.mdx) sequence set or integer
+- `n` an [ integer](../Type/ZZ.mdx) optional input to specify subsets of a particular size
+- Outputs:
+- `L` a [ list](../Type/op_Coredollar_List.mdx) of subsets (of size `n` if given)
+
+
+### See also
+
+
+- Macaulay2Doc:: partition
+- Macaulay2Doc:: set
+- Macaulay2Doc:: sublists
+- Macaulay2Doc:: substring
+- Macaulay2Doc:: lists and sequences
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "subsets",
+    "safe_name": "op_Coredollar_subsets",
+    "type": "MethodFunction",
+    "description": "If `A`  is an integer `subsets(A)`  lists the subsets of `\\{0, 1, ..., A-1\\}` .`A`  can be a list se...",
+    "installations": [
+        "<Installation subsets(ZZ, ZZ)>",
+        "<Installation subsets(Set, ZZ)>",
+        "<Installation subsets(List, ZZ)>",
+        "<Installation subsets(Sequence, ZZ)>",
+        "<Installation subsets(ZZ)>",
+        "<Installation subsets(Set)>",
+        "<Installation subsets(List)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$subsets",
+        "full_doc": "... (3276 bytes) ...",
+        "parsed_headline": "subsets  -- produce the subsets of a set or list"
+    }
+}
+```

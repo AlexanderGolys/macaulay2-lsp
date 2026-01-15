@@ -1,68 +1,75 @@
 ---
 title: "TestInput"
 kind: Type
-parent: HashTable
 ---
 
 # TestInput
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [SelfInitializingType](../Type/SelfInitializingType.mdx)
+**TestInput  -- locate a package's tests**
 
 ## Description
 
-An instance of the type [SelfInitializingType](../Type/SelfInitializingType.mdx).
-
-## Parent Type
-
-[HashTable](../Type/HashTable.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `capture`
-
-- `capture(TestInput)`
-
-### `check`
-
-- `check(TestInput)`
-
-### `code`
-
-- `code(TestInput)`
-
-### `locate`
-
-- `locate(TestInput)`
-
-### `net`
-
-- `net(TestInput)`
-
-### `toString`
-
-- `toString(TestInput)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [capture](../Function/capture.mdx)
-- [check](../Function/check.mdx)
-- [code](../Function/code.mdx)
-- [locate](../Function/locate.mdx)
-- [net](../Function/net.mdx)
-- [toString](../Function/toString.mdx)
+When an integer is not provided this returns all the tests for the given package.  The position of each element would be passed as the first argument of [check](../Method/op_Coredollar_check.mdx) to run the test. Each value is a `TestInput` object.  These are printed with the location of the file so that you may quickly jump to the source code of the test when using Emacs.If the test number is also provided then the corresponding `TestInput` object is returned.The [locate](../Method/op_Coredollar_locate.mdx) and [code](../Method/op_Coredollar_code.mdx) functions do the expected thing when given a `TestInput` object.Passing only the key of the desired test to [code](../Method/op_Coredollar_code.mdx) is supported as well.You may also pass a `TestInput` object to [edit](../Instance/op_Coredollar_edit.mdx) to open the code in your favorite editor.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+tests pkg
+tests(i pkg)
+```
 
-## See Also
+## Additional Information
 
-- [HashTable](../Type/HashTable.mdx) (parent type)
+- Inputs:
+- `i` an [ integer](../Type/ZZ.mdx)
+- `pkg` a [ package](../Type/op_Coredollar_Package.mdx) or a [ string](../Type/op_Coredollar_String.mdx)
+- Outputs:
+- a [ numbered vertical list](../Type/NumberedVerticalList.mdx) or a [ test input](../Type/op_Coredollar_TestInput.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "TestInput",
+    "safe_name": "op_Coredollar_TestInput",
+    "type": null,
+    "description": "When an integer is not provided this returns all the tests for the given package.  The position of e...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$TestInput",
+        "parent": "HashTable",
+        "methods": [
+            [
+                "code",
+                "TestInput"
+            ],
+            [
+                "net",
+                "TestInput"
+            ],
+            [
+                "toString",
+                "TestInput"
+            ],
+            [
+                "locate",
+                "TestInput"
+            ],
+            [
+                "capture",
+                "TestInput"
+            ],
+            [
+                "check",
+                "TestInput"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (3263 bytes) ...",
+        "parsed_headline": "TestInput  -- locate a package's tests"
+    }
+}
+```

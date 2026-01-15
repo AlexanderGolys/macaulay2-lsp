@@ -1,103 +1,95 @@
 ---
 title: "FractionField"
 kind: Type
-parent: EngineRing
 ---
 
 # FractionField
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**FractionField  -- the class of all fraction fields**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ Macaulay2 provides for fraction fields of integral domains. In some cases normal forms of fractions makes sense but in general for fraction fieldss of quotient rings there is no notion of normal form for a fraction. In other words fractions may be equal without displaying the same numerator and denominator. Computations over fraction fields or polynomial rings over fraction fields especially Gröbner basis computations are much slower than over prime fields. Still an attempt is made to speed up these computations as much as possible and more is planned in the future. For an overview see [fraction fields](../Instance/fraction fields.mdx)  and  [frac](../Method/op_Coredollar_frac.mdx) .Useful functions for use with fractions and fraction fields include:
+- Macaulay2Doc:: frac
+- Macaulay2Doc:: numerator
+- Macaulay2Doc:: denominator
+- Macaulay2Doc:: liftable
+- Macaulay2Doc:: lift
 
-## Parent Type
 
-[EngineRing](../Type/EngineRing.mdx)
 
-## Methods
+## Debug info
 
-Methods that can be used with this type:
-
-### `char`
-
-- `char(FractionField)`
-
-### `coefficientRing`
-
-- `coefficientRing(FractionField)`
-
-### `degreeGroup`
-
-- `degreeGroup(FractionField)`
-
-### `degreeLength`
-
-- `degreeLength(FractionField)`
-
-### `degrees`
-
-- `degrees(FractionField)`
-
-### `describe`
-
-- `describe(FractionField)`
-
-### `dim`
-
-- `dim(FractionField)`
-
-### `expression`
-
-- `expression(FractionField)`
-
-### `frac`
-
-- `frac(FractionField)`
-
-### `generators`
-
-- `generators(FractionField)`
-
-### `monoid`
-
-- `monoid(FractionField)`
-
-### `numgens`
-
-- `numgens(FractionField)`
-
-### `precision`
-
-- `precision(FractionField)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [char](../Function/char.mdx)
-- [coefficientRing](../Function/coefficientRing.mdx)
-- [degreeGroup](../Function/degreeGroup.mdx)
-- [degreeLength](../Function/degreeLength.mdx)
-- [degrees](../Function/degrees.mdx)
-- [describe](../Function/describe.mdx)
-- [dim](../Function/dim.mdx)
-- [expression](../Function/expression.mdx)
-- [frac](../Function/frac.mdx)
-- [generators](../Function/generators.mdx)
-- [monoid](../Function/monoid.mdx)
-- [numgens](../Function/numgens.mdx)
-- [precision](../Function/precision.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [EngineRing](../Type/EngineRing.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "FractionField",
+    "safe_name": "op_Coredollar_FractionField",
+    "type": null,
+    "description": " Macaulay2 provides for fraction fields of integral domains. In some cases normal forms of fractions...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$FractionField",
+        "parent": "EngineRing",
+        "methods": [
+            [
+                "degreeGroup",
+                "FractionField"
+            ],
+            [
+                "coefficientRing",
+                "FractionField"
+            ],
+            [
+                "degreeLength",
+                "FractionField"
+            ],
+            [
+                "degrees",
+                "FractionField"
+            ],
+            [
+                "precision",
+                "FractionField"
+            ],
+            [
+                "numgens",
+                "FractionField"
+            ],
+            [
+                "generators",
+                "FractionField"
+            ],
+            [
+                "char",
+                "FractionField"
+            ],
+            [
+                "dim",
+                "FractionField"
+            ],
+            [
+                "expression",
+                "FractionField"
+            ],
+            [
+                "describe",
+                "FractionField"
+            ],
+            [
+                "monoid",
+                "FractionField"
+            ],
+            [
+                "frac",
+                "FractionField"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (2222 bytes) ...",
+        "parsed_headline": "FractionField  -- the class of all fraction fields"
+    }
+}
+```

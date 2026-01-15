@@ -1,0 +1,121 @@
+---
+title: "terms"
+kind: Method
+---
+
+# terms
+
+**terms  -- provide a list of terms of a polynomial**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+
+### Synopsis
+
+
+- Inputs:
+- `f` a [ ring element](../Type/RingElement.mdx) in a polynomial ring `R` with coefficient ring `A`
+- Outputs:
+- the list of terms of `f`
+
+ Each term is an element of the coefficient ring `A`  multiplied with a  monomial in the variables of `R` . In the situation where the ring is a polynomial ring over another polynomial ring the polynomial is split using the monomials of the outer ring.
+### Synopsis
+
+
+- Inputs:
+- `k` a [ ring](../Type/Ring.mdx)
+- `f` a [ ring element](../Type/RingElement.mdx) in a polynomial ring `R`
+- Outputs:
+- the list of terms of `f` with `k` regarded as the coefficient ring
+
+Each term is an element of the coefficient ring `k`  multiplied with a monomial in the variables of `R` . This is useful in the situation where the polynomial `R`  is built from `k`  by a sequence of extensions.
+
+## Installed For
+
+### terms([Ring](../Type/Ring.mdx), [RingElement](../Type/RingElement.mdx))
+
+### terms([RingElement](../Type/RingElement.mdx))
+
+## Examples
+
+```macaulay2
+terms(a+d^2-1+a*b*c)
+
+              2
+```
+
+```text
+{a*b*c, d , a, -1}
+
+List
+```
+
+```macaulay2
+terms(a*x+b*x+c*x*y+c*x^3+1+a)
+
+         3
+```
+
+```text
+{c*x , c*x*y, (a + b)x, a + 1}
+
+List
+```
+
+```macaulay2
+terms f
+
+       3           2     2              3     2
+```
+
+```text
+{d , (3a + 3)d , (3a  + 6a + 3)d, a  + 3a  + 3a + 1}
+
+List
+```
+
+```macaulay2
+terms(QQf)
+
+       3      2    2    2              3    2
+```
+
+```text
+{d , 3a*d , 3d , 3a d, 6a*d, 3d, a , 3a , 3a, 1}
+
+List
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: coefficients
+- Macaulay2Doc:: monomials
+- Macaulay2Doc:: someTerms
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "terms",
+    "safe_name": "op_Coredollar_terms",
+    "type": "MethodFunction",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `f` a [ ring element](../Type/RingElement.mdx) in a polynomial ring `R` ...",
+    "installations": [
+        "<Installation terms(RingElement)>",
+        "<Installation terms(Ring, RingElement)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$terms",
+        "full_doc": "... (3015 bytes) ...",
+        "parsed_headline": "terms  -- provide a list of terms of a polynomial"
+    }
+}
+```

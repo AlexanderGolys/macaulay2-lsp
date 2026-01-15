@@ -1,0 +1,89 @@
+---
+title: "isConstant"
+kind: Method
+---
+
+# isConstant
+
+**isConstant  -- whether a ring element is constant**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isConstant  -- whether a ring element is constant
+
+## Installed For
+
+### isConstant([Number](../Type/Number.mdx))
+
+### isConstant([RingElement](../Type/RingElement.mdx))
+
+## Examples
+
+```macaulay2
+isConstant f
+```
+
+```macaulay2
+isConstant 3
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isConstant (x+a-x)
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isConstant x
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `f`
+- Outputs:
+- whether f is constant i.e. is in the coefficient ring
+
+
+### See also
+
+
+- Macaulay2Doc:: coefficientRing
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isConstant",
+    "safe_name": "op_Coredollar_isConstant",
+    "type": "MethodFunction",
+    "description": "isConstant  -- whether a ring element is constant...",
+    "installations": [
+        "<Installation isConstant(Number)>",
+        "<Installation isConstant(RingElement)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isConstant",
+        "full_doc": "... (1318 bytes) ...",
+        "parsed_headline": "isConstant  -- whether a ring element is constant"
+    }
+}
+```

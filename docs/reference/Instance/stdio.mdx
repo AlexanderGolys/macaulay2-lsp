@@ -5,19 +5,59 @@ kind: Instance
 
 # stdio
 
-:::warning[Stub Documentation]
-This is a placeholder documentation entry. The full documentation for this instance needs to be extracted from Macaulay2.
-:::
+**stdio  -- the standard input output file**
 
 **Type:** [File](../Type/File.mdx)
 
 ## Description
 
-An instance of the type [File](../Type/File.mdx).
+Use this file to get input from the terminal or to display information on the user's screen.  This is the file always used by [print](../Function/print.mdx)  and [<<](../Method/op_Coredollar_lt_lt.mdx)  if it is not explicitly given a file.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+stdio
+```
 
-## See Also
+```macaulay2
+stdio << "hi" << endl
+hi
 
+```
+
+```text
+stdio
+
+File
+```
+
+## Additional Information
+
+- Outputs:
+- the standard input output file
+
+
+### See also
+
+
+- Macaulay2Doc:: stderr
+- Macaulay2Doc:: File << Thing
+
+## Debug info
+
+```python
+{
+    "obj_type": "Instance",
+    "name": "stdio",
+    "safe_name": "op_Coredollar_stdio",
+    "type": "File",
+    "description": "Use this file to get input from the terminal or to display information on the user's screen.  This i...",
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$stdio",
+        "full_doc": "... (1059 bytes) ...",
+        "stub": true,
+        "parsed_headline": "stdio  -- the standard input output file"
+    }
+}
+```

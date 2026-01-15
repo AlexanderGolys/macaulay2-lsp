@@ -1,0 +1,214 @@
+---
+title: "monoid"
+kind: Method
+---
+
+# monoid
+
+**monoid  -- make or retrieve a monoid**
+
+**Type:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+The function [monoid](../Method/monoid.mdx) is called whenever a polynomial ring is created see [Ring Array](../Instance/Ring Array.mdx) or when a local polynomial ring is made see [Ring List](../Instance/Ring List.mdx). Some of the options provided when making a monoid don't take effect until the monoid is made into a polynomial ring.Let's make a free ordered commutative monoid on the variables `abc` with degrees 2 3 and 4 respectively.Call [use](../Method/op_Coredollar_use.mdx) to assign the variables their values in the monoid.The options used when the monoid was created can be recovered with [options](../Method/op_Coredollar_options.mdx).The variables listed may be symbols or indexed variables. The values assigned to these variables are the corresponding monoid generators. The function [baseName](../Method/baseName.mdx) may be used to recover the original symbol or indexed variable.The [monoid(...](../Instance/monoid(....mdx) option is used for instance by [Ext(Module](../Instance/Ext(Module.mdx).By default (multi)degrees are concatenated when forming polynomial rings over polynomial rings as can be seen by examining the corresponding flattened monoid which displays information about all of the variables.That behavior can be overridden with the [monoid(...](../Instance/monoid(....mdx) option.
+
+## Installed For
+
+### monoid([Array](../Type/Array.mdx))
+
+### monoid([FractionField](../Type/FractionField.mdx))
+
+### monoid([List](../Type/List.mdx))
+
+### monoid([PolynomialRing](../Type/PolynomialRing.mdx))
+
+### monoid([QuotientRing](../Type/QuotientRing.mdx))
+
+### monoid([Ring](../Type/Ring.mdx))
+
+## Options
+
+- [DegreeGroup](../Option/DegreeGroup.mdx) => null
+- [Variables](../Option/Variables.mdx) => null
+- [DegreeLift](../Method/DegreeLift.mdx) => null
+- [VariableBaseName](../Method/VariableBaseName.mdx) => p
+- [DegreeRank](../Method/DegreeRank.mdx) => null
+- [Weights](../Method/Weights.mdx) => {}
+- [Inverses](../Option/Inverses.mdx) => false
+- [Global](../Method/Global.mdx) => true
+- [MonomialOrder](../Option/MonomialOrder.mdx) => {GRevLex, Position => Up}
+- [WeylAlgebra](../Option/WeylAlgebra.mdx) => {}
+- [Degrees](../Method/Degrees.mdx) => null
+- [Join](../Method/Join.mdx) => null
+- [MonomialSize](../Option/MonomialSize.mdx) => 32
+- [Local](../Method/Local.mdx) => false
+- [Heft](../Method/Heft.mdx) => null
+- [Constants](../Method/Constants.mdx) => false
+- [SkewCommutative](../Option/SkewCommutative.mdx) => {}
+- [DegreeMap](../Option/DegreeMap.mdx) => null
+
+## Examples
+
+```macaulay2
+monoid[abc...]
+abc...
+```
+
+```macaulay2
+M = monoid[abc
+```
+
+```macaulay2
+monoid[xyz]
+
+```
+
+```text
+monoid[x..z
+```
+
+## Additional Information
+
+- Inputs:
+- `TT "[abc...]"` an [ array](../Type/op_Coredollar_Array.mdx) listing generators of the monoid as well as optional arguments.
+- `TT "{a,b,c,...}"` a [ list](../Type/op_Coredollar_List.mdx) same as above but equivalent to also passing ``.
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- [](../Instance/monoid(....mdx)``a [ list](../Type/op_Coredollar_List.mdx) default value null see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ symbol](../Type/op_Coredollar_Symbol.mdx) default value "p" see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ list](../Type/op_Coredollar_List.mdx) default value {} see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ list](../Type/op_Coredollar_List.mdx) default value null see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value null see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value null see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``an [ integer](../Type/ZZ.mdx) default value null see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ module](../Type/op_Coredollar_Module.mdx) default value null see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ list](../Type/op_Coredollar_List.mdx) default value null see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value null see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ list](../Type/op_Coredollar_List.mdx) default value see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``an [ integer](../Type/ZZ.mdx) default value 32 see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value {} see [monoid(...](../Instance/monoid(....mdx);
+- [](../Instance/monoid(....mdx)``a [ list](../Type/op_Coredollar_List.mdx) default value {} see [monoid(...](../Instance/monoid(....mdx);
+- Outputs:
+- a [ monoid](../Type/op_Coredollar_Monoid.mdx)
+
+
+- Macaulay2Doc:: monoid(Ring)
+- Macaulay2Doc:: FlatMonoid
+- Optional arguments
+- Macaulay2Doc:: options(Monoid)
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+- Macaulay2Doc:: monoid(...
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "monoid",
+    "safe_name": "monoid",
+    "type": "MethodFunctionSingle",
+    "description": "The function [monoid](../Method/monoid.mdx) is called whenever a polynomial ring is created see [Rin...",
+    "installations": [
+        "<Installation monoid(List)>",
+        "<Installation monoid(Array)>",
+        "<Installation monoid(PolynomialRing)>",
+        "<Installation monoid(FractionField)>",
+        "<Installation monoid(Ring)>",
+        "<Installation monoid(QuotientRing)>"
+    ],
+    "options": [
+        {
+            "name": "DegreeGroup",
+            "default": "null"
+        },
+        {
+            "name": "Variables",
+            "default": "null"
+        },
+        {
+            "name": "DegreeLift",
+            "default": "null"
+        },
+        {
+            "name": "VariableBaseName",
+            "default": "p"
+        },
+        {
+            "name": "DegreeRank",
+            "default": "null"
+        },
+        {
+            "name": "Weights",
+            "default": "{}"
+        },
+        {
+            "name": "Inverses",
+            "default": "false"
+        },
+        {
+            "name": "Global",
+            "default": "true"
+        },
+        {
+            "name": "MonomialOrder",
+            "default": "{GRevLex, Position => Up}"
+        },
+        {
+            "name": "WeylAlgebra",
+            "default": "{}"
+        },
+        {
+            "name": "Degrees",
+            "default": "null"
+        },
+        {
+            "name": "Join",
+            "default": "null"
+        },
+        {
+            "name": "MonomialSize",
+            "default": "32"
+        },
+        {
+            "name": "Local",
+            "default": "false"
+        },
+        {
+            "name": "Heft",
+            "default": "null"
+        },
+        {
+            "name": "Constants",
+            "default": "false"
+        },
+        {
+            "name": "SkewCommutative",
+            "default": "{}"
+        },
+        {
+            "name": "DegreeMap",
+            "default": "null"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "monoid",
+        "full_doc": "... (12257 bytes) ...",
+        "parsed_headline": "monoid  -- make or retrieve a monoid"
+    }
+}
+```

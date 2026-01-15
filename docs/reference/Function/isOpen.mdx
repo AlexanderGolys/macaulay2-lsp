@@ -5,48 +5,71 @@ kind: Function
 
 # isOpen
 
-**Type:** `Function`
+**isOpen  -- whether a file or database is open**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-isOpen, -- whether a file or database is open, class => element, Usage: , isOpen f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: File, file, or , a , Macaulay2Doc :: Database, database, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , f, is an open file or open database, Description, An open file is either an input file, an output file, an input output file, or a listener., class => examples, i1 : f = "test-file" << "hi there"
-
-o1 = test-file
-
-o1 : File, class => language-macaulay2, i2 : isOpen f
-
-o2 = true, class => language-macaulay2, i3 : close f
-
-o3 = test-file
-
-o3 : File, class => language-macaulay2, i4 : isOpen f
-
-o4 = false, class => language-macaulay2, i5 : get "test-file"
-
-o5 = hi there, class => language-macaulay2, i6 : removeFile "test-file", class => language-macaulay2, See also, Macaulay2Doc :: openIn, Macaulay2Doc :: openInOut, Macaulay2Doc :: openListener, Macaulay2Doc :: close, Macaulay2Doc :: get, Macaulay2Doc :: removeFile, class => waystouse, Ways to use , isOpen, :, isOpen(Database), isOpen(File), class => waystouse, For the programmer, The object , Macaulay2Doc :: isOpen, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:611:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `isOpen(Database)`
-- `isOpen(File)`
+An open file is either an input file an output file an input output file or a listener.
 
 ## Examples
 
 ```macaulay2
-i1 : f = "test-file" << "hi there"
-
-o1 = test-file
-
-o1 : File
-
-i2 : isOpen f
-
-o2 = true
+isOpen f
 ```
 
-## See Also
+```macaulay2
+isOpen f
 
+```
+
+```text
+true
+```
+
+```macaulay2
+isOpen f
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ file](../Type/op_Coredollar_File.mdx) or a [ database](../Type/Database.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `f` is an open file or open database
+
+
+### See also
+
+
+- Macaulay2Doc:: openIn
+- Macaulay2Doc:: openInOut
+- Macaulay2Doc:: openListener
+- Macaulay2Doc:: close
+- Macaulay2Doc:: get
+- Macaulay2Doc:: removeFile
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "isOpen",
+    "safe_name": "op_Coredollar_isOpen",
+    "type": "CompiledFunction",
+    "description": "An open file is either an input file an output file an input output file or a listener....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isOpen",
+        "full_doc": "... (1740 bytes) ...",
+        "parsed_headline": "isOpen  -- whether a file or database is open"
+    }
+}
+```

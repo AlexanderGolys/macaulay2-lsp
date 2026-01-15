@@ -1,0 +1,126 @@
+---
+title: "genericSymmetricMatrix"
+kind: Method
+---
+
+# genericSymmetricMatrix
+
+**genericSymmetricMatrix  -- make a generic symmetric matrix**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ A square [ matrix](../Type/op_Coredollar_Matrix.mdx)  `M`  is *symmetric*  if `transpose(M) - M == 0` . Omitting the input `r`  is the same as having `r`  be the first variable in `R` .
+
+## Installed For
+
+### genericSymmetricMatrix([Ring](../Type/Ring.mdx), [RingElement](../Type/RingElement.mdx), [ZZ](../Type/ZZ.mdx)) -> [Matrix](../Type/Matrix.mdx)
+
+### genericSymmetricMatrix([Ring](../Type/Ring.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+genericSymmetricMatrix(Rrn)
+```
+
+```macaulay2
+M = genericSymmetricMatrix(Ra3)
+
+```
+
+```text
+| a b c |
+     | b d e |
+     | c e f |
+
+             3      3
+Matrix R  <-- R
+```
+
+```macaulay2
+genericSymmetricMatrix(Rd5)
+
+```
+
+```text
+| d e f g h |
+     | e i j k l |
+     | f j m n o |
+     | g k n p q |
+     | h l o q r |
+
+             5      5
+Matrix R  <-- R
+```
+
+```macaulay2
+genericSymmetricMatrix(R3)
+
+```
+
+```text
+| a b c |
+     | b d e |
+     | c e f |
+
+             3      3
+Matrix R  <-- R
+```
+
+```macaulay2
+genericSymmetricMatrix(R5)
+
+```
+
+```text
+| a b c d e |
+     | b f g h i |
+     | c g j k l |
+     | d h k m n |
+     | e i l n o |
+
+             5      5
+Matrix R  <-- R
+```
+
+## Additional Information
+
+- Inputs:
+- `R` a [ ring](../Type/Ring.mdx)
+- `r` a [ ring element](../Type/RingElement.mdx) which is a variable in the ring `R` (this input is optional)
+- `n` an [ integer](../Type/ZZ.mdx)
+- Outputs:
+- a symmetric [ matrix](../Type/op_Coredollar_Matrix.mdx) with `n` rows whose entries on and above the diagonal are the variables of `R` starting with `r`
+
+
+### See also
+
+
+- Macaulay2Doc:: vars(Ring)
+- Macaulay2Doc:: genericMatrix
+- Macaulay2Doc:: genericSkewMatrix
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "genericSymmetricMatrix",
+    "safe_name": "op_Coredollar_genericSymmetricMatrix",
+    "type": "MethodFunction",
+    "description": " A square [ matrix](../Type/op_Coredollar_Matrix.mdx)  `M`  is *symmetric*  if `transpose(M) - M == ...",
+    "installations": [
+        "<Installation genericSymmetricMatrix(Ring, ZZ)>",
+        "<Installation genericSymmetricMatrix(Ring, RingElement, ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$genericSymmetricMatrix",
+        "full_doc": "... (2591 bytes) ...",
+        "parsed_headline": "genericSymmetricMatrix  -- make a generic symmetric matrix"
+    }
+}
+```

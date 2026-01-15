@@ -1,0 +1,100 @@
+---
+title: "frac"
+kind: Method
+---
+
+# frac
+
+**frac  -- construct a fraction field**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ After invoking the `frac`  command  the elements of the ring are treated as elements  of the fraction field: Another way to obtain `frac R`  is with `x`[/](../Method/op_Coredollar_slash.mdx)`y`  where `x y`  are elements of `R` : Fractions are reduced to the extent possible. The parts of a fraction may be extracted. Alternatively the functions [lift](../Method/op_Coredollar_lift.mdx)  and [liftable](../Method/liftable.mdx)  can be used. One can form resolutions and Gröbner bases of ideals in polynomial rings over fraction fields as in the following example. Note that computations over fraction fields can be quite slow. One way to compute a blowup of an ideal `I`  in `R`  is to compute the kernel of a map of a new polynomial ring into a fraction field of `R`  as shown below.
+
+## Installed For
+
+### frac([EngineRing](../Type/EngineRing.mdx))
+
+### frac([FractionField](../Type/FractionField.mdx))
+
+### frac([InexactField](../Type/InexactField.mdx))
+
+### frac([Ring](../Type/Ring.mdx)) -> [FractionField](../Type/FractionField.mdx)
+
+## Examples
+
+```macaulay2
+frac R
+```
+
+```macaulay2
+F = frac ZZ
+
+```
+
+```text
+QQ
+
+Ring
+```
+
+```macaulay2
+F = frac (ZZ[ab])
+
+```
+
+```text
+F
+
+FractionField
+```
+
+```macaulay2
+K = frac R;
+```
+
+## Additional Information
+
+- Inputs:
+- `R` a [ ring](../Type/Ring.mdx) an integral domain
+- Outputs:
+- a [ fraction field](../Type/op_Coredollar_FractionField.mdx) the field of fractions of `R`
+
+
+### Caveat
+
+ The input ring should be an integral domain. Currently for `S`  as above one cannot define `frac S`  or fractions `u/v` .  One can get around that by defining `B = ZZ/101[xyuv]`  and identify `frac S`  with `frac B` . Note that expressions such as `frac QQ[x]`  are parsed as `(frac QQ)[x]` . To obtain the fraction field of `QQ[x]`  use instead `frac (QQ[x])` .
+### See also
+
+
+- Macaulay2Doc:: numerator
+- Macaulay2Doc:: denominator
+- Macaulay2Doc:: liftable
+- Macaulay2Doc:: lift
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "frac",
+    "safe_name": "op_Coredollar_frac",
+    "type": "MethodFunction",
+    "description": " After invoking the `frac`  command  the elements of the ring are treated as elements  of the fracti...",
+    "installations": [
+        "<Installation frac(Ring)>",
+        "<Installation frac(EngineRing)>",
+        "<Installation frac(FractionField)>",
+        "<Installation frac(InexactField)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$frac",
+        "full_doc": "... (5215 bytes) ...",
+        "parsed_headline": "frac  -- construct a fraction field"
+    }
+}
+```

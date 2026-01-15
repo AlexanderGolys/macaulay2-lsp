@@ -5,17 +5,42 @@ kind: Function
 
 # alarm
 
-**Type:** `Function`
+**alarm  -- set an alarm**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-alarm, -- set an alarm, class => element, Usage: , alarm n, class => language-macaulay2, Inputs:, n, , , an , Macaulay2Doc :: ZZ, integer, Consequences:, the alarm will be sounded after , n, seconds; it can be intercepted with , Macaulay2Doc :: try, Description, If , n, is zero, then no alarm is scheduled, and any previously scheduled alarm is cancelled. Any pending alarm will be cancelled when any other error occurs, or when the top level loop offers an input prompt to the user., , The value returned is the number of seconds remaining until any previously scheduled alarm was due to be delivered, or zero if there was no previously scheduled alarm., , This command may interfere with , Macaulay2Doc :: time, or , Macaulay2Doc :: sleep, on some systems., class => waystouse, For the programmer, The object , Macaulay2Doc :: alarm, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:676:0, .
+ If `n`  is zero then no alarm is scheduled and any previously scheduled alarm is cancelled. Any pending alarm will be cancelled when any other error occurs or when the top level loop offers an input prompt to the user. The value returned is the number of seconds remaining until any previously scheduled alarm was due to be delivered or zero if there was no previously scheduled alarm. This command may interfere with [time](../Method/op_Coredollar_time.mdx)  or [sleep](../Function/op_Coredollar_sleep.mdx)  on some systems.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+alarm n
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `n` an [ integer](../Type/ZZ.mdx)
+- Consequences:
+- the alarm will be sounded after `n` seconds; it can be intercepted with [try](../Method/op_Coredollar_try.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "alarm",
+    "safe_name": "alarm",
+    "type": "CompiledFunction",
+    "description": " If `n`  is zero then no alarm is scheduled and any previously scheduled alarm is cancelled. Any pen...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "alarm",
+        "full_doc": "... (1195 bytes) ...",
+        "parsed_headline": "alarm  -- set an alarm"
+    }
+}
+```

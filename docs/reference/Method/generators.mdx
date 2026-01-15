@@ -1,0 +1,109 @@
+---
+title: "generators"
+kind: Method
+---
+
+# generators
+
+**generators  -- provide matrix or list of generators**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ Produces the generators of a Gröbner basis a polynomial ring an ideal a free module a free group a submodule given by means of generators (or for which generators have been computed) or a free monoid. Usually the result is a list of generators but the generators of a module or Gröbner basis are provided as the columns in a matrix. The matrix is stored in a module M under M.generators unless the matrix is the identity matrix. The symbol `gens`  is a synonym for `generators` .
+
+## Installed For
+
+### generators([EngineRing](../Type/EngineRing.mdx))
+
+### generators([FractionField](../Type/FractionField.mdx))
+
+### generators([GaloisField](../Type/GaloisField.mdx))
+
+### generators([GroebnerBasis](../Type/GroebnerBasis.mdx))
+
+### generators([Ideal](../Type/Ideal.mdx))
+
+### generators([InexactField](../Type/InexactField.mdx))
+
+### generators([Module](../Type/Module.mdx))
+
+### generators([Monoid](../Type/Monoid.mdx))
+
+### generators([MonomialIdeal](../Type/MonomialIdeal.mdx))
+
+### generators([PolynomialRing](../Type/PolynomialRing.mdx))
+
+### generators([QuotientRing](../Type/QuotientRing.mdx))
+
+### generators([Ring](../Type/Ring.mdx))
+
+## Options
+
+- [CoefficientRing](../Option/CoefficientRing.mdx) => null
+
+## Examples
+
+```macaulay2
+generators x
+gens x
+```
+
+## Additional Information
+
+- Inputs:
+- `x`
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- [](../Instance/generators(....mdx)```...` default value null only used if `x` is a ring
+- Outputs:
+- provides the generators of `x` in a convenient form as a list or a matrix depending on the type
+
+
+### See also
+
+
+- Macaulay2Doc:: numgens
+- Macaulay2Doc:: Monoid
+- Macaulay2Doc:: GroebnerBasis
+- Macaulay2Doc:: Module
+- Macaulay2Doc:: relations
+- Macaulay2Doc:: subquotient
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "generators",
+    "safe_name": "gens",
+    "type": "MethodFunctionWithOptions",
+    "description": " Produces the generators of a Gr\u00f6bner basis a polynomial ring an ideal a free module a free group a ...",
+    "installations": [
+        "<Installation generators(FractionField)>",
+        "<Installation generators(EngineRing)>",
+        "<Installation generators(GaloisField)>",
+        "<Installation generators(GroebnerBasis)>",
+        "<Installation generators(Module)>",
+        "<Installation generators(Ideal)>",
+        "<Installation generators(MonomialIdeal)>",
+        "<Installation generators(Monoid)>",
+        "<Installation generators(PolynomialRing)>",
+        "<Installation generators(QuotientRing)>",
+        "<Installation generators(InexactField)>",
+        "<Installation generators(Ring)>"
+    ],
+    "options": [
+        {
+            "name": "CoefficientRing",
+            "default": "null"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "gens",
+        "full_doc": "... (2158 bytes) ...",
+        "parsed_headline": "generators  -- provide matrix or list of generators"
+    }
+}
+```

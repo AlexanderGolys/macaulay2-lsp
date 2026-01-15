@@ -1,0 +1,127 @@
+---
+title: "lcm"
+kind: Method
+---
+
+# lcm
+
+**lcm  -- least common multiple**
+
+**Type:** [MethodFunctionBinary](../Type/MethodFunctionBinary.mdx)
+
+## Description
+
+lcm  -- least common multiple
+
+## Installed For
+
+### lcm([List](../Type/List.mdx))
+
+### lcm([MonomialIdeal](../Type/MonomialIdeal.mdx))
+
+### lcm([QQ](../Type/QQ.mdx))
+
+### lcm([QQ](../Type/QQ.mdx), [QQ](../Type/QQ.mdx))
+
+### lcm([QQ](../Type/QQ.mdx), [ZZ](../Type/ZZ.mdx))
+
+### lcm([RingElement](../Type/RingElement.mdx)) -> [RingElement](../Type/RingElement.mdx)
+
+### lcm([RingElement](../Type/RingElement.mdx), [RingElement](../Type/RingElement.mdx))
+
+### lcm([RingElement](../Type/RingElement.mdx), [ZZ](../Type/ZZ.mdx))
+
+### lcm([Sequence](../Type/Sequence.mdx))
+
+### lcm([ZZ](../Type/ZZ.mdx))
+
+### lcm([ZZ](../Type/ZZ.mdx), [QQ](../Type/QQ.mdx))
+
+### lcm([ZZ](../Type/ZZ.mdx), [RingElement](../Type/RingElement.mdx))
+
+### lcm([ZZ](../Type/ZZ.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+lcm(xy...)
+```
+
+```macaulay2
+lcm(-61514)
+
+```
+
+```text
+210
+```
+
+```macaulay2
+lcm(-6/71514)
+
+```
+
+```text
+210
+
+QQ
+```
+
+```macaulay2
+lcm(a^2-d^2(a-d)*(b+c))
+
+      2     2       2      2
+```
+
+```text
+a b + a c - b*d  - c*d
+
+R
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ ring element](../Type/RingElement.mdx) all the elements should be integers rational numbers or ring elements
+- Outputs:
+- `m` a [ ring element](../Type/RingElement.mdx) the least common multiple of the elements xy...
+
+
+### See also
+
+
+- Macaulay2Doc:: gcd
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "lcm",
+    "safe_name": "op_Coredollar_lcm",
+    "type": "MethodFunctionBinary",
+    "description": "lcm  -- least common multiple...",
+    "installations": [
+        "<Installation lcm(ZZ, RingElement)>",
+        "<Installation lcm(RingElement, ZZ)>",
+        "<Installation lcm(RingElement, RingElement)>",
+        "<Installation lcm(ZZ, ZZ)>",
+        "<Installation lcm(QQ, ZZ)>",
+        "<Installation lcm(ZZ, QQ)>",
+        "<Installation lcm(QQ, QQ)>",
+        "<Installation lcm(Sequence)>",
+        "<Installation lcm(List)>",
+        "<Installation lcm(MonomialIdeal)>",
+        "<Installation lcm(RingElement)>",
+        "<Installation lcm(ZZ)>",
+        "<Installation lcm(QQ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$lcm",
+        "full_doc": "... (1821 bytes) ...",
+        "parsed_headline": "lcm  -- least common multiple"
+    }
+}
+```

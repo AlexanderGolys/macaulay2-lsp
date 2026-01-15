@@ -1,180 +1,222 @@
 ---
 title: "Package"
 kind: Type
-parent: MutableHashTable
 ---
 
 # Package
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Package  -- the class of all packages**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+See [packages](../Instance/packages.mdx) for an overview about using and writing Macaulay2 packages.Available packages:
+- Macaulay2Doc:: packages provided with Macaulay2
+- The directory containing the packages is common/share/Macaulay2/ common/share/Macaulay2/
 
-## Parent Type
+Functions useful when [using packages](../Instance/using packages.mdx):
+- Macaulay2Doc:: needsPackage
+- Macaulay2Doc:: loadPackage
+- Macaulay2Doc:: installPackage
+- Macaulay2Doc:: check
+- Macaulay2Doc:: debug
+- Macaulay2Doc:: importFrom
 
-[MutableHashTable](../Type/MutableHashTable.mdx)
+Functions useful when [creating a package](../Instance/creating a package.mdx):
+- Macaulay2Doc:: newPackage
+- Macaulay2Doc:: export
+- Macaulay2Doc:: exportMutable
+- Macaulay2Doc:: beginDocumentation
+- Macaulay2Doc:: document
+- Macaulay2Doc:: TEST
 
-## Instances
+Functions useful when debugging a package:
+- Macaulay2Doc:: debugging
+- Macaulay2Doc:: debug
+- Macaulay2Doc:: check
 
-Direct instances of this type:
+Functions that are only rarely used:
+- Macaulay2Doc:: use
+- Macaulay2Doc:: dismiss
+- Macaulay2Doc:: exportFrom
+- Macaulay2Doc:: endPackage
+- Macaulay2Doc:: readPackage
+- Macaulay2Doc:: uninstallPackage
+- Macaulay2Doc:: makePackageIndex
+- Macaulay2Doc:: loadedPackages
 
-- `LLLBases`
-- `Isomorphism`
-- `Elimination`
-- `PackageCitations`
-- `ReesAlgebra`
-- `TangentCone`
-- `Truncations`
-- `User`
-- `Topcom`
-- `Classic`
-- `Saturation`
-- `InverseSystems`
-- `MinimalPrimes`
-- `FourierMotzkin`
-- `Core`
-- `OldChainComplexes`
-- `SimpleDoc`
-- `Varieties`
-- `PrimaryDecomposition`
-- `Polyhedra`
 
-*... and 6 more*
 
-## Methods
+## Additional Information
 
-Methods that can be used with this type:
+### See also
 
-### `?`
 
-- `?(Package)`
+- Macaulay2Doc:: packages
+- Macaulay2Doc:: creating a package
+- SimpleDoc:: packageTemplate
 
-### `check`
+## Debug info
 
-- `check(Package)`
-- `check(ZZ, Package)`
-- `check(List, Package)`
-
-### `debug`
-
-- `debug(Package)`
-
-### `dismiss`
-
-- `dismiss(Package)`
-
-### `exportFrom`
-
-- `exportFrom(Package, List)`
-- `exportFrom(Package, String)`
-
-### `html`
-
-- `html(Package)`
-
-### `hypertext`
-
-- `hypertext(Package)`
-
-### `importFrom`
-
-- `importFrom(Package, List)`
-- `importFrom(Package, String)`
-
-### `installPackage`
-
-- `installPackage(Package)`
-
-### `loadPackage`
-
-- `loadPackage(Package)`
-
-### `locate`
-
-- `locate(Package)`
-
-### `mathML`
-
-- `mathML(Package)`
-
-### `methods`
-
-- `methods(Package)`
-
-### `net`
-
-- `net(Package)`
-
-### `options`
-
-- `options(Package)`
-
-### `package`
-
-- `package(Package)`
-
-### `readPackage`
-
-- `readPackage(Package)`
-
-### `tests`
-
-- `tests(Package)`
-- `tests(ZZ, Package)`
-
-### `texMath`
-
-- `texMath(Package)`
-
-### `toString`
-
-- `toString(Package)`
-
-### `uninstallPackage`
-
-- `uninstallPackage(Package)`
-
-### `use`
-
-- `use(Package)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [?](../Operator/op_question.mdx)
-- [check](../Function/check.mdx)
-- [debug](../Function/debug.mdx)
-- [dismiss](../Function/dismiss.mdx)
-- [exportFrom](../Function/exportFrom.mdx)
-- [html](../Function/html.mdx)
-- [hypertext](../Function/hypertext.mdx)
-- [importFrom](../Function/importFrom.mdx)
-- [installPackage](../Function/installPackage.mdx)
-- [loadPackage](../Function/loadPackage.mdx)
-- [locate](../Function/locate.mdx)
-- [mathML](../Function/mathML.mdx)
-- [methods](../Function/methods.mdx)
-- [net](../Function/net.mdx)
-- [options](../Function/options.mdx)
-- [package](../Function/package.mdx)
-- [readPackage](../Function/readPackage.mdx)
-- [tests](../Function/tests.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toString](../Function/toString.mdx)
-- [uninstallPackage](../Function/uninstallPackage.mdx)
-- [use](../Function/use.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [MutableHashTable](../Type/MutableHashTable.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Package",
+    "safe_name": "op_Coredollar_Package",
+    "type": null,
+    "description": "See [packages](../Instance/packages.mdx) for an overview about using and writing Macaulay2 packages....",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Package",
+        "parent": "MutableHashTable",
+        "methods": [
+            [
+                "html",
+                "Package"
+            ],
+            [
+                "?",
+                "Package"
+            ],
+            [
+                "hypertext",
+                "Package"
+            ],
+            [
+                "installPackage",
+                "Package"
+            ],
+            [
+                "uninstallPackage",
+                "Package"
+            ],
+            [
+                "mathML",
+                "Package"
+            ],
+            [
+                "net",
+                "Package"
+            ],
+            [
+                "toString",
+                "Package"
+            ],
+            [
+                "texMath",
+                "Package"
+            ],
+            [
+                "options",
+                "Package"
+            ],
+            [
+                "methods",
+                "Package"
+            ],
+            [
+                "dismiss",
+                "Package"
+            ],
+            [
+                "readPackage",
+                "Package"
+            ],
+            [
+                "loadPackage",
+                "Package"
+            ],
+            [
+                "importFrom",
+                "Package",
+                "List"
+            ],
+            [
+                "importFrom",
+                "Package",
+                "String"
+            ],
+            [
+                "exportFrom",
+                "Package",
+                "List"
+            ],
+            [
+                "exportFrom",
+                "Package",
+                "String"
+            ],
+            [
+                "use",
+                "Package"
+            ],
+            [
+                "debug",
+                "Package"
+            ],
+            [
+                "locate",
+                "Package"
+            ],
+            [
+                "tests",
+                "Package"
+            ],
+            [
+                "tests",
+                "ZZ",
+                "Package"
+            ],
+            [
+                "check",
+                "Package"
+            ],
+            [
+                "check",
+                "ZZ",
+                "Package"
+            ],
+            [
+                "check",
+                "List",
+                "Package"
+            ],
+            [
+                "package",
+                "Package"
+            ]
+        ],
+        "instances": [
+            "LLLBases",
+            "Isomorphism",
+            "Elimination",
+            "PackageCitations",
+            "ReesAlgebra",
+            "TangentCone",
+            "Truncations",
+            "User",
+            "Topcom",
+            "Classic",
+            "Saturation",
+            "InverseSystems",
+            "MinimalPrimes",
+            "FourierMotzkin",
+            "Core",
+            "OldChainComplexes",
+            "SimpleDoc",
+            "Varieties",
+            "PrimaryDecomposition",
+            "Polyhedra",
+            "OnlineLookup",
+            "currentPackage",
+            "Text",
+            "IntegralClosure",
+            "Parsing",
+            "ConwayPolynomials"
+        ],
+        "full_doc": "... (4937 bytes) ...",
+        "parsed_headline": "Package  -- the class of all packages"
+    }
+}
+```

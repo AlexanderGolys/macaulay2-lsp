@@ -1,80 +1,99 @@
 ---
 title: "SelfInitializingType"
 kind: Type
-parent: Type
 ---
 
 # SelfInitializingType
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**SelfInitializingType  -- the class of all self initializing types**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[Type](../Type/Type.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `VerticalList`
-- `TestInput`
-- `Bag`
-- `Command`
-- `Hybrid`
-- `NumberedVerticalList`
-- `LowerBound`
-- `Iterator`
-- `ProductOrder`
-- `URL`
-- `Eliminate`
-
-## Methods
-
-Methods that can be used with this type:
-
-### `/`
-
-- `/(List, SelfInitializingType)`
-- `/(VisibleList, SelfInitializingType)`
-
-### `//`
-
-- `//(Thing, SelfInitializingType)`
-
-### `SPACE`
-
-- `SPACE(SelfInitializingType, Thing)`
-
-### `\`
-
-- `\(SelfInitializingType, VisibleList)`
-
-### `\\`
-
-- `\\(SelfInitializingType, Thing)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [/](../Operator/op_slash.mdx)
-- [//](../Operator/op_slash_slash.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [\](../Operator/op_bs.mdx)
-- [\\](../Operator/op_bs_bs.mdx)
+ A self initializing type `X`  will produce an instance of X from initial data `v`  with the expression `X v` .[Command](../Type/op_Coredollar_Command.mdx)  is an example of a self initializing type.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+X = new SelfInitializingType of BasicList
 
-## See Also
+```
 
-- [Type](../Type/Type.mdx) (parent type)
+```text
+X
+
+SelfInitializingType
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: HeaderType
+- Macaulay2Doc:: WrapperType
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "SelfInitializingType",
+    "safe_name": "SelfInitializingType",
+    "type": null,
+    "description": " A self initializing type `X`  will produce an instance of X from initial data `v`  with the express...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "SelfInitializingType",
+        "parent": "Type",
+        "methods": [
+            [
+                "SPACE",
+                "SelfInitializingType",
+                "Thing"
+            ],
+            [
+                "\\\\",
+                "SelfInitializingType",
+                "Thing"
+            ],
+            [
+                "//",
+                "Thing",
+                "SelfInitializingType"
+            ],
+            [
+                "\\",
+                "SelfInitializingType",
+                "VisibleList"
+            ],
+            [
+                "/",
+                "List",
+                "SelfInitializingType"
+            ],
+            [
+                "/",
+                "VisibleList",
+                "SelfInitializingType"
+            ]
+        ],
+        "instances": [
+            "VerticalList",
+            "TestInput",
+            "Bag",
+            "Command",
+            "Hybrid",
+            "NumberedVerticalList",
+            "LowerBound",
+            "Iterator",
+            "ProductOrder",
+            "URL",
+            "Eliminate"
+        ],
+        "full_doc": "... (2428 bytes) ...",
+        "parsed_headline": "SelfInitializingType  -- the class of all self initializing types"
+    }
+}
+```

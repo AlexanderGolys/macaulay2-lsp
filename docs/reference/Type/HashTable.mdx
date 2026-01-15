@@ -1,248 +1,464 @@
 ---
 title: "HashTable"
 kind: Type
-parent: Thing
 ---
 
 # HashTable
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**HashTable  -- the class of all hash tables**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[Thing](../Type/Thing.mdx)
-
-## Subtypes
-
-Direct subtypes of this type:
-
-- [CoherentSheaf](../Type/CoherentSheaf.mdx)
-- [DocumentTag](../Type/DocumentTag.mdx)
-- [Ideal](../Type/Ideal.mdx)
-- [ImmutableType](../Type/ImmutableType.mdx)
-- [Matrix](../Type/Matrix.mdx)
-- [MonoidElement](../Type/MonoidElement.mdx)
-- [MutableHashTable](../Type/MutableHashTable.mdx)
-- [MutableMatrix](../Type/MutableMatrix.mdx)
-- [OptionTable](../Type/OptionTable.mdx)
-- [Program](../Type/Program.mdx)
-- [ProgramRun](../Type/ProgramRun.mdx)
-- [ProjectiveHilbertPolynomial](../Type/ProjectiveHilbertPolynomial.mdx)
-- [RingMap](../Type/RingMap.mdx)
-- [SheafMap](../Type/SheafMap.mdx)
-- [TestInput](../Type/TestInput.mdx)
-- [VirtualTally](../Type/VirtualTally.mdx)
-
-## Instances
-
-Direct instances of this type:
-
-- `Hybrid`
-- `QQ`
-- `GeneralOrderedMonoid`
-- `Package`
-- `Variety`
-- `RRi`
-- `Sum`
-- `MonomialIdeal`
-- `Topcom`
-- `SumOfTwists`
-- `String`
-- `Ideal`
-- `TensorProduct`
-- `SheafOfRings`
-- `FourierMotzkin`
-- `FunctionApplication`
-- `TestInput`
-- `Array`
-- `OptionTable`
-- `InexactField`
-
-*... and 187 more*
-
-## Methods
-
-Methods that can be used with this type:
-
-### `#`
-
-- `#(HashTable)`
-- `#(HashTable, Thing)`
-
-### `#?`
-
-- `#?(HashTable, Thing)`
-
-### `NewFromMethod`
-
-- `NewFromMethod(Set, HashTable)`
-- `NewFromMethod(HashTable, List)`
-
-### `all`
-
-- `all(HashTable, Function)`
-
-### `any`
-
-- `any(HashTable, Function)`
-
-### `applyKeys`
-
-- `applyKeys(HashTable, Function)`
-- `applyKeys(HashTable, Function, Function)`
-
-### `applyPairs`
-
-- `applyPairs(HashTable, Function)`
-
-### `applyValues`
-
-- `applyValues(HashTable, Function)`
-
-### `hooks`
-
-- `hooks(HashTable)`
-
-### `indices`
-
-- `indices(HashTable)`
-
-### `installAssignmentMethod`
-
-- `installAssignmentMethod(Symbol, HashTable, HashTable, Option)`
-- `installAssignmentMethod(Symbol, HashTable, HashTable, Function)`
-- `installAssignmentMethod(Symbol, HashTable, Option)`
-- `installAssignmentMethod(Symbol, HashTable, Function)`
-
-### `keys`
-
-- `keys(HashTable)`
-
-### `mathML`
-
-- `mathML(HashTable)`
-
-### `merge`
-
-- `merge(HashTable, HashTable, Function)`
-
-### `net`
-
-- `net(HashTable)`
-
-### `package`
-
-- `package(HashTable)`
-
-### `pairs`
-
-- `pairs(HashTable)`
-
-### `parent`
-
-- `parent(HashTable)`
-
-### `peek'`
-
-- `peek'(ZZ, HashTable)`
-
-### `remove`
-
-- `remove(HashTable, Thing)`
-
-### `scanKeys`
-
-- `scanKeys(HashTable, Function)`
-
-### `scanPairs`
-
-- `scanPairs(HashTable, Function)`
-
-### `scanValues`
-
-- `scanValues(HashTable, Function)`
-
-### `select`
-
-- `select(HashTable, Function)`
-- `select(ZZ, HashTable, Function)`
-
-### `selectKeys`
-
-- `selectKeys(ZZ, HashTable, Function)`
-- `selectKeys(HashTable, Function)`
-
-### `selectPairs`
-
-- `selectPairs(HashTable, Function)`
-- `selectPairs(ZZ, HashTable, Function)`
-
-### `selectValues`
-
-- `selectValues(ZZ, HashTable, Function)`
-- `selectValues(HashTable, Function)`
-
-### `set`
-
-- `set(HashTable)`
-
-### `texMath`
-
-- `texMath(HashTable)`
-
-### `toExternalString`
-
-- `toExternalString(HashTable)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [#](../Operator/op_hash.mdx)
-- [#?](../Operator/op_hash_question.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [all](../Function/all.mdx)
-- [any](../Function/any.mdx)
-- [applyKeys](../Function/applyKeys.mdx)
-- [applyPairs](../Function/applyPairs.mdx)
-- [applyValues](../Function/applyValues.mdx)
-- [hooks](../Function/hooks.mdx)
-- [indices](../Function/indices.mdx)
-- [installAssignmentMethod](../Function/installAssignmentMethod.mdx)
-- [keys](../Function/keys.mdx)
-- [mathML](../Function/mathML.mdx)
-- [merge](../Function/merge.mdx)
-- [net](../Function/net.mdx)
-- [package](../Function/package.mdx)
-- [pairs](../Function/pairs.mdx)
-- [parent](../Function/parent.mdx)
-- [peek'](../Function/op_peekx39.mdx)
-- [remove](../Function/remove.mdx)
-- [scanKeys](../Function/scanKeys.mdx)
-- [scanPairs](../Function/scanPairs.mdx)
-- [scanValues](../Function/scanValues.mdx)
-- [select](../Function/select.mdx)
-- [selectKeys](../Function/selectKeys.mdx)
-- [selectPairs](../Function/selectPairs.mdx)
-- [selectValues](../Function/selectValues.mdx)
-- [set](../Function/set.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-
-*... and 2 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Thing](../Type/Thing.mdx) (parent type)
+A hash table consists of: a class type a parent type and a set of key-value pairs.  The keys and values can be anything. The access functions below accept a key and return the corresponding value.  For details of the mechanism underlying this see [hashing](../Instance/hashing.mdx).One important feature of hash tables that when the keys are consecutive integers starting at 0 the keys are scanned in the natural order.There is a subclass of HashTable called [MutableHashTable](../Type/MutableHashTable.mdx) which consists of those hash tables whose entries can be changed.This node is currently in progress!!!
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: #
+- Macaulay2Doc::.
+- Macaulay2Doc:: #?
+- Macaulay2Doc::.?
+
+
+- Macaulay2Doc:: VirtualTally
+- Macaulay2Doc:: OptionTable
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "HashTable",
+    "safe_name": "op_Coredollar_HashTable",
+    "type": null,
+    "description": "A hash table consists of: a class type a parent type and a set of key-value pairs.  The keys and val...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$HashTable",
+        "parent": "Thing",
+        "methods": [
+            [
+                "hooks",
+                "HashTable"
+            ],
+            [
+                "texMath",
+                "HashTable"
+            ],
+            [
+                "all",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "mathML",
+                "HashTable"
+            ],
+            [
+                "indices",
+                "HashTable"
+            ],
+            [
+                "scanValues",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "scanKeys",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "selectKeys",
+                "ZZ",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "selectKeys",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "selectValues",
+                "ZZ",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "selectValues",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "installAssignmentMethod",
+                "Symbol",
+                "HashTable",
+                "HashTable",
+                "Option"
+            ],
+            [
+                "installAssignmentMethod",
+                "Symbol",
+                "HashTable",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "installAssignmentMethod",
+                "Symbol",
+                "HashTable",
+                "Option"
+            ],
+            [
+                "installAssignmentMethod",
+                "Symbol",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "toString",
+                "HashTable"
+            ],
+            [
+                "toExternalString",
+                "HashTable"
+            ],
+            [
+                "net",
+                "HashTable"
+            ],
+            [
+                "select",
+                "ZZ",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "select",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "package",
+                "HashTable"
+            ],
+            [
+                "peek'",
+                "ZZ",
+                "HashTable"
+            ],
+            [
+                "NewFromMethod",
+                "Set",
+                "HashTable"
+            ],
+            [
+                "NewFromMethod",
+                "HashTable",
+                "List"
+            ],
+            [
+                "pairs",
+                "HashTable"
+            ],
+            [
+                "parent",
+                "HashTable"
+            ],
+            [
+                "values",
+                "HashTable"
+            ],
+            [
+                "keys",
+                "HashTable"
+            ],
+            [
+                "scanPairs",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "applyValues",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "applyKeys",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "selectPairs",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "applyPairs",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "merge",
+                "HashTable",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "applyKeys",
+                "HashTable",
+                "Function",
+                "Function"
+            ],
+            [
+                "selectPairs",
+                "ZZ",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "#",
+                "HashTable"
+            ],
+            [
+                "#?",
+                "HashTable",
+                "Thing"
+            ],
+            [
+                "#",
+                "HashTable",
+                "Thing"
+            ],
+            [
+                "remove",
+                "HashTable",
+                "Thing"
+            ],
+            [
+                "any",
+                "HashTable",
+                "Function"
+            ],
+            [
+                "set",
+                "HashTable"
+            ]
+        ],
+        "instances": [
+            "Hybrid",
+            "QQ",
+            "GeneralOrderedMonoid",
+            "Package",
+            "Variety",
+            "RRi",
+            "Sum",
+            "MonomialIdeal",
+            "Topcom",
+            "SumOfTwists",
+            "String",
+            "Ideal",
+            "TensorProduct",
+            "SheafOfRings",
+            "FourierMotzkin",
+            "FunctionApplication",
+            "TestInput",
+            "Array",
+            "OptionTable",
+            "InexactField",
+            "RR",
+            "LocalDictionary",
+            "Set",
+            "GradedModuleMap",
+            "BinaryOperation",
+            "ComplexField",
+            "WrapperType",
+            "Ring",
+            "Minus",
+            "CompiledFunctionClosure",
+            "Polyhedron",
+            "LLLBases",
+            "GradedModule",
+            "VectorExpression",
+            "DocumentTag",
+            "CC",
+            "Program",
+            "Elimination",
+            "BettiTally",
+            "SheafMap",
+            "MutableMatrix",
+            "IndexedVariable",
+            "p",
+            "Classic",
+            "PolyhedralObject",
+            "Module",
+            "RingElement",
+            "currentPackage",
+            "Iterator",
+            "Parsing",
+            "Option",
+            "Divide",
+            "NetFile",
+            "Descent",
+            "SparseVectorExpression",
+            "InfiniteNumber",
+            "AssociativeExpression",
+            "Truncations",
+            "MultigradedBettiTally",
+            "CoherentSheaf",
+            "SelfInitializingType",
+            "MinimalPrimes",
+            "Dictionary",
+            "Expression",
+            "GlobalDictionary",
+            "List",
+            "globalAssignmentHooks",
+            "InexactNumber",
+            "MutableList",
+            "GroebnerBasis",
+            "Varieties",
+            "programPaths",
+            "Partition",
+            "Pseudocode",
+            "Resolution",
+            "Thing",
+            "IntegralClosure",
+            "Product",
+            "ChainComplex",
+            "version",
+            "Power",
+            "SparseMonomialVectorExpression",
+            "FilePosition",
+            "PackageCitations",
+            "TangentCone",
+            "Subscript",
+            "CompiledFunctionBody",
+            "Describe",
+            "RingMap",
+            "Time",
+            "insts",
+            "PseudocodeClosure",
+            "nullaryMethods",
+            "Fan",
+            "InverseSystems",
+            "MapExpression",
+            "MutableHashTable",
+            "GlobalHookStore",
+            "hh",
+            "HH",
+            "Polyhedra",
+            "sheafExt",
+            "typicalValues",
+            "id",
+            "operatorAttributes",
+            "NumberedVerticalList",
+            "LowerBound",
+            "RRi'",
+            "AngleBarList",
+            "FunctionClosure",
+            "Command",
+            "SheafExpression",
+            "Tor",
+            "GroebnerBasisOptions",
+            "MethodFunctionWithOptions",
+            "ZZ",
+            "HashTable",
+            "VirtualTally",
+            "Cone",
+            "PolynomialRing",
+            "ProjectiveHilbertPolynomial",
+            "Layout",
+            "Tally",
+            "Text",
+            "URL",
+            "fileDictionaries",
+            "GaloisField",
+            "VerticalList",
+            "MatrixExpression",
+            "Type",
+            "MethodFunctionBinary",
+            "QuotientRing",
+            "Monoid",
+            "IndexedVariableTable",
+            "Adjacent",
+            "Vector",
+            "Number",
+            "Equation",
+            "loadedFiles",
+            "SymbolBody",
+            "Net",
+            "OneExpression",
+            "ZeroExpression",
+            "DirectSum",
+            "OldChainComplexes",
+            "ProgramRun",
+            "HeaderType",
+            "CacheTable",
+            "Manipulator",
+            "ConwayPolynomials",
+            "Database",
+            "File",
+            "MethodFunctionSingle",
+            "AtomicInt",
+            "Task",
+            "ReesAlgebra",
+            "CompiledFunction",
+            "Nothing",
+            "opMapping",
+            "PolyhedralComplex",
+            "Table",
+            "EngineRing",
+            "Symbol",
+            "FunctionBody",
+            "ImmutableType",
+            "MonoidElement",
+            "Core",
+            "ProductOrder",
+            "Constant",
+            "IndeterminateNumber",
+            "InexactFieldFamily",
+            "InexactNumber'",
+            "CC'",
+            "PrimaryDecomposition",
+            "Parenthesize",
+            "AffineVariety",
+            "Keyword",
+            "Holder",
+            "BasicList",
+            "OnlineLookup",
+            "RingFamily",
+            "RealField",
+            "Isomorphism",
+            "OO",
+            "Matrix",
+            "Sequence",
+            "Superscript",
+            "RR'",
+            "Bag",
+            "ScriptedFunctor",
+            "User",
+            "OrderedMonoid",
+            "Saturation",
+            "RowExpression",
+            "FractionField",
+            "Function",
+            "MethodFunction",
+            "Ext",
+            "Eliminate",
+            "currentLayout",
+            "SimpleDoc",
+            "Boolean",
+            "ProjectiveVariety",
+            "ChainComplexMap",
+            "VisibleList"
+        ],
+        "full_doc": "... (5730 bytes) ...",
+        "parsed_headline": "HashTable  -- the class of all hash tables"
+    }
+}
+```

@@ -1,0 +1,72 @@
+---
+title: "hilbertPolynomial"
+kind: Method
+---
+
+# hilbertPolynomial
+
+**hilbertPolynomial  -- compute the Hilbert polynomial**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+ In a singly graded ambient ring the [ Hilbert function](../Method/hilbertFunction.mdx)  eventually is a polynomial called the Hilbert polynomial. By default this polynomial is written in terms of the Hilbert polynomials of projective spaces because it is a good form for extracting geometric information from the polynomial. The Hilbert polynomial of `P^i`  is `z |--> binomial(z + i i).`
+
+## Installed For
+
+### hilbertPolynomial([Ideal](../Type/Ideal.mdx))
+
+### hilbertPolynomial([Module](../Type/Module.mdx))
+
+### hilbertPolynomial([Ring](../Type/Ring.mdx))
+
+### hilbertPolynomial([ZZ](../Type/ZZ.mdx), [BettiTally](../Type/BettiTally.mdx))
+
+## Options
+
+- [Projective](../Method/Projective.mdx) => true
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: degreesRing
+- Macaulay2Doc:: reduceHilbert
+- Macaulay2Doc:: poincare
+- Complexes:: poincareN
+- Macaulay2Doc:: hilbertSeries
+- Macaulay2Doc:: hilbertFunction
+
+[hilbertPolynomial(...](../Instance/hilbertPolynomial(....mdx)[ProjectiveHilbertPolynomial](../Type/ProjectiveHilbertPolynomial.mdx)[projectiveHilbertPolynomial](../Method/op_Coredollar_projectiveHilbertPolynomial.mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "hilbertPolynomial",
+    "safe_name": "hilbertPolynomial",
+    "type": "MethodFunctionWithOptions",
+    "description": " In a singly graded ambient ring the [ Hilbert function](../Method/hilbertFunction.mdx)  eventually ...",
+    "installations": [
+        "<Installation hilbertPolynomial(ZZ, BettiTally)>",
+        "<Installation hilbertPolynomial(Ring)>",
+        "<Installation hilbertPolynomial(Ideal)>",
+        "<Installation hilbertPolynomial(Module)>"
+    ],
+    "options": [
+        {
+            "name": "Projective",
+            "default": "true"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "hilbertPolynomial",
+        "full_doc": "... (1709 bytes) ...",
+        "parsed_headline": "hilbertPolynomial  -- compute the Hilbert polynomial"
+    }
+}
+```

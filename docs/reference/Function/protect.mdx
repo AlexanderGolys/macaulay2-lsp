@@ -5,39 +5,62 @@ kind: Function
 
 # protect
 
-**Type:** `Function`
+**protect  -- protect a symbol**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-protect, -- protect a symbol, class => element, Usage: , protect s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: Symbol, symbol, Outputs:, s, , , a , Macaulay2Doc :: Symbol, symbol, Consequences:, the symbol , s, is protected from having its value changed, Description, There is no function for unprotecting symbols., class => examples, i1 : mutable symbol s
-
-o1 = true, class => language-macaulay2, i2 : s = 5
-
-o2 = 5, class => language-macaulay2, i3 : s
-
-o3 = 5, class => language-macaulay2, i4 : protect symbol s
-
-o4 = s
-
-o4 : Symbol, class => language-macaulay2, i5 : mutable symbol s
-
-o5 = false, class => language-macaulay2, i6 : try s = 7, class => language-macaulay2, i7 : s
-
-o7 = 5, class => language-macaulay2, See also, Macaulay2Doc :: isMutable, Macaulay2Doc :: try, class => waystouse, For the programmer, The object , Macaulay2Doc :: protect, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:158:0, .
+There is no function for unprotecting symbols.
 
 ## Examples
 
 ```macaulay2
-i1 : mutable symbol s
-
-o1 = true
-
-i2 : s = 5
-
-o2 = 5
+protect s
 ```
 
-## See Also
+```macaulay2
+protect symbol s
 
+```
+
+```text
+s
+
+Symbol
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ symbol](../Type/op_Coredollar_Symbol.mdx)
+- Outputs:
+- `s` a [ symbol](../Type/op_Coredollar_Symbol.mdx)
+- Consequences:
+- the symbol `s` is protected from having its value changed
+
+
+### See also
+
+
+- Macaulay2Doc:: isMutable
+- Macaulay2Doc:: try
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "protect",
+    "safe_name": "op_Coredollar_protect",
+    "type": "CompiledFunction",
+    "description": "There is no function for unprotecting symbols....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$protect",
+        "full_doc": "... (1417 bytes) ...",
+        "parsed_headline": "protect  -- protect a symbol"
+    }
+}
+```

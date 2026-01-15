@@ -1,118 +1,215 @@
 ---
 title: "Array"
 kind: Type
-parent: VisibleList
 ---
 
 # Array
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Array  -- the class of all arrays -- [...]**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[VisibleList](../Type/VisibleList.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `SPACE`
-
-- `SPACE(BettiTally, Array)`
-- `SPACE(MonoidElement, Array)`
-- `SPACE(Ring, Array)`
-- `SPACE(InexactFieldFamily, Array)`
-- `SPACE(RingElement, Array)`
-- *... and 6 more signatures*
-
-### `^`
-
-- `^(Ideal, Array)`
-- `^(Matrix, Array)`
-- `^(Module, Array)`
-- `^(MonomialIdeal, Array)`
-- `^(ChainComplexMap, Array)`
-- *... and 3 more signatures*
-
-### `_`
-
-- `_(Matrix, Array)`
-- `_(Module, Array)`
-- `_(ChainComplexMap, Array)`
-- `_(ChainComplex, Array)`
-- `_(GradedModuleMap, Array)`
-- *... and 1 more signatures*
-
-### `help`
-
-- `help(Array)`
-
-### `interval`
-
-- `interval(Array)`
-
-### `mathML`
-
-- `mathML(Array)`
-
-### `monoid`
-
-- `monoid(Array)`
-
-### `net`
-
-- `net(Array)`
-
-### `package`
-
-- `package(Array)`
-
-### `texMath`
-
-- `texMath(Array)`
-
-### `toExternalString`
-
-- `toExternalString(Array)`
-
-### `toString`
-
-- `toString(Array)`
-
-### `|`
-
-- `|(Array, Array)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [SPACE](../Operator/SPACE.mdx)
-- [^](../Operator/op_caret.mdx)
-- [_](../Operator/_.mdx)
-- [help](../Instance/help.mdx)
-- [interval](../Function/interval.mdx)
-- [mathML](../Function/mathML.mdx)
-- [monoid](../Function/monoid.mdx)
-- [net](../Function/net.mdx)
-- [package](../Function/package.mdx)
-- [texMath](../Function/texMath.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-- [toString](../Function/toString.mdx)
-- [|](../Operator/op_bar.mdx)
+An array can be created by enclosing elements of any type in brackets.To convert arrays to and from other types of [BasicList](../Type/op_Coredollar_BasicList.mdx)  one may use [new](../Method/op_Coredollar_new.mdx) .For an overview of lists and sequences see [lists and sequences](../Instance/lists and sequences.mdx) .
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+new Array from {a,b,c}
 
-## See Also
+```
 
-- [VisibleList](../Type/VisibleList.mdx) (parent type)
+```text
+[a b c]
+
+Array
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "Array",
+    "safe_name": "op_Coredollar_Array",
+    "type": null,
+    "description": "An array can be created by enclosing elements of any type in brackets.To convert arrays to and from ...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Array",
+        "parent": "VisibleList",
+        "methods": [
+            [
+                "SPACE",
+                "BettiTally",
+                "Array"
+            ],
+            [
+                "help",
+                "Array"
+            ],
+            [
+                "interval",
+                "Array"
+            ],
+            [
+                "texMath",
+                "Array"
+            ],
+            [
+                "mathML",
+                "Array"
+            ],
+            [
+                "^",
+                "Ideal",
+                "Array"
+            ],
+            [
+                "_",
+                "Matrix",
+                "Array"
+            ],
+            [
+                "^",
+                "Matrix",
+                "Array"
+            ],
+            [
+                "^",
+                "Module",
+                "Array"
+            ],
+            [
+                "_",
+                "Module",
+                "Array"
+            ],
+            [
+                "^",
+                "MonomialIdeal",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "MonoidElement",
+                "Array"
+            ],
+            [
+                "monoid",
+                "Array"
+            ],
+            [
+                "toString",
+                "Array"
+            ],
+            [
+                "toExternalString",
+                "Array"
+            ],
+            [
+                "net",
+                "Array"
+            ],
+            [
+                "package",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "Ring",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "InexactFieldFamily",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "RingElement",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "ChainComplex",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "ChainComplexMap",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "Module",
+                "Array"
+            ],
+            [
+                "_",
+                "ChainComplexMap",
+                "Array"
+            ],
+            [
+                "^",
+                "ChainComplexMap",
+                "Array"
+            ],
+            [
+                "_",
+                "ChainComplex",
+                "Array"
+            ],
+            [
+                "^",
+                "ChainComplex",
+                "Array"
+            ],
+            [
+                "_",
+                "GradedModuleMap",
+                "Array"
+            ],
+            [
+                "^",
+                "GradedModuleMap",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "GradedModule",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "AffineVariety",
+                "Array"
+            ],
+            [
+                "SPACE",
+                "ProjectiveVariety",
+                "Array"
+            ],
+            [
+                "_",
+                "CoherentSheaf",
+                "Array"
+            ],
+            [
+                "^",
+                "CoherentSheaf",
+                "Array"
+            ],
+            [
+                "|",
+                "Array",
+                "Array"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (2864 bytes) ...",
+        "parsed_headline": "Array  -- the class of all arrays -- [...]"
+    }
+}
+```

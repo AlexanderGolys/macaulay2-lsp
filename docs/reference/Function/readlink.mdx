@@ -5,27 +5,57 @@ kind: Function
 
 # readlink
 
-**Type:** `Function`
+**readlink  -- get the resolved value a symbolic link**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-readlink, -- get the resolved value a symbolic link, class => element, Usage: , readlink fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, , , a filename or path to a file, Outputs:, a , Macaulay2Doc :: String, string, , , the resolved path to a symbolic link, or null if the file was not a symbolic link., Description, class => examples, i1 : p = temporaryFileName ()
-
-o1 = /tmp/M2-709599-0/0, class => language-macaulay2, i2 : symlinkFile ("foo", p), class => language-macaulay2, i3 : readlink p
-
-o3 = foo, class => language-macaulay2, i4 : removeFile p, class => language-macaulay2, See also, Macaulay2Doc :: realpath, class => waystouse, For the programmer, The object , Macaulay2Doc :: readlink, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/readlink-doc.m2:20:0, .
+readlink  -- get the resolved value a symbolic link
 
 ## Examples
 
 ```macaulay2
-i1 : p = temporaryFileName ()
-
-o1 = /tmp/M2-709599-0/0
-
-i2 : symlinkFile ("foo", p)
+readlink fn
 ```
 
-## See Also
+```macaulay2
+readlink p
 
+```
+
+```text
+foo
+```
+
+## Additional Information
+
+- Inputs:
+- `fn` a [ string](../Type/op_Coredollar_String.mdx) a filename or path to a file
+- Outputs:
+- a [ string](../Type/op_Coredollar_String.mdx) the resolved path to a symbolic link or null if the file was not a symbolic link.
+
+
+### See also
+
+
+- Macaulay2Doc:: realpath
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "readlink",
+    "safe_name": "readlink",
+    "type": "CompiledFunction",
+    "description": "readlink  -- get the resolved value a symbolic link...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "readlink",
+        "full_doc": "... (1193 bytes) ...",
+        "parsed_headline": "readlink  -- get the resolved value a symbolic link"
+    }
+}
+```

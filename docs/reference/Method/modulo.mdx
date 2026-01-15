@@ -1,0 +1,73 @@
+---
+title: "modulo"
+kind: Method
+---
+
+# modulo
+
+**modulo  -- find the pre-image (pullback) of image of a map (low level version)**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+The maps `f`  and `g`  must have the same target and their sources and targets must be free. If `f`  is [null](../Instance/null.mdx)  then it is taken to be the identity.  If `g`  is [null](../Instance/null.mdx)  it is taken to be zero.This function is mainly for internal use.
+
+## Installed For
+
+### modulo([Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx))
+
+### modulo([Matrix](../Type/Matrix.mdx), [Nothing](../Type/Nothing.mdx))
+
+### modulo([Nothing](../Type/Nothing.mdx), [Matrix](../Type/Matrix.mdx))
+
+## Examples
+
+```macaulay2
+modulo(fg)
+```
+
+```macaulay2
+modulo(fg)
+
+```
+
+```text
+{1} | 0 z y |
+     {1} | 1 0 0 |
+
+             2      3
+Matrix R  <-- R
+```
+
+## Additional Information
+
+- Inputs:
+- `f`
+- `g`
+- Outputs:
+- a [ matrix](../Type/op_Coredollar_Matrix.mdx) whose image is the pre-image (pullback) of the image of `g` under `f`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "modulo",
+    "safe_name": "op_Coredollar_modulo",
+    "type": "MethodFunctionWithOptions",
+    "description": "The maps `f`  and `g`  must have the same target and their sources and targets must be free. If `f` ...",
+    "installations": [
+        "<Installation modulo(Matrix, Nothing)>",
+        "<Installation modulo(Nothing, Matrix)>",
+        "<Installation modulo(Matrix, Matrix)>"
+    ],
+    "options": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$modulo",
+        "full_doc": "... (1977 bytes) ...",
+        "parsed_headline": "modulo  -- find the pre-image (pullback) of image of a map (low level version)"
+    }
+}
+```

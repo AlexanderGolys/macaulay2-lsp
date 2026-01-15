@@ -1,0 +1,111 @@
+---
+title: "Beta"
+kind: Method
+---
+
+# Beta
+
+**Beta  -- Beta function**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+This is the https://en.wikipedia.org/wiki/beta_function beta function \(B(xy) = \int_0^1 t^{x - 1}(1 - t)^{y - 1}\dt\).
+
+## Installed For
+
+### Beta([CC](../Type/CC.mdx), [CC](../Type/CC.mdx))
+
+### Beta([CC](../Type/CC.mdx), [Number](../Type/Number.mdx))
+
+### Beta([CC](../Type/CC.mdx), [RR](../Type/RR.mdx))
+
+### Beta([Number](../Type/Number.mdx), [CC](../Type/CC.mdx))
+
+### Beta([Number](../Type/Number.mdx), [Number](../Type/Number.mdx))
+
+### Beta([Number](../Type/Number.mdx), [RR](../Type/RR.mdx))
+
+### Beta([Number](../Type/Number.mdx), [RRi](../Type/RRi.mdx))
+
+### Beta([RR](../Type/RR.mdx), [CC](../Type/CC.mdx))
+
+### Beta([RR](../Type/RR.mdx), [Number](../Type/Number.mdx))
+
+### Beta([RR](../Type/RR.mdx), [RR](../Type/RR.mdx)) -> [RR](../Type/RR.mdx)
+
+### Beta([RR](../Type/RR.mdx), [RRi](../Type/RRi.mdx))
+
+### Beta([RRi](../Type/RRi.mdx), [Number](../Type/Number.mdx))
+
+### Beta([RRi](../Type/RRi.mdx), [RR](../Type/RR.mdx))
+
+### Beta([RRi](../Type/RRi.mdx), [RRi](../Type/RRi.mdx))
+
+## Examples
+
+```macaulay2
+Beta(x y)
+```
+
+```macaulay2
+Beta(3 4)
+
+```
+
+```text
+.01666666666666667
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ real number](../Type/op_x226_x132_x157.mdx)
+- `y` a [ real number](../Type/op_x226_x132_x157.mdx)
+- Outputs:
+- a [ real number](../Type/op_x226_x132_x157.mdx) the beta function of `x` and `y`;
+
+
+### See also
+
+
+- Macaulay2Doc:: regularizedBeta
+- Macaulay2Doc:: inverseRegularizedBeta
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "Beta",
+    "safe_name": "op_Coredollar_Beta",
+    "type": "MethodFunction",
+    "description": "This is the https://en.wikipedia.org/wiki/beta_function beta function \\(B(xy) = \\int_0^1 t^{x - 1}(1...",
+    "installations": [
+        "<Installation Beta(Number, RR)>",
+        "<Installation Beta(Number, RRi)>",
+        "<Installation Beta(Number, CC)>",
+        "<Installation Beta(CC, Number)>",
+        "<Installation Beta(RR, Number)>",
+        "<Installation Beta(RRi, Number)>",
+        "<Installation Beta(Number, Number)>",
+        "<Installation Beta(CC, CC)>",
+        "<Installation Beta(RR, CC)>",
+        "<Installation Beta(CC, RR)>",
+        "<Installation Beta(RR, RR)>",
+        "<Installation Beta(RR, RRi)>",
+        "<Installation Beta(RRi, RR)>",
+        "<Installation Beta(RRi, RRi)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Beta",
+        "full_doc": "... (1402 bytes) ...",
+        "parsed_headline": "Beta  -- Beta function"
+    }
+}
+```

@@ -1,0 +1,78 @@
+---
+title: "columnAdd"
+kind: Method
+---
+
+# columnAdd
+
+**columnAdd  -- add a multiple of one column to another**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+columnAdd  -- add a multiple of one column to another
+
+## Installed For
+
+### columnAdd([MutableMatrix](../Type/MutableMatrix.mdx), [ZZ](../Type/ZZ.mdx), [Number](../Type/Number.mdx), [ZZ](../Type/ZZ.mdx))
+
+### columnAdd([MutableMatrix](../Type/MutableMatrix.mdx), [ZZ](../Type/ZZ.mdx), [RingElement](../Type/RingElement.mdx), [ZZ](../Type/ZZ.mdx))
+
+## Examples
+
+```macaulay2
+columnAdd(miaj)
+```
+
+```macaulay2
+columnAdd(m0c1)
+
+```
+
+```text
+| c2+a c e |
+     | cd+b d f |
+
+MutableMatrix
+```
+
+## Additional Information
+
+- Inputs:
+- `m` a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx)
+- `i` an [ integer](../Type/ZZ.mdx)
+- `a` a [ ring element](../Type/RingElement.mdx) in the same ring as `m`
+- `j` an [ integer](../Type/ZZ.mdx)
+- Consequences:
+- The `i` th column of `m` is modified by adding `a` times the `j` th column of `m`
+
+
+### See also
+
+
+- Macaulay2Doc:: mutable matrices
+- Macaulay2Doc:: row and column operations
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "columnAdd",
+    "safe_name": "op_Coredollar_columnAdd",
+    "type": "MethodFunction",
+    "description": "columnAdd  -- add a multiple of one column to another...",
+    "installations": [
+        "<Installation columnAdd(MutableMatrix, ZZ, Number, ZZ)>",
+        "<Installation columnAdd(MutableMatrix, ZZ, RingElement, ZZ)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$columnAdd",
+        "full_doc": "... (1766 bytes) ...",
+        "parsed_headline": "columnAdd  -- add a multiple of one column to another"
+    }
+}
+```

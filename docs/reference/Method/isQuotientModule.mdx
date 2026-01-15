@@ -1,0 +1,82 @@
+---
+title: "isQuotientModule"
+kind: Method
+---
+
+# isQuotientModule
+
+**isQuotientModule  -- whether something is evidently a quotient of a free module**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ This function checks if the module `M`  is a quotient of its [ambient](../Method/op_Coredollar_ambient.mdx)  free module by examining its matrix of [ generators](../Instance/generators(Module).mdx) . The image of a map from a free module to the first generator of `M`  yields an equivalent module that is *not*  presented as a quotient.
+
+## Installed For
+
+### isQuotientModule([Module](../Type/Module.mdx))
+
+### isQuotientModule([Thing](../Type/Thing.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+## Examples
+
+```macaulay2
+isQuotientModule M
+```
+
+```macaulay2
+isQuotientModule M
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isQuotientModule N
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `M` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) [true](../Instance/op_Coredollar_true.mdx) if the given representation of `M` a quotient of a free module.
+
+
+### See also
+
+
+- Macaulay2Doc:: Module _ List
+- Macaulay2Doc:: ambient
+- Macaulay2Doc:: isFreeModule
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isQuotientModule",
+    "safe_name": "isQuotientModule",
+    "type": "MethodFunction",
+    "description": " This function checks if the module `M`  is a quotient of its [ambient](../Method/op_Coredollar_ambi...",
+    "installations": [
+        "<Installation isQuotientModule(Thing)>",
+        "<Installation isQuotientModule(Module)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "isQuotientModule",
+        "full_doc": "... (2263 bytes) ...",
+        "parsed_headline": "isQuotientModule  -- whether something is evidently a quotient of a free module"
+    }
+}
+```

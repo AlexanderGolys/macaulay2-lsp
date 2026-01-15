@@ -5,91 +5,27 @@ kind: Function
 
 # pseudocode
 
-**Type:** `Function`
+**pseudocode  -- produce the pseudocode for a function**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-pseudocode, -- produce the pseudocode for a function, class => element, Usage: , pseudocode f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: FunctionClosure, function closure, Outputs:, an instance of the type , Macaulay2Doc :: PseudocodeClosure, , , the pseudocode of the function , f, Description, class => examples, i1 : pseudocode(() -> 2+4*3)
-
-o1 = function restargs false
- numparms 0
- framesize 0
- frameID 12878
- body 2-OP + 2
- 2-OP * 4
- 3
-
-o1 : PseudocodeClosure, class => language-macaulay2, i2 : disassemble oo
-
-o2 = (function restargs: false numparms: 0 framesize: 0 frameID: 12878 (2-OP
- + 2 (2-OP * 4 3))), class => language-macaulay2, i3 : pseudocode functionBody(() -> 2+4*3)
-
-o3 = 2-OP + 2
- 2-OP * 4
- 3
-
-o3 : Pseudocode, class => language-macaulay2, i4 : disassemble oo
-
-o4 = (2-OP + 2 (2-OP * 4 3)), class => language-macaulay2, One can look at specific part of the code by using , _, :, class => examples, i5 : pseudocode resolution
-
-o5 = function restargs true
- numparms 1
- framesize 1
- frameID 199
- body adjacent global-fetch 414
- sequence local-fetch 1 1
- adjacent global-fetch 360
- sequence local-fetch 0 1
- local-fetch 0 0
-
-o5 : PseudocodeClosure, class => language-macaulay2, i6 : oo_4_1_1_0
-
-o6 = global-fetch 360
-
-o6 : Pseudocode, class => language-macaulay2, i7 : value oo
-
-o7 = override
-
-o7 : CompiledFunction, class => language-macaulay2, It may be useful to look at code during debugging, as in the following demonstration., class => examples, i8 : load "Macaulay2Doc/demos/demo1.m2", class => language-macaulay2, i9 : code g
-
-o9 = /usr/share/Macaulay2/
- Macaulay2Doc/demos/demo1.m2:11:4-14:9: --source code:
- g = y -> (
- c := f(y-1);
- d := f(y-2);
- c+d), class => language-macaulay2, i10 : g 2
-/usr/share/Macaulay2/Macaulay2Doc/demos/demo1.m2:8:11:(3):[2]: error: division by zero
-/usr/share/Macaulay2/Macaulay2Doc/demos/demo1.m2:8:11:(3): entering debugger (enter 'help' to see commands)
-/usr/share/Macaulay2/Macaulay2Doc/
-demos/demo1.m2:8:10-8:13: --source code:
- b := 1/x;, class => language-macaulay2, ii11 : code current
-
-oo11 = /usr/share/Macaulay2/
- Macaulay2Doc/demos/demo1.m2:8:10-8:13: --source code:
- b := 1/x;, class => language-macaulay2, ii12 : current
-
-oo12 = 2-OP / 1
- local-fetch 0 0
-
-oo12 : PseudocodeClosure, class => language-macaulay2, ii13 : disassemble current
-
-oo13 = (2-OP / 1 (local-fetch 0 0)), class => language-macaulay2, See also, Macaulay2Doc :: disassemble, class => waystouse, Ways to use , pseudocode, :, Macaulay2Doc :: pseudocode(FunctionBody), Macaulay2Doc :: pseudocode(FunctionClosure), class => waystouse, For the programmer, The object , Macaulay2Doc :: pseudocode, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:1024:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `pseudocode(FunctionBody)`
-- `pseudocode(FunctionClosure)`
+One can look at specific part of the code by using `_` :It may be useful to look at code during debugging as in the following demonstration.
 
 ## Examples
 
 ```macaulay2
-i1 : pseudocode(() -> 2+4*3)
+pseudocode f
+```
 
-o1 = function restargs false
+```macaulay2
+pseudocode(() -> 2+4*3)
+
+```
+
+```text
+function restargs false
               numparms 0
               framesize 0
               frameID 12878
@@ -97,13 +33,69 @@ o1 = function restargs false
                           2-OP * 4
                                  3
 
-o1 : PseudocodeClosure
-
-i2 : disassemble oo
-
-o2 = (function restargs: false numparms: 0 framesize: 0 frameID: 12878 (2-OP
-     + 2 (2-OP * 4 3)))
+PseudocodeClosure
 ```
 
-## See Also
+```macaulay2
+pseudocode functionBody(() -> 2+4*3)
 
+```
+
+```text
+2-OP + 2
+            2-OP * 4
+                   3
+
+Pseudocode
+```
+
+```macaulay2
+pseudocode resolution
+
+```
+
+```text
+function restargs true
+              numparms 1
+              framesize 1
+              frameID 199
+              body adjacent global-fetch 414
+                            sequence local-fetch 1 1
+                                     adjacent global-fetch 360
+                                              sequence local-fetch 0 1
+                                                       local-fetch 0 0
+
+PseudocodeClosure
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ function closure](../Type/op_Coredollar_FunctionClosure.mdx)
+- Outputs:
+- an instance of the type [PseudocodeClosure](../Type/PseudocodeClosure.mdx) the pseudocode of the function `f`
+
+
+### See also
+
+
+- Macaulay2Doc:: disassemble
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "pseudocode",
+    "safe_name": "op_Coredollar_pseudocode",
+    "type": "CompiledFunction",
+    "description": "One can look at specific part of the code by using `_` :It may be useful to look at code during debu...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$pseudocode",
+        "full_doc": "... (3768 bytes) ...",
+        "parsed_headline": "pseudocode  -- produce the pseudocode for a function"
+    }
+}
+```

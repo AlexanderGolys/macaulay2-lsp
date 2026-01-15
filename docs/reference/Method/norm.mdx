@@ -1,0 +1,125 @@
+---
+title: "norm"
+kind: Method
+---
+
+# norm
+
+**norm**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ The norm of a polynomial is the norm of the vector of its coefficients.
+
+## Installed For
+
+### norm([InexactField](../Type/InexactField.mdx), [MutableMatrix](../Type/MutableMatrix.mdx))
+
+### norm([InfiniteNumber](../Type/InfiniteNumber.mdx), [Matrix](../Type/Matrix.mdx))
+
+### norm([InfiniteNumber](../Type/InfiniteNumber.mdx), [Number](../Type/Number.mdx))
+
+### norm([InfiniteNumber](../Type/InfiniteNumber.mdx), [RingElement](../Type/RingElement.mdx))
+
+### norm([List](../Type/List.mdx))
+
+### norm([Matrix](../Type/Matrix.mdx))
+
+### norm([MutableMatrix](../Type/MutableMatrix.mdx))
+
+### norm([Number](../Type/Number.mdx))
+
+### norm([RR](../Type/RR.mdx), [Matrix](../Type/Matrix.mdx))
+
+### norm([RR](../Type/RR.mdx), [MutableMatrix](../Type/MutableMatrix.mdx))
+
+### norm([RR](../Type/RR.mdx), [Number](../Type/Number.mdx))
+
+### norm([RR](../Type/RR.mdx), [RingElement](../Type/RingElement.mdx))
+
+### norm([RingElement](../Type/RingElement.mdx))
+
+### norm([Vector](../Type/Vector.mdx))
+
+## Examples
+
+```macaulay2
+norm M
+norm(pM)
+```
+
+```macaulay2
+norm M
+
+```
+
+```text
+9.952219758672894287555632834552
+
+RR (of precision 100)
+```
+
+```macaulay2
+norm {3/2,4,-5}
+
+```
+
+```text
+5
+```
+
+```macaulay2
+norm oo
+
+```
+
+```text
+10
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `M` a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx) a [ matrix](../Type/op_Coredollar_Matrix.mdx) a [ ring element](../Type/RingElement.mdx) a [ number](../Type/op_Coredollar_Number.mdx) a [ vector](../Type/op_Coredollar_Vector.mdx) or a [ list](../Type/op_Coredollar_List.mdx)
+- `p` a [ real number](../Type/op_x226_x132_x157.mdx) or an [ infinite number](../Type/InfiniteNumber.mdx) specifying which norm to compute. Currently only `p=infinity` is accepted.
+- Outputs:
+- the $L^p$-norm of `M` computed to the minimum of the precisions of `M` and of `p`.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "norm",
+    "safe_name": "op_Coredollar_norm",
+    "type": "MethodFunction",
+    "description": " The norm of a polynomial is the norm of the vector of its coefficients....",
+    "installations": [
+        "<Installation norm(List)>",
+        "<Installation norm(RR, Number)>",
+        "<Installation norm(RR, RingElement)>",
+        "<Installation norm(InfiniteNumber, RingElement)>",
+        "<Installation norm(InfiniteNumber, Number)>",
+        "<Installation norm(RingElement)>",
+        "<Installation norm(RR, Matrix)>",
+        "<Installation norm(InfiniteNumber, Matrix)>",
+        "<Installation norm(Matrix)>",
+        "<Installation norm(Vector)>",
+        "<Installation norm(RR, MutableMatrix)>",
+        "<Installation norm(InexactField, MutableMatrix)>",
+        "<Installation norm(MutableMatrix)>",
+        "<Installation norm(Number)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$norm",
+        "full_doc": "... (3015 bytes) ...",
+        "parsed_headline": "norm"
+    }
+}
+```

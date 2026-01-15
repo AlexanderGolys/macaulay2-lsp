@@ -1,0 +1,75 @@
+---
+title: "readPackage"
+kind: Method
+---
+
+# readPackage
+
+**readPackage  -- read the package preamble**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+The file `PackageName.m2` should be on the load [path](../Instance/path.mdx) and should contain a package named `PackageName`. This function is mostly used for getting information about a package quickly and without processing the entire package.
+
+## Installed For
+
+### readPackage([Package](../Type/Package.mdx))
+
+### readPackage([String](../Type/String.mdx)) -> [OptionTable](../Type/OptionTable.mdx)
+
+## Options
+
+- [FileName](../Option/FileName.mdx) => null
+
+## Examples
+
+```macaulay2
+readPackage PackageName
+```
+
+## Additional Information
+
+- Inputs:
+- `PackageName` a [ string](../Type/op_Coredollar_String.mdx) the name of the package or a [Package](../Type/op_Coredollar_Package.mdx) object
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `FileName```a [ string](../Type/op_Coredollar_String.mdx) default value null the name of the file containing the source code of the package from which it should be read
+- Outputs:
+- an [ option table](../Type/OptionTable.mdx) containing the options given to [newPackage](../Method/op_Coredollar_newPackage.mdx) in the preamble of the package
+
+
+### See also
+
+
+- Macaulay2Doc:: Package
+- Macaulay2Doc:: newPackage
+- Macaulay2Doc:: loadPackage
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "readPackage",
+    "safe_name": "readPackage",
+    "type": "MethodFunctionWithOptions",
+    "description": "The file `PackageName.m2` should be on the load [path](../Instance/path.mdx) and should contain a pa...",
+    "installations": [
+        "<Installation readPackage(Package)>",
+        "<Installation readPackage(String)>"
+    ],
+    "options": [
+        {
+            "name": "FileName",
+            "default": "null"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "readPackage",
+        "full_doc": "... (2941 bytes) ...",
+        "parsed_headline": "readPackage  -- read the package preamble"
+    }
+}
+```

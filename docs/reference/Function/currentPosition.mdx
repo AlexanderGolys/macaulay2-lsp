@@ -5,29 +5,58 @@ kind: Function
 
 # currentPosition
 
-**Type:** `Function`
+**currentPosition  -- the current position in the current source file**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-currentPosition, -- the current position in the current source file, class => element, Usage: , currentPosition(), class => language-macaulay2, Outputs:, a , Macaulay2Doc :: FilePosition, file position, , , the current position in the source file, Description, class => examples, i1 : currentPosition()
-
-o1 = currentString:2:0
-
-o1 : FilePosition, class => language-macaulay2, i2 : peek'_2 oo
-
-o2 = FilePosition{"currentString", 2, 0, class => language-macaulay2, See also, Macaulay2Doc :: currentRowNumber, Macaulay2Doc :: currentColumnNumber, class => waystouse, For the programmer, The object , Macaulay2Doc :: currentPosition, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:909:0, .
+currentPosition  -- the current position in the current source file
 
 ## Examples
 
 ```macaulay2
-i1 : currentPosition()
-
-o1 = currentString:2:0
-
-o1 : FilePosition
+currentPosition()
 ```
 
-## See Also
+```macaulay2
+currentPosition()
 
+```
+
+```text
+currentString:2:0
+
+FilePosition
+```
+
+## Additional Information
+
+- Outputs:
+- a [ file position](../Type/op_Coredollar_FilePosition.mdx) the current position in the source file
+
+
+### See also
+
+
+- Macaulay2Doc:: currentRowNumber
+- Macaulay2Doc:: currentColumnNumber
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "currentPosition",
+    "safe_name": "currentPosition",
+    "type": "FunctionClosure",
+    "description": "currentPosition  -- the current position in the current source file...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "currentPosition",
+        "full_doc": "... (1009 bytes) ...",
+        "parsed_headline": "currentPosition  -- the current position in the current source file"
+    }
+}
+```

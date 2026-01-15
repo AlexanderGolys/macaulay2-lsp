@@ -1,0 +1,177 @@
+---
+title: "findProgram"
+kind: Method
+---
+
+# findProgram
+
+**findProgram  -- load external program**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+This function checks for the existence of an external program by running `cmd ` (or every element of `cmds`) prepended with various paths in the following order:
+- The user-defined path specified by `programPaths#name` if it exists.
+- The path specified by `prefixDirectory | currentLayout#"programs"` where the programs shipped with Macaulay2 are installed.
+- Each path specified by the `AdditionalPaths` option.
+- Each path specified by the user's `PATH` environment variable.
+- The path to `M2-binary`.
+
+For each path any prefixes specified by the `Prefix` option are checked.Once this is successful (i.e.`cmd` or each element of `cmds` returns a value of 0) then a [Program](../Type/op_Coredollar_Program.mdx) object is returned.  If it is unsuccessful then either an error is raised or [null](../Instance/null.mdx) is returned depending on the value of `RaiseError`.Note that if a program consists of a single executable binary file then `name` should coincide with the name of this file.If `cmd` is not provided then `name` is run with the common `--version` command line option.One program that is shipped with a variety of prefixes in different distributions and for which the `Prefix` option is useful is TOPCOM:Note that when using the `MinimumVersion` option the command used to obtain the current version number must remove everything except the version number itself and any leading or trailing whitespace.  Piping with standard UNIX utilities such as `sed``head``tail``cut` and `tr` may be useful.
+
+## Installed For
+
+### findProgram([String](../Type/String.mdx))
+
+### findProgram([String](../Type/String.mdx), [List](../Type/List.mdx))
+
+### findProgram([String](../Type/String.mdx), [String](../Type/String.mdx))
+
+## Options
+
+- [RaiseError](../Method/RaiseError.mdx) => true
+- [AdditionalPaths](../Option/AdditionalPaths.mdx) => {}
+- [MinimumVersion](../Method/MinimumVersion.mdx) => null
+- [Verbose](../Method/Verbose.mdx) => false
+- [Prefix](../Option/Prefix.mdx) => {}
+
+## Examples
+
+```macaulay2
+findProgram name
+findProgram(name cmd)
+findProgram(name cmds)
+```
+
+```macaulay2
+gfan = findProgram("gfan" "gfan _version --help"
+```
+
+```macaulay2
+findProgram "normaliz"
+
+```
+
+```text
+normaliz
+
+Program
+```
+
+```macaulay2
+findProgram("topcom" "cube 3"001][1001][0101][1101][0011][1011][0111][1111]]
+[[76543210][67452301][46570213][04261537]]
+ -- return value: 0
+
+```
+
+```text
+topcom
+
+Program
+```
+
+```macaulay2
+findProgram("gfan" "gfan _version --help"
+      "gfan _version | head -2 | tail -1 | sed 's/gfan//'"))
+ -- /path/to/gfan/gfan does not exist
+ -- /usr/lib/Macaulay2/Macaulay2/bin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/sbin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/games/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/sbin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /home/m2user/.cursor/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts/gfan does not exist
+ -- /home/m2user/.local/share/mise/installs/node/25.2.1/bin/gfan does not exist
+ -- /home/m2user/.local/share/omarchy/bin/gfan does not exist
+ -- /home/m2user/.cargo/bin/gfan does not exist
+ -- /usr/local/sbin/gfan does not exist
+ -- /usr/local/bin/gfan does not exist
+ -- /usr/bin/gfan exists and is executable
+ -- running "/usr/bin/gfan _version --help":
+This program writes out version information of the Gfan installation.
+ -- return value: 0
+ -- found version 0.7 >= 0.5
+
+```
+
+```text
+gfan
+
+Program
+```
+
+## Additional Information
+
+- Inputs:
+- `name` a [ string](../Type/op_Coredollar_String.mdx) the name of the program to load. This should match the corresponding key in [programPaths](../Instance/programPaths.mdx).
+- `cmd` a [ string](../Type/op_Coredollar_String.mdx) a command to run that should return 0 if the program is present.
+- `cmds` a [ list](../Type/op_Coredollar_List.mdx) a list of commands to run that should all return 0 if the program is present.
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `RaiseError```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value true whether to raise an error if the program is not found.
+- `Verbose```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to inform the user of each path that is checked.
+- `Prefix```a [ list](../Type/op_Coredollar_List.mdx) default value {} a list of sequences containing two strings identifying a prefix that is added to the executable binaries belonging to the program by some distributions. These sequences should be of the form `(regex prefix)` where `regex` is a [ regular expression](../Instance/regular expressions.mdx) that should match all binary executables that need the prefix and `prefix` is the prefix itself.
+- `AdditionalPaths```a [ list](../Type/op_Coredollar_List.mdx) default value {} a list of strings containing any paths to check for the program in addition to the default ones.
+- `MinimumVersion```a [ sequence](../Type/Sequence.mdx) default value null containing two strings the form `(minVersion versionCommand)` where `minVersion` is the minimum required version of the program and `versionCommand` is a shell command to obtain the version number of an installed program.
+- Outputs:
+- an instance of the type [Program](../Type/op_Coredollar_Program.mdx) the program that was loaded. If the program is not found and `RaiseError` is set to [false](../Instance/op_Coredollar_blockMatrixForm.mdx) then [null](../Instance/null.mdx) is returned.
+
+
+### See also
+
+
+- Macaulay2Doc:: runProgram
+- Macaulay2Doc:: searchPath
+
+
+- Macaulay2Doc:: Program
+- Macaulay2Doc:: programPaths
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "findProgram",
+    "safe_name": "findProgram",
+    "type": "MethodFunctionWithOptions",
+    "description": "This function checks for the existence of an external program by running `cmd ` (or every element of...",
+    "installations": [
+        "<Installation findProgram(String)>",
+        "<Installation findProgram(String, String)>",
+        "<Installation findProgram(String, List)>"
+    ],
+    "options": [
+        {
+            "name": "RaiseError",
+            "default": "true"
+        },
+        {
+            "name": "AdditionalPaths",
+            "default": "{}"
+        },
+        {
+            "name": "MinimumVersion",
+            "default": "null"
+        },
+        {
+            "name": "Verbose",
+            "default": "false"
+        },
+        {
+            "name": "Prefix",
+            "default": "{}"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "findProgram",
+        "full_doc": "... (8776 bytes) ...",
+        "parsed_headline": "findProgram  -- load external program"
+    }
+}
+```

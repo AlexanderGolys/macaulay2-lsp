@@ -1,0 +1,106 @@
+---
+title: "isMember"
+kind: Method
+---
+
+# isMember
+
+**isMember  -- test membership in a list or set**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+This function may also be called using the synonym `member`.
+
+## Installed For
+
+### isMember([Number](../Type/Number.mdx), [Ideal](../Type/Ideal.mdx))
+
+### isMember([QQ](../Type/QQ.mdx), [RRi](../Type/RRi.mdx))
+
+### isMember([RR](../Type/RR.mdx), [RRi](../Type/RRi.mdx))
+
+### isMember([RingElement](../Type/RingElement.mdx), [Ideal](../Type/Ideal.mdx))
+
+### isMember([Thing](../Type/Thing.mdx), [Set](../Type/Set.mdx))
+
+### isMember([Thing](../Type/Thing.mdx), [VisibleList](../Type/VisibleList.mdx))
+
+### isMember([ZZ](../Type/ZZ.mdx), [RRi](../Type/RRi.mdx))
+
+## Examples
+
+```macaulay2
+isMember(ex)
+```
+
+```macaulay2
+isMember(c{a,b,c,d,e})
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isMember(f(abcde))
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isMember(3set{1,2,5,6})
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `e` a [ thing](../Type/Thing.mdx)
+- `x` a [ list](../Type/op_Coredollar_List.mdx) a [ sequence](../Type/Sequence.mdx) or a [ set](../Type/op_Coredollar_Set.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether e is in the list sequence or set x;
+
+
+### See also
+
+
+- Macaulay2Doc:: positions
+- Macaulay2Doc:: Set
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isMember",
+    "safe_name": "isMember",
+    "type": "MethodFunction",
+    "description": "This function may also be called using the synonym `member`....",
+    "installations": [
+        "<Installation isMember(RR, RRi)>",
+        "<Installation isMember(QQ, RRi)>",
+        "<Installation isMember(ZZ, RRi)>",
+        "<Installation isMember(Thing, VisibleList)>",
+        "<Installation isMember(RingElement, Ideal)>",
+        "<Installation isMember(Number, Ideal)>",
+        "<Installation isMember(Thing, Set)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "isMember",
+        "full_doc": "... (1862 bytes) ...",
+        "parsed_headline": "isMember  -- test membership in a list or set"
+    }
+}
+```

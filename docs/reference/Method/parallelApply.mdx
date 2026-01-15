@@ -1,0 +1,65 @@
+---
+title: "parallelApply"
+kind: Method
+---
+
+# parallelApply
+
+**parallelApply  -- apply a function to each element in parallel**
+
+**Type:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+If the option Strategy is given the string "raw" then a separate task is created for each element of L. L is not split into chunks[allowableThreads](../Instance/allowableThreads.mdx) is used unchanged and the result has the same class as L.   Normally the default strategy (``) is more efficient.See [parallel programming with threads and tasks](../Instance/parallel programming with threads and tasks.mdx) for more information and an important warning about thread safety.
+
+## Installed For
+
+### parallelApply([BasicList](../Type/BasicList.mdx), [Function](../Type/Function.mdx)) -> [List](../Type/List.mdx)
+
+## Options
+
+- [Strategy](../Option/Strategy.mdx) => null
+
+## Examples
+
+```macaulay2
+parallelApply(Lf)
+```
+
+## Additional Information
+
+- Inputs:
+- `L` a [ basic list](../Type/op_Coredollar_BasicList.mdx)
+- `f` a [ function](../Type/Function.mdx)
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `Strategy```[null](../Instance/null.mdx) or a [ string](../Type/op_Coredollar_String.mdx) default value null
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) or a [ basic list](../Type/op_Coredollar_BasicList.mdx) If the [Strategy](../Instance/Strategy.mdx) option is [null](../Instance/null.mdx) then this behaves like `toList apply(Lf)` with the result computed in parallel in chunks using all cores. If it is the string "raw" then this behaves like `apply(apply(L e -> schedule(f e)) taskResult)`.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "parallelApply",
+    "safe_name": "op_Coredollar_parallelApply",
+    "type": "MethodFunctionWithOptions",
+    "description": "If the option Strategy is given the string \"raw\" then a separate task is created for each element of...",
+    "installations": [
+        "<Installation parallelApply(BasicList, Function)>"
+    ],
+    "options": [
+        {
+            "name": "Strategy",
+            "default": "null"
+        }
+    ],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$parallelApply",
+        "full_doc": "... (2189 bytes) ...",
+        "parsed_headline": "parallelApply  -- apply a function to each element in parallel"
+    }
+}
+```

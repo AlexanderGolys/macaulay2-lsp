@@ -1,0 +1,82 @@
+---
+title: "coefficientRing"
+kind: Method
+---
+
+# coefficientRing
+
+**coefficientRing  -- get the coefficient ring**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ If `R`  is a polynomial ring then the coefficient ring is the base ring from which the coefficients are drawn.  If `R`  is constructed from a polynomial ring as a quotient ring or a fraction ring or a sequence of such operations then the original coefficient ring is returned.
+
+## Installed For
+
+### coefficientRing([FractionField](../Type/FractionField.mdx))
+
+### coefficientRing([PolynomialRing](../Type/PolynomialRing.mdx))
+
+### coefficientRing([QuotientRing](../Type/QuotientRing.mdx))
+
+### coefficientRing([Ring](../Type/Ring.mdx)) -> [Ring](../Type/Ring.mdx)
+
+## Examples
+
+```macaulay2
+coefficientRing R
+```
+
+```macaulay2
+coefficientRing(ZZ/101[a][b])
+
+      ZZ
+```
+
+```text
+---[a]
+     101
+
+PolynomialRing
+```
+
+## Additional Information
+
+- Inputs:
+- `R` a [ ring](../Type/Ring.mdx)
+- Outputs:
+- a [ ring](../Type/Ring.mdx) the coefficient ring of `R`
+
+
+### See also
+
+
+- Macaulay2Doc:: ultimate
+- Macaulay2Doc:: baseRings
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "coefficientRing",
+    "safe_name": "op_Coredollar_coefficientRing",
+    "type": "MethodFunction",
+    "description": " If `R`  is a polynomial ring then the coefficient ring is the base ring from which the coefficients...",
+    "installations": [
+        "<Installation coefficientRing(FractionField)>",
+        "<Installation coefficientRing(QuotientRing)>",
+        "<Installation coefficientRing(PolynomialRing)>",
+        "<Installation coefficientRing(Ring)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$coefficientRing",
+        "full_doc": "... (1495 bytes) ...",
+        "parsed_headline": "coefficientRing  -- get the coefficient ring"
+    }
+}
+```

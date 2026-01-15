@@ -1,0 +1,118 @@
+---
+title: "formation"
+kind: Method
+---
+
+# formation
+
+**formation  -- recover the methods used to make a module**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+If the module was created as a direct sum tensor product of Hom-module then the expression will reflect that. In each case the result is a function application and the sequence of arguments is easily obtained.If the module was not obtained that way then [null](../Instance/null.mdx)  is returned.The same remarks apply to certain other types of objects such as chain complexes.
+
+## Installed For
+
+### formation([Module](../Type/Module.mdx)) -> [Expression](../Type/Expression.mdx)
+
+## Examples
+
+```macaulay2
+formation M
+```
+
+```macaulay2
+t = formation M
+
+                  2    3
+```
+
+```text
+directSum (ZZ  ZZ )
+
+Expression of class FunctionApplication
+```
+
+```macaulay2
+t = formation M
+
+                  2    3    4
+```
+
+```text
+directSum (ZZ  ZZ  ZZ )
+
+Expression of class FunctionApplication
+```
+
+```macaulay2
+t = formation M
+
+                2    3
+```
+
+```text
+tensor (ZZ  ZZ )
+
+Expression of class FunctionApplication
+```
+
+```macaulay2
+formation ZZ^6
+```
+
+```macaulay2
+formation D
+
+                  1      2      1         1      2      1
+```
+
+```text
+directSum (R  <-- R  <-- R  <-- 0 R  <-- R  <-- R  <-- 0)
+                                                               
+                 0      1      2      3  0      1      2      3
+
+Expression of class FunctionApplication
+```
+
+## Additional Information
+
+- Inputs:
+- `M` a [ module](../Type/op_Coredollar_Module.mdx) a module
+- Outputs:
+- an [ expression](../Type/op_Coredollar_Expression.mdx) an [ expression](../Type/op_Coredollar_Expression.mdx) whose value is the module itself
+
+
+### See also
+
+
+- Macaulay2Doc:: directSum
+- Macaulay2Doc:: Module ++ Module
+- Macaulay2Doc:: Module ** Module
+- Macaulay2Doc:: Hom(ModuleModule)
+- Macaulay2Doc:: FunctionApplication
+- Macaulay2Doc:: Expression
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "formation",
+    "safe_name": "op_Coredollar_formation",
+    "type": "MethodFunction",
+    "description": "If the module was created as a direct sum tensor product of Hom-module then the expression will refl...",
+    "installations": [
+        "<Installation formation(Module)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$formation",
+        "full_doc": "... (4090 bytes) ...",
+        "parsed_headline": "formation  -- recover the methods used to make a module"
+    }
+}
+```

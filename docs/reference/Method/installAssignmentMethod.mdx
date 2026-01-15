@@ -1,0 +1,79 @@
+---
+title: "installAssignmentMethod"
+kind: Method
+---
+
+# installAssignmentMethod
+
+**installAssignmentMethod  -- install methods assignment to the value of an operator**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+If the operator is a unary operator just omit `X`  and its comma.We illustrate this function by defining a type of mutable list whose elements can be both extracted and replaced using the operator `_` .  We also install a method for [net](../Method/op_Coredollar_net.mdx)  so objects of the class can be printed. For sample applications of this facility see [Symbol _ Thing = Thing](../Instance/Symbol _ Thing = Thing.mdx)  and [MutableMatrix _ Sequence = Thing](../Instance/MutableMatrix _ Sequence = Thing.mdx) .
+
+## Installed For
+
+### installAssignmentMethod([Symbol](../Type/Symbol.mdx), [HashTable](../Type/HashTable.mdx), [Function](../Type/Function.mdx))
+
+### installAssignmentMethod([Symbol](../Type/Symbol.mdx), [HashTable](../Type/HashTable.mdx), [HashTable](../Type/HashTable.mdx), [Function](../Type/Function.mdx))
+
+### installAssignmentMethod([Symbol](../Type/Symbol.mdx), [HashTable](../Type/HashTable.mdx), [HashTable](../Type/HashTable.mdx), [Option](../Type/Option.mdx))
+
+### installAssignmentMethod([Symbol](../Type/Symbol.mdx), [HashTable](../Type/HashTable.mdx), [Option](../Type/Option.mdx))
+
+## Examples
+
+```macaulay2
+installAssignmentMethod(opXYf)
+```
+
+```macaulay2
+installAssignmentMethod(symbol _ M ZZ (xiv) -> x#i = v);
+```
+
+## Additional Information
+
+- Inputs:
+- `op` a [ keyword](../Type/op_Coredollar_Keyword.mdx) the symbol for a binary operator
+- `X` a [ type](../Type/op_Coredollar_Type.mdx) the type of the left-hand operand
+- `Y` a [ type](../Type/op_Coredollar_Type.mdx) the type of the right-hand operand
+- `f` a [ function](../Type/Function.mdx) the method function that will perform the assignment
+- Consequences:
+- If the operator to be used is `**` say then `op` should be `symbol **`. After installing the assignment method assignments of the form `x**y=v` will be handled by evaluating `f(xyv)`.
+
+
+### Caveat
+
+ The syntax involved here is not pleasant so we may change it to something briefer something involving yet another assignment operator distinct from `=`  and `:=` .
+### See also
+
+
+- Macaulay2Doc:: MutableList
+- Macaulay2Doc:: BasicList # ZZ
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "installAssignmentMethod",
+    "safe_name": "op_Coredollar_installAssignmentMethod",
+    "type": "MethodFunction",
+    "description": "If the operator is a unary operator just omit `X`  and its comma.We illustrate this function by defi...",
+    "installations": [
+        "<Installation installAssignmentMethod(Symbol, HashTable, HashTable, Option)>",
+        "<Installation installAssignmentMethod(Symbol, HashTable, HashTable, Function)>",
+        "<Installation installAssignmentMethod(Symbol, HashTable, Option)>",
+        "<Installation installAssignmentMethod(Symbol, HashTable, Function)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$installAssignmentMethod",
+        "full_doc": "... (3514 bytes) ...",
+        "parsed_headline": "installAssignmentMethod  -- install methods assignment to the value of an operator"
+    }
+}
+```

@@ -5,35 +5,58 @@ kind: Function
 
 # isRegularFile
 
-**Type:** `Function`
+**isRegularFile  -- whether a file is a regular file**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-isRegularFile, -- whether a file is a regular file, class => element, Usage: , isRegularFile fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, , , a filename or path, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , fn, is the path to a regular file, Description, In UNIX, a regular file is one that is not special in some way. Special files include symbolic links and directories. A regular file is a sequence of bytes stored permanently in a file system., class => examples, i1 : fn = temporaryFileName()
-
-o1 = /tmp/M2-710771-0/0, class => language-macaulay2, i2 : fn << "hi there" << close
-
-o2 = /tmp/M2-710771-0/0
-
-o2 : File, class => language-macaulay2, i3 : isRegularFile fn
-
-o3 = true, class => language-macaulay2, i4 : removeFile fn, class => language-macaulay2, See also, Macaulay2Doc :: isDirectory, Macaulay2Doc :: readlink, class => waystouse, For the programmer, The object , Macaulay2Doc :: isRegularFile, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isRegularFile-doc.m2:21:0, .
+ In UNIX a regular file is one that is not special in some way.  Special files include symbolic links and directories.  A regular file is a sequence of bytes stored permanently in a file system.
 
 ## Examples
 
 ```macaulay2
-i1 : fn = temporaryFileName()
-
-o1 = /tmp/M2-710771-0/0
-
-i2 : fn << "hi there" << close
-
-o2 = /tmp/M2-710771-0/0
-
-o2 : File
+isRegularFile fn
 ```
 
-## See Also
+```macaulay2
+isRegularFile fn
 
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `fn` a [ string](../Type/op_Coredollar_String.mdx) a filename or path
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) whether `fn` is the path to a regular file
+
+
+### See also
+
+
+- Macaulay2Doc:: isDirectory
+- Macaulay2Doc:: readlink
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "isRegularFile",
+    "safe_name": "op_Coredollar_isRegularFile",
+    "type": "CompiledFunction",
+    "description": " In UNIX a regular file is one that is not special in some way.  Special files include symbolic link...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isRegularFile",
+        "full_doc": "... (1452 bytes) ...",
+        "parsed_headline": "isRegularFile  -- whether a file is a regular file"
+    }
+}
+```

@@ -1,0 +1,92 @@
+---
+title: "partition"
+kind: Method
+---
+
+# partition
+
+**partition  -- partition a set or list by values of a function**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ The following example partitions the generators of an ideal by degree.
+
+## Installed For
+
+### partition([Function](../Type/Function.mdx), [VirtualTally](../Type/VirtualTally.mdx))
+
+### partition([Function](../Type/Function.mdx), [VirtualTally](../Type/VirtualTally.mdx), [VisibleList](../Type/VisibleList.mdx))
+
+### partition([Function](../Type/Function.mdx), [VisibleList](../Type/VisibleList.mdx)) -> [HashTable](../Type/HashTable.mdx)
+
+### partition([Function](../Type/Function.mdx), [VisibleList](../Type/VisibleList.mdx), [VisibleList](../Type/VisibleList.mdx))
+
+## Examples
+
+```macaulay2
+partition(fL)
+partition(fLI)
+```
+
+```macaulay2
+partition(odd
+```
+
+```macaulay2
+partition(odd
+```
+
+```macaulay2
+partition(odd
+```
+
+```macaulay2
+partition (even {3,3,5}
+```
+
+```macaulay2
+partition(f -> first degree f
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx)
+- `L` a [ visible list](../Type/VisibleList.mdx) or a [ virtual tally](../Type/VirtualTally.mdx)
+- Outputs:
+- a [ hash table](../Type/op_Coredollar_HashTable.mdx) whose keys are the possible values of the function `f` on the elements of the list set or tally `L` and the corresponding value of the hash table is the list set or tally of elements of `L` which take that value under `f`. The optional third argument `I` is a list whose elements will be included as keys in the return value allowing empty lists to appear in the partition.
+
+
+### See also
+
+
+- Macaulay2Doc:: tally
+- Macaulay2Doc:: partitions
+- Macaulay2Doc:: sublists
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "partition",
+    "safe_name": "op_Coredollar_partition",
+    "type": "MethodFunction",
+    "description": " The following example partitions the generators of an ideal by degree....",
+    "installations": [
+        "<Installation partition(Function, VirtualTally)>",
+        "<Installation partition(Function, VirtualTally, VisibleList)>",
+        "<Installation partition(Function, VisibleList)>",
+        "<Installation partition(Function, VisibleList, VisibleList)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$partition",
+        "full_doc": "... (3442 bytes) ...",
+        "parsed_headline": "partition  -- partition a set or list by values of a function"
+    }
+}
+```

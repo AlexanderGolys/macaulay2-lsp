@@ -1,113 +1,110 @@
 ---
 title: "Boolean"
 kind: Type
-parent: Thing
 ---
 
 # Boolean
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Boolean  -- the class of boolean values**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+ Predicate functions return these as values and the logical connectives expect to receive them as arguments. Special operators dealing with truth values.
+- Macaulay2Doc:: not
+- Macaulay2Doc:: and
+- Macaulay2Doc:: or
+- Macaulay2Doc:: xor
+- Macaulay2Doc:: if
 
-## Parent Type
 
-[Thing](../Type/Thing.mdx)
 
-## Instances
+## Additional Information
 
-Direct instances of this type:
+[true](../Instance/op_Coredollar_true.mdx)[false](../Instance/op_Coredollar_blockMatrixForm.mdx)
 
-- `false`
-- `hasDocs`
-- `compactMatrixForm`
-- `handleInterrupts`
-- `stopIfError`
-- `notify`
-- `true`
-- `backtrace`
-- `debuggingMode`
-- `blockMatrixForm`
+## Debug info
 
-## Methods
-
-Methods that can be used with this type:
-
-### `==`
-
-- `==(Boolean, Boolean)`
-
-### `>>`
-
-- `>>(Boolean, Function)`
-
-### `and`
-
-- `and(Boolean, Boolean)`
-
-### `expression`
-
-- `expression(Boolean)`
-
-### `html`
-
-- `html(Boolean)`
-
-### `hypertext`
-
-- `hypertext(Boolean)`
-
-### `mathML`
-
-- `mathML(Boolean)`
-
-### `net`
-
-- `net(Boolean)`
-
-### `not`
-
-- `not(Boolean)`
-
-### `or`
-
-- `or(Boolean, Boolean)`
-
-### `toExternalString`
-
-- `toExternalString(Boolean)`
-
-### `xor`
-
-- `xor(Boolean, Boolean)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [==](../Operator/op_eq_eq.mdx)
-- [>>](../Operator/op_gt_gt.mdx)
-- [and](../Operator/and.mdx)
-- [expression](../Function/expression.mdx)
-- [html](../Function/html.mdx)
-- [hypertext](../Function/hypertext.mdx)
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-- [not](../Operator/not.mdx)
-- [or](../Operator/or.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-- [xor](../Operator/xor.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Thing](../Type/Thing.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Boolean",
+    "safe_name": "op_Coredollar_Boolean",
+    "type": null,
+    "description": " Predicate functions return these as values and the logical connectives expect to receive them as ar...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Boolean",
+        "parent": "Thing",
+        "methods": [
+            [
+                "html",
+                "Boolean"
+            ],
+            [
+                "expression",
+                "Boolean"
+            ],
+            [
+                "hypertext",
+                "Boolean"
+            ],
+            [
+                "xor",
+                "Boolean",
+                "Boolean"
+            ],
+            [
+                "mathML",
+                "Boolean"
+            ],
+            [
+                ">>",
+                "Boolean",
+                "Function"
+            ],
+            [
+                "not",
+                "Boolean"
+            ],
+            [
+                "or",
+                "Boolean",
+                "Boolean"
+            ],
+            [
+                "==",
+                "Boolean",
+                "Boolean"
+            ],
+            [
+                "and",
+                "Boolean",
+                "Boolean"
+            ],
+            [
+                "net",
+                "Boolean"
+            ],
+            [
+                "toExternalString",
+                "Boolean"
+            ]
+        ],
+        "instances": [
+            "false",
+            "compactMatrixForm",
+            "handleInterrupts",
+            "notify",
+            "stopIfError",
+            "true",
+            "backtrace",
+            "debuggingMode",
+            "blockMatrixForm"
+        ],
+        "full_doc": "... (7327 bytes) ...",
+        "parsed_headline": "Boolean  -- the class of boolean values"
+    }
+}
+```

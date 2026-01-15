@@ -5,17 +5,46 @@ kind: Function
 
 # userSymbols
 
-**Type:** `Function`
+**userSymbols  -- a list of the user's symbols**
 
-**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+**Type:** [FunctionClosure](../Type/FunctionClosure.mdx)
 
 ## Description
 
-userSymbols, -- a list of the user's symbols, class => element, Usage: , userSymbols (), class => language-macaulay2, Outputs:, a , Macaulay2Doc :: List, list, , , a list of symbols, Description, userSymbols (), provides a list of symbols defined by the user., , userSymbols X, limits the list to those symbols whose values are instances of the , Macaulay2Doc :: class, , X, ., , Protected symbols are excluded from the list., See also, Macaulay2Doc :: listUserSymbols, class => waystouse, For the programmer, The object , Macaulay2Doc :: userSymbols, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:603:0, .
+`userSymbols ()`  provides a list of symbols defined by the user.`userSymbols X`  limits the list to those symbols whose values are instances of the [class](../Function/op_Coredollar_class.mdx)  `X` . Protected symbols are excluded from the list.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+userSymbols ()
+```
 
-## See Also
+## Additional Information
 
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) a list of symbols
+
+
+### See also
+
+
+- Macaulay2Doc:: listUserSymbols
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "userSymbols",
+    "safe_name": "userSymbols",
+    "type": "FunctionClosure",
+    "description": "`userSymbols ()`  provides a list of symbols defined by the user.`userSymbols X`  limits the list to...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "userSymbols",
+        "full_doc": "... (906 bytes) ...",
+        "parsed_headline": "userSymbols  -- a list of the user's symbols"
+    }
+}
+```

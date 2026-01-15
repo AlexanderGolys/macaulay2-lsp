@@ -1,53 +1,62 @@
 ---
 title: "MapExpression"
 kind: Type
-parent: Expression
 ---
 
 # MapExpression
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [HeaderType](../Type/HeaderType.mdx)
+**MapExpression  -- the class of map expressions**
 
 ## Description
 
-An instance of the type [HeaderType](../Type/HeaderType.mdx).
-
-## Parent Type
-
-[Expression](../Type/Expression.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `mathML`
-
-- `mathML(MapExpression)`
-
-### `net`
-
-- `net(MapExpression)`
-
-### `texMath`
-
-- `texMath(MapExpression)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [mathML](../Function/mathML.mdx)
-- [net](../Function/net.mdx)
-- [texMath](../Function/texMath.mdx)
+`MapExpression`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a map.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+MapExpression {a,b,c}
 
-## See Also
+```
 
-- [Expression](../Type/Expression.mdx) (parent type)
+```text
+a <----- b
+          c
+
+Expression of class MapExpression
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "MapExpression",
+    "safe_name": "op_Coredollar_MapExpression",
+    "type": null,
+    "description": "`MapExpression`  is a type of [Expression](../Type/op_Coredollar_Expression.mdx)  representing a map...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$MapExpression",
+        "parent": "Expression",
+        "methods": [
+            [
+                "net",
+                "MapExpression"
+            ],
+            [
+                "texMath",
+                "MapExpression"
+            ],
+            [
+                "mathML",
+                "MapExpression"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (794 bytes) ...",
+        "parsed_headline": "MapExpression  -- the class of map expressions"
+    }
+}
+```

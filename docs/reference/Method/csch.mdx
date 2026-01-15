@@ -1,0 +1,76 @@
+---
+title: "csch"
+kind: Method
+---
+
+# csch
+
+**csch  -- hyperbolic cosecant**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+See https://en.wikipedia.org/wiki/Hyperbolic_function Hyperbolic function .
+
+## Installed For
+
+### csch([CC](../Type/CC.mdx))
+
+### csch([Number](../Type/Number.mdx))
+
+### csch([RR](../Type/RR.mdx))
+
+### csch([RRi](../Type/RRi.mdx)) -> [RR](../Type/RR.mdx)
+
+## Examples
+
+```macaulay2
+csch x
+csch I
+```
+
+```macaulay2
+csch(pi/3)
+
+```
+
+```text
+.8004052928885931
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `x`
+- `I` a [ real interval](../Type/RRi.mdx)
+- Outputs:
+- a [ real number](../Type/op_x226_x132_x157.mdx) the hyperbolic cosecant of `x`
+- a [ real interval](../Type/RRi.mdx) an interval containing the hyperbolic cosecants of the points of `I`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "csch",
+    "safe_name": "csch",
+    "type": "MethodFunction",
+    "description": "See https://en.wikipedia.org/wiki/Hyperbolic_function Hyperbolic function ....",
+    "installations": [
+        "<Installation csch(Number)>",
+        "<Installation csch(CC)>",
+        "<Installation csch(RR)>",
+        "<Installation csch(RRi)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "csch",
+        "full_doc": "... (1228 bytes) ...",
+        "parsed_headline": "csch  -- hyperbolic cosecant"
+    }
+}
+```

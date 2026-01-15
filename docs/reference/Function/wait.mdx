@@ -5,17 +5,29 @@ kind: Function
 
 # wait
 
-**Type:** `Function`
+**wait  -- wait for child process**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-wait, -- wait for child process, Description, wait i, waits for the completion of child process with process id , i, ., , wait f, waits for the input file to have some input ready., , wait s, waits for at least one of the files in the list , s, of input files to be ready, and return the list of positions corresponding to ready files., , wait v, checks whether the processes whose id's are in the list , v, of integers have terminated, and returns a list containing the status codes for those processes that have terminated. A value of -1 in the list indicates an error for that process id, and a value of -2 in the list indicates that the process is still running., class => waystouse, For the programmer, The object , Macaulay2Doc :: wait, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:962:0, .
+`wait i`  waits for the completion of child process with process id `i` .`wait f`  waits for the input file to have some input ready.`wait s`  waits for at least one of the files in the list `s`  of input files to be ready and return the list of positions corresponding to ready files.`wait v`  checks whether the processes whose id's are in the list `v`  of integers have terminated and returns a list containing the status codes for those processes that have terminated.  A value of -1 in the list indicates an error for that process id and a value of -2 in the list indicates that the process is still running.
 
-## Examples
+## Debug info
 
-*Examples would be extracted from M2 documentation here*
-
-## See Also
-
+```python
+{
+    "obj_type": "Function",
+    "name": "wait",
+    "safe_name": "op_Coredollar_wait",
+    "type": "CompiledFunction",
+    "description": "`wait i`  waits for the completion of child process with process id `i` .`wait f`  waits for the inp...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$wait",
+        "full_doc": "... (1036 bytes) ...",
+        "parsed_headline": "wait  -- wait for child process"
+    }
+}
+```

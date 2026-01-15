@@ -1,204 +1,256 @@
 ---
 title: "MonomialIdeal"
 kind: Type
-parent: Ideal
 ---
 
 # MonomialIdeal
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**MonomialIdeal  -- the class of all monomial ideals handled by the engine**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[Ideal](../Type/Ideal.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `%`
-
-- `%(Matrix, MonomialIdeal)`
-- `%(RingElement, MonomialIdeal)`
-- `%(ZZ, MonomialIdeal)`
-
-### `*`
-
-- `*(MonomialIdeal, MonomialIdeal)`
-- `*(MonomialIdeal, Ring)`
-- `*(Ring, MonomialIdeal)`
-- `*(ZZ, MonomialIdeal)`
-- `*(RingElement, MonomialIdeal)`
-
-### `+`
-
-- `+(MonomialIdeal, MonomialIdeal)`
-
-### `-`
-
-- `-(MonomialIdeal, MonomialIdeal)`
-
-### `//`
-
-- `//(Matrix, MonomialIdeal)`
-- `//(ZZ, MonomialIdeal)`
-- `//(RingElement, MonomialIdeal)`
-
-### `:`
-
-- `:(MonomialIdeal, RingElement)`
-
-### `==`
-
-- `==(MonomialIdeal, MonomialIdeal)`
-- `==(MonomialIdeal, ZZ)`
-- `==(ZZ, MonomialIdeal)`
-
-### `^`
-
-- `^(MonomialIdeal, Array)`
-- `^(MonomialIdeal, ZZ)`
-
-### `borel`
-
-- `borel(MonomialIdeal)`
-
-### `codim`
-
-- `codim(MonomialIdeal)`
-
-### `dim`
-
-- `dim(MonomialIdeal)`
-
-### `dual`
-
-- `dual(MonomialIdeal)`
-- `dual(MonomialIdeal, RingElement)`
-- `dual(MonomialIdeal, List)`
-
-### `expression`
-
-- `expression(MonomialIdeal)`
-
-### `generators`
-
-- `generators(MonomialIdeal)`
-
-### `ideal`
-
-- `ideal(MonomialIdeal)`
-
-### `independentSets`
-
-- `independentSets(MonomialIdeal)`
-
-### `irreducibleDecomposition`
-
-- `irreducibleDecomposition(MonomialIdeal)`
-
-### `isBorel`
-
-- `isBorel(MonomialIdeal)`
-
-### `isMonomialIdeal`
-
-- `isMonomialIdeal(MonomialIdeal)`
-
-### `isSquareFree`
-
-- `isSquareFree(MonomialIdeal)`
-
-### `lcm`
-
-- `lcm(MonomialIdeal)`
-
-### `mingens`
-
-- `mingens(MonomialIdeal)`
-
-### `monomialIdeal`
-
-- `monomialIdeal(MonomialIdeal)`
-
-### `numgens`
-
-- `numgens(MonomialIdeal)`
-
-### `poincare`
-
-- `poincare(MonomialIdeal)`
-
-### `polarize`
-
-- `polarize(MonomialIdeal)`
-
-### `quotient`
-
-- `quotient(MonomialIdeal, RingElement)`
-
-### `saturate`
-
-- `saturate(MonomialIdeal, RingElement)`
-
-### `standardPairs`
-
-- `standardPairs(MonomialIdeal, List)`
-- `standardPairs(MonomialIdeal)`
-
-### `toExternalString`
-
-- `toExternalString(MonomialIdeal)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [%](../Operator/op_percent.mdx)
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [//](../Operator/op_slash_slash.mdx)
-- [:](../Operator/op_colon.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [^](../Operator/op_caret.mdx)
-- [borel](../Function/borel.mdx)
-- [codim](../Function/codim.mdx)
-- [dim](../Function/dim.mdx)
-- [dual](../Function/dual.mdx)
-- [expression](../Function/expression.mdx)
-- [generators](../Function/generators.mdx)
-- [ideal](../Function/ideal.mdx)
-- [independentSets](../Function/independentSets.mdx)
-- [irreducibleDecomposition](../Type/irreducibleDecomposition.mdx)
-- [isBorel](../Function/isBorel.mdx)
-- [isMonomialIdeal](../Function/isMonomialIdeal.mdx)
-- [isSquareFree](../Function/isSquareFree.mdx)
-- [lcm](../Function/lcm.mdx)
-- [mingens](../Function/mingens.mdx)
-- [monomialIdeal](../Function/monomialIdeal.mdx)
-- [numgens](../Function/numgens.mdx)
-- [poincare](../Function/poincare.mdx)
-- [polarize](../Function/polarize.mdx)
-- [quotient](../Function/quotient.mdx)
-- [saturate](../Function/saturate.mdx)
-- [standardPairs](../Function/standardPairs.mdx)
-- [toExternalString](../Function/toExternalString.mdx)
-
-*... and 1 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [Ideal](../Type/Ideal.mdx) (parent type)
+ Monomial ideals are kinds of ideals but many algorithms are much faster. Generally any routines available for ideals are also available for monomial ideals.
+#### Specialized functions only available for monomial ideals
+
+
+- Macaulay2Doc:: borel(MonomialIdeal)
+- Macaulay2Doc:: isBorel(MonomialIdeal)
+- Macaulay2Doc:: MonomialIdeal - MonomialIdeal
+- Macaulay2Doc:: dual(MonomialIdeal)
+- Macaulay2Doc:: independentSets
+- PrimaryDecomposition:: irreducibleDecomposition
+- Macaulay2Doc:: standardPairs
+
+ The ring of a monomial ideal must be a commutative polynomial ring.  This ring must not be a skew commuting ring and/or a quotient ring.
+
+## Additional Information
+
+[monomialIdeal](../Method/op_Coredollar_monomialIdeal.mdx)[monomialSubideal](../Method/monomialSubideal.mdx)[independentSets(MonomialIdeal)](../Instance/independentSets(MonomialIdeal).mdx)[standardPairs(MonomialIdeal)](../Instance/standardPairs(MonomialIdeal).mdx)[polarize(MonomialIdeal)](../Instance/polarize(MonomialIdeal).mdx)[codim(MonomialIdeal)](../Instance/codim(MonomialIdeal).mdx)[MonomialIdeal - MonomialIdeal](../Instance/MonomialIdeal - MonomialIdeal.mdx)[dual(MonomialIdeal](../Instance/dual(MonomialIdeal.mdx)[dual(MonomialIdeal](../Instance/dual(MonomialIdeal.mdx)[dual(MonomialIdeal)](../Instance/dual(MonomialIdeal).mdx)[lcm(MonomialIdeal)](../Instance/lcm(MonomialIdeal).mdx)
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "MonomialIdeal",
+    "safe_name": "op_Coredollar_MonomialIdeal",
+    "type": null,
+    "description": " Monomial ideals are kinds of ideals but many algorithms are much faster. Generally any routines ava...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$MonomialIdeal",
+        "parent": "Ideal",
+        "methods": [
+            [
+                "-",
+                "MonomialIdeal",
+                "MonomialIdeal"
+            ],
+            [
+                "+",
+                "MonomialIdeal",
+                "MonomialIdeal"
+            ],
+            [
+                "*",
+                "MonomialIdeal",
+                "MonomialIdeal"
+            ],
+            [
+                "^",
+                "MonomialIdeal",
+                "Array"
+            ],
+            [
+                "*",
+                "MonomialIdeal",
+                "Ring"
+            ],
+            [
+                "*",
+                "Ring",
+                "MonomialIdeal"
+            ],
+            [
+                "*",
+                "RingElement",
+                "MonomialIdeal"
+            ],
+            [
+                "*",
+                "ZZ",
+                "MonomialIdeal"
+            ],
+            [
+                "ideal",
+                "MonomialIdeal"
+            ],
+            [
+                "numgens",
+                "MonomialIdeal"
+            ],
+            [
+                "trim",
+                "MonomialIdeal"
+            ],
+            [
+                "mingens",
+                "MonomialIdeal"
+            ],
+            [
+                "generators",
+                "MonomialIdeal"
+            ],
+            [
+                "%",
+                "Matrix",
+                "MonomialIdeal"
+            ],
+            [
+                "//",
+                "Matrix",
+                "MonomialIdeal"
+            ],
+            [
+                "%",
+                "ZZ",
+                "MonomialIdeal"
+            ],
+            [
+                "%",
+                "RingElement",
+                "MonomialIdeal"
+            ],
+            [
+                "//",
+                "RingElement",
+                "MonomialIdeal"
+            ],
+            [
+                "//",
+                "ZZ",
+                "MonomialIdeal"
+            ],
+            [
+                "==",
+                "MonomialIdeal",
+                "MonomialIdeal"
+            ],
+            [
+                "==",
+                "MonomialIdeal",
+                "ZZ"
+            ],
+            [
+                "==",
+                "ZZ",
+                "MonomialIdeal"
+            ],
+            [
+                "isMonomialIdeal",
+                "MonomialIdeal"
+            ],
+            [
+                "isSquareFree",
+                "MonomialIdeal"
+            ],
+            [
+                "toExternalString",
+                "MonomialIdeal"
+            ],
+            [
+                "expression",
+                "MonomialIdeal"
+            ],
+            [
+                "dim",
+                "MonomialIdeal"
+            ],
+            [
+                "borel",
+                "MonomialIdeal"
+            ],
+            [
+                "isBorel",
+                "MonomialIdeal"
+            ],
+            [
+                "poincare",
+                "MonomialIdeal"
+            ],
+            [
+                "independentSets",
+                "MonomialIdeal"
+            ],
+            [
+                "lcm",
+                "MonomialIdeal"
+            ],
+            [
+                "standardPairs",
+                "MonomialIdeal",
+                "List"
+            ],
+            [
+                "polarize",
+                "MonomialIdeal"
+            ],
+            [
+                "dual",
+                "MonomialIdeal",
+                "RingElement"
+            ],
+            [
+                "codim",
+                "MonomialIdeal"
+            ],
+            [
+                "dual",
+                "MonomialIdeal"
+            ],
+            [
+                "dual",
+                "MonomialIdeal",
+                "List"
+            ],
+            [
+                "irreducibleDecomposition",
+                "MonomialIdeal"
+            ],
+            [
+                "standardPairs",
+                "MonomialIdeal"
+            ],
+            [
+                "quotient",
+                "MonomialIdeal",
+                "RingElement"
+            ],
+            [
+                ":",
+                "MonomialIdeal",
+                "RingElement"
+            ],
+            [
+                "saturate",
+                "MonomialIdeal",
+                "RingElement"
+            ],
+            [
+                "^",
+                "MonomialIdeal",
+                "ZZ"
+            ],
+            [
+                "monomialIdeal",
+                "MonomialIdeal"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (8266 bytes) ...",
+        "parsed_headline": "MonomialIdeal  -- the class of all monomial ideals handled by the engine"
+    }
+}
+```

@@ -5,92 +5,131 @@ kind: Function
 
 # pairs
 
-**Type:** `Function`
+**pairs  -- list the pairs in a hash table dictionary or basic list**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-pairs, -- list the pairs in a hash table, dictionary, or basic list, Description, Synopsis, class => element, Usage: , pairs x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: HashTable, hash table, , , a , Macaulay2Doc :: Dictionary, dictionary, , or , a , Macaulay2Doc :: BasicList, basic list, , , Outputs:, L, , , a , Macaulay2Doc :: List, list, , , of all pairs , (k, x#k), ; , Synopsis, class => element, Usage: , pairs x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Thing, thing, , , an instance of a class with an , Macaulay2Doc :: iterator, method installed; , Outputs:, an , Macaulay2Doc :: Iterator, iterator, , , If , x, is a hash table or dictionary, the pairs consist of each key along with its associated value., class => examples, i1 : x = new HashTable from {a => 1, b => 2, c => 3
 
-o1 = HashTable{a => 1
- b => 2
- c => 3
+### Synopsis
 
-o1 : HashTable, class => language-macaulay2, i2 : pairs x
 
-o2 = {(c, 3), (a, 1), (b, 2)
+- Inputs:
+- `x` a [ hash table](../Type/op_Coredollar_HashTable.mdx) a [ dictionary](../Type/op_Coredollar_Dictionary.mdx) or a [ basic list](../Type/op_Coredollar_BasicList.mdx)
+- Outputs:
+- `L` a [ list](../Type/op_Coredollar_List.mdx) of all pairs `(k x#k)`;
 
-o2 : List, class => language-macaulay2, A dictionary is a special hash table whose keys are strings, and whose values are the corresponding symbols., class => examples, i3 : d = new Dictionary
 
-o3 = d
+### Synopsis
 
-o3 : GlobalDictionary, class => language-macaulay2, i4 : getGlobalSymbol (d, "foo")
 
-o4 = foo
+- Inputs:
+- `x` a [ thing](../Type/Thing.mdx) an instance of a class with an [iterator](../Method/iterator.mdx) method installed;
+- Outputs:
+- an [ iterator](../Type/Iterator.mdx)
 
-o4 : Symbol, class => language-macaulay2, i5 : getGlobalSymbol (d, "bar")
-
-o5 = bar
-
-o5 : Symbol, class => language-macaulay2, i6 : pairs d
-
-o6 = {(bar, bar), (foo, foo)
-
-o6 : List, class => language-macaulay2, i7 : first oo
-
-o7 = (bar, bar)
-
-o7 : Sequence, class => language-macaulay2, i8 : class \ oo
-
-o8 = (String, Symbol)
-
-o8 : Sequence, class => language-macaulay2, If , x, is a basic list, the pairs consist of each index along with the element at that index in the list., class => examples, i9 : L = {3, 5, 7;, class => language-macaulay2, i10 : pairs L
-
-o10 = {(0, 3), (1, 5), (2, 7)
-
-o10 : List, class => language-macaulay2, i11 : pairs {apple, banana, carrot
-
-o11 = {(0, apple), (1, banana), (2, carrot)
-
-o11 : List, class => language-macaulay2, If , x, belongs to any other class, then , Macaulay2Doc :: iterator, is called on it, and if successful, an , Macaulay2Doc :: Iterator, object is returned., class => examples, i12 : pairs "foo"
-
-o12 = iterator "foo"
-
-o12 : Iterator, class => language-macaulay2, i13 : toList oo
-
-o13 = {(0, f), (1, o), (2, o)
-
-o13 : List, class => language-macaulay2, i14 : i = pairs Iterator(() -> 5)
-
-o14 = i
-
-o14 : Iterator, class => language-macaulay2, i15 : next i
-
-o15 = (0, 5)
-
-o15 : Sequence, class => language-macaulay2, i16 : next i
-
-o16 = (1, 5)
-
-o16 : Sequence, class => language-macaulay2, i17 : next i
-
-o17 = (2, 5)
-
-o17 : Sequence, class => language-macaulay2, Caveat, As the first example illustrates, pairs are not necessarily listed in any particular order., See also, Macaulay2Doc :: hash tables, Macaulay2Doc :: applyPairs, Macaulay2Doc :: keys, Macaulay2Doc :: scanPairs, Macaulay2Doc :: values, Macaulay2Doc :: #, Macaulay2Doc :: #?, class => waystouse, Ways to use , pairs, :, pairs(BasicList), pairs(Dictionary), pairs(HashTable), pairs(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: pairs, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_hashtables.m2:482:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `pairs(BasicList)`
-- `pairs(Dictionary)`
-- `pairs(HashTable)`
-- `pairs(Thing)`
+If `x`  is a hash table or dictionary the pairs consist of each key along with its associated value.A dictionary is a special hash table whose keys are strings and whose values are the corresponding symbols.If `x`  is a basic list the pairs consist of each index along with the element at that index in the list.If `x` belongs to any other class then [iterator](../Method/iterator.mdx) is called on it and if successful an [Iterator](../Type/Iterator.mdx) object is returned.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+pairs x
 
-## See Also
+```
 
+```text
+{(c, 3), (a, 1), (b, 2)}
+
+List
+```
+
+```macaulay2
+pairs d
+
+```
+
+```text
+{(bar, bar), (foo, foo)}
+
+List
+```
+
+```macaulay2
+pairs L
+
+```
+
+```text
+{(0, 3), (1, 5), (2, 7)}
+
+List
+```
+
+```macaulay2
+pairs {apple, banana, carrot}
+
+```
+
+```text
+{(0, apple), (1, banana), (2, carrot)}
+
+List
+```
+
+```macaulay2
+pairs "foo"
+
+```
+
+```text
+iterator "foo"
+
+Iterator
+```
+
+```macaulay2
+i = pairs Iterator(() -> 5)
+
+```
+
+```text
+i
+
+Iterator
+```
+
+## Additional Information
+
+### Caveat
+
+As the first example illustrates pairs are not necessarily listed in any particular order.
+### See also
+
+
+- Macaulay2Doc:: hash tables
+- Macaulay2Doc:: applyPairs
+- Macaulay2Doc:: keys
+- Macaulay2Doc:: scanPairs
+- Macaulay2Doc:: values
+- Macaulay2Doc:: #
+- Macaulay2Doc:: #?
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "pairs",
+    "safe_name": "pairs",
+    "type": "CompiledFunction",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `x` a [ hash table](../Type/op_Coredollar_HashTable.mdx) a [ dictionary]...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "pairs",
+        "full_doc": "... (4321 bytes) ...",
+        "parsed_headline": "pairs  -- list the pairs in a hash table dictionary or basic list"
+    }
+}
+```

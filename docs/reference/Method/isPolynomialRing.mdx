@@ -1,0 +1,91 @@
+---
+title: "isPolynomialRing"
+kind: Method
+---
+
+# isPolynomialRing
+
+**isPolynomialRing  -- whether something is a polynomial ring**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isPolynomialRing  -- whether something is a polynomial ring
+
+## Installed For
+
+### isPolynomialRing([PolynomialRing](../Type/PolynomialRing.mdx))
+
+### isPolynomialRing([Thing](../Type/Thing.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+## Examples
+
+```macaulay2
+isPolynomialRing R
+```
+
+```macaulay2
+isPolynomialRing CC
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isPolynomialRing(ZZ/7[xy])
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isPolynomialRing(QQ[xdx
+```
+
+```macaulay2
+isPolynomialRing(GF(2)[xy
+```
+
+```macaulay2
+isPolynomialRing(ZZ/101[xyz]/(x^2-y*z))
+
+```
+
+```text
+false
+```
+
+## Additional Information
+
+- Inputs:
+- `R` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) [true](../Instance/op_Coredollar_true.mdx) if `R` is a [ polynomial ring](../Type/PolynomialRing.mdx) and [false](../Instance/op_Coredollar_blockMatrixForm.mdx) otherwise
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isPolynomialRing",
+    "safe_name": "op_Coredollar_isPolynomialRing",
+    "type": "MethodFunction",
+    "description": "isPolynomialRing  -- whether something is a polynomial ring...",
+    "installations": [
+        "<Installation isPolynomialRing(Thing)>",
+        "<Installation isPolynomialRing(PolynomialRing)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isPolynomialRing",
+        "full_doc": "... (1546 bytes) ...",
+        "parsed_headline": "isPolynomialRing  -- whether something is a polynomial ring"
+    }
+}
+```

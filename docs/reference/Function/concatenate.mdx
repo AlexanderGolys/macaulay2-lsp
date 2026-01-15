@@ -5,29 +5,47 @@ kind: Function
 
 # concatenate
 
-**Type:** `Function`
+**concatenate  -- join strings**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-concatenate, -- join strings, Description, concatenate(s,t,...,u), yields the concatenation of the strings s,t,...,u., , The arguments may also be lists or sequences of strings and symbols, in which case they are concatenated recursively. Additionally, an integer may be used to represent a number of spaces, and , Macaulay2Doc :: null, will be represented by the empty string., class => examples, i1 : concatenate {"a",("s",3,"d",),"f"
-
-o1 = as df, class => language-macaulay2, See also, Macaulay2Doc :: String, class => waystouse, Ways to use , concatenate, :, concatenate(BasicList), concatenate(Nothing), concatenate(String), concatenate(Symbol), concatenate(ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: concatenate, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_strings.m2:245:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `concatenate(Symbol)`
-- `concatenate(Nothing)`
-- `concatenate(BasicList)`
-- `concatenate(ZZ)`
-- `concatenate(String)`
+`concatenate(st...u)`  yields the concatenation of the strings st...u. The arguments may also be lists or sequences of strings and symbols in which case they are concatenated recursively.  Additionally an integer may be used to represent a number of spaces and [null](../Instance/null.mdx)  will be represented by the empty string.
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+concatenate {"a",("s",3,"d",),"f"}
 
-## See Also
+```
 
+```text
+as   df
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: String
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "concatenate",
+    "safe_name": "concatenate",
+    "type": "CompiledFunction",
+    "description": "`concatenate(st...u)`  yields the concatenation of the strings st...u. The arguments may also be lis...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "concatenate",
+        "full_doc": "... (1137 bytes) ...",
+        "parsed_headline": "concatenate  -- join strings"
+    }
+}
+```

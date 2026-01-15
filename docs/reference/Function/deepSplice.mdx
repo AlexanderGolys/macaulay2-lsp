@@ -5,51 +5,94 @@ kind: Function
 
 # deepSplice
 
-**Type:** `Function`
+**deepSplice  -- remove all levels of subsequences from a sequence or list**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-deepSplice, -- remove all levels of subsequences from a sequence or list, class => element, Usage: , deepSplice X, class => language-macaulay2, Inputs:, X, , , a , Macaulay2Doc :: BasicList, basic list, , , Outputs:, Y, , , a , Macaulay2Doc :: BasicList, basic list, , , the new list resulting from replacing any element of , X, that is a sequence with its elements, at every level of nesting, Description, Unlike the function , Macaulay2Doc :: splice, , which removes a single nested level of subsequences, , deepSplice, recursively flattens subsequences at all levels., class => examples, i1 : X = {(), (0, (1, 2, (3, 4))), (5, (6, 7)), 8, 9;, class => language-macaulay2, i2 : splice X
-
-o2 = {0, (1, 2, (3, 4)), 5, (6, 7), 8, 9
-
-o2 : List, class => language-macaulay2, i3 : deepSplice X
-
-o3 = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-
-o3 : List, class => language-macaulay2, , deepSplice, does not alter elements that are lists, arrays, or anything other than sequences., class => examples, i4 : Z = {(), {0, {1, 2, (3, 4), [5, [6, 7]], 8, 9;, class => language-macaulay2, i5 : deepSplice Z
-
-o5 = {{0, {1, 2, (3, 4), [5, [6, 7]], 8, 9
-
-o5 : List, class => language-macaulay2, , deepSplice, works on sequences, too, and all other objects of , Macaulay2Doc :: class, BasicList. The output matches the class of the input., class => examples, i6 : deepSplice ((), (0, (1, 2, (3, 4))), (5, (6, 7)), 8, 9)
-
-o6 = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
-
-o6 : Sequence, class => language-macaulay2, Even if , X, is a , Macaulay2Doc :: MutableList, , , deepSplice, returns a new list rather than altering the definition of , X, ., class => examples, i7 : M = new MutableList from X
-
-o7 = MutableList{...5...
-
-o7 : MutableList, class => language-macaulay2, i8 : deepSplice M
-
-o8 = MutableList{...10...
-
-o8 : MutableList, class => language-macaulay2, i9 : M
-
-o9 = MutableList{...5...
-
-o9 : MutableList, class => language-macaulay2, See also, Macaulay2Doc :: flatten, Macaulay2Doc :: splice, Macaulay2Doc :: lists and sequences, class => waystouse, Ways to use , deepSplice, :, deepSplice(BasicList), class => waystouse, For the programmer, The object , Macaulay2Doc :: deepSplice, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/deepSplice-doc.m2:49:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `deepSplice(BasicList)`
+Unlike the function [splice](../Function/op_Coredollar_splice.mdx) which removes a single nested level of subsequences `deepSplice`  recursively flattens subsequences at all levels.`deepSplice`  does not alter elements that are lists arrays or anything other than sequences.`deepSplice`  works on sequences too and all other objects of [class](../Function/op_Coredollar_class.mdx) BasicList. The output matches the class of the input.Even if `X`  is a [MutableList](../Type/op_Coredollar_MutableList.mdx) `deepSplice`  returns a new list rather than altering the definition of `X` .
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+deepSplice X
+```
 
-## See Also
+```macaulay2
+deepSplice X
 
+```
+
+```text
+{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+List
+```
+
+```macaulay2
+deepSplice Z
+
+```
+
+```text
+{{0, {1, 2, (3, 4)}}, [5, [6, 7]], 8, 9}
+
+List
+```
+
+```macaulay2
+deepSplice (() (0 (1 2 (3 4))) (5 (6 7)) 8 9)
+
+```
+
+```text
+(0 1 2 3 4 5 6 7 8 9)
+
+Sequence
+```
+
+```macaulay2
+deepSplice M
+
+```
+
+```text
+MutableList{...10...}
+
+MutableList
+```
+
+## Additional Information
+
+- Inputs:
+- `X` a [ basic list](../Type/op_Coredollar_BasicList.mdx)
+- Outputs:
+- `Y` a [ basic list](../Type/op_Coredollar_BasicList.mdx) the new list resulting from replacing any element of `X` that is a sequence with its elements at every level of nesting
+
+
+### See also
+
+
+- Macaulay2Doc:: flatten
+- Macaulay2Doc:: splice
+- Macaulay2Doc:: lists and sequences
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "deepSplice",
+    "safe_name": "op_Coredollar_deepSplice",
+    "type": "CompiledFunction",
+    "description": "Unlike the function [splice](../Function/op_Coredollar_splice.mdx) which removes a single nested lev...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$deepSplice",
+        "full_doc": "... (2923 bytes) ...",
+        "parsed_headline": "deepSplice  -- remove all levels of subsequences from a sequence or list"
+    }
+}
+```

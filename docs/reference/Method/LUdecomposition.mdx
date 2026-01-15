@@ -1,0 +1,106 @@
+---
+title: "LUdecomposition"
+kind: Method
+---
+
+# LUdecomposition
+
+**LUdecomposition  -- compute the LU decomposition of a matrix**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ The output matrices are mutable exactly when the input matrix is but the matrix `A`  is not modified If `Q`  is the `m`  by `m`  permutation matrix such that `Q_(P_ii) = 1`  and all other entries are zero then `A = QLU` .   There are several restrictions.  The first is that there are only a limited number of rings for which this function is implemented. Second if `A`  is a mutable matrix   defined over `RR`  or `CC`  then `A`  must be densely encoded.  This restriction is not present if `A`  is a [ matrix](../Type/op_Coredollar_Matrix.mdx) . For matrices over `RR`  or `CC`  this function calls the LAPACK routines which are restricted to 53 bits of precision. Mutable matrices can sometimes be useful for speed and/or space. If `A`  is a mutable matrix it must be densely encoded (which is the default).
+
+## Installed For
+
+### LUdecomposition([Matrix](../Type/Matrix.mdx))
+
+### LUdecomposition([MutableMatrix](../Type/MutableMatrix.mdx)) -> [List](../Type/List.mdx)
+
+## Examples
+
+```macaulay2
+(PLU) = LUdecomposition A
+```
+
+```macaulay2
+(PLU) = LUdecomposition A
+
+```
+
+```text
+({0, 1, 2} | 1  0   0 | | 1 2 3  4  |)
+                 | 1  1   0 |  | 0 1 3  6  |
+                 | 19 -31 1 |  | 0 0 47 22 |
+
+Sequence
+```
+
+```macaulay2
+(PLU) = LUdecomposition A
+
+```
+
+```text
+({2, 1, 0} | 1        0   0 | | 19 7       11      47      48     
+                 | .0526316 1   0 |  | 0  2.63158 5.42105 9.52632 10.4737
+                 | .0526316 .62 1 |  | 0  0       -.94    -4.38   -4.02  
+     ------------------------------------------------------------------------
+     21      |)
+     14.8947 |
+     -4.34   |
+
+Sequence
+```
+
+```macaulay2
+(PLU) = LUdecomposition A;
+```
+
+## Additional Information
+
+- Inputs:
+- `A` a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx) of size `m` by `n` over a a finite field `ZZ/p` [RR](../Type/op_x226_x132_x157.mdx) or [CC](../Type/op_x226_x132_x130.mdx)
+- Outputs:
+- `P` a [ list](../Type/op_Coredollar_List.mdx) of integers in [0... m-1] forming a permutation
+- `L` a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx) an m by min(mn) lower triangular matrix with 1's on the diagonal
+- `U` a [ mutable matrix](../Type/op_Coredollar_MutableMatrix.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx) a min(mn) by n upper triangular matrix
+
+
+### Caveat
+
+ This function is limited in scope but is sometimes useful for very large matrices
+### See also
+
+
+- Macaulay2Doc:: solve
+- Macaulay2Doc:: SVD
+- Macaulay2Doc:: MutableMatrix
+- Macaulay2Doc:: fillMatrix
+- Macaulay2Doc:: clean
+- Macaulay2Doc:: norm
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "LUdecomposition",
+    "safe_name": "LUdecomposition",
+    "type": "MethodFunction",
+    "description": " The output matrices are mutable exactly when the input matrix is but the matrix `A`  is not modifie...",
+    "installations": [
+        "<Installation LUdecomposition(MutableMatrix)>",
+        "<Installation LUdecomposition(Matrix)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "LUdecomposition",
+        "full_doc": "... (7339 bytes) ...",
+        "parsed_headline": "LUdecomposition  -- compute the LU decomposition of a matrix"
+    }
+}
+```

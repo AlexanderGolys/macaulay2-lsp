@@ -1,0 +1,64 @@
+---
+title: "splitWWW"
+kind: Method
+---
+
+# splitWWW
+
+**splitWWW  -- separate an http response into header and body**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+The format of chunked data is described https://www.w3.org/Protocols/ here.The following is an example obtaining 5 examples from the Kreuzer-Skarke database for 4 dimensional reflexive polytopes.  We retrieve 5 examples each having the anti-canonical divisor a Calabi-Yau with $h^{(1,1)} = 10$.
+
+## Installed For
+
+### splitWWW([String](../Type/String.mdx)) -> [String](../Type/String.mdx)
+
+## Examples
+
+```macaulay2
+(head body) = splitWWW str
+```
+
+```macaulay2
+(headbody) = splitWWW str;
+```
+
+## Additional Information
+
+- Inputs:
+- `str` a [ string](../Type/op_Coredollar_String.mdx) an http response such as that returned by [getWWW](../Method/getWWW.mdx).
+- Outputs:
+- `head` a [ string](../Type/op_Coredollar_String.mdx) the header of the response
+- `body` a [ string](../Type/op_Coredollar_String.mdx) the response body which has been 'unchunked' if the response type is chunked.
+
+
+### See also
+
+
+- Macaulay2Doc:: getWWW
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "splitWWW",
+    "safe_name": "splitWWW",
+    "type": "MethodFunction",
+    "description": "The format of chunked data is described https://www.w3.org/Protocols/ here.The following is an examp...",
+    "installations": [
+        "<Installation splitWWW(String)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "splitWWW",
+        "full_doc": "... (3412 bytes) ...",
+        "parsed_headline": "splitWWW  -- separate an http response into header and body"
+    }
+}
+```

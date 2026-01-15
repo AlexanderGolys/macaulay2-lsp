@@ -1,0 +1,137 @@
+---
+title: "ring"
+kind: Method
+---
+
+# ring
+
+**ring  -- get the associated ring of an object**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ For example ring elements matrices ideals modules chain complexes varieties coherent sheaves etc. all have a base ring naturally associated to them.  
+
+## Installed For
+
+### ring([CC](../Type/CC.mdx))
+
+### ring([Constant](../Type/Constant.mdx))
+
+### ring([GroebnerBasis](../Type/GroebnerBasis.mdx))
+
+### ring([Ideal](../Type/Ideal.mdx))
+
+### ring([Matrix](../Type/Matrix.mdx))
+
+### ring([Module](../Type/Module.mdx))
+
+### ring([MutableMatrix](../Type/MutableMatrix.mdx))
+
+### ring([Number](../Type/Number.mdx))
+
+### ring([RR](../Type/RR.mdx))
+
+### ring([RRi](../Type/RRi.mdx))
+
+### ring([RingElement](../Type/RingElement.mdx))
+
+### ring([Vector](../Type/Vector.mdx))
+
+## Examples
+
+```macaulay2
+ring M
+```
+
+```macaulay2
+ring x
+
+```
+
+```text
+R
+
+PolynomialRing
+```
+
+```macaulay2
+ring M
+
+```
+
+```text
+R
+
+PolynomialRing
+```
+
+```macaulay2
+ring x
+
+```
+
+```text
+S
+
+PolynomialRing
+```
+
+```macaulay2
+ring I
+
+```
+
+```text
+S
+
+PolynomialRing
+```
+
+## Additional Information
+
+- Inputs:
+- `M` an object with a ring associated to it
+- Outputs:
+- a [ ring](../Type/Ring.mdx) associated to the input object
+
+
+### See also
+
+
+- Macaulay2Doc:: baseRings
+- Macaulay2Doc:: coefficientRing
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "ring",
+    "safe_name": "op_Coredollar_ring",
+    "type": "MethodFunction",
+    "description": " For example ring elements matrices ideals modules chain complexes varieties coherent sheaves etc. a...",
+    "installations": [
+        "<Installation ring(Constant)>",
+        "<Installation ring(RingElement)>",
+        "<Installation ring(GroebnerBasis)>",
+        "<Installation ring(Ideal)>",
+        "<Installation ring(Matrix)>",
+        "<Installation ring(Vector)>",
+        "<Installation ring(Module)>",
+        "<Installation ring(MutableMatrix)>",
+        "<Installation ring(RR)>",
+        "<Installation ring(RRi)>",
+        "<Installation ring(CC)>",
+        "<Installation ring(Number)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$ring",
+        "full_doc": "... (2629 bytes) ...",
+        "parsed_headline": "ring  -- get the associated ring of an object"
+    }
+}
+```

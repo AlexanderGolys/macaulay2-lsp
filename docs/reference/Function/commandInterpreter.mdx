@@ -5,35 +5,46 @@ kind: Function
 
 # commandInterpreter
 
-**Type:** `Function`
+**commandInterpreter  -- the top level command interpreter**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-commandInterpreter, -- the top level command interpreter, class => element, Usage: , commandInterpreter f, class => language-macaulay2, Inputs:, f, , , (), or , a , Macaulay2Doc :: Dictionary, dictionary, , , a , Macaulay2Doc :: Symbol, symbol, , , an instance of the type , Macaulay2Doc :: Pseudocode, , or , a , Macaulay2Doc :: Function, function, Consequences:, the top level command interpreter will be called with the symbols in the lexical scope of , f, visible to the user., Description, One more , i, will be added to prompt each time the command interpreter is entered. To leave it, type , end, or the end of file character., class => examples, i1 : f = (x -> y -> 11) 13
-
-o1 = f
-
-o1 : FunctionClosure, class => language-macaulay2, i2 : commandInterpreter f, class => language-macaulay2, ii3 : x
-
-oo3 = 13, class => language-macaulay2, ii4 : end, class => language-macaulay2, i5 : x
-
-o5 = x
-
-o5 : Symbol, class => language-macaulay2, This facility is useful as a debugging tool, and is used by the standard debugger., class => waystouse, For the programmer, The object , Macaulay2Doc :: commandInterpreter, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_debugging.m2:276:0, .
+ One more `i`  will be added to prompt each time the command interpreter is entered.  To leave it type `end`  or the end of file character. This facility is useful as a debugging tool and is used by the standard debugger.
 
 ## Examples
 
 ```macaulay2
-i1 : f = (x -> y -> 11) 13
-
-o1 = f
-
-o1 : FunctionClosure
-
-i2 : commandInterpreter f
+commandInterpreter f
 ```
 
-## See Also
+```macaulay2
+commandInterpreter f
+```
 
+## Additional Information
+
+- Inputs:
+- `f` `()` or a [ dictionary](../Type/op_Coredollar_Dictionary.mdx) a [ symbol](../Type/op_Coredollar_Symbol.mdx) an instance of the type [Pseudocode](../Type/op_Coredollar_Pseudocode.mdx) or a [ function](../Type/Function.mdx)
+- Consequences:
+- the top level command interpreter will be called with the symbols in the lexical scope of `f` visible to the user.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "commandInterpreter",
+    "safe_name": "op_Coredollar_commandInterpreter",
+    "type": "CompiledFunction",
+    "description": " One more `i`  will be added to prompt each time the command interpreter is entered.  To leave it ty...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$commandInterpreter",
+        "full_doc": "... (1596 bytes) ...",
+        "parsed_headline": "commandInterpreter  -- the top level command interpreter"
+    }
+}
+```

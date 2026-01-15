@@ -1,53 +1,59 @@
 ---
 title: "Time"
 kind: Type
-parent: BasicList
 ---
 
 # Time
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**Time  -- the class of all timing results**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
+`Time`  is the class of all timing results.  Each timing result is a [ basic list](../Type/op_Coredollar_BasicList.mdx)  of the form `{t,v}`  where `t`  is the number of seconds of cpu time used and `v`  is the value of the expression.
 
-## Parent Type
+## Additional Information
 
-[BasicList](../Type/BasicList.mdx)
+### See also
 
-## Methods
 
-Methods that can be used with this type:
+- Macaulay2Doc:: timing
+- Macaulay2Doc:: time
+- Macaulay2Doc:: cpuTime
+- Macaulay2Doc:: elapsedTiming
+- Macaulay2Doc:: elapsedTime
 
-### `html`
+## Debug info
 
-- `html(Time)`
-
-### `hypertext`
-
-- `hypertext(Time)`
-
-### `net`
-
-- `net(Time)`
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [html](../Function/html.mdx)
-- [hypertext](../Function/hypertext.mdx)
-- [net](../Function/net.mdx)
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [BasicList](../Type/BasicList.mdx) (parent type)
+```python
+{
+    "obj_type": "Type",
+    "name": "Time",
+    "safe_name": "op_Coredollar_Time",
+    "type": null,
+    "description": "`Time`  is the class of all timing results.  Each timing result is a [ basic list](../Type/op_Coredo...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Time",
+        "parent": "BasicList",
+        "methods": [
+            [
+                "html",
+                "Time"
+            ],
+            [
+                "hypertext",
+                "Time"
+            ],
+            [
+                "net",
+                "Time"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (1069 bytes) ...",
+        "parsed_headline": "Time  -- the class of all timing results"
+    }
+}
+```

@@ -5,19 +5,90 @@ kind: Instance
 
 # listLocalSymbols
 
-:::warning[Stub Documentation]
-This is a placeholder documentation entry. The full documentation for this instance needs to be extracted from Macaulay2.
-:::
+**listLocalSymbols  -- display of local symbols and their values**
 
 **Type:** [Command](../Type/Command.mdx)
 
 ## Description
 
-An instance of the type [Command](../Type/Command.mdx).
+
+### Synopsis
+
+
+- Inputs:
+- `f` an instance of the type [PseudocodeClosure](../Type/PseudocodeClosure.mdx) a [ symbol](../Type/op_Coredollar_Symbol.mdx) a [ dictionary](../Type/op_Coredollar_Dictionary.mdx) or a [ function](../Type/Function.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) a compact display of the symbols in the local dictionaries attached to the closure `f` and their values
+
+
+### Synopsis
+
+
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) a compact display of the symbols in the local dictionaries attached to [current](../Instance/current.mdx)
+
+This usage works only in the debugger where [current](../Instance/current.mdx)  has a non-null value.
+### Synopsis
+
+
+- Inputs:
+- `X` a [ type](../Type/op_Coredollar_Type.mdx)
+- `f` an instance of the type [PseudocodeClosure](../Type/PseudocodeClosure.mdx) a [ symbol](../Type/op_Coredollar_Symbol.mdx) a [ dictionary](../Type/op_Coredollar_Dictionary.mdx) or a [ function](../Type/Function.mdx)
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) a compact display of the symbols in the local dictionaries attached to the closure `f` and their values provided their values are instances of the type `X`
+
+
+### Synopsis
+
+
+- Outputs:
+- a [ net](../Type/op_Coredollar_Net.mdx) a compact display of the symbols in the local dictionaries attached to [current](../Instance/current.mdx) whose values have type `X`.
+
+This usage works only in the debugger where [current](../Instance/current.mdx)  has a non-null value.
 
 ## Examples
 
-*No examples available yet. Please contribute!*
+```macaulay2
+listLocalSymbols f
 
-## See Also
+```
 
+```text
+symbol  class   value       location of symbol
+     ------  -----   -----       ------------------
+     x       ZZ      3           stdio:1:0-1:1     
+     y       String  "hi there"  stdio:1:6-1:7     
+     z       ZZ      1073741824  stdio:1:21-1:22
+```
+
+```macaulay2
+listLocalSymbols symbol x
+
+```
+
+```text
+symbol  class   value       location of symbol
+     ------  -----   -----       ------------------
+     x       ZZ      3           stdio:1:0-1:1     
+     y       String  "hi there"  stdio:1:6-1:7     
+     z       ZZ      1073741824  stdio:1:21-1:22
+```
+
+## Debug info
+
+```python
+{
+    "obj_type": "Instance",
+    "name": "listLocalSymbols",
+    "safe_name": "listLocalSymbols",
+    "type": "Command",
+    "description": "\n### Synopsis\n\n\n- Inputs:\n- `f` an instance of the type [PseudocodeClosure](../Type/PseudocodeClosur...",
+    "extra": {
+        "isSymbol": false,
+        "codeName": "listLocalSymbols",
+        "full_doc": "... (6390 bytes) ...",
+        "stub": true,
+        "parsed_headline": "listLocalSymbols  -- display of local symbols and their values"
+    }
+}
+```

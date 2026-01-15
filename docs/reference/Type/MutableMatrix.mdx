@@ -1,203 +1,454 @@
 ---
 title: "MutableMatrix"
 kind: Type
-parent: HashTable
 ---
 
 # MutableMatrix
 
-:::warning[Missing Documentation]
-This documentation is automatically generated and currently lacks detailed information from the source. Please contribute!
-:::
-
-**Type:** [Type](../Type/Type.mdx)
+**MutableMatrix  -- the class of all mutable matrices**
 
 ## Description
 
-An instance of the type [Type](../Type/Type.mdx).
-
-## Parent Type
-
-[HashTable](../Type/HashTable.mdx)
-
-## Methods
-
-Methods that can be used with this type:
-
-### `(_,=)`
-
-- `(_,=)(MutableMatrix, Sequence)`
-
-### `*`
-
-- `*(MutableMatrix, MutableMatrix)`
-- `*(RingElement, MutableMatrix)`
-- `*(MutableMatrix, RingElement)`
-- `*(ZZ, MutableMatrix)`
-- `*(MutableMatrix, ZZ)`
-- *... and 2 more signatures*
-
-### `+`
-
-- `+(MutableMatrix, MutableMatrix)`
-
-### `-`
-
-- `-(MutableMatrix)`
-- `-(MutableMatrix, MutableMatrix)`
-
-### `==`
-
-- `==(MutableMatrix, ZZ)`
-- `==(ZZ, MutableMatrix)`
-- `==(MutableMatrix, MutableMatrix)`
-
-### `NewFromMethod`
-
-- `NewFromMethod(Matrix, MutableMatrix)`
-- `NewFromMethod(MutableMatrix, Matrix)`
-
-### `^`
-
-- `^(MutableMatrix, List)`
-
-### `_`
-
-- `_(MutableMatrix, Sequence)`
-- `_(MutableMatrix, List)`
-
-### `clean`
-
-- `clean(RR, MutableMatrix)`
-
-### `entries`
-
-- `entries(MutableMatrix)`
-
-### `expression`
-
-- `expression(MutableMatrix)`
-
-### `lift`
-
-- `lift(MutableMatrix, InexactNumber)`
-- `lift(MutableMatrix, RingElement)`
-- `lift(MutableMatrix, Number)`
-- `lift(MutableMatrix, InexactNumber')`
-
-### `mathML`
-
-- `mathML(MutableMatrix)`
-
-### `matrix`
-
-- `matrix(MutableMatrix)`
-
-### `mutableMatrix`
-
-- `mutableMatrix(MutableMatrix)`
-
-### `net`
-
-- `net(MutableMatrix)`
-
-### `norm`
-
-- `norm(RR, MutableMatrix)`
-- `norm(InexactField, MutableMatrix)`
-- `norm(MutableMatrix)`
-
-### `numColumns`
-
-- `numColumns(MutableMatrix)`
-
-### `numRows`
-
-- `numRows(MutableMatrix)`
-
-### `precision`
-
-- `precision(MutableMatrix)`
-
-### `promote`
-
-- `promote(MutableMatrix, InexactNumber)`
-- `promote(MutableMatrix, Number)`
-- `promote(MutableMatrix, RingElement)`
-- `promote(MutableMatrix, InexactNumber')`
-
-### `ring`
-
-- `ring(MutableMatrix)`
-
-### `submatrix`
-
-- `submatrix(MutableMatrix, VisibleList, VisibleList)`
-- `submatrix(MutableMatrix, VisibleList)`
-- `submatrix(MutableMatrix, Nothing, VisibleList)`
-- `submatrix(MutableMatrix, VisibleList, Nothing)`
-- `submatrix(MutableMatrix, Nothing, Nothing)`
-
-### `target`
-
-- `target(MutableMatrix)`
-
-### `texMath`
-
-- `texMath(MutableMatrix)`
-
-### `toString`
-
-- `toString(MutableMatrix)`
-
-### `transpose`
-
-- `transpose(MutableMatrix)`
-
-
-*Showing 50 of 83 methods*
-
-## Used In
-
-This type is used in the following methods/operators:
-
-- [(_,=)](../Type/(_,=).mdx)
-- [*](../Operator/op_star.mdx)
-- [+](../Operator/op_plus.mdx)
-- [-](../Operator/op_minus.mdx)
-- [=](../Operator/op_eq.mdx)
-- [==](../Operator/op_eq_eq.mdx)
-- [LLL](../Type/LLL.mdx)
-- [LUdecomposition](../Function/LUdecomposition.mdx)
-- [NewFromMethod](../Option/NewFromMethod.mdx)
-- [QRDecomposition](../Function/QRDecomposition.mdx)
-- [SPACE](../Operator/SPACE.mdx)
-- [SVD](../Function/SVD.mdx)
-- [^](../Operator/op_caret.mdx)
-- [_](../Operator/_.mdx)
-- [clean](../Function/clean.mdx)
-- [columnAdd](../Function/columnAdd.mdx)
-- [columnMult](../Function/columnMult.mdx)
-- [columnPermute](../Function/columnPermute.mdx)
-- [columnRankProfile](../Function/columnRankProfile.mdx)
-- [columnSwap](../Function/columnSwap.mdx)
-- [cover](../Function/cover.mdx)
-- [determinant](../Function/determinant.mdx)
-- [eigenvalues](../Function/eigenvalues.mdx)
-- [eigenvectors](../Function/eigenvectors.mdx)
-- [entries](../Function/entries.mdx)
-- [expression](../Function/expression.mdx)
-- [fillMatrix](../Function/fillMatrix.mdx)
-- [inverse](../Function/inverse.mdx)
-- [lift](../Function/lift.mdx)
-- [mathML](../Function/mathML.mdx)
-
-*... and 20 more*
-
-## Examples
-
-*No examples available yet. Please contribute!*
-
-## See Also
-
-- [HashTable](../Type/HashTable.mdx) (parent type)
+ A mutable matrix in Macaulay2 is a rectangular array of elements of a specific ring whose entries can be modified. A mutable matrix is different from a [Matrix](../Type/op_Coredollar_Matrix.mdx)  in that a matrix contains degree information for the target and source of the matrix while a mutable matrix has no such information.  Also more operations are provided for matrices. For an overview of mutable matrices see [mutable matrices](../Instance/mutable matrices.mdx) . Mutable matrices can either be encoded in a sparse manner (the matrix only encodes the non-zero elements) or in a dense manner (all elements are stored -- even zeros).  The distinction is an option to several of the routines that create mutable matrices ([mutableMatrix](../Method/op_Coredollar_mutableMatrix.mdx)  [mutableIdentity](../Method/op_Coredollar_mutableIdentity.mdx) ). Certain operations over RR or CC are performed using the LAPACK library and require dense encoding of matrices: [LUdecomposition](../Method/LUdecomposition.mdx)  [SVD](../Method/op_Coredollar_SVD.mdx)  [solve](../Method/op_Coredollar_solve.mdx)  [eigenvalues](../Method/eigenvalues.mdx)  [eigenvectors](../Method/eigenvectors.mdx) .
+#### row and column operations
+
+
+- Macaulay2Doc:: rowAdd
+- Macaulay2Doc:: rowSwap
+- Macaulay2Doc:: rowPermute
+- Macaulay2Doc:: rowMult
+- Macaulay2Doc:: columnAdd
+- Macaulay2Doc:: columnSwap
+- Macaulay2Doc:: columnPermute
+- Macaulay2Doc:: columnMult
+
+
+#### matrix arithmetic
+
+ Many matrix arithmetic routines are only available for immutable matrices not mutable matrices.  It is necessary to use [matrix](../Method/matrix.mdx)  to make an immutable matrix first.
+
+## Debug info
+
+```python
+{
+    "obj_type": "Type",
+    "name": "MutableMatrix",
+    "safe_name": "op_Coredollar_MutableMatrix",
+    "type": null,
+    "description": " A mutable matrix in Macaulay2 is a rectangular array of elements of a specific ring whose entries c...",
+    "parent": null,
+    "subtypes": [],
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$MutableMatrix",
+        "parent": "HashTable",
+        "methods": [
+            [
+                "precision",
+                "MutableMatrix"
+            ],
+            [
+                "mathML",
+                "MutableMatrix"
+            ],
+            [
+                "ring",
+                "MutableMatrix"
+            ],
+            [
+                "==",
+                "MutableMatrix",
+                "ZZ"
+            ],
+            [
+                "==",
+                "ZZ",
+                "MutableMatrix"
+            ],
+            [
+                "entries",
+                "MutableMatrix"
+            ],
+            [
+                "toString",
+                "MutableMatrix"
+            ],
+            [
+                "expression",
+                "MutableMatrix"
+            ],
+            [
+                "texMath",
+                "MutableMatrix"
+            ],
+            [
+                "net",
+                "MutableMatrix"
+            ],
+            [
+                "NewFromMethod",
+                "Matrix",
+                "MutableMatrix"
+            ],
+            [
+                "NewFromMethod",
+                "MutableMatrix",
+                "Matrix"
+            ],
+            [
+                "mutableMatrix",
+                "MutableMatrix"
+            ],
+            [
+                "matrix",
+                "MutableMatrix"
+            ],
+            [
+                "clean",
+                "RR",
+                "MutableMatrix"
+            ],
+            [
+                "norm",
+                "RR",
+                "MutableMatrix"
+            ],
+            [
+                "norm",
+                "InexactField",
+                "MutableMatrix"
+            ],
+            [
+                "norm",
+                "MutableMatrix"
+            ],
+            [
+                "_",
+                "MutableMatrix",
+                "Sequence"
+            ],
+            [
+                "==",
+                "MutableMatrix",
+                "MutableMatrix"
+            ],
+            [
+                "-",
+                "MutableMatrix"
+            ],
+            [
+                "+",
+                "MutableMatrix",
+                "MutableMatrix"
+            ],
+            [
+                "-",
+                "MutableMatrix",
+                "MutableMatrix"
+            ],
+            [
+                "*",
+                "MutableMatrix",
+                "MutableMatrix"
+            ],
+            [
+                "*",
+                "RingElement",
+                "MutableMatrix"
+            ],
+            [
+                "*",
+                "MutableMatrix",
+                "RingElement"
+            ],
+            [
+                "*",
+                "ZZ",
+                "MutableMatrix"
+            ],
+            [
+                "*",
+                "MutableMatrix",
+                "ZZ"
+            ],
+            [
+                "*",
+                "RR",
+                "MutableMatrix"
+            ],
+            [
+                "*",
+                "MutableMatrix",
+                "RR"
+            ],
+            [
+                "(_,=)",
+                "MutableMatrix",
+                "Sequence"
+            ],
+            [
+                "transpose",
+                "MutableMatrix"
+            ],
+            [
+                "lift",
+                "MutableMatrix",
+                "InexactNumber"
+            ],
+            [
+                "lift",
+                "MutableMatrix",
+                "InexactNumber'"
+            ],
+            [
+                "lift",
+                "MutableMatrix",
+                "Number"
+            ],
+            [
+                "lift",
+                "MutableMatrix",
+                "RingElement"
+            ],
+            [
+                "promote",
+                "MutableMatrix",
+                "InexactNumber"
+            ],
+            [
+                "promote",
+                "MutableMatrix",
+                "Number"
+            ],
+            [
+                "promote",
+                "MutableMatrix",
+                "RingElement"
+            ],
+            [
+                "promote",
+                "MutableMatrix",
+                "InexactNumber'"
+            ],
+            [
+                "_",
+                "MutableMatrix",
+                "List"
+            ],
+            [
+                "^",
+                "MutableMatrix",
+                "List"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "VisibleList",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "Nothing",
+                "VisibleList"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "VisibleList",
+                "Nothing"
+            ],
+            [
+                "submatrix",
+                "MutableMatrix",
+                "Nothing",
+                "Nothing"
+            ],
+            [
+                "numRows",
+                "MutableMatrix"
+            ],
+            [
+                "numColumns",
+                "MutableMatrix"
+            ],
+            [
+                "target",
+                "MutableMatrix"
+            ],
+            [
+                "source",
+                "MutableMatrix"
+            ],
+            [
+                "rowSwap",
+                "MutableMatrix",
+                "ZZ",
+                "ZZ"
+            ],
+            [
+                "columnSwap",
+                "MutableMatrix",
+                "ZZ",
+                "ZZ"
+            ],
+            [
+                "rowPermute",
+                "MutableMatrix",
+                "ZZ",
+                "List"
+            ],
+            [
+                "columnPermute",
+                "MutableMatrix",
+                "ZZ",
+                "List"
+            ],
+            [
+                "rowMult",
+                "MutableMatrix",
+                "ZZ",
+                "Number"
+            ],
+            [
+                "rowMult",
+                "MutableMatrix",
+                "ZZ",
+                "RingElement"
+            ],
+            [
+                "columnMult",
+                "MutableMatrix",
+                "ZZ",
+                "RingElement"
+            ],
+            [
+                "columnMult",
+                "MutableMatrix",
+                "ZZ",
+                "Number"
+            ],
+            [
+                "rowAdd",
+                "MutableMatrix",
+                "ZZ",
+                "Number",
+                "ZZ"
+            ],
+            [
+                "rowAdd",
+                "MutableMatrix",
+                "ZZ",
+                "RingElement",
+                "ZZ"
+            ],
+            [
+                "columnAdd",
+                "MutableMatrix",
+                "ZZ",
+                "RingElement",
+                "ZZ"
+            ],
+            [
+                "columnAdd",
+                "MutableMatrix",
+                "ZZ",
+                "Number",
+                "ZZ"
+            ],
+            [
+                "fillMatrix",
+                "MutableMatrix"
+            ],
+            [
+                "fillMatrix",
+                "MutableMatrix",
+                "ZZ"
+            ],
+            [
+                "LUdecomposition",
+                "MutableMatrix"
+            ],
+            [
+                "solve",
+                "MutableMatrix",
+                "MutableMatrix"
+            ],
+            [
+                "eigenvalues",
+                "MutableMatrix"
+            ],
+            [
+                "eigenvectors",
+                "MutableMatrix"
+            ],
+            [
+                "SVD",
+                "MutableMatrix"
+            ],
+            [
+                "QRDecomposition",
+                "MutableMatrix"
+            ],
+            [
+                "rank",
+                "MutableMatrix"
+            ],
+            [
+                "determinant",
+                "MutableMatrix"
+            ],
+            [
+                "inverse",
+                "MutableMatrix"
+            ],
+            [
+                "nullSpace",
+                "MutableMatrix"
+            ],
+            [
+                "rowRankProfile",
+                "MutableMatrix"
+            ],
+            [
+                "columnRankProfile",
+                "MutableMatrix"
+            ],
+            [
+                "reducedRowEchelonForm",
+                "MutableMatrix"
+            ],
+            [
+                "toExternalString",
+                "MutableMatrix"
+            ],
+            [
+                "SPACE",
+                "RingMap",
+                "MutableMatrix"
+            ],
+            [
+                "LLL",
+                "MutableMatrix"
+            ],
+            [
+                "^",
+                "MutableMatrix",
+                "ZZ"
+            ],
+            [
+                "cover",
+                "MutableMatrix"
+            ]
+        ],
+        "instances": [],
+        "full_doc": "... (7362 bytes) ...",
+        "parsed_headline": "MutableMatrix  -- the class of all mutable matrices"
+    }
+}
+```

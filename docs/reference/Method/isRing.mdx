@@ -1,0 +1,87 @@
+---
+title: "isRing"
+kind: Method
+---
+
+# isRing
+
+**isRing  -- whether something is a ring**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isRing  -- whether something is a ring
+
+## Installed For
+
+### isRing([Ring](../Type/Ring.mdx))
+
+### isRing([Thing](../Type/Thing.mdx)) -> [Boolean](../Type/Boolean.mdx)
+
+## Examples
+
+```macaulay2
+isRing R
+```
+
+```macaulay2
+isRing QQ
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isRing(R)
+
+```
+
+```text
+true
+```
+
+```macaulay2
+isRing(R^1)
+
+```
+
+```text
+false
+```
+
+```macaulay2
+isRing(GF(23)[xdx
+```
+
+## Additional Information
+
+- Inputs:
+- `R` a [ thing](../Type/Thing.mdx)
+- Outputs:
+- a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) [true](../Instance/op_Coredollar_true.mdx) if `R` is a [ ring](../Type/Ring.mdx) and [false](../Instance/op_Coredollar_blockMatrixForm.mdx) otherwise
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "isRing",
+    "safe_name": "op_Coredollar_isRing",
+    "type": "MethodFunction",
+    "description": "isRing  -- whether something is a ring...",
+    "installations": [
+        "<Installation isRing(Thing)>",
+        "<Installation isRing(Ring)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$isRing",
+        "full_doc": "... (1318 bytes) ...",
+        "parsed_headline": "isRing  -- whether something is a ring"
+    }
+}
+```

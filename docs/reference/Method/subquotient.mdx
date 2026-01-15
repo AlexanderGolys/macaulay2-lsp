@@ -1,0 +1,94 @@
+---
+title: "subquotient"
+kind: Method
+---
+
+# subquotient
+
+**subquotient  -- make a subquotient module**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+If `g`  is omitted then the identity map on the target of `r`  is used as `g`  and the cokernel of `r`  is returned. If `r`  is omitted (but not the comma) then a zero map to the target of `g`  is used as `r`  and the image of `g`  is returned. If both are omitted then `M`  is returned.See [subquotient modules](../Instance/subquotient modules.mdx)  for an overview of subquotient modules in Macaulay2.The general form in which modules are represented in Macaulay2 is as subquotients and subquotient modules are often returned as values of computations as in the example below.
+
+## Installed For
+
+### subquotient([Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx))
+
+### subquotient([Matrix](../Type/Matrix.mdx), [Nothing](../Type/Nothing.mdx))
+
+### subquotient([Module](../Type/Module.mdx), [Matrix](../Type/Matrix.mdx), [Matrix](../Type/Matrix.mdx))
+
+### subquotient([Module](../Type/Module.mdx), [Matrix](../Type/Matrix.mdx), [Nothing](../Type/Nothing.mdx))
+
+### subquotient([Module](../Type/Module.mdx), [Nothing](../Type/Nothing.mdx), [Matrix](../Type/Matrix.mdx))
+
+### subquotient([Module](../Type/Module.mdx), [Nothing](../Type/Nothing.mdx), [Nothing](../Type/Nothing.mdx))
+
+### subquotient([Nothing](../Type/Nothing.mdx), [Matrix](../Type/Matrix.mdx))
+
+## Examples
+
+```macaulay2
+subquotient(gr)
+subquotient(Mgr)
+```
+
+```macaulay2
+M === subquotient(generators M relations M)
+
+```
+
+```text
+true
+```
+
+## Additional Information
+
+- Inputs:
+- `g` the matrix of generators
+- `r` the matrix of relations with the same target as `g`
+- `M` a [ module](../Type/op_Coredollar_Module.mdx) if given must be the common target of g and r
+- Outputs:
+- the image of `g` in the cokernel of `r`
+
+
+### See also
+
+
+- Macaulay2Doc:: subquotient modules
+- Macaulay2Doc:: isSubquotient
+- Macaulay2Doc:: ambient
+- Macaulay2Doc:: generators
+- Macaulay2Doc:: relations
+- Macaulay2Doc:: prune
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "subquotient",
+    "safe_name": "subquotient",
+    "type": "MethodFunction",
+    "description": "If `g`  is omitted then the identity map on the target of `r`  is used as `g`  and the cokernel of `...",
+    "installations": [
+        "<Installation subquotient(Nothing, Matrix)>",
+        "<Installation subquotient(Matrix, Nothing)>",
+        "<Installation subquotient(Matrix, Matrix)>",
+        "<Installation subquotient(Module, Matrix, Matrix)>",
+        "<Installation subquotient(Module, Nothing, Matrix)>",
+        "<Installation subquotient(Module, Matrix, Nothing)>",
+        "<Installation subquotient(Module, Nothing, Nothing)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "subquotient",
+        "full_doc": "... (3740 bytes) ...",
+        "parsed_headline": "subquotient  -- make a subquotient module"
+    }
+}
+```

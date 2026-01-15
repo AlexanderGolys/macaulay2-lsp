@@ -1,0 +1,76 @@
+---
+title: "csc"
+kind: Method
+---
+
+# csc
+
+**csc  -- cosecant**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+See https://en.wikipedia.org/wiki/Trigonometric_function Trigonometric function .
+
+## Installed For
+
+### csc([CC](../Type/CC.mdx))
+
+### csc([Number](../Type/Number.mdx))
+
+### csc([RR](../Type/RR.mdx))
+
+### csc([RRi](../Type/RRi.mdx)) -> [RR](../Type/RR.mdx)
+
+## Examples
+
+```macaulay2
+csc x
+csc I
+```
+
+```macaulay2
+csc(pi/3)
+
+```
+
+```text
+1.154700538379252
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `x`
+- `I` a [ real interval](../Type/RRi.mdx)
+- Outputs:
+- a [ real number](../Type/op_x226_x132_x157.mdx) the cosecant of `x`
+- a [ real interval](../Type/RRi.mdx) an interval containing the cosecants of the points of `I`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "csc",
+    "safe_name": "op_Coredollar_csc",
+    "type": "MethodFunction",
+    "description": "See https://en.wikipedia.org/wiki/Trigonometric_function Trigonometric function ....",
+    "installations": [
+        "<Installation csc(Number)>",
+        "<Installation csc(RRi)>",
+        "<Installation csc(CC)>",
+        "<Installation csc(RR)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$csc",
+        "full_doc": "... (1192 bytes) ...",
+        "parsed_headline": "csc  -- cosecant"
+    }
+}
+```

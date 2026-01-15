@@ -1,0 +1,112 @@
+---
+title: "support"
+kind: Method
+---
+
+# support
+
+**support  -- list of variables occurring in a polynomial or matrix**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+ If the ring is a polynomial ring over another polynomial ring then the support contains all of the variables even the ones in the coefficient ring. The  ring of each of these is the ring of f. Here is one way to select only the top level variables. To obtain a list of the integer indices of the variables one can use either [indices(RingElement)](../Instance/indices(RingElement).mdx)  or apply [index](../Method/op_Coredollar_index.mdx)  to each variable.
+
+## Installed For
+
+### support([Ideal](../Type/Ideal.mdx))
+
+### support([Matrix](../Type/Matrix.mdx))
+
+### support([RingElement](../Type/RingElement.mdx)) -> [List](../Type/List.mdx)
+
+## Examples
+
+```macaulay2
+support f
+```
+
+```macaulay2
+support f
+
+```
+
+```text
+{a, b, c, d, f}
+
+List
+```
+
+```macaulay2
+support M
+
+```
+
+```text
+{a, b, c, g}
+
+List
+```
+
+```macaulay2
+S = support f
+
+```
+
+```text
+{y, z, r, a}
+
+List
+```
+
+```macaulay2
+apply(support f index)
+
+```
+
+```text
+{1, 2, 4, 7}
+
+List
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ ring element](../Type/RingElement.mdx) or a [ matrix](../Type/op_Coredollar_Matrix.mdx) over a polynomial ring
+- Outputs:
+- a [ list](../Type/op_Coredollar_List.mdx) of [ ring elements](../Type/RingElement.mdx) the variables occurring in `f`
+
+
+### See also
+
+
+- Macaulay2Doc:: index
+- Macaulay2Doc:: indices(RingElement)
+- Macaulay2Doc:: indices(Matrix)
+- Macaulay2Doc:: Ring _ ZZ
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "support",
+    "safe_name": "support",
+    "type": "MethodFunction",
+    "description": " If the ring is a polynomial ring over another polynomial ring then the support contains all of the ...",
+    "installations": [
+        "<Installation support(Matrix)>",
+        "<Installation support(RingElement)>",
+        "<Installation support(Ideal)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "support",
+        "full_doc": "... (3156 bytes) ...",
+        "parsed_headline": "support  -- list of variables occurring in a polynomial or matrix"
+    }
+}
+```

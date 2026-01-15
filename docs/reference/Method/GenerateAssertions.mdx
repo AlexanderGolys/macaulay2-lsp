@@ -1,0 +1,64 @@
+---
+title: "GenerateAssertions"
+kind: Method
+---
+
+# GenerateAssertions
+
+**GenerateAssertions  -- trace a function each time it's run**
+
+**Type:** [Symbol](../Type/Symbol.mdx)
+
+## Description
+
+Ideally this function would replace `f`  i.e. we would write `f = on f` .  Unfortunately all the pre-installed system functions are write-protected; fortunately their methods are not and can be replaced.
+
+## Examples
+
+```macaulay2
+on f
+```
+
+## Additional Information
+
+- Inputs:
+- `f` a [ function](../Type/Function.mdx)
+- [ Optional inputs](../Instance/using functions with optional inputs.mdx):
+- `CallLimit```an [ integer](../Type/ZZ.mdx) default value 100000 the maximum number of times to permit the function `f` to be called
+- `Name```a [ string](../Type/op_Coredollar_String.mdx) default value null the name to use for the function in case `f` is an anonymous function (not assigned to a global variable)
+- `GenerateAssertions```a [ Boolean value](../Type/op_Coredollar_Boolean.mdx) default value false whether to print assertion statements that can be used as input to Macaulay2 to check the behavior of the function remains the same. Arguments and values are prepared with [toExternalString](../Method/op_Coredollar_toExternalString.mdx) failure of which is silently ignored.
+- Outputs:
+- a [ function](../Type/Function.mdx) a new function that returns the same values that `f` would have returned but has a few side effects useful for debugging: upon entry it prints its arguments and upon exit it prints its return values. The display includes the name of `f` a sequence number in parentheses that tells how many times the function has been called and a number in brackets that gives the nesting (recursion) depth. The sequence number allows the entry and exit reports to be connected.
+
+
+### See also
+
+
+- Macaulay2Doc:: lookup
+
+
+### Functions with optional argument named `GenerateAssertions`:
+
+
+- on(...
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "GenerateAssertions",
+    "safe_name": "op_Coredollar_GenerateAssertions",
+    "type": "Symbol",
+    "description": "Ideally this function would replace `f`  i.e. we would write `f = on f` .  Unfortunately all the pre...",
+    "installations": [],
+    "options": null,
+    "extra": {
+        "isSymbol": true,
+        "codeName": "Core$GenerateAssertions",
+        "full_doc": "... (4046 bytes) ...",
+        "stub": true,
+        "parsed_headline": "GenerateAssertions  -- trace a function each time it's run"
+    }
+}
+```

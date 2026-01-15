@@ -1,0 +1,79 @@
+---
+title: "log1p"
+kind: Method
+---
+
+# log1p
+
+**log1p  -- logarithm of 1+x**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+log1p  -- logarithm of 1+x
+
+## Installed For
+
+### log1p([CC](../Type/CC.mdx)) -> [RR](../Type/RR.mdx)
+
+### log1p([Number](../Type/Number.mdx))
+
+### log1p([RR](../Type/RR.mdx))
+
+### log1p([RRi](../Type/RRi.mdx)) -> [RRi](../Type/RRi.mdx)
+
+### log1p([RingElement](../Type/RingElement.mdx))
+
+## Examples
+
+```macaulay2
+log1p x
+log1p I
+```
+
+```macaulay2
+log1p 1p100e-10
+
+```
+
+```text
+9.999999999500000000033333333333e-11
+
+RR (of precision 100)
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ complex number](../Type/op_x226_x132_x130.mdx) or a [ real number](../Type/op_x226_x132_x157.mdx)
+- `I` a [ real interval](../Type/RRi.mdx)
+- Outputs:
+- a [ real number](../Type/op_x226_x132_x157.mdx) or a [ complex number](../Type/op_x226_x132_x130.mdx) the logarithm of `1+x`
+- a [ real interval](../Type/RRi.mdx) an interval containing logarithm of 1 plus the points of `I`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "log1p",
+    "safe_name": "op_Coredollar_log1p",
+    "type": "MethodFunction",
+    "description": "log1p  -- logarithm of 1+x...",
+    "installations": [
+        "<Installation log1p(Number)>",
+        "<Installation log1p(RingElement)>",
+        "<Installation log1p(RRi)>",
+        "<Installation log1p(CC)>",
+        "<Installation log1p(RR)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$log1p",
+        "full_doc": "... (1477 bytes) ...",
+        "parsed_headline": "log1p  -- logarithm of 1+x"
+    }
+}
+```

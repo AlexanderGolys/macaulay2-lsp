@@ -5,65 +5,83 @@ kind: Function
 
 # newClass
 
-**Type:** `Function`
+**newClass  -- set the class and parent of an object**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-newClass, -- set the class and parent of an object, Description, setting the class and parent, class => element, Usage: , newClass(A,B,x), class => language-macaulay2, Inputs:, A, , , a , Macaulay2Doc :: HashTable, hash table, B, , , a , Macaulay2Doc :: HashTable, hash table, x, Outputs:, a copy (possibly) of , x, with , A, as class and , B, as parent, setting the class, class => element, Usage: , newClass(A,x), class => language-macaulay2, Inputs:, A, , , a , Macaulay2Doc :: HashTable, hash table, x, Outputs:, a copy (possibly) of , x, with , A, as the new class, common remarks, If , x, is a basic list or sequence, then , Macaulay2Doc :: BasicList, should be an ancestor of , A, and , B, should be , Macaulay2Doc :: Nothing, . If , x, is a hash table, then , Macaulay2Doc :: HashTable, should be an ancestor of , A, ., If the class (and parent) of x are already equal to A (and B, respectively), then copying of the elements of , x, is not required, and is not done., If , x, is mutable, and instances of class , A, are also mutable, then copying of the elements of , x, is not required, and is not done., If , x, is not a hash table, basic list, or sequence, then its class will be set to , A, internally, essentially by wrapping it in a special kind of object designed solely to indicate the new class. The new class , A, must be a specialization of the class of , x, . The parent cannot be reset this way. Not all of the internal code of Macaulay2 is ready to recognize such wrapped objects, which are part of a new feature, except for the code that handles functions., class => examples, i1 : t = 1..4
 
-o1 = (1, 2, 3, 4)
+### setting the class and parent
 
-o1 : Sequence, class => language-macaulay2, i2 : newClass(Array,t)
 
-o2 = [1, 2, 3, 4]
+- Inputs:
+- `A` a [ hash table](../Type/op_Coredollar_HashTable.mdx)
+- `B` a [ hash table](../Type/op_Coredollar_HashTable.mdx)
+- `x`
+- Outputs:
+- a copy (possibly) of `x` with `A` as class and `B` as parent
 
-o2 : Array, class => language-macaulay2, i3 : x = new HashTable from { a => 1, b => 2 
 
-o3 = HashTable{a => 1
- b => 2
+### setting the class
 
-o3 : HashTable, class => language-macaulay2, i4 : z = newClass(ImmutableType,Vector,x)
 
-o4 = ImmutableType{a => 1
- b => 2
+- Inputs:
+- `A` a [ hash table](../Type/op_Coredollar_HashTable.mdx)
+- `x`
+- Outputs:
+- a copy (possibly) of `x` with `A` as the new class
 
-o4 : ImmutableType, class => language-macaulay2, i5 : parent z
 
-o5 = Vector
+### common remarks
 
-o5 : Type, class => language-macaulay2, The difference between , new A of B from x, and , newClass(A,B,x), is that the methods installed for , Macaulay2Doc :: new, are not used., class => examples, i6 : new Thing of Thing from Thing := (A,B,c) -> ( 
- << "-- new " << A << " of " << B
- << " from " << toString c << endl;
- c);, class => language-macaulay2, i7 : new ImmutableType of Vector from x
--- new ImmutableType of Vector from new HashTable from {a => 1, b => 2
-
-o7 = ImmutableType{a => 1
- b => 2
-
-o7 : ImmutableType, class => language-macaulay2, i8 : newClass(ImmutableType,Vector,x)
-
-o8 = ImmutableType{a => 1
- b => 2
-
-o8 : ImmutableType, class => language-macaulay2, See also, Macaulay2Doc :: new, Macaulay2Doc :: copy, Macaulay2Doc :: toList, class => waystouse, For the programmer, The object , Macaulay2Doc :: newClass, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_types.m2:435:0, .
+If `x`  is a basic list or sequence then [BasicList](../Type/op_Coredollar_BasicList.mdx)  should be an ancestor of `A`  and `B`  should be [Nothing](../Type/Nothing.mdx) . If `x`  is a hash table then [HashTable](../Type/op_Coredollar_HashTable.mdx)  should be an ancestor of `A` .If the class (and parent) of x are already equal to A (and B respectively) then copying of the elements of `x`  is not required and is not done.If `x`  is mutable and instances of class `A`  are also mutable then copying of the elements of `x`  is not required and is not done.If `x`  is not a hash table basic list or sequence then its class will be set to `A`  internally essentially by wrapping it in a special kind of object designed solely to indicate the new class.  The new class `A`  must be a specialization of the class of `x` . The parent cannot be reset this way. Not all of the internal code of Macaulay2 is ready to recognize such wrapped objects which are part of a new feature except for the code that handles functions.The difference between `new A of B from x`  and `newClass(ABx)`  is that the methods installed for [new](../Method/op_Coredollar_new.mdx)  are not used.
 
 ## Examples
 
 ```macaulay2
-i1 : t = 1..4
+newClass(Arrayt)
 
-o1 = (1, 2, 3, 4)
-
-o1 : Sequence
-
-i2 : newClass(Array,t)
-
-o2 = [1, 2, 3, 4]
-
-o2 : Array
 ```
 
-## See Also
+```text
+[1 2 3 4]
 
+Array
+```
+
+```macaulay2
+z = newClass(ImmutableTypeVector
+```
+
+```macaulay2
+newClass(ImmutableTypeVector
+```
+
+## Additional Information
+
+### See also
+
+
+- Macaulay2Doc:: new
+- Macaulay2Doc:: copy
+- Macaulay2Doc:: toList
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "newClass",
+    "safe_name": "newClass",
+    "type": "CompiledFunction",
+    "description": "\n### setting the class and parent\n\n\n- Inputs:\n- `A` a [ hash table](../Type/op_Coredollar_HashTable....",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "newClass",
+        "full_doc": "... (3826 bytes) ...",
+        "parsed_headline": "newClass  -- set the class and parent of an object"
+    }
+}
+```

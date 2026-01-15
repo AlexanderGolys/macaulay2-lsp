@@ -5,24 +5,42 @@ kind: Function
 
 # parent
 
-**Type:** `Function`
+**parent  -- parent type of an object**
 
-**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+**Type:** [CompiledFunction](../Type/CompiledFunction.mdx)
 
 ## Description
 
-parent, -- parent type of an object, class => element, Usage: , X = parent x, class => language-macaulay2, Inputs:, x, Outputs:, X, , , the parent class of , x, Description, Methods for the instances of , X, which are not found in , X, itself are sought in , P, , and its parent, and so on. Thus the mathematical notion of a set , P, and a subset , X, can modeled in this way., , Things that don't have instances have the empty class, called , Macaulay2Doc :: Nothing, as their parent. The parent of , Macaulay2Doc :: Thing, is , Macaulay2Doc :: Thing, itself (because every thing is a thing)., , The entire structure of types and their parents can be displayed with , Macaulay2Doc :: showStructure, ., class => waystouse, Ways to use , parent, :, parent(Thing), Macaulay2Doc :: parent(HashTable), class => waystouse, For the programmer, The object , Macaulay2Doc :: parent, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_types.m2:458:0, .
-
-## Installations
-
-Type signatures for this function:
-
-- `parent(HashTable)`
-- `parent(Thing)`
+ Methods for the instances of `X`  which are not found in `X`  itself are sought in `P`  and its parent and so on. Thus the mathematical notion of a set `P`  and a subset `X`  can modeled in this way. Things that don't have instances have the empty class called [Nothing](../Type/Nothing.mdx)  as their parent.  The parent of [Thing](../Type/Thing.mdx)  is [Thing](../Type/Thing.mdx)  itself (because every thing is a thing). The entire structure of types and their parents can be displayed with [showStructure](../Instance/showStructure.mdx) .
 
 ## Examples
 
-*Examples would be extracted from M2 documentation here*
+```macaulay2
+X = parent x
+```
 
-## See Also
+## Additional Information
 
+- Inputs:
+- `x`
+- Outputs:
+- `X` the parent class of `x`
+
+## Debug info
+
+```python
+{
+    "obj_type": "Function",
+    "name": "parent",
+    "safe_name": "op_Coredollar_parent",
+    "type": "CompiledFunction",
+    "description": " Methods for the instances of `X`  which are not found in `X`  itself are sought in `P`  and its par...",
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$parent",
+        "full_doc": "... (1290 bytes) ...",
+        "parsed_headline": "parent  -- parent type of an object"
+    }
+}
+```

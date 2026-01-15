@@ -1,0 +1,135 @@
+---
+title: "Gamma"
+kind: Method
+---
+
+# Gamma
+
+**Gamma  -- Gamma function**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+With one argument this is the https://en.wikipedia.org/wiki/gamma_function gamma function \(\Gamma(x) = \int_0^\infty t^{x-1}e^{-t}\dt\).With two arguments it is the (upper) https://en.wikipedia.org/wiki/incomplete_gamma_function incomplete gamma function \(\Gamma(s x) = \int_x^\infty t^{s-1}e^{-t}\dt\).
+
+## Installed For
+
+### Gamma([CC](../Type/CC.mdx))
+
+### Gamma([CC](../Type/CC.mdx), [CC](../Type/CC.mdx))
+
+### Gamma([CC](../Type/CC.mdx), [Number](../Type/Number.mdx))
+
+### Gamma([CC](../Type/CC.mdx), [RR](../Type/RR.mdx))
+
+### Gamma([Number](../Type/Number.mdx))
+
+### Gamma([Number](../Type/Number.mdx), [CC](../Type/CC.mdx))
+
+### Gamma([Number](../Type/Number.mdx), [Number](../Type/Number.mdx))
+
+### Gamma([Number](../Type/Number.mdx), [RR](../Type/RR.mdx))
+
+### Gamma([Number](../Type/Number.mdx), [RRi](../Type/RRi.mdx))
+
+### Gamma([RR](../Type/RR.mdx))
+
+### Gamma([RR](../Type/RR.mdx), [CC](../Type/CC.mdx))
+
+### Gamma([RR](../Type/RR.mdx), [Number](../Type/Number.mdx))
+
+### Gamma([RR](../Type/RR.mdx), [RR](../Type/RR.mdx)) -> [RR](../Type/RR.mdx)
+
+### Gamma([RR](../Type/RR.mdx), [RRi](../Type/RRi.mdx))
+
+### Gamma([RRi](../Type/RRi.mdx))
+
+### Gamma([RRi](../Type/RRi.mdx), [Number](../Type/Number.mdx))
+
+### Gamma([RRi](../Type/RRi.mdx), [RR](../Type/RR.mdx))
+
+### Gamma([RRi](../Type/RRi.mdx), [RRi](../Type/RRi.mdx))
+
+## Examples
+
+```macaulay2
+Gamma x
+Gamma(s x)
+```
+
+```macaulay2
+Gamma 6
+
+```
+
+```text
+120
+
+RR (of precision 53)
+```
+
+```macaulay2
+Gamma(3 7)
+
+```
+
+```text
+.05927232776104355
+
+RR (of precision 53)
+```
+
+## Additional Information
+
+- Inputs:
+- `s` a [ real number](../Type/op_x226_x132_x157.mdx)
+- `x` a [ real number](../Type/op_x226_x132_x157.mdx)
+- Outputs:
+- a [ real number](../Type/op_x226_x132_x157.mdx)
+
+
+### See also
+
+
+- Macaulay2Doc:: regularizedGamma
+- Macaulay2Doc:: inverseRegularizedGamma
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "Gamma",
+    "safe_name": "op_Coredollar_Gamma",
+    "type": "MethodFunction",
+    "description": "With one argument this is the https://en.wikipedia.org/wiki/gamma_function gamma function \\(\\Gamma(x...",
+    "installations": [
+        "<Installation Gamma(Number)>",
+        "<Installation Gamma(Number, RR)>",
+        "<Installation Gamma(Number, CC)>",
+        "<Installation Gamma(Number, RRi)>",
+        "<Installation Gamma(CC, Number)>",
+        "<Installation Gamma(RR, Number)>",
+        "<Installation Gamma(RRi, Number)>",
+        "<Installation Gamma(Number, Number)>",
+        "<Installation Gamma(RR, RRi)>",
+        "<Installation Gamma(CC)>",
+        "<Installation Gamma(RR)>",
+        "<Installation Gamma(RRi)>",
+        "<Installation Gamma(CC, CC)>",
+        "<Installation Gamma(RR, CC)>",
+        "<Installation Gamma(CC, RR)>",
+        "<Installation Gamma(RR, RR)>",
+        "<Installation Gamma(RRi, RR)>",
+        "<Installation Gamma(RRi, RRi)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$Gamma",
+        "full_doc": "... (1812 bytes) ...",
+        "parsed_headline": "Gamma  -- Gamma function"
+    }
+}
+```

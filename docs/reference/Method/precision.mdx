@@ -1,0 +1,112 @@
+---
+title: "precision"
+kind: Method
+---
+
+# precision
+
+**precision**
+
+**Type:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+precision
+
+## Installed For
+
+### precision([FractionField](../Type/FractionField.mdx))
+
+### precision([GaloisField](../Type/GaloisField.mdx))
+
+### precision([InexactField](../Type/InexactField.mdx))
+
+### precision([InexactNumber](../Type/InexactNumber.mdx))
+
+### precision([Matrix](../Type/Matrix.mdx))
+
+### precision([MutableMatrix](../Type/MutableMatrix.mdx))
+
+### precision([Number](../Type/Number.mdx))
+
+### precision([PolynomialRing](../Type/PolynomialRing.mdx))
+
+### precision([QuotientRing](../Type/QuotientRing.mdx))
+
+### precision([Ring](../Type/Ring.mdx)) -> [ZZ](../Type/ZZ.mdx)
+
+### precision([RingElement](../Type/RingElement.mdx))
+
+## Examples
+
+```macaulay2
+precision x
+```
+
+```macaulay2
+precision 3p111
+
+```
+
+```text
+111
+```
+
+```macaulay2
+precision (RR[x])
+
+```
+
+```text
+53
+```
+
+```macaulay2
+precision 3
+
+```
+
+```text
+infinity
+
+InfiniteNumber
+```
+
+## Additional Information
+
+- Inputs:
+- `x` a [ ring](../Type/Ring.mdx) a [ matrix](../Type/op_Coredollar_Matrix.mdx) a [ ring element](../Type/RingElement.mdx) or a [ number](../Type/op_Coredollar_Number.mdx)
+- Outputs:
+- an [ integer](../Type/ZZ.mdx) the precision to which `x` or its instances are stored
+
+## Debug info
+
+```python
+{
+    "obj_type": "Method",
+    "name": "precision",
+    "safe_name": "op_Coredollar_precision",
+    "type": "MethodFunction",
+    "description": "precision...",
+    "installations": [
+        "<Installation precision(PolynomialRing)>",
+        "<Installation precision(RingElement)>",
+        "<Installation precision(Matrix)>",
+        "<Installation precision(QuotientRing)>",
+        "<Installation precision(MutableMatrix)>",
+        "<Installation precision(FractionField)>",
+        "<Installation precision(GaloisField)>",
+        "<Installation precision(Number)>",
+        "<Installation precision(Ring)>",
+        "<Installation precision(InexactField)>",
+        "<Installation precision(InexactNumber)>"
+    ],
+    "options": null,
+    "extra": {
+        "isSymbol": false,
+        "codeName": "Core$precision",
+        "full_doc": "... (1540 bytes) ...",
+        "parsed_headline": "precision"
+    }
+}
+```
