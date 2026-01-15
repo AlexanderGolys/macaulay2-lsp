@@ -1,0 +1,33 @@
+---
+title: "temporaryFileName"
+kind: Function
+---
+
+# temporaryFileName
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+temporaryFileName, -- make a temporary file name, class => element, Usage: , temporaryFileName(), class => language-macaulay2, Outputs:, a unique temporary file name., Description, The file name is so unique that even with various suffixes appended, no collision with existing files will occur. The files will be removed when the program terminates, unless it terminates as the result of an error., class => examples, i1 : temporaryFileName () | ".tex"
+
+o1 = /tmp/M2-710672-0/0.tex, class => language-macaulay2, i2 : temporaryFileName () | ".html"
+
+o2 = /tmp/M2-710672-0/1.html, class => language-macaulay2, This function will work under Unix, and also under Windows if you have a directory on the same drive called , /tmp, ., If the name of the temporary file will be given to an external program, it may be necessary to concatenate it with , Macaulay2Doc :: rootPath, or , Macaulay2Doc :: rootURI, to enable the external program to find the file., The temporary file name is derived from the value of the environment variable , TMPDIR, , if it has one., If , Macaulay2Doc :: fork, is used, then the parent and child Macaulay2 processes will each remove their own temporary files upon termination, with the parent removing any files created before , Macaulay2Doc :: fork, was called., See also, Macaulay2Doc :: File, Macaulay2Doc :: rootPath, Macaulay2Doc :: rootURI, class => waystouse, For the programmer, The object , Macaulay2Doc :: temporaryFileName, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1433:0, .
+
+## Examples
+
+```macaulay2
+i1 : temporaryFileName () | ".tex"
+
+o1 = /tmp/M2-710672-0/0.tex
+
+i2 : temporaryFileName () | ".html"
+
+o2 = /tmp/M2-710672-0/1.html
+```
+
+## See Also
+

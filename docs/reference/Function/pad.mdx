@@ -1,0 +1,42 @@
+---
+title: "pad"
+kind: Function
+---
+
+# pad
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+pad, -- pad a string or net with spaces, class => element, Usage: , pad(s,n), class => language-macaulay2, pad(n,s), class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: Net, net, , , n, , , an , Macaulay2Doc :: ZZ, integer, , , Description, pad(s,n), pads the string or net , s, to length , n, with spaces on the right., pad(n,s), pads the string or net , s, to length , n, with spaces on the left., class => examples, i1 : pad(6, "foo")
+
+o1 = foo, class => language-macaulay2, i2 : pad("foo", 6) | "bar"
+
+o2 = foo bar, class => language-macaulay2, class => waystouse, Ways to use , pad, :, pad(Net,ZZ), pad(String,ZZ), pad(ZZ,Net), pad(ZZ,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: pad, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_strings.m2:519:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `pad(String, ZZ)`
+- `pad(ZZ, String)`
+- `pad(Net, ZZ)`
+- `pad(ZZ, Net)`
+
+## Examples
+
+```macaulay2
+i1 : pad(6, "foo")
+
+o1 =    foo
+
+i2 : pad("foo", 6) | "bar"
+
+o2 = foo   bar
+```
+
+## See Also
+

@@ -1,0 +1,47 @@
+---
+title: "selectKeys"
+kind: Function
+---
+
+# selectKeys
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+selectKeys, -- select a part of a hash table by keys, class => element, Usage: , selectKeys(x, f), class => language-macaulay2, selectKeys(n, x, f), class => language-macaulay2, Inputs:, n, , , an , Macaulay2Doc :: ZZ, integer, , , x, , , a , Macaulay2Doc :: HashTable, hash table, , , must be immutable; , f, , , a , Macaulay2Doc :: Function, function, , , Outputs:, a , Macaulay2Doc :: HashTable, hash table, , , containing all (or , n, , if it is given) key-value pairs (, k, ,, v, ) from , x, for which , f k, evaluates to true., Description, class => examples, i1 : x = hashTable{(1, a), (2, b), (3, c), (4, d), (5, e)
+
+o1 = HashTable{1 => a
+ 2 => b
+ 3 => c
+ 4 => d
+ 5 => e
+
+o1 : HashTable, class => language-macaulay2, i2 : selectKeys(x, odd)
+
+o2 = HashTable{1 => a
+ 3 => c
+ 5 => e
+
+o2 : HashTable, class => language-macaulay2, i3 : selectKeys(2, x, odd)
+
+o3 = HashTable{1 => a
+ 3 => c
+
+o3 : HashTable, class => language-macaulay2, See also, Macaulay2Doc :: selectValues, Macaulay2Doc :: selectPairs, class => waystouse, Ways to use , selectKeys, :, selectKeys(HashTable,Function), selectKeys(ZZ,HashTable,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: selectKeys, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/select-doc.m2:256:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `selectKeys(ZZ, HashTable, Function)`
+- `selectKeys(HashTable, Function)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

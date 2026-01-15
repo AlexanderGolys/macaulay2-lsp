@@ -1,0 +1,36 @@
+---
+title: "peek"
+kind: Function
+---
+
+# peek
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+peek, -- examine contents of an object, class => element, Usage: , peek o, class => language-macaulay2, Inputs:, o, , , a , Macaulay2Doc :: Thing, thing, , , any Macaulay2 object, Outputs:, a , Macaulay2Doc :: Net, net, , , laying out the internal contents of , o, to depth 1, bypassing installed methods for displaying the object, Description, This function is used during debugging Macaulay2 programs to examine the internal structure of objects., class => examples, i1 : set {1, 2, 3
+
+o1 = set {1, 2, 3
+
+o1 : Set, class => language-macaulay2, i2 : peek oo
+
+o2 = Set{1 => 1
+ 2 => 1
+ 3 => 1, class => language-macaulay2, i3 : new MutableHashTable from { a => 3, b => 44
+
+o3 = MutableHashTable{...2...
+
+o3 : MutableHashTable, class => language-macaulay2, i4 : peek oo
+
+o4 = MutableHashTable{a => 3 
+ b => 44, class => language-macaulay2, See also, Macaulay2Doc :: peek', class => waystouse, For the programmer, The object , Macaulay2Doc :: peek, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/peek-doc.m2:55:0, .
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

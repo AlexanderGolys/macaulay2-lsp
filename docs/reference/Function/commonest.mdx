@@ -1,0 +1,57 @@
+---
+title: "commonest"
+kind: Function
+---
+
+# commonest
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+commonest, -- the most common elements of a list or tally, class => element, Usage: , commonest A, class => language-macaulay2, Inputs:, A, , , a , Macaulay2Doc :: VisibleList, visible list, , , Outputs:, L, , , a , Macaulay2Doc :: List, list, , , a list of the elements of , A, with the most repetitions, Description, If a single element is the most common, a list of length one is the output., class => examples, i1 : commonest {a,a,a,a,b,b,b,c,c,d,e
+
+o1 = {a
+
+o1 : List, class => language-macaulay2, In the case of a tie, all commonest elements are returned., class => examples, i2 : A = {a,a,a,a,b,b,b,b,c,c,c,c,d,e; commonest A
+
+o3 = {c, a, b
+
+o3 : List, class => language-macaulay2, , commonest, works on , Macaulay2Doc :: Tally, s and , Macaulay2Doc :: Set, s as well., class => examples, i4 : T = tally A
+
+o4 = Tally{a => 4
+ b => 4
+ c => 4
+ d => 1
+ e => 1
+
+o4 : Tally, class => language-macaulay2, i5 : commonest T
+
+o5 = {c, a, b
+
+o5 : List, class => language-macaulay2, i6 : S = set A
+
+o6 = set {c, d, e, a, b
+
+o6 : Set, class => language-macaulay2, i7 : commonest S
+
+o7 = {c, d, e, a, b
+
+o7 : List, class => language-macaulay2, (Since every element of a set is unique, it is unclear why one would need , commonest(Set), .), See also, Macaulay2Doc :: number, Macaulay2Doc :: same, Macaulay2Doc :: set, Macaulay2Doc :: tally, Macaulay2Doc :: unique, Macaulay2Doc :: lists and sequences, class => waystouse, Ways to use , commonest, :, commonest(Set), commonest(Tally), commonest(VisibleList), class => waystouse, For the programmer, The object , Macaulay2Doc :: commonest, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/commonest-doc.m2:44:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `commonest(VisibleList)`
+- `commonest(Tally)`
+- `commonest(Set)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

@@ -1,0 +1,48 @@
+---
+title: "importFrom"
+kind: Function
+---
+
+# importFrom
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+importFrom, -- import symbols to the current private dictionary, class => element, Usage: , importFrom(pkg, {"symbol1", "symbol2"), class => language-macaulay2, Inputs:, pkg, , , a , Macaulay2Doc :: Package, package, or , a , Macaulay2Doc :: String, string, , , the package containing the private symbols, a , Macaulay2Doc :: String, string, or , a , Macaulay2Doc :: List, list, , , of strings, corresponding to the private , Macaulay2Doc :: Symbol, symbols, to export from the package, Outputs:, a , Macaulay2Doc :: List, list, , , of , Macaulay2Doc :: Symbol, symbols, Consequences:, package symbols provided in the list will be added to the private , Macaulay2Doc :: Dictionary, dictionary, of the , Macaulay2Doc :: currentPackage, current package, , but will not be exported, Description, This function can be used to import specific symbols from the private dictionary of another package into the private dictionary of the , Macaulay2Doc :: currentPackage, current package, ., class => examples, i1 : importFrom_Core {"raw"
+
+o1 = {raw
+
+o1 : List, class => language-macaulay2, i2 : raw random(ZZ^2, ZZ^2)
+
+o2 = 8 3 
+ 1 7 
+
+
+o2 : RawMatrix, class => language-macaulay2, To import all private symbols of a package, use , Macaulay2Doc :: debug(Package), instead. The symbols imported with this function can then be exported using , Macaulay2Doc :: export, or , Macaulay2Doc :: exportMutable, ., See also, Macaulay2Doc :: debug(Package), Macaulay2Doc :: exportFrom, Macaulay2Doc :: Dictionary, class => waystouse, Ways to use , importFrom, :, importFrom(Package,List), importFrom(Package,String), importFrom(String,List), importFrom(String,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: importFrom, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/export-doc.m2:140:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `importFrom(String, List)`
+- `importFrom(Package, List)`
+- `importFrom(String, String)`
+- `importFrom(Package, String)`
+
+## Examples
+
+```macaulay2
+i2 : raw random(ZZ^2, ZZ^2)
+
+o2 = 8 3 
+     1 7 
+
+
+o2 : RawMatrix
+```
+
+## See Also
+

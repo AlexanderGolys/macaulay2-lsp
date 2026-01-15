@@ -1,0 +1,47 @@
+---
+title: "atan"
+kind: Function
+---
+
+# atan
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+atan, -- compute the arctangent of a number, class => element, Usage: , atan x, class => language-macaulay2, atan I, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: RR, real number, I, , , a , Macaulay2Doc :: RRi, real interval, Outputs:, a , Macaulay2Doc :: RR, real number, , , the arctangent (in radians) of , x, a , Macaulay2Doc :: RRi, real interval, , , an interval containing the arctangents of the points of , I, Description, class => examples, i1 : atan 1
+
+o1 = .7853981633974483
+
+o1 : RR (of precision 53), class => language-macaulay2, i2 : abs atan 1 == pi/4
+
+o2 = true, class => language-macaulay2, See also, Macaulay2Doc :: atan2, class => waystouse, Ways to use , atan, :, atan(CC), atan(RR), atan(RRi), class => waystouse, For the programmer, The object , Macaulay2Doc :: atan, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/atan-doc.m2:39:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `atan(Number)`
+- `atan(RingElement)`
+- `atan(CC)`
+- `atan(RR)`
+- `atan(RRi)`
+
+## Examples
+
+```macaulay2
+i1 : atan 1
+
+o1 = .7853981633974483
+
+o1 : RR (of precision 53)
+
+i2 : abs atan 1 == pi/4
+
+o2 = true
+```
+
+## See Also
+

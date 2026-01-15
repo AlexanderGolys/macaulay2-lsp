@@ -1,0 +1,60 @@
+---
+title: "columnMult"
+kind: Function
+---
+
+# columnMult
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+columnMult, -- multiply a column by a ring element, class => element, Usage: , columnMult(m,i,a), class => language-macaulay2, Inputs:, m, , , a , Macaulay2Doc :: MutableMatrix, mutable matrix, i, , , an , Macaulay2Doc :: ZZ, integer, a, , , a , Macaulay2Doc :: RingElement, ring element, , , in the same ring as , m, Consequences:, The , i, th column of , m, is modified by multiplying it by , a, Description, class => examples, i1 : R = ZZ[a..f]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : m = mutableMatrix genericMatrix(R,a,2,3)
+
+o2 = | a c e |
+ | b d f |
+
+o2 : MutableMatrix, class => language-macaulay2, i3 : columnMult(m,0,c)
+
+o3 = | ac c e |
+ | bc d f |
+
+o3 : MutableMatrix, class => language-macaulay2, i4 : m
+
+o4 = | ac c e |
+ | bc d f |
+
+o4 : MutableMatrix, class => language-macaulay2, See also, Macaulay2Doc :: mutable matrices, Macaulay2Doc :: row and column operations, class => waystouse, Ways to use , columnMult, :, columnMult(MutableMatrix,ZZ,Number), columnMult(MutableMatrix,ZZ,RingElement), class => waystouse, For the programmer, The object , Macaulay2Doc :: columnMult, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_mutablematrices.m2:256:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `columnMult(MutableMatrix, ZZ, Number)`
+- `columnMult(MutableMatrix, ZZ, RingElement)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ[a..f]
+
+o1 = R
+
+o1 : PolynomialRing
+
+i2 : m = mutableMatrix genericMatrix(R,a,2,3)
+
+o2 = | a c e |
+     | b d f |
+
+o2 : MutableMatrix
+```
+
+## See Also
+

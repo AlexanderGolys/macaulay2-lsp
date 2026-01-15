@@ -1,0 +1,45 @@
+---
+title: "httpHeaders"
+kind: Function
+---
+
+# httpHeaders
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+httpHeaders, -- prepend http headers to a string, class => element, Usage: , httpHeaders s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: String, string, , , the string obtained from , s, by prepending appropriate headers to it, Description, This function is experimental, and is intended to support the development of web servers., class => examples, i1 : httpHeaders "hi there"
+
+o1 = HTTP/1.1 200 OK
+ Server: Macaulay2/1.25.11
+ Connection: close
+ Content-Length: 8
+ Content-type: text/html; charset=utf-8
+
+ hi there, class => language-macaulay2, class => waystouse, Ways to use , httpHeaders, :, Macaulay2Doc :: httpHeaders(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: httpHeaders, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1710:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `httpHeaders(String)`
+
+## Examples
+
+```macaulay2
+i1 : httpHeaders "hi there"
+
+o1 = HTTP/1.1 200 OK
+     Server: Macaulay2/1.25.11
+     Connection: close
+     Content-Length: 8
+     Content-type: text/html; charset=utf-8
+
+     hi there
+```
+
+## See Also
+

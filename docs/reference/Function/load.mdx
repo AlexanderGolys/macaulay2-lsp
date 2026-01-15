@@ -1,0 +1,21 @@
+---
+title: "load"
+kind: Function
+---
+
+# load
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+load, -- read Macaulay2 commands, Description, load "f", -- reads and executes Macaulay2 expressions found in the file named , f, ., The file is sought in the directory containing the file currently being loaded, if any, and then along the , Macaulay2Doc :: path, , unless the name of the file begins with , /, , , $, , or , !, . If the file begins with , ./, or , ../, , then it looks instead in the directory of the file currently being loaded (see , Macaulay2Doc :: currentFileDirectory, ). If no file is being loaded it will look in the current directory (see , Macaulay2Doc :: currentDirectory, )., The file is read without echoing the input, printing the values, or incrementing the line number., If one of the top level expressions in the file evaluates to the symbol , Macaulay2Doc :: end, the reading of the file is stopped at that point., If the variable , Macaulay2Doc :: notify, is set to true, then an informational message is displayed after the file is loaded., See also, Macaulay2Doc :: path, Macaulay2Doc :: needs, Macaulay2Doc :: input, Macaulay2Doc :: notify, class => waystouse, For the programmer, The object , Macaulay2Doc :: load, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:214:0, .
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

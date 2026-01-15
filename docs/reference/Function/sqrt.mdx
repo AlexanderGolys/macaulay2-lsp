@@ -1,0 +1,51 @@
+---
+title: "sqrt"
+kind: Function
+---
+
+# sqrt
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+sqrt, -- square root function, class => element, Usage: , sqrt x, class => language-macaulay2, sqrt I, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: RR, real number, I, , , a , Macaulay2Doc :: RRi, real interval, Outputs:, the square root of , x, a , Macaulay2Doc :: RRi, real interval, , , an interval containing the square roots of the points of , I, Description, class => examples, i1 : sqrt 2p200
+
+o1 = 1.41421356237309504880168872420969807856967187537694807317668
+
+o1 : RR (of precision 200), class => language-macaulay2, i2 : sqrt (+ii)
+
+o2 = .7071067811865476+.7071067811865475*ii
+
+o2 : CC (of precision 53), class => language-macaulay2, class => waystouse, Ways to use , sqrt, :, sqrt(CC), sqrt(RR), sqrt(RRi), Macaulay2Doc :: sqrt(ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: sqrt, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators.m2:109:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `sqrt(Number)`
+- `sqrt(ZZ, ZZ)`
+- `sqrt(RR)`
+- `sqrt(CC)`
+- `sqrt(RRi)`
+
+## Examples
+
+```macaulay2
+i1 : sqrt 2p200
+
+o1 = 1.41421356237309504880168872420969807856967187537694807317668
+
+o1 : RR (of precision 200)
+
+i2 : sqrt (+ii)
+
+o2 = .7071067811865476+.7071067811865475*ii
+
+o2 : CC (of precision 53)
+```
+
+## See Also
+

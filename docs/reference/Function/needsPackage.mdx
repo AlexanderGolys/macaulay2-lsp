@@ -1,0 +1,57 @@
+---
+title: "needsPackage"
+kind: Function
+---
+
+# needsPackage
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+needsPackage, -- load a package if not already loaded, class => element, Usage: , needsPackage PackageName, class => language-macaulay2, Inputs:, PackageName, , , a , Macaulay2Doc :: String, string, , , the name of the package, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, FileName, => , a , Macaulay2Doc :: String, string, , , default value , null, , , the name of the file containing the source code of the package, from which it should be loaded, LoadDocumentation, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , whether to load the documentation of the package, too; see , Macaulay2Doc :: beginDocumentation, DebuggingMode, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , null, , , the value of the variable , Macaulay2Doc :: debuggingMode, during loading the package; specifying it here overrides the value specified as an option to , Macaulay2Doc :: newPackage, by the package itself, Configuration, => , a , Macaulay2Doc :: List, list, , , default value , {, , , the entries are options , KEY => VALUE, overriding the defaults specified in the source code of the package and the (possibly updated) values in the file in the user's application directory., Reload, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , null, , , whether to reload the package, if it has been loaded from a different source before, Outputs:, a , Macaulay2Doc :: Package, package, , , the package requested, Consequences:, loads the package , PackageName, by loading the file , PackageName.m2, which should appear in one of the directories occurring in the list , Macaulay2Doc :: path, , unless it has already been loaded, in which case it ensures that the package's dictionary of exported symbols occurs in , Macaulay2Doc :: dictionaryPath, and are thus available to the user. In addition, the function , Macaulay2Doc :: needsPackage, is applied to each of the packages whose names are specified by the , Macaulay2Doc :: newPackage(...,PackageExports=>...), option for the requested package. If the variable , Macaulay2Doc :: notify, is set to true, then an informational message is displayed after the file is loaded., Description, For example, to load the sample package , FirstPackage, :, class => examples, i1 : notify = true
+
+o1 = true, class => language-macaulay2, i2 : needsPackage "FirstPackage"
+ -- loading FirstPackage.m2
+ -- opening database /usr/lib/Macaulay2/FirstPackage/cache/rawdocumentation-dcba-8.db
+ -- beginDocumentation: using documentation database, skipping the rest of /usr/share/Macaulay2/FirstPackage.m2
+ -- package "FirstPackage" loaded
+ -- loaded /usr/share/Macaulay2/FirstPackage.m2
+
+o2 = FirstPackage
+
+o2 : Package, class => language-macaulay2, i3 : needsPackage "FirstPackage"
+
+o3 = FirstPackage
+
+o3 : Package, class => language-macaulay2, The second time the package was not reloaded., See also, Macaulay2Doc :: packages, Macaulay2Doc :: dismiss, Macaulay2Doc :: loadPackage, Macaulay2Doc :: packages provided with Macaulay2, class => waystouse, Ways to use , needsPackage, :, needsPackage(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: needsPackage, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/package-doc.m2:688:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `needsPackage(String)`
+
+## Examples
+
+```macaulay2
+i1 : notify = true
+
+o1 = true
+
+i2 : needsPackage "FirstPackage"
+ -- loading FirstPackage.m2
+ -- opening database /usr/lib/Macaulay2/FirstPackage/cache/rawdocumentation-dcba-8.db
+ -- beginDocumentation: using documentation database, skipping the rest of /usr/share/Macaulay2/FirstPackage.m2
+ -- package "FirstPackage" loaded
+ -- loaded /usr/share/Macaulay2/FirstPackage.m2
+
+o2 = FirstPackage
+
+o2 : Package
+```
+
+## See Also
+

@@ -1,0 +1,61 @@
+---
+title: "wedgeProduct"
+kind: Function
+---
+
+# wedgeProduct
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+wedgeProduct, -- the exterior multiplication map, class => element, Usage: , wedgeProduct(p,q,F), class => language-macaulay2, Inputs:, p, , , an , Macaulay2Doc :: ZZ, integer, q, , , an , Macaulay2Doc :: ZZ, integer, F, , , a , Macaulay2Doc :: Module, module, , , a free module, Outputs:, a , Macaulay2Doc :: Matrix, matrix, , , representing the multiplication map from , exteriorPower(p,M) ** exteriorPower(q,M), to , exteriorPower(p+q,M), Description, class => examples, i1 : F = QQ^4
+
+ 4
+o1 = QQ
+
+o1 : QQ-module, free, class => language-macaulay2, i2 : wedgeProduct(1,1,F)
+
+o2 = | 0 1 0 0 -1 0 0 0 0 0 0 0 0 0 0 0 |
+ | 0 0 1 0 0 0 0 0 -1 0 0 0 0 0 0 0 |
+ | 0 0 0 0 0 0 1 0 0 -1 0 0 0 0 0 0 |
+ | 0 0 0 1 0 0 0 0 0 0 0 0 -1 0 0 0 |
+ | 0 0 0 0 0 0 0 1 0 0 0 0 0 -1 0 0 |
+ | 0 0 0 0 0 0 0 0 0 0 0 1 0 0 -1 0 |
+
+ 6 16
+o2 : Matrix QQ <-- QQ, class => language-macaulay2, See also, Macaulay2Doc :: exteriorPower, class => waystouse, Ways to use , wedgeProduct, :, Macaulay2Doc :: wedgeProduct(ZZ,ZZ,Module), class => waystouse, For the programmer, The object , Macaulay2Doc :: wedgeProduct, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/wedgeProduct-doc.m2:23:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `wedgeProduct(ZZ, ZZ, Module)`
+
+## Examples
+
+```macaulay2
+i1 : F = QQ^4
+
+       4
+o1 = QQ
+
+o1 : QQ-module, free
+
+i2 : wedgeProduct(1,1,F)
+
+o2 = | 0 1 0 0 -1 0 0 0 0  0  0 0 0  0  0  0 |
+     | 0 0 1 0 0  0 0 0 -1 0  0 0 0  0  0  0 |
+     | 0 0 0 0 0  0 1 0 0  -1 0 0 0  0  0  0 |
+     | 0 0 0 1 0  0 0 0 0  0  0 0 -1 0  0  0 |
+     | 0 0 0 0 0  0 0 1 0  0  0 0 0  -1 0  0 |
+     | 0 0 0 0 0  0 0 0 0  0  0 1 0  0  -1 0 |
+
+              6       16
+o2 : Matrix QQ  <-- QQ
+```
+
+## See Also
+

@@ -1,0 +1,57 @@
+---
+title: "runHooks"
+kind: Function
+---
+
+# runHooks
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+runHooks, -- run the hook functions stored in an object, class => element, Usage: , runHooks(key, args), class => language-macaulay2, runHooks(store, key, args), class => language-macaulay2, Inputs:, key, , , a , Macaulay2Doc :: Sequence, sequence, or , a , Macaulay2Doc :: Symbol, symbol, , , args, , , a , Macaulay2Doc :: Thing, thing, , , store, , , a , Macaulay2Doc :: MutableHashTable, mutable hash table, , , Outputs:, if one of the hook functions returns a non-, Macaulay2Doc :: null, value, that value will be returned. Otherwise , Macaulay2Doc :: null, will be returned., Description, Each function , hook, in the hash table of hooks associated to , key, is called with , args, as its argument or sequence of arguments. The optional argument , Strategy, can be used to specify which hook should be run. See , Macaulay2Doc :: addHook, for where the hooks are stored., Any other optional argument for , runHooks, that matches any key in , options hook, will be passed on to , hook, . All other options are ignored., For further explanation and examples of hooks see , Macaulay2Doc :: using hooks, ., class => waystouse, Code, ../../m2/option.m2:37:14-41:8: --source code:
+ (opts,f) -> args -> (
+ -- Common code for functions created with >> to separate options from arguments.
+ -- uncurry(f, (new OptionTable from toList select(args, i -> instance(i,Option)), select(args, i -> not instance(i,Option))))
+ uncurry(f, override (,args))
+ )
+| symbol class value location of symbol
+| ------ ----- ----- ------------------ 
+| f FunctionClosure FunctionClosure[../../m2/methods.m2:663:52-679:108] ../../m2/option.m2:37:8-37:9
+| opts Boolean true ../../m2/option.m2:37:3-37:7
+| -- function f:
+| ../../m2/methods.m2:663:52-679:108: --source code:
+| runHooks(MutableHashTable, Thing, Thing) := true >> opts -> (store, key, args) -> (
+| store = if store#?key then store#key else (
+| if debugHooksLevel > 1 then printerr("runHooks: no hooks installed for ", toString key); return );
+| alg := if opts.?Strategy then opts.Strategy;
+| type := class alg;
+| -- if Strategy is not given, run through all available hooks
+| if alg === null then scan(reverse store.HookPriority, alg -> (
+| result := runHook(store.HookAlgorithms#alg, key, alg, args, opts ++ { Strategy => alg );
+| if not instance(result, Nothing) then break result)) else
+| -- if Strategy is given, and it is among the known strategies, run only that hook
+| if store.HookAlgorithms#?alg then runHook(store.HookAlgorithms#alg, key, alg, args, opts) else
+| -- otherwise, if the class of alg is a known strategy, run only that hook
+| -- TODO: implement reverse lookup to find strategy installed under ancestors of type?
+| if store.HookAlgorithms#?type then runHook(store.HookAlgorithms#type, key, type, args, opts) else
+| -- otherwise, give an error with the list of possible strategies
+| error("unrecognized Strategy => '", toString alg, "' for ", toString key, newline,
+| " available strategies are: ", demark_", " \\ toExternalString \ new List from store.HookPriority)), class => language-macaulay2, See also, Macaulay2Doc :: hooks, Macaulay2Doc :: addHook, class => waystouse, Ways to use , runHooks, :, runHooks(MutableHashTable,Thing,Thing), runHooks(Sequence,Thing), runHooks(Symbol,Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: runHooks, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/hooks-doc.m2:181:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `runHooks(Symbol, Thing)`
+- `runHooks(MutableHashTable, Thing, Thing)`
+- `runHooks(Sequence, Thing)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

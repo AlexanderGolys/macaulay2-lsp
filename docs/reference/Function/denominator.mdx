@@ -1,0 +1,62 @@
+---
+title: "denominator"
+kind: Function
+---
+
+# denominator
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+denominator, -- denominator of a fraction, class => element, Usage: , denominator x, class => language-macaulay2, Inputs:, x, , , a fraction, Outputs:, the denominator of , x, Description, class => examples, i1 : denominator (4/6)
+
+o1 = 3, class => language-macaulay2, , class => examples, i2 : R = frac(ZZ[x,y]);, class => language-macaulay2, i3 : denominator((x+2*y-3)/(x-y))
+
+o3 = x - y
+
+o3 : ZZ[x..y], class => language-macaulay2, , denominator, also works with Hilbert series., class => examples, i4 : R = QQ[a..d]/(a^2,b^2,c^3);, class => language-macaulay2, i5 : hf = hilbertSeries R
+
+ 2 3 4 5 7
+ 1 - 2T - T + T + 2T - T
+o5 = ----------------------------
+ 4
+ (1 - T)
+
+o5 : Expression of class Divide, class => language-macaulay2, i6 : denominator hf
+
+ 4
+o6 = (1 - T)
+
+o6 : Expression of class Product, class => language-macaulay2, For a Laurent polynomial in a ring with inverses of variables, it gives the monomial needed to clear all the denominators in each of the terms., class => examples, i7 : R = QQ[x,y,z,Inverses => true, MonomialOrder => Lex]
+
+o7 = R
+
+o7 : PolynomialRing, class => language-macaulay2, i8 : denominator (x*y^-1+y*z^-2+1+y^-1*z^-1)
+
+ 2
+o8 = y*z
+
+o8 : R, class => language-macaulay2, See also, Macaulay2Doc :: numerator, Macaulay2Doc :: fraction fields, Macaulay2Doc :: hilbertSeries, class => waystouse, Ways to use , denominator, :, denominator(Divide), class => waystouse, For the programmer, The object , Macaulay2Doc :: denominator, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/denominator-doc.m2:44:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `denominator(Divide)`
+- `denominator(QQ)`
+
+## Examples
+
+```macaulay2
+i1 : denominator (4/6)
+
+o1 = 3
+
+i2 : R = frac(ZZ[x,y]);
+```
+
+## See Also
+

@@ -1,0 +1,45 @@
+---
+title: "unsequence"
+kind: Function
+---
+
+# unsequence
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+unsequence, -- extract the single element from a sequence of length 1, class => element, Usage: , unsequence x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Thing, thing, Outputs:, x#0, , if , x, is a sequence of length 1, otherwise , x, , Description, class => examples, i1 : unsequence (2:a)
+
+o1 = (a, a)
+
+o1 : Sequence, class => language-macaulay2, i2 : unsequence (1:a)
+
+o2 = a
+
+o2 : Symbol, class => language-macaulay2, i3 : unsequence (0:a)
+
+o3 = ()
+
+o3 : Sequence, class => language-macaulay2, See also, Macaulay2Doc :: sequence, class => waystouse, For the programmer, The object , Macaulay2Doc :: unsequence, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_lists.m2:793:0, .
+
+## Examples
+
+```macaulay2
+i1 : unsequence (2:a)
+
+o1 = (a, a)
+
+o1 : Sequence
+
+i2 : unsequence (1:a)
+
+o2 = a
+
+o2 : Symbol
+```
+
+## See Also
+

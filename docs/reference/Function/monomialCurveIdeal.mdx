@@ -1,0 +1,54 @@
+---
+title: "monomialCurveIdeal"
+kind: Function
+---
+
+# monomialCurveIdeal
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+monomialCurveIdeal, -- make the ideal of a monomial curve, class => element, Usage: , I = monomialCurveIdeal(R, a), class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: PolynomialRing, polynomial ring, , , over a field, a, , , a , Macaulay2Doc :: List, list, , , containing integers to be used as exponents in the parametrization of a rational curve, Outputs:, I, , , an , Macaulay2Doc :: Ideal, ideal, , , corresponding to the projective curve given parametrically on an affine piece by $t \mapsto (t^{a_0, \dots, t^{a_n)$, Description, The ideal is defined in the polynomial ring $R$, which must have at least $n+1$ variables, preferably all of equal degree. The first $n+1$ variables in the ring are used., A plane quintic curve of genus 6, class => examples, i1 : R = ZZ/101[a..f]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : monomialCurveIdeal(R, {3, 5)
+
+ 5 2 3
+o2 = ideal(b - a c )
+
+o2 : Ideal of R, class => language-macaulay2, A genus 2 curve with one singular point, class => examples, i3 : monomialCurveIdeal(R, {3, 4, 5)
+
+ 2 2 2 3
+o3 = ideal (c - b*d, b c - a*d , b - a*c*d)
+
+o3 : Ideal of R, class => language-macaulay2, A genus 7 curve with two singular points, class => examples, i4 : monomialCurveIdeal(R, {6, 7, 8, 9, 11)
+
+ 2 2 2 2 
+o4 = ideal (e - c*f, d*e - b*f, d - c*e, c*d - b*e, c - b*d, b*c*e - a*f ,
+ ------------------------------------------------------------------------
+ 2 2 3
+ b d - a*e*f, b c - a*d*f, b - a*c*f)
+
+o4 : Ideal of R, class => language-macaulay2, The smooth rational quartic in $\PP^3$, class => examples, i5 : monomialCurveIdeal(R, {1, 3, 4)
+
+ 3 2 2 2 3 2
+o5 = ideal (b*c - a*d, c - b*d , a*c - b d, b - a c)
+
+o5 : Ideal of R, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: monomialCurveIdeal, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_ideals.m2:255:0, .
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/101[a..f]
+
+o1 = R
+
+o1 : PolynomialRing
+```
+
+## See Also
+

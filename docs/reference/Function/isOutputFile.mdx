@@ -1,0 +1,51 @@
+---
+title: "isOutputFile"
+kind: Function
+---
+
+# isOutputFile
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+isOutputFile, -- whether a file is open for output, class => element, Usage: , isOutputFile f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: File, file, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , f, is an open output file, Description, class => examples, i1 : f = "test-file" << "hi there"
+
+o1 = test-file
+
+o1 : File, class => language-macaulay2, i2 : isOutputFile f
+
+o2 = true, class => language-macaulay2, i3 : close f
+
+o3 = test-file
+
+o3 : File, class => language-macaulay2, i4 : isOutputFile f
+
+o4 = false, class => language-macaulay2, i5 : get "test-file"
+
+o5 = hi there, class => language-macaulay2, i6 : removeFile "test-file", class => language-macaulay2, See also, Macaulay2Doc :: openOut, Macaulay2Doc :: openInOut, Macaulay2Doc :: close, Macaulay2Doc :: get, Macaulay2Doc :: removeFile, class => waystouse, Ways to use , isOutputFile, :, Macaulay2Doc :: isOutputFile(File), class => waystouse, For the programmer, The object , Macaulay2Doc :: isOutputFile, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:589:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isOutputFile(File)`
+
+## Examples
+
+```macaulay2
+i1 : f = "test-file" << "hi there"
+
+o1 = test-file
+
+o1 : File
+
+i2 : isOutputFile f
+
+o2 = true
+```
+
+## See Also
+

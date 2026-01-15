@@ -1,0 +1,62 @@
+---
+title: "isPrime"
+kind: Function
+---
+
+# isPrime
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+isPrime, -- whether a integer or polynomial is prime, class => element, Usage: , isPrime f, class => language-macaulay2, Inputs:, f, , , an , Macaulay2Doc :: ZZ, integer, , or an element in a , Macaulay2Doc :: PolynomialRing, polynomial ring, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Macaulay2Doc :: true, if , f, is either a prime integer or an irreducible polynomial and , Macaulay2Doc :: false, otherwise, Description, class => examples, i1 : ZZ/2[t];, class => language-macaulay2, i2 : isPrime(t^2+t+1)
+
+o2 = true, class => language-macaulay2, i3 : isPrime(t^2+1)
+
+o3 = false, class => language-macaulay2, i4 : isPrime 101
+
+o4 = true, class => language-macaulay2, i5 : isPrime 158174196546819165468118574681196546811856748118567481185669501856749
+
+o5 = true, class => language-macaulay2, i6 : isPrime 158174196546819165468118574681196546811856748118567481185669501856749^2
+
+o6 = false, class => language-macaulay2, Since , Macaulay2Doc :: factor, returns factors guaranteed only to be pseudoprimes, it may be useful to check their primality, as follows., class => examples, i7 : f = factor 28752093487520394720397634653456
+
+ 4
+o7 = 2 109*1831*3014311519*2987077659845341
+
+o7 : Expression of class Product, class => language-macaulay2, i8 : peek'_2 f
+
+o8 = Product{Power{2, 4, Power{109, 1, Power{1831, 1, Power{3014311519,
+ ------------------------------------------------------------------------
+ 1, Power{2987077659845341, 1, class => language-macaulay2, i9 : first \ toList f
+
+o9 = {2, 109, 1831, 3014311519, 2987077659845341
+
+o9 : List, class => language-macaulay2, i10 : isPrime \ oo
+
+o10 = {true, true, true, true, true
+
+o10 : List, class => language-macaulay2, Primality testing for integers is handled by , Macaulay2Doc :: FLINT, ., See also, Macaulay2Doc :: factor, Macaulay2Doc :: isPseudoprime, MinimalPrimes :: isPrime(Ideal), class => waystouse, Ways to use , isPrime, :, isPrime(RingElement), isPrime(ZZ), MinimalPrimes :: isPrime(Ideal), class => waystouse, For the programmer, The object , Macaulay2Doc :: isPrime, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isPrime-doc.m2:101:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isPrime(Ideal)`
+- `isPrime(RingElement)`
+- `isPrime(ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : ZZ/2[t];
+
+i2 : isPrime(t^2+t+1)
+
+o2 = true
+```
+
+## See Also
+

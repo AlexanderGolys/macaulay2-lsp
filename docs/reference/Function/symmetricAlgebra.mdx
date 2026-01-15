@@ -1,0 +1,103 @@
+---
+title: "symmetricAlgebra"
+kind: Function
+---
+
+# symmetricAlgebra
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+symmetricAlgebra, -- the symmetric algebra of a module, Description, Synopsis, class => element, Usage: , symmetricAlgebra M, class => language-macaulay2, Inputs:, M, , , a , Macaulay2Doc :: Module, module, Outputs:, a , Macaulay2Doc :: Ring, ring, , , the symmetric algebra of , M, class => examples, i1 : R = QQ[a..d];, class => language-macaulay2, i2 : M = image matrix{{a,b,c
+
+o2 = image | a b c |
+
+ 1
+o2 : R-module, submodule of R, class => language-macaulay2, i3 : symmetricAlgebra M
+
+ R[p ..p ]
+ 0 2
+o3 = ---------------------------------------------
+ (- b*p + a*p , - c*p + b*p , - c*p + a*p )
+ 0 1 1 2 0 2
+
+o3 : QuotientRing, class => language-macaulay2, i4 : symmetricAlgebra(R^{1,2,3)
+
+o4 = R[p ..p ]
+ 0 2
+
+o4 : PolynomialRing, class => language-macaulay2, Most of the optional arguments for monoids (see , Macaulay2Doc :: Ring Array, or , Macaulay2Doc :: monoid, ) are available here as well, as in the following example. They apply to the variables that correspond to the generators of the module., class => examples, i5 : A = symmetricAlgebra(M, Variables=>{x,y,z)
+
+o5 = A
+
+o5 : QuotientRing, class => language-macaulay2, i6 : describe A
+
+ R[x..z]
+o6 = ---------------------------------------
+ (- b*x + a*y, - c*y + b*z, - c*x + a*z), class => language-macaulay2, i7 : B = symmetricAlgebra(M, VariableBaseName=>G, MonomialSize=>16)
+
+o7 = B
+
+o7 : QuotientRing, class => language-macaulay2, i8 : describe B
+
+ R[G ..G ]
+ 0 2
+o8 = ---------------------------------------------
+ (- b*G + a*G , - c*G + b*G , - c*G + a*G )
+ 0 1 1 2 0 2, class => language-macaulay2, i9 : symmetricAlgebra(M, Degrees=> {3:1)
+
+ R[p ..p ]
+ 0 2
+o9 = ---------------------------------------------
+ (- b*p + a*p , - c*p + b*p , - c*p + a*p )
+ 0 1 1 2 0 2
+
+o9 : QuotientRing, class => language-macaulay2, Synopsis, class => element, Usage: , symmetricAlgebra f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Matrix, matrix, Outputs:, a , Macaulay2Doc :: RingMap, ring map, , , the map between symmetric algebras induced by , f, class => examples, i10 : symmetricAlgebra vars R
+
+o10 = map (R[p ], R[p ..p ], {a*p , b*p , c*p , d*p , a, b, c, d)
+ 0 0 3 0 0 0 0
+
+o10 : RingMap R[p ] <-- R[p ..p ]
+ 0 0 3, class => language-macaulay2, Synopsis, class => element, Usage: , symmetricAlgebra(A,B,f), class => language-macaulay2, Inputs:, A, , , a , Macaulay2Doc :: Ring, ring, , , the symmetric algebra of the target of , f, , previously computed. Optional., B, , , a , Macaulay2Doc :: Ring, ring, , , the symmetric algebra of the source of , f, , previously computed. Optional., f, , , a , Macaulay2Doc :: Matrix, matrix, Outputs:, a , Macaulay2Doc :: RingMap, ring map, , , the map between the specified symmetric algebras induced by , f, This form of functoriality is needed, because various options are available when computing symmetric algebras., For a linear map that is an isomorphism, and is known to be so, e.g., by having had its inverse computed, the inverse of the corresponding map between symmetric algebras is precomputed and made available., class => examples, i11 : symmetricAlgebra vars R
+
+o11 = map (R[p ], R[p ..p ], {a*p , b*p , c*p , d*p , a, b, c, d)
+ 0 0 3 0 0 0 0
+
+o11 : RingMap R[p ] <-- R[p ..p ]
+ 0 0 3, class => language-macaulay2, i12 : p = symmetricAlgebra(A,B,id_M)
+
+o12 = map (A, B, {x, y, z, a, b, c, d)
+
+o12 : RingMap A <-- B, class => language-macaulay2, i13 : p^-1
+
+o13 = map (B, A, {G , G , G , a, b, c, d)
+ 0 1 2
+
+o13 : RingMap B <-- A, class => language-macaulay2, i14 : p * p^-1 === id_A
+
+o14 = true, class => language-macaulay2, i15 : p^-1 * p === id_B
+
+o15 = true, class => language-macaulay2, class => waystouse, Ways to use , symmetricAlgebra, :, symmetricAlgebra(Matrix), symmetricAlgebra(Module), symmetricAlgebra(Nothing,Nothing,Matrix), symmetricAlgebra(Nothing,Ring,Matrix), symmetricAlgebra(Ring,Nothing,Matrix), symmetricAlgebra(Ring,Ring,Matrix), class => waystouse, For the programmer, The object , Macaulay2Doc :: symmetricAlgebra, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/symmetricAlgebra-doc.m2:83:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `symmetricAlgebra(Module)`
+- `symmetricAlgebra(Ring, Ring, Matrix)`
+- `symmetricAlgebra(Matrix)`
+- `symmetricAlgebra(Nothing, Nothing, Matrix)`
+- `symmetricAlgebra(Nothing, Ring, Matrix)`
+- `symmetricAlgebra(Ring, Nothing, Matrix)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[a..d];
+```
+
+## See Also
+

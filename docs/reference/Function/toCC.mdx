@@ -1,0 +1,72 @@
+---
+title: "toCC"
+kind: Function
+---
+
+# toCC
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+toCC, -- convert to high-precision complex number, Description, Synopsis, class => element, Usage: , toCC(prec,x,y), class => language-macaulay2, toCC(prec,x), class => language-macaulay2, Inputs:, prec, , , an , Macaulay2Doc :: ZZ, integer, , , the number of bits of precision desired, x, , , an , Macaulay2Doc :: ZZ, integer, , , a , Macaulay2Doc :: QQ, rational number, , or , a , Macaulay2Doc :: RR, real number, y, , , an , Macaulay2Doc :: ZZ, integer, , , a , Macaulay2Doc :: QQ, rational number, , or , a , Macaulay2Doc :: RR, real number, Outputs:, a , Macaulay2Doc :: CC, complex number, , , the complex number with real part , x, and complex part , y, . If , y, is omitted, the imaginary part is zero., class => examples, i1 : toCC(200,7)
+
+o1 = 7
+
+o1 : CC (of precision 200), class => language-macaulay2, i2 : toCC(100,7,3.)
+
+o2 = 7+3*ii
+
+o2 : CC (of precision 100), class => language-macaulay2, Synopsis, class => element, Usage: , toCC(x,y), class => language-macaulay2, toCC x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: RR, real number, y, , , a , Macaulay2Doc :: RR, real number, Outputs:, a , Macaulay2Doc :: CC, complex number, , , the complex number with real part , x, and complex part , y, . If , y, is omitted, the imaginary part is zero. The precision of the result is the minimum precision of the arguments., class => examples, i3 : toCC(3.,4.)
+
+o3 = 3+4*ii
+
+o3 : CC (of precision 53), class => language-macaulay2, i4 : toCC(3.p100,4.p200)
+
+o4 = 3+4*ii
+
+o4 : CC (of precision 100), class => language-macaulay2, class => waystouse, Ways to use , toCC, :, toCC(CC), toCC(QQ), toCC(RR), toCC(RR,RR), toCC(ZZ), toCC(ZZ,CC), toCC(ZZ,QQ), toCC(ZZ,QQ,QQ), toCC(ZZ,QQ,RR), toCC(ZZ,QQ,ZZ), toCC(ZZ,RR), toCC(ZZ,RR,QQ), toCC(ZZ,RR,RR), toCC(ZZ,RR,ZZ), toCC(ZZ,ZZ), toCC(ZZ,ZZ,QQ), toCC(ZZ,ZZ,RR), toCC(ZZ,ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: toCC, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_rings.m2:396:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `toCC(RR)`
+- `toCC(CC)`
+- `toCC(QQ)`
+- `toCC(ZZ)`
+- `toCC(RR, RR)`
+- `toCC(ZZ, CC)`
+- `toCC(ZZ, RR)`
+- `toCC(ZZ, QQ)`
+- `toCC(ZZ, ZZ)`
+- `toCC(ZZ, RR, RR)`
+- `toCC(ZZ, RR, QQ)`
+- `toCC(ZZ, QQ, RR)`
+- `toCC(ZZ, ZZ, RR)`
+- `toCC(ZZ, RR, ZZ)`
+- `toCC(ZZ, QQ, QQ)`
+- `toCC(ZZ, QQ, ZZ)`
+- `toCC(ZZ, ZZ, QQ)`
+- `toCC(ZZ, ZZ, ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : toCC(200,7)
+
+o1 = 7
+
+o1 : CC (of precision 200)
+
+i2 : toCC(100,7,3.)
+
+o2 = 7+3*ii
+
+o2 : CC (of precision 100)
+```
+
+## See Also
+

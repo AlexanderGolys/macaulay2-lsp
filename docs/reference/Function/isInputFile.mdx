@@ -1,0 +1,57 @@
+---
+title: "isInputFile"
+kind: Function
+---
+
+# isInputFile
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+isInputFile, -- whether a file is open for input, class => element, Usage: , isInputFile f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: File, file, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , f, is an open input file, Description, class => examples, i1 : "test-file" << "hi there" << close
+
+o1 = test-file
+
+o1 : File, class => language-macaulay2, i2 : isInputFile oo
+
+o2 = false, class => language-macaulay2, i3 : f = openIn "test-file"
+
+o3 = test-file
+
+o3 : File, class => language-macaulay2, i4 : isInputFile f
+
+o4 = true, class => language-macaulay2, i5 : isOpen f
+
+o5 = true, class => language-macaulay2, i6 : get f
+
+o6 = hi there, class => language-macaulay2, i7 : isInputFile f
+
+o7 = false, class => language-macaulay2, i8 : isOpen f
+
+o8 = false, class => language-macaulay2, i9 : removeFile "test-file", class => language-macaulay2, See also, Macaulay2Doc :: openIn, Macaulay2Doc :: openInOut, Macaulay2Doc :: get, Macaulay2Doc :: isOpen, Macaulay2Doc :: close, class => waystouse, Ways to use , isInputFile, :, Macaulay2Doc :: isInputFile(File), class => waystouse, For the programmer, The object , Macaulay2Doc :: isInputFile, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:570:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isInputFile(File)`
+
+## Examples
+
+```macaulay2
+i1 : "test-file" << "hi there" << close
+
+o1 = test-file
+
+o1 : File
+
+i2 : isInputFile oo
+
+o2 = false
+```
+
+## See Also
+

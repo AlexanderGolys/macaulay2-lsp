@@ -1,0 +1,47 @@
+---
+title: "coverMap"
+kind: Function
+---
+
+# coverMap
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+coverMap, -- the surjective map from a free module to a module corresponding to the generators, class => element, Usage: , coverMap M, class => language-macaulay2, Inputs:, M, , , a , Macaulay2Doc :: Module, module, Outputs:, a , Macaulay2Doc :: Matrix, matrix, , , the surjective map from a free module to , M, corresponding to the generators, Description, class => examples, i1 : M = image matrix {{2,{0
+
+o1 = image | 2 |
+ | 0 |
+
+ 2
+o1 : ZZ-module, submodule of ZZ, class => language-macaulay2, i2 : f = coverMap M
+
+o2 = | 1 |
+
+ 1
+o2 : Matrix M <-- ZZ, class => language-macaulay2, i3 : isSurjective f
+
+o3 = true, class => language-macaulay2, class => waystouse, Ways to use , coverMap, :, Macaulay2Doc :: coverMap(Module), class => waystouse, For the programmer, The object , Macaulay2Doc :: coverMap, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/cover-doc.m2:47:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `coverMap(Module)`
+
+## Examples
+
+```macaulay2
+i2 : f = coverMap M
+
+o2 = | 1 |
+
+                    1
+o2 : Matrix M <-- ZZ
+```
+
+## See Also
+

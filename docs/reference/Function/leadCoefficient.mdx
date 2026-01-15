@@ -1,0 +1,41 @@
+---
+title: "leadCoefficient"
+kind: Function
+---
+
+# leadCoefficient
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+leadCoefficient, -- the coefficient of the leading term, class => element, Usage: , leadCoefficient f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingElement, ring element, , , a polynomial, Outputs:, a , Macaulay2Doc :: RingElement, ring element, , , an element of the , Macaulay2Doc :: coefficientRing, of the ring of , f, , Description, The leading term is with respect to the monomial ordering in the ring. See , Macaulay2Doc :: monomial orderings, for details., class => examples, i1 : R = ZZ/5[a,b,c]; f = a*b^2 + 3*b*c^3 + 2;, class => language-macaulay2, i3 : leadCoefficient f
+
+o3 = -2
+
+ ZZ
+o3 : --
+ 5, class => language-macaulay2, i4 : S = ZZ/5[a,b,c, MonomialOrder => Lex]; g = a*b^2 +3*b*c^3 + 2;, class => language-macaulay2, i6 : leadCoefficient g
+
+o6 = 1
+
+ ZZ
+o6 : --
+ 5, class => language-macaulay2, See also, Macaulay2Doc :: coefficients, Macaulay2Doc :: coefficientRing, Macaulay2Doc :: leadComponent, Macaulay2Doc :: leadMonomial, Macaulay2Doc :: leadTerm, Macaulay2Doc :: someTerms, Macaulay2Doc :: terms, class => waystouse, Ways to use , leadCoefficient, :, leadCoefficient(RingElement), class => waystouse, For the programmer, The object , Macaulay2Doc :: leadCoefficient, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/leadCoefficient-doc.m2:36:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `leadCoefficient(RingElement)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/5[a,b,c]; f = a*b^2 + 3*b*c^3 + 2;
+```
+
+## See Also
+

@@ -1,0 +1,21 @@
+---
+title: "beginDocumentation"
+kind: Function
+---
+
+# beginDocumentation
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+beginDocumentation, -- start documentation section of a package, class => element, Usage: , beginDocumentation(), class => language-macaulay2, Consequences:, Initiates the documentation section of a package. If the documentation has previously been processed and stored, then the rest of the file after the invocation of , beginDocumentation, will be skipped. Otherwise the packages , SimpleDoc :: SimpleDoc, and , Text :: Text, will be loaded and the rest of the file will be loaded., Description, Documentation for a package, and tests for the package, should be placed after this point in a package file. This way, documentation can be loaded separately, Macaulay2 examples in the documentation can be run, and the whole documentation can be stored in a database., For an example, see , Macaulay2Doc :: an example of a package, ., To write documentation without using the function , beginDocumentation, , which is just an optimization, use , Macaulay2Doc :: needsPackage, to load the packages , SimpleDoc :: SimpleDoc, and , Text :: Text, ., See also, Macaulay2Doc :: installPackage, Macaulay2Doc :: TEST, Macaulay2Doc :: check, class => waystouse, For the programmer, The object , Macaulay2Doc :: beginDocumentation, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_documentation.m2:251:0, .
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

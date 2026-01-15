@@ -1,0 +1,71 @@
+---
+title: "reduceHilbert"
+kind: Function
+---
+
+# reduceHilbert
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+reduceHilbert, -- reduce a Hilbert series expression, class => element, Usage: , reduceHilbert H, class => language-macaulay2, Inputs:, H, , , a , Macaulay2Doc :: Divide, divide expression, Outputs:, a , Macaulay2Doc :: Divide, divide expression, , , the Hilbert series reduced by removing common factors, Description, This function is used to reduce the rational expression given by the command , Macaulay2Doc :: hilbertSeries, . It is not automatically reduced, but sometimes it is useful to write it in reduced form. For instance, one might not notice that the series is a polynomial until it is reduced., class => examples, i1 : R = ZZ/101[x, Degrees => {2];, class => language-macaulay2, i2 : I = ideal x^2;
+
+o2 : Ideal of R, class => language-macaulay2, i3 : s = hilbertSeries I
+
+ 4
+ 1 - T
+o3 = --------
+ 2
+ (1 - T )
+
+o3 : Expression of class Divide, class => language-macaulay2, i4 : reduceHilbert s
+
+ 2
+ 1 + T
+o4 = ------
+ 1
+
+o4 : Expression of class Divide, class => language-macaulay2, The reduction is partial, in the sense that the explicit factors of the denominator are cancelled entirely or not at all., class => examples, i5 : M = R^{0,-1
+
+ 2
+o5 = R
+
+o5 : R-module, free, degrees {0..1, class => language-macaulay2, i6 : hilbertSeries M
+
+ 1 + T
+o6 = --------
+ 2
+ (1 - T )
+
+o6 : Expression of class Divide, class => language-macaulay2, i7 : f = reduceHilbert oo
+
+ 1 + T
+o7 = --------
+ 2
+ (1 - T )
+
+o7 : Expression of class Divide, class => language-macaulay2, i8 : gcd( value numerator f, value denominator f )
+
+o8 = 1 + T
+
+o8 : ZZ[T], class => language-macaulay2, class => waystouse, Ways to use , reduceHilbert, :, reduceHilbert(Divide), class => waystouse, For the programmer, The object , Macaulay2Doc :: reduceHilbert, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/reduceHilbert-doc.m2:41:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `reduceHilbert(Divide)`
+
+## Examples
+
+```macaulay2
+i2 : I = ideal x^2;
+
+o2 : Ideal of R
+```
+
+## See Also
+

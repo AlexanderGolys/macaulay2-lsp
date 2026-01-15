@@ -1,0 +1,97 @@
+---
+title: "isPseudoprime"
+kind: Function
+---
+
+# isPseudoprime
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+isPseudoprime, -- whether an integer is probably prime, class => element, Usage: , isPseudoprime x, class => language-macaulay2, Inputs:, x, , , an , Macaulay2Doc :: ZZ, integer, , , Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Description, Performs some trial division and then some probabilistic primality tests. If $x$ is definitely composite, the function returns false, otherwise it is declared probably prime, i.e. prime for most practical purposes, and the function returns true. The chance of declaring a composite number prime is very small. Subsequent calls to the same function do not increase the probability of the number being prime. In fact, there are no known numbers which are composite, and for which this function returns true, although it is expected that there are an infinite number of such primes., This function calls a function in the , Macaulay2Doc :: FLINT, library., class => examples, i1 : n = 1166513229502037
+
+o1 = 1166513229502037, class => language-macaulay2, i2 : isPseudoprime n
+
+o2 = true, class => language-macaulay2, i3 : isPrime n
+
+o3 = true, class => language-macaulay2, i4 : n1 = nextPrime(n+1)
+
+o4 = 1166513229502141, class => language-macaulay2, i5 : factor(n1^2*n)
+
+ 2
+o5 = 1166513229502037*1166513229502141
+
+o5 : Expression of class Product, class => language-macaulay2, These functions handle numbers larger than this. For example,, class => examples, i6 : m = 158174196546819165468118574681196546811856748118567481185669501856749
+
+o6 = 158174196546819165468118574681196546811856748118567481185669501856749, class => language-macaulay2, i7 : isPseudoprime m
+
+o7 = true, class => language-macaulay2, i8 : isPrime m
+
+o8 = true, class => language-macaulay2, i9 : isPrime m^2
+
+o9 = false, class => language-macaulay2, i10 : factor m^2
+
+ 2
+o10 = 158174196546819165468118574681196546811856748118567481185669501856749
+
+o10 : Expression of class Product, class => language-macaulay2, class => examples, i11 : ndigits = 30
+
+o11 = 30, class => language-macaulay2, i12 : m = nextPrime(10^30)
+
+o12 = 1000000000000000000000000000057, class => language-macaulay2, i13 : m1 = nextPrime (m+10^10)
+
+o13 = 1000000000000000000010000000083, class => language-macaulay2, i14 : m2 = nextPrime (m1 + 10^20)
+
+o14 = 1000000000100000000010000000229, class => language-macaulay2, i15 : isPrime m
+
+o15 = true, class => language-macaulay2, i16 : isPrime m1
+
+o16 = true, class => language-macaulay2, i17 : isPrime (m*m1)
+
+o17 = false, class => language-macaulay2, i18 : isPrime(m*m*m1*m1*m2^6)
+
+o18 = false, class => language-macaulay2, i19 : elapsedTime facs = factor(m*m1)
+ -- 4.78766s elapsed
+
+o19 = 1000000000000000000000000000057*1000000000000000000010000000083
+
+o19 : Expression of class Product, class => language-macaulay2, i20 : facs = facs//toList/toList
+
+o20 = {{1000000000000000000000000000057, 1,
+ -----------------------------------------------------------------------
+ {1000000000000000000010000000083, 1
+
+o20 : List, class => language-macaulay2, i21 : assert(set facs === set {{m,1, {m1,1), class => language-macaulay2, i22 : m3 = nextPrime (m^3)
+
+o22 = 10000000000000000000000000001710000000000000000000000000097470000000000
+ 00000000000000185613, class => language-macaulay2, i23 : elapsedTime isPrime m3
+ -- .0405294s elapsed
+
+o23 = true, class => language-macaulay2, i24 : elapsedTime isPseudoprime m3
+ -- .00009609s elapsed
+
+o24 = true, class => language-macaulay2, See also, Macaulay2Doc :: isPrime(ZZ), Macaulay2Doc :: factor(ZZ), Macaulay2Doc :: nextPrime(Number), class => waystouse, Ways to use , isPseudoprime, :, Macaulay2Doc :: isPseudoprime(ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: isPseudoprime, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isPrime-doc.m2:66:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isPseudoprime(ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : n = 1166513229502037
+
+o1 = 1166513229502037
+
+i2 : isPseudoprime n
+
+o2 = true
+```
+
+## See Also
+

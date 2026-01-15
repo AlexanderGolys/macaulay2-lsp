@@ -1,0 +1,62 @@
+---
+title: "annihilator"
+kind: Function
+---
+
+# annihilator
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+annihilator, -- the annihilator ideal, class => element, Usage: , ann M, class => language-macaulay2, annihilator M, class => language-macaulay2, Inputs:, M, , , an , Macaulay2Doc :: Ideal, ideal, , , a , Macaulay2Doc :: Module, module, , or , a , Macaulay2Doc :: RingElement, ring element, , , Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Strategy, => , a , Macaulay2Doc :: Symbol, symbol, , , default value , null, , , either , Quotient, or , Intersection, Outputs:, an , Macaulay2Doc :: Ideal, ideal, , , the annihilator ideal $\mathrm{ann(M) = \{ f \in R | fM = 0 \$ where $R$ is the ring of $M$, Description, You may use , ann, as a synonym for , annihilator, ., As an example, we compute the annihilator of the canonical module of the rational quartic curve., class => examples, i1 : R = QQ[a..d];, class => language-macaulay2, i2 : J = monomialCurveIdeal(R,{1,3,4)
+
+ 3 2 2 2 3 2
+o2 = ideal (b*c - a*d, c - b*d , a*c - b d, b - a c)
+
+o2 : Ideal of R, class => language-macaulay2, i3 : M = Ext^2(R^1/J, R)
+
+o3 = cokernel {-3 | c a 0 b 0 |
+ {-3 | -d -b c 0 a |
+ {-3 | 0 0 d c b |
+
+ 3
+o3 : R-module, quotient of R, class => language-macaulay2, i4 : annihilator M
+
+ 3 2 2 2 3 2
+o4 = ideal (b*c - a*d, c - b*d , a*c - b d, b - a c)
+
+o4 : Ideal of R, class => language-macaulay2, For another example, we compute the annihilator of an element in a quotient ring., class => examples, i5 : A = R/(a*b, a*c, a*d)
+
+o5 = A
+
+o5 : QuotientRing, class => language-macaulay2, i6 : ann a
+
+o6 = ideal (d, c, b)
+
+o6 : Ideal of A, class => language-macaulay2, Currently two algorithms to compute annihilators are implemented. The default is to compute the annihilator of each generator of the module , M, and to intersect these two by two. Each annihilator is done using a submodule quotient. The other algorithm computes the annihilator in one large computation and is used if , Strategy => Quotient, is specified., class => examples, i7 : annihilator(M, Strategy => Quotient)
+
+ 3 2 2 2 3 2
+o7 = ideal (b*c - a*d, c - b*d , a*c - b d, b - a c)
+
+o7 : Ideal of R, class => language-macaulay2, See also, Macaulay2Doc :: quotient(Module,Module), Macaulay2Doc :: monomialCurveIdeal, Macaulay2Doc :: Ext, class => waystouse, Ways to use , annihilator, :, annihilator(Ideal), annihilator(Module), annihilator(RingElement), Varieties :: annihilator(CoherentSheaf), class => waystouse, For the programmer, The object , Saturation :: annihilator, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Saturation/annihilator-doc.m2:50:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `annihilator(RingElement)`
+- `annihilator(Ideal)`
+- `annihilator(Module)`
+- `annihilator(CoherentSheaf)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[a..d];
+```
+
+## See Also
+

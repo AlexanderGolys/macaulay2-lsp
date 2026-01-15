@@ -1,0 +1,48 @@
+---
+title: "generateAssertions"
+kind: Function
+---
+
+# generateAssertions
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+generateAssertions, -- generate assert statements from experimental input, class => element, Usage: , generateAssertions x, class => language-macaulay2, Inputs:, x, , , a string whose non-comment non-blank lines are Macaulay2 expressions to be evaluated, Outputs:, a net whose lines are assert statements that assert that the expressions evaluate to the expected value, just computed, Description, class => examples, i1 : generateAssertions ///
+ 	2+2
+ 	2^20
+ 	///
+
+o1 = 
+ assert( ( 2+2) === 4 );
+ assert( ( 2^20) === 1048576 );, class => language-macaulay2, i2 : value \ unstack oo
+
+o2 = {, 
+
+o2 : List, class => language-macaulay2, class => waystouse, Ways to use , generateAssertions, :, generateAssertions(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: generateAssertions, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/check-doc.m2:144:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `generateAssertions(String)`
+- `generateAssertions(List)`
+
+## Examples
+
+```macaulay2
+i1 : generateAssertions ///
+     	2+2
+     	2^20
+     	///
+
+o1 = 
+     assert( (       2+2) === 4 );
+     assert( (       2^20) === 1048576 );
+```
+
+## See Also
+

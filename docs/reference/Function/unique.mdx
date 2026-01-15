@@ -1,0 +1,35 @@
+---
+title: "unique"
+kind: Function
+---
+
+# unique
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+unique, -- eliminate duplicates from a list, class => element, Usage: , unique(L), class => language-macaulay2, Inputs:, L, , , a , Macaulay2Doc :: List, list, , , or sequence, Outputs:, M, , , a , Macaulay2Doc :: List, list, , , the elements of , L, without duplicates, Description, The output list maintains the order of elements in , L, ., class => examples, i1 : unique {3,2,1,3,2,4,a,3,2,3,-2,1,2,4
+
+o1 = {3, 2, 1, 4, a, -2
+
+o1 : List, class => language-macaulay2, Another way to list the unique elements of , L, is by creating a set from , L, and then listing its elements. This may be slightly faster than , unique, , but forgets the ordering of , L, ., class => examples, i2 : toList set {3,2,1,3,2,4,a,3,2,3,-2,1,2,4
+
+o2 = {1, 2, 3, 4, -2, a
+
+o2 : List, class => language-macaulay2, To count occurrences of each element, use , Macaulay2Doc :: tally, . To create a sorted list, see , Macaulay2Doc :: sort, . For an overview of lists and sequences, see , Macaulay2Doc :: lists and sequences, ., See also, Macaulay2Doc :: same, Macaulay2Doc :: sort, Macaulay2Doc :: set, Macaulay2Doc :: tally, Macaulay2Doc :: uniform, Macaulay2Doc :: lists and sequences, class => waystouse, Ways to use , unique, :, unique(Hypertext), unique(VisibleList), class => waystouse, For the programmer, The object , Macaulay2Doc :: unique, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/unique-doc.m2:42:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `unique(VisibleList)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

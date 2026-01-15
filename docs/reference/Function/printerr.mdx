@@ -1,0 +1,32 @@
+---
+title: "printerr"
+kind: Function
+---
+
+# printerr
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+printerr, -- print something to stderr, class => element, Usage: , printerr x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: String, string, , , a , Macaulay2Doc :: Net, net, , or , a , Macaulay2Doc :: BasicList, basic list, , , Description, Print , x, , each line prepended with , --, , to , Macaulay2Doc :: stderr, . This is useful for displaying warning messages and verbose logs., class => examples, i1 : printerr "Hello, world!"
+ -- Hello, world!, class => language-macaulay2, i2 : printerr("foo" || "bar")
+ -- foo
+ -- bar, class => language-macaulay2, If , x, is , a , Macaulay2Doc :: BasicList, basic list, , then its elements are first joined with , Macaulay2Doc :: horizontalJoin, ., class => examples, i3 : printerr("foo", "bar")
+ -- foobar, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: printerr, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_strings.m2:492:0, .
+
+## Examples
+
+```macaulay2
+i1 : printerr "Hello, world!"
+ -- Hello, world!
+
+i2 : printerr("foo" || "bar")
+ -- foo
+ -- bar
+```
+
+## See Also
+

@@ -1,0 +1,55 @@
+---
+title: "tensor"
+kind: Function
+---
+
+# tensor
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionBinary](../Type/MethodFunctionBinary.mdx)
+
+## Description
+
+tensor, -- tensor product, Description, This function calculates the tensor product of a list or sequence of compatible objects., This method is declared as a , Macaulay2Doc :: MethodFunctionBinary, , so for two or more argument the product is computed iteratively from the binary tensor products, working from left to right. For two arguments, this is the same as , A ** B, except that options are allowed., class => examples, i1 : tensor(ZZ^2, ZZ^3, ZZ^4)
+
+ 24
+o1 = ZZ
+
+o1 : ZZ-module, free, class => language-macaulay2, See also, Macaulay2Doc :: **, class => waystouse, Ways to use , tensor, :, tensor(List), tensor(Sequence), Varieties :: tensor(CoherentSheaf,CoherentSheaf), Macaulay2Doc :: tensor(Matrix,Matrix), Macaulay2Doc :: tensor(Matrix,Module), tensor(Module,Matrix), -- see , Macaulay2Doc :: tensor(Matrix,Module), Macaulay2Doc :: tensor(Module,Module), Macaulay2Doc :: tensor(Monoid,Monoid), tensor(Ring,Ring), -- see , Macaulay2Doc :: tensor(Monoid,Monoid), Macaulay2Doc :: tensor(RingMap,Matrix), tensor(RingMap,Module), -- see , Macaulay2Doc :: tensor(RingMap,Matrix), Varieties :: tensor(SheafMap,SheafMap), class => waystouse, For the programmer, The object , Macaulay2Doc :: tensor, is , an , Macaulay2Doc :: MethodFunctionBinary, associative binary method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/shared.m2:150:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `tensor(Monoid, Monoid)`
+- `tensor(Module, Matrix)`
+- `tensor(Matrix, Module)`
+- `tensor(QuotientRing, PolynomialRing)`
+- `tensor(PolynomialRing, QuotientRing)`
+- `tensor(CoherentSheaf, CoherentSheaf)`
+- `tensor(Matrix, Matrix)`
+- `tensor(PolynomialRing, PolynomialRing)`
+- `tensor(RingMap, Matrix)`
+- `tensor(Ring, Ring)`
+- `tensor(Module, Module)`
+- `tensor(QuotientRing, QuotientRing)`
+- `tensor(RingMap, Module)`
+- `tensor(Thing, Thing)`
+- `tensor(Sequence)`
+- `tensor(List)`
+- `tensor(SheafMap, SheafMap)`
+
+## Examples
+
+```macaulay2
+i1 : tensor(ZZ^2, ZZ^3, ZZ^4)
+
+       24
+o1 = ZZ
+
+o1 : ZZ-module, free
+```
+
+## See Also
+

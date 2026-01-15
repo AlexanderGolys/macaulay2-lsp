@@ -1,0 +1,64 @@
+---
+title: "getPrimeWithRootOfUnity"
+kind: Function
+---
+
+# getPrimeWithRootOfUnity
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+getPrimeWithRootOfUnity, -- find a prime p with a primitive n-th root of unity r in ZZ/p, class => element, Usage: , (p,r)=getPrimeWithRootOfUnity(n,r1), class => language-macaulay2, Inputs:, n, , , an , Macaulay2Doc :: ZZ, integer, , , the exponent of the root of unity, r1, , , an , Macaulay2Doc :: ZZ, integer, , , tentative root of unity, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Range, => , ..., , , default value , (10000,30000), , , (a,b), , , specifying an integral interval in which we search for a prime number with desired properties. If $b < a + 2*\log a$ an error message will be returned. , Outputs:, p, , , an , Macaulay2Doc :: ZZ, integer, , , a prime in the specified range. The default range is $(10^4,3*10^4)$, r, , , an , Macaulay2Doc :: ZZ, integer, , , a primitive n-th root of unity mod p, Description, We compute the prime p as a larger prime factor of $r1^n-1$. If the largest p in the desired range does not work, we pass to $r1+1$ and repeat., class => examples, i1 : n = 12
+
+o1 = 12, class => language-macaulay2, i2 : (p,r) = getPrimeWithRootOfUnity(n,5)
+
+o2 = (20593, 12)
+
+o2 : Sequence, class => language-macaulay2, i3 : factor(r^n-1)
+
+o3 = 5*7*11*13*19*29*157*20593
+
+o3 : Expression of class Product, class => language-macaulay2, i4 : r^12%p==1, r^6%p==1, r^4%p==1
+
+o4 = (true, false, false)
+
+o4 : Sequence, class => language-macaulay2, i5 : (p,r) = getPrimeWithRootOfUnity(12,11,Range=>(100,200))
+
+o5 = (157, 22)
+
+o5 : Sequence, class => language-macaulay2, i6 : factor(r^n-1)
+
+ 2 2
+o6 = 3 5*7*13 23*97*157*463*1489
+
+o6 : Expression of class Product, class => language-macaulay2, i7 : r^12%p==1, r^6%p==1, r^4%p==1
+
+o7 = (true, false, false)
+
+o7 : Sequence, class => language-macaulay2, See also, Macaulay2Doc :: nextPrime, class => waystouse, Ways to use , getPrimeWithRootOfUnity, :, getPrimeWithRootOfUnity(ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: getPrimeWithRootOfUnity, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/nextPrime-doc.m2:62:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `getPrimeWithRootOfUnity(ZZ, ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : n = 12
+
+o1 = 12
+
+i2 : (p,r) = getPrimeWithRootOfUnity(n,5)
+
+o2 = (20593, 12)
+
+o2 : Sequence
+```
+
+## See Also
+

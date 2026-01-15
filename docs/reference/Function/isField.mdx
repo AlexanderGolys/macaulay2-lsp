@@ -1,0 +1,60 @@
+---
+title: "isField"
+kind: Function
+---
+
+# isField
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isField, -- whether something is a field, class => element, Usage: , isField R, class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: Ring, ring, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Macaulay2Doc :: true, if , R, was explicitly constructed as a field (no computation is done) and , Macaulay2Doc :: false, otherwise, Description, This function recognizes basic fields, , Macaulay2Doc :: GaloisField, Galois fields, and , Macaulay2Doc :: FractionField, fraction fields, ., class => examples, i1 : isField QQ
+
+o1 = true, class => language-macaulay2, i2 : isField CC_53
+
+o2 = true, class => language-macaulay2, i3 : isField GF(2,3)
+
+o3 = true, class => language-macaulay2, i4 : isField(frac(QQ[x,y]))
+
+o4 = true, class => language-macaulay2, This function will not recognize other rings as fields., class => examples, i5 : R = QQ[x]/(x^2+1)
+
+o5 = R
+
+o5 : QuotientRing, class => language-macaulay2, i6 : isUnit x
+
+o6 = true, class => language-macaulay2, i7 : isField R
+
+o7 = false, class => language-macaulay2, i8 : F = toField R
+
+o8 = F
+
+o8 : PolynomialRing, class => language-macaulay2, i9 : isField F
+
+o9 = true, class => language-macaulay2, See also, Macaulay2Doc :: toField, Macaulay2Doc :: FractionField, Macaulay2Doc :: GaloisField, Macaulay2Doc :: QuotientRing, Macaulay2Doc :: isUnit, class => waystouse, Ways to use , isField, :, isField(EngineRing), isField(GaloisField), isField(Ring), class => waystouse, For the programmer, The object , Macaulay2Doc :: isField, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isField-doc.m2:41:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isField(EngineRing)`
+- `isField(GaloisField)`
+- `isField(Ring)`
+- `isField(InexactField)`
+
+## Examples
+
+```macaulay2
+i1 : isField QQ
+
+o1 = true
+
+i2 : isField CC_53
+
+o2 = true
+```
+
+## See Also
+

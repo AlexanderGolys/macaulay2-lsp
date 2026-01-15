@@ -1,0 +1,60 @@
+---
+title: "isWellDefined"
+kind: Function
+---
+
+# isWellDefined
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isWellDefined, -- whether a map is well defined, class => element, Usage: , isWellDefined f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Matrix, matrix, or , a , Macaulay2Doc :: RingMap, ring map, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , f, is a well-defined map, Description, In order to check whether a matrix, whose source module is not free, is well defined, then a Gröbner basis computation will probably be required., class => examples, i1 : R = QQ[a..d];, class => language-macaulay2, i2 : f = map(R^1,coker vars R,{{1_R)
+
+o2 = | 1 |
+
+o2 : Matrix, class => language-macaulay2, i3 : isWellDefined f
+
+o3 = false, class => language-macaulay2, i4 : isWellDefined map(coker vars R, R^1, {{1_R)
+
+o4 = true, class => language-macaulay2, In order to check whether a ring map is well defined, it is often necessary to check that the image of an ideal under a related ring map is zero. This often requires a Gröbner basis as well., class => examples, i5 : A = ZZ/5[a]
+
+o5 = A
+
+o5 : PolynomialRing, class => language-macaulay2, i6 : factor(a^3-a-2)
+
+ 3
+o6 = (a - a - 2)
+
+o6 : Expression of class Product, class => language-macaulay2, i7 : B = A/(a^3-a-2);, class => language-macaulay2, i8 : isWellDefined map(A,B)
+
+o8 = false, class => language-macaulay2, i9 : isWellDefined map(B,A)
+
+o9 = true, class => language-macaulay2, See also, Macaulay2Doc :: map, class => waystouse, Ways to use , isWellDefined, :, isWellDefined(Matrix), isWellDefined(RingMap), Varieties :: isWellDefined(CoherentSheaf), Polyhedra :: isWellDefined(Cone), isWellDefined(Fan), -- see , Polyhedra :: isWellDefined(Cone), isWellDefined(PolyhedralComplex), -- see , Polyhedra :: isWellDefined(Cone), isWellDefined(PolyhedralObject), -- see , Polyhedra :: isWellDefined(Cone), isWellDefined(Polyhedron), -- see , Polyhedra :: isWellDefined(Cone), Varieties :: isWellDefined(SheafMap), Varieties :: isWellDefined(SheafOfRings), Varieties :: isWellDefined(Variety), class => waystouse, For the programmer, The object , Macaulay2Doc :: isWellDefined, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isWellDefined-doc.m2:39:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isWellDefined(Matrix)`
+- `isWellDefined(RingMap)`
+- `isWellDefined(Cone)`
+- `isWellDefined(Fan)`
+- `isWellDefined(PolyhedralObject)`
+- `isWellDefined(PolyhedralComplex)`
+- `isWellDefined(Polyhedron)`
+- `isWellDefined(Variety)`
+- `isWellDefined(SheafOfRings)`
+- `isWellDefined(CoherentSheaf)`
+- `isWellDefined(SheafMap)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[a..d];
+```
+
+## See Also
+

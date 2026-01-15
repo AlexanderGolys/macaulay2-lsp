@@ -1,0 +1,46 @@
+---
+title: "isPolynomialRing"
+kind: Function
+---
+
+# isPolynomialRing
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isPolynomialRing, -- whether something is a polynomial ring, class => element, Usage: , isPolynomialRing R, class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: Thing, thing, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Macaulay2Doc :: true, if , R, is a , Macaulay2Doc :: PolynomialRing, polynomial ring, and , Macaulay2Doc :: false, otherwise, Description, class => examples, i1 : isPolynomialRing CC
+
+o1 = false, class => language-macaulay2, i2 : isPolynomialRing(ZZ/7[x,y])
+
+o2 = true, class => language-macaulay2, i3 : isPolynomialRing(QQ[x,dx, WeylAlgebra => {x => dx])
+
+o3 = true, class => language-macaulay2, i4 : isPolynomialRing(GF(2)[x,y, SkewCommutative => true])
+
+o4 = true, class => language-macaulay2, i5 : isPolynomialRing(ZZ/101[x,y,z]/(x^2-y*z))
+
+o5 = false, class => language-macaulay2, class => waystouse, Ways to use , isPolynomialRing, :, isPolynomialRing(PolynomialRing), isPolynomialRing(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: isPolynomialRing, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isPolynomialRing-doc.m2:24:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isPolynomialRing(Thing)`
+- `isPolynomialRing(PolynomialRing)`
+
+## Examples
+
+```macaulay2
+i1 : isPolynomialRing CC
+
+o1 = false
+
+i2 : isPolynomialRing(ZZ/7[x,y])
+
+o2 = true
+```
+
+## See Also
+

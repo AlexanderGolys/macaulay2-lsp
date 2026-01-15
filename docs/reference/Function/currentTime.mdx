@@ -1,0 +1,44 @@
+---
+title: "currentTime"
+kind: Function
+---
+
+# currentTime
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+currentTime, -- get the current time, class => element, Usage: , currentTime(), class => language-macaulay2, Outputs:, an , Macaulay2Doc :: ZZ, integer, , , the current time, in seconds since 00:00:00 1970-01-01 UTC, the beginning of the epoch, Description, class => examples, i1 : currentTime()
+
+o1 = 1767797478, class => language-macaulay2, We can compute, roughly, how many years ago the epoch began as follows., class => examples, i2 : currentTime() /( (365 + 97./400) * 24 * 60 * 60 )
+
+o2 = 56.01927201334274
+
+o2 : RR (of precision 53), class => language-macaulay2, We can also compute how many months account for the fractional part of that number., class => examples, i3 : 12 * (oo - floor oo)
+
+o3 = .2312641601129144
+
+o3 : RR (of precision 53), class => language-macaulay2, Compare that to the current date, available from a standard Unix command., class => examples, i4 : run "date"
+Wed Jan 7 03:51:18 PM CET 2026
+
+o4 = 0, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: currentTime, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1849:0, .
+
+## Examples
+
+```macaulay2
+i1 : currentTime()
+
+o1 = 1767797478
+
+i2 : currentTime() /( (365 + 97./400) * 24 * 60 * 60 )
+
+o2 = 56.01927201334274
+
+o2 : RR (of precision 53)
+```
+
+## See Also
+

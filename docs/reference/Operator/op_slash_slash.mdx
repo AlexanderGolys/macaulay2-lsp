@@ -1,0 +1,92 @@
+---
+title: "//"
+kind: Operator
+---
+
+# //
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+//, -- a binary operator, usually used for quotient, class => element, Usage: , x // y, class => language-macaulay2, Description, For ring elements in the integers, polynomial rings, and other rings, there are two types of division: exact division, whose result is often in a larger field, such as the rationals or a function field, and division with remainder, whose result is in the same ring. In Macaulay2, '/' denotes the first kind of division, while '//' denotes the latter kind. The following example shows the difference between , Macaulay2Doc :: //, and , Macaulay2Doc :: /, ., class => examples, i1 : 4/2
+
+o1 = 2
+
+o1 : QQ, class => language-macaulay2, i2 : 4//2
+
+o2 = 2, class => language-macaulay2, class => examples, i3 : R = QQ[x];, class => language-macaulay2, i4 : (x^2-3)//(x-1)
+
+o4 = x + 1
+
+o4 : R, class => language-macaulay2, i5 : (x^2-3)%(x-1)
+
+o5 = -2
+
+o5 : R, class => language-macaulay2, i6 : (x^2-3)/(x-1)
+
+ 2
+ x - 3
+o6 = ------
+ x - 1
+
+o6 : frac R, class => language-macaulay2, See also, Macaulay2Doc :: /, Macaulay2Doc :: %, class => waystouse, Ways to use , symbol //, :, CC // CC, CC // QQ, CC // RR, CC // ZZ, List // Number, List // RingElement, Number // InfiniteNumber, Number // RingElement, QQ // QQ, QQ // ZZ, RingElement // Number, RingElement // RingElement, RR // QQ, RR // RR, RR // ZZ, ZZ // MonomialIdeal, ZZ // ZZ, Matrix // GroebnerBasis, -- see , Macaulay2Doc :: quotient(Matrix,Matrix), Matrix // Matrix, -- see , Macaulay2Doc :: quotient(Matrix,Matrix), Matrix // MonomialIdeal, -- see , Macaulay2Doc :: quotient(Matrix,Matrix), Matrix // Number, -- see , Macaulay2Doc :: quotient(Matrix,Matrix), Matrix // RingElement, -- see , Macaulay2Doc :: quotient(Matrix,Matrix), Number // Matrix, -- see , Macaulay2Doc :: quotient(Matrix,Matrix), RingElement // GroebnerBasis, -- see , Macaulay2Doc :: quotient(Matrix,Matrix), RingElement // Matrix, -- see , Macaulay2Doc :: quotient(Matrix,Matrix), RingElement // MonomialIdeal, -- see , Macaulay2Doc :: quotient(Matrix,Matrix), SheafMap // SheafMap, -- see , Varieties :: quotient(SheafMap,SheafMap), Thing // Command, -- see , Macaulay2Doc :: VisibleList // Function, Thing // Function, -- see , Macaulay2Doc :: VisibleList // Function, Thing // SelfInitializingType, -- see , Macaulay2Doc :: VisibleList // Function, VisibleList // Command, -- see , Macaulay2Doc :: VisibleList // Function, Macaulay2Doc :: VisibleList // Function, class => waystouse, For the programmer, The object , Macaulay2Doc :: //, is , a , Macaulay2Doc :: Keyword, keyword, ., This operator may be used as a binary operator in an expression like , x//y, . , The user may install , Macaulay2Doc :: binary methods, for handling such expressions with code such as, X // Y := (x,y) -> ..., where , X, is the class of , x, and , Y, is the class of , y, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators/division.m2:120:0, .
+
+## Operator Installations
+
+### Binary Operator
+
+Usage: `x // y`
+
+- `//(Thing, SelfInitializingType)`
+- `//(VisibleList, Function)`
+- `//(VisibleList, Command)`
+- `//(Thing, Function)`
+- `//(Thing, Command)`
+- `//(Number, RingElement)`
+- `//(RingElement, Number)`
+- `//(RingElement, InexactNumber)`
+- `//(InexactNumber, RingElement)`
+- `//(RingElement, RingElement)`
+- `//(RingElement, GroebnerBasis)`
+- `//(Matrix, GroebnerBasis)`
+- `//(List, RingElement)`
+- `//(List, Number)`
+- `//(Matrix, Matrix)`
+- `//(Number, Matrix)`
+- `//(RingElement, Matrix)`
+- `//(Matrix, RingElement)`
+- `//(Matrix, Number)`
+- `//(InfiniteNumber, InfiniteNumber)`
+
+*Showing 20 of 39 binary signatures*
+
+### Augmented Assignment
+
+Usage: `x //= y` (modifies `x` in place)
+
+:::info[Special Installation Syntax]
+Augmented assignment methods require special installation using `installAssignmentMethod`. See [Macaulay2 documentation](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/Macaulay2Doc/html/_installing_spaugmented_spassignment_spmethods.html) for details.
+:::
+
+- `(//,=)(Type, Type)`
+- `(//,=)(Thing, Thing)`
+
+## Examples
+
+```macaulay2
+i1 : 4/2
+
+o1 = 2
+
+o1 : QQ
+
+i2 : 4//2
+
+o2 = 2
+```
+
+## See Also
+

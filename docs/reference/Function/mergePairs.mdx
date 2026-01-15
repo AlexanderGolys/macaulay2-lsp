@@ -1,0 +1,27 @@
+---
+title: "mergePairs"
+kind: Function
+---
+
+# mergePairs
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+mergePairs, -- merge sorted lists of pairs, class => element, Usage: , mergePairs(x,y,f), class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: BasicList, basic list, , , y, , , a , Macaulay2Doc :: BasicList, basic list, , , f, , , a , Macaulay2Doc :: Function, function, , , Outputs:, a , Macaulay2Doc :: BasicList, basic list, , , Description, This function merges sorted lists of pairs., It merges , x, and , y, , which should be lists of pairs , (k,v), arranged in increasing order according to the key , k, . The result will be a list of pairs, also arranged in increasing order, each of which is either from , x, or from , y, , or in the case where a key , k, occurs in both, with say , (k,v), in , x, and , (k,w), in , y, , then the result will contain the pair , (k,f(v,w)), . Thus the function , f, is used for combining the values when the keys collide., The class of the result is taken to be the minimal common ancestor of the class of , x, and the class of , y, ., See also, Macaulay2Doc :: merge, class => waystouse, Ways to use , mergePairs, :, mergePairs(BasicList,BasicList,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: mergePairs, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/merge-doc.m2:111:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `mergePairs(BasicList, BasicList, Function)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

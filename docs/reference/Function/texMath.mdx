@@ -1,0 +1,62 @@
+---
+title: "texMath"
+kind: Function
+---
+
+# texMath
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+texMath, -- convert to TeX math format, class => element, Usage: , texMath x, class => language-macaulay2, Inputs:, x, , , any Macaulay2 object, Outputs:, a , Macaulay2Doc :: String, string, , , x, converted to TeX math format, Description, The main difference between this and , Macaulay2Doc :: tex, is that the surrounding dollar signs aren't there., class => examples, i1 : R = ZZ[x];, class => language-macaulay2, i2 : texMath (x-1)^6
+
+o2 = x^{6-6\,x^{5+15\,x^{4-20\,x^{3+15\,x^{2-6\,x+1, class => language-macaulay2, Caveat, No attempt is made to wrap large matrices or equations., See also, Macaulay2Doc :: tex, Macaulay2Doc :: mathML, Macaulay2Doc :: showTex, class => waystouse, Ways to use , texMath, :, OldChainComplexes :: texMath(ChainComplex), Varieties :: texMath(CoherentSheaf), OldChainComplexes :: texMath(GradedModule), OldChainComplexes :: texMath(GradedModuleMap), Varieties :: texMath(SheafExpression), Varieties :: texMath(SheafMap), Varieties :: texMath(SheafOfRings), Varieties :: texMath(SumOfTwists), Varieties :: texMath(Variety), class => waystouse, For the programmer, The object , Macaulay2Doc :: texMath, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/texMath-doc.m2:28:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `texMath(BettiTally)`
+- `texMath(MultigradedBettiTally)`
+- `texMath(Matrix)`
+- `texMath(Variety)`
+- `texMath(MonoidElement)`
+- `texMath(EngineRing)`
+- `texMath(Nothing)`
+- `texMath(SheafMap)`
+- `texMath(Set)`
+- `texMath(SheafOfRings)`
+- `texMath(CoherentSheaf)`
+- `texMath(Option)`
+- `texMath(RingMap)`
+- `texMath(Symbol)`
+- `texMath(Keyword)`
+- `texMath(Monoid)`
+- `texMath(SumOfTwists)`
+- `texMath(GroebnerBasis)`
+- `texMath(ProjectiveHilbertPolynomial)`
+- `texMath(Descent)`
+- `texMath(RingElement)`
+- `texMath(Holder)`
+- `texMath(RowExpression)`
+- `texMath(BinaryOperation)`
+- `texMath(FunctionApplication)`
+- `texMath(Adjacent)`
+- `texMath(AssociativeExpression)`
+- `texMath(Minus)`
+- `texMath(Divide)`
+- `texMath(Sum)`
+
+*... and 44 more*
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ[x];
+```
+
+## See Also
+

@@ -1,0 +1,40 @@
+---
+title: "isFreeModule"
+kind: Function
+---
+
+# isFreeModule
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isFreeModule, -- whether something is a free module, class => element, Usage: , isFreeModule M, class => language-macaulay2, Inputs:, M, , , a , Macaulay2Doc :: Thing, thing, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Macaulay2Doc :: true, if the given representation of , M, is a free module and , Macaulay2Doc :: false, otherwise, Description, This function checks if the module , M, is equal to its , Macaulay2Doc :: ambient, free module by examining its matrix of , Macaulay2Doc :: generators(Module), generators, and its matrix of , Macaulay2Doc :: relations(Module), relations, ., , To determine whether , M, is isomorphic to a free module, use , Macaulay2Doc :: prune, , M, ., class => examples, i1 : R = ZZ/7[x,y];, class => language-macaulay2, i2 : M = kernel vars R
+
+o2 = image {1 | -y |
+ {1 | x |
+
+ 2
+o2 : R-module, submodule of R, class => language-macaulay2, i3 : isFreeModule M
+
+o3 = false, class => language-macaulay2, i4 : isFreeModule prune M
+
+o4 = true, class => language-macaulay2, See also, Macaulay2Doc :: ambient, Macaulay2Doc :: prune(Module), class => waystouse, Ways to use , isFreeModule, :, isFreeModule(Module), isFreeModule(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: isFreeModule, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isFreeModule-doc.m2:30:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isFreeModule(Thing)`
+- `isFreeModule(Module)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/7[x,y];
+```
+
+## See Also
+

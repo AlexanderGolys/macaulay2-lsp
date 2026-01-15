@@ -1,0 +1,59 @@
+---
+title: "globalAssignment"
+kind: Function
+---
+
+# globalAssignment
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+globalAssignment, -- install standard global assignment method, class => element, Usage: , globalAssignment X, class => language-macaulay2, Inputs:, X, , , a , Macaulay2Doc :: Type, type, Consequences:, the functions , Macaulay2Doc :: globalAssignFunction, and , Macaulay2Doc :: globalReleaseFunction, are installed in the type , X, under , Macaulay2Doc :: GlobalAssignHook, and , Macaulay2Doc :: GlobalReleaseHook, , respectively. The effect is that when an object of type , X, is assigned to a global variable, the function , Macaulay2Doc :: use, is called on it, and thereafter that object will print out as the name of the variable., Description, One type for which this has been done is , Macaulay2Doc :: Ring, , as illustrated in the following example., class => examples, i1 : S := QQ[x]
+
+o1 = QQ[x]
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : S
+
+o2 = QQ[x]
+
+o2 : PolynomialRing, class => language-macaulay2, i3 : S^3
+
+ 3
+o3 = (QQ[x])
+
+o3 : QQ[x]-module, free, class => language-macaulay2, i4 : R = S
+
+o4 = R
+
+o4 : PolynomialRing, class => language-macaulay2, i5 : S
+
+o5 = R
+
+o5 : PolynomialRing, class => language-macaulay2, i6 : S^3
+
+ 3
+o6 = R
+
+o6 : R-module, free, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: globalAssignment, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:255:0, .
+
+## Examples
+
+```macaulay2
+i1 : S := QQ[x]
+
+o1 = QQ[x]
+
+o1 : PolynomialRing
+
+i2 : S
+
+o2 = QQ[x]
+
+o2 : PolynomialRing
+```
+
+## See Also
+

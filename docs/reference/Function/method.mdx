@@ -1,0 +1,137 @@
+---
+title: "method"
+kind: Function
+---
+
+# method
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+method, -- make a new method function, class => element, Usage: , f = method(), class => language-macaulay2, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, TypicalValue, => , a , Macaulay2Doc :: Type, type, , , default value , Thing, , , the type of the value returned by , f, , typically. This information is used only to build documentation automatically, and is stored in the hash table , Macaulay2Doc :: typicalValues, ., Options, => , a , Macaulay2Doc :: List, list, , , default value , null, , , a list of options , J => v, , where , J, is the name of an optional argument for , f, , and , v, is its default value. The list of options could be also replaced by the corresponding , Macaulay2Doc :: OptionTable, . Specifying , true, here indicates that option handling is done by the individual methods, while still allowing dispatching to methods based on types of arguments to be done. The individual methods may have various sets of acceptable option names, possibly empty. See , Macaulay2Doc :: making new functions with optional arguments, ., Binary, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , whether the method is to be binary: for three arguments or more the result will be computed by calling binary methods installed for , f, with two arguments at a time., Dispatch, => , ..., , , default value , {Thing, Thing, Thing, Thing, , , the method for getting a list of types from the parameters; the value of this option should be , Macaulay2Doc :: Thing, or , Macaulay2Doc :: Type, to indicate that a sequence should be regarded as a single argument, or, if the elements of a sequence are to be regarded as separate parameters, a list whose elements are , Macaulay2Doc :: Thing, or , Macaulay2Doc :: Type, . Parameters corresponding to , Macaulay2Doc :: Thing, or to a position beyond the end of the list are dispatched according to their , Macaulay2Doc :: class, , whereas parameters corresponding to , Macaulay2Doc :: Type, are expected to be types (actually, hash tables) and are used directly in the search for methods; see , Macaulay2Doc :: inheritance, ., Outputs:, f, , , a new method function, , a , Macaulay2Doc :: MethodFunction, method function, , , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, , , an , Macaulay2Doc :: MethodFunctionBinary, associative binary method function, , or , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, Description, The code above creates a method function that takes up to four arguments, looking up the appropriate method according to the classes of the arguments, with inheritance. To install a method for two arguments, (x,y), of classes X and Y, use code like this:, f(X,Y) := (x,y) -> ..., where '...' represents the body of the function you wish to install. The syntax for one or three arguments is analogous. See , Macaulay2Doc :: :=, for details., class => examples, i1 : f = method()
+
+o1 = f
+
+o1 : MethodFunction, class => language-macaulay2, i2 : f ZZ := x -> -x;, class => language-macaulay2, i3 : f(ZZ,String) := (n,s) -> concatenate(n:s);, class => language-macaulay2, i4 : f(String,ZZ,String) := (s,n,t) -> concatenate(s," : ",toString n," : ",t);, class => language-macaulay2, i5 : f 44
+
+o5 = -44, class => language-macaulay2, i6 : f(5,"abcd ")
+
+o6 = abcd abcd abcd abcd abcd , class => language-macaulay2, i7 : f("foo",88,"bar")
+
+o7 = foo : 88 : bar, class => language-macaulay2, In the following example we install a asymmetric method to illustrate the left-associative order of evaluation for a , binary, method function., class => examples, i8 : p = method(Binary => true, TypicalValue => List)
+
+o8 = p
+
+o8 : MethodFunctionBinary, class => language-macaulay2, i9 : p(ZZ,ZZ) := p(List,ZZ) := (i,j) -> {i,j
+
+o9 = FunctionClosure[stdio:9:26-9:40]
+
+o9 : FunctionClosure, class => language-macaulay2, i10 : p(1,2)
+
+o10 = {1, 2
+
+o10 : List, class => language-macaulay2, i11 : p(1,2,3,4,5,6)
+
+o11 = {{{{{1, 2, 3, 4, 5, 6
+
+o11 : List, class => language-macaulay2, By default, at most four arguments (in a sequence) can be handled by a method function, and the types have to be considered separately when installing methods. In this example, we define a method function that treats a sequence as a single argument, and we install a method for handling such arguments., class => examples, i12 : g = method(Dispatch => Thing);, class => language-macaulay2, i13 : g ZZ := i -> -i;, class => language-macaulay2, i14 : g Sequence := S -> reverse S;, class => language-macaulay2, i15 : g 44
+
+o15 = -44, class => language-macaulay2, i16 : g(3,4,5,6)
+
+o16 = (6, 5, 4, 3)
+
+o16 : Sequence, class => language-macaulay2, Here we define a method whose first argument is to be a type. It will convert its second argument to that type., class => examples, i17 : h = method(Dispatch => {Type)
+
+o17 = h
+
+o17 : MethodFunction, class => language-macaulay2, i18 : h(QQ,ZZ) := (QQ,n) -> n/1;, class => language-macaulay2, i19 : h(RR,ZZ) := (RR,n) -> n + 0.;, class => language-macaulay2, i20 : h(ZZ,ZZ) := (ZZ,n) -> n;, class => language-macaulay2, i21 : h(ZZ,14)
+
+o21 = 14, class => language-macaulay2, i22 : h(QQ,14)
+
+o22 = 14
+
+o22 : QQ, class => language-macaulay2, i23 : h(RR,14)
+
+o23 = 14
+
+o23 : RR (of precision 53), class => language-macaulay2, In the next example we make a linear function of a single real variable whose coefficients are provided as optional arguments named Slope and Intercept, with default value 1., class => examples, i24 : r = method(Options => {Slope => 1, Intercept => 1)
+
+o24 = r
+
+o24 : MethodFunctionWithOptions, class => language-macaulay2, The methods installed for this method function should be written in the form , opts -> args -> (...), . The argument , opts, will be assigned a hash table of type , Macaulay2Doc :: OptionTable, containing the optional argument names and their current values. For example, in the body of the function, the current value for the argument named , b, can be recovered with , opts#b, , or with , opts.b, , in case , b, is known to be a global symbol. Be careful not to change the value of , b, , or the code will stop working; it would be a good idea to protect it., class => examples, i25 : r RR := o -> x -> o.Slope * x + o.Intercept
+
+o25 = FunctionClosure[stdio:25:8-25:43]
+
+o25 : FunctionClosure, class => language-macaulay2, i26 : r(5.)
+
+o26 = 6
+
+o26 : RR (of precision 53), class => language-macaulay2, i27 : r(5.,Slope=>100)
+
+o27 = 501
+
+o27 : RR (of precision 53), class => language-macaulay2, The default , Macaulay2Doc :: OptionTable, option table, for , r, can be recovered with the function , Macaulay2Doc :: options, . The options given to , Macaulay2Doc :: method, can be recovered with , Macaulay2Doc :: methodOptions, ., class => examples, i28 : options r
+
+o28 = OptionTable{Intercept => 1
+ Slope => 1
+
+o28 : OptionTable, class => language-macaulay2, i29 : methodOptions r
+
+o29 = OptionTable{Binary => false 
+ Dispatch => {Thing, Thing, Thing, Thing
+ Options => {Slope => 1, Intercept => 1
+ TypicalValue => Thing
+
+o29 : OptionTable, class => language-macaulay2, In the next example we define a method function that leaves option processing to the individual methods., class => examples, i30 : s = method(Options => true)
+
+o30 = s
+
+o30 : MethodFunctionWithOptions, class => language-macaulay2, i31 : s ZZ := { Slope => 17 >> o -> x -> o.Slope * x
+
+o31 = FunctionClosure[/usr/share/Macaulay2/Core/option.m2:15:14-18:8]
+
+o31 : FunctionClosure, class => language-macaulay2, i32 : s RR := { Intercept => 11 >> o -> x -> x + o.Intercept
+
+o32 = FunctionClosure[/usr/share/Macaulay2/Core/option.m2:15:14-18:8]
+
+o32 : FunctionClosure, class => language-macaulay2, i33 : s 100
+
+o33 = 1700, class => language-macaulay2, i34 : s 1000.
+
+o34 = 1011
+
+o34 : RR (of precision 53), class => language-macaulay2, i35 : options s, class => language-macaulay2, i36 : options(s,ZZ)
+
+o36 = OptionTable{Slope => 17
+
+o36 : OptionTable, class => language-macaulay2, i37 : options(s,RR)
+
+o37 = OptionTable{Intercept => 11
+
+o37 : OptionTable, class => language-macaulay2, For now, one installs a method function for , s, with no non-optional arguments using , Macaulay2Doc :: installMethod, :, class => examples, i38 : installMethod(s,{ Slope => 1234 >> o -> () -> o.Slope)
+
+o38 = FunctionClosure[/usr/share/Macaulay2/Core/option.m2:15:14-18:8]
+
+o38 : FunctionClosure, class => language-macaulay2, i39 : s()
+
+o39 = 1234, class => language-macaulay2, i40 : s(Slope => 4)
+
+o40 = 4, class => language-macaulay2, Macaulay2Doc :: specifying typical values, :Types of method functions, Macaulay2Doc :: MethodFunction, Macaulay2Doc :: MethodFunctionSingle, Macaulay2Doc :: MethodFunctionBinary, Macaulay2Doc :: MethodFunctionWithOptions, class => waystouse, For the programmer, The object , Macaulay2Doc :: method, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/method-doc.m2:136:0, .
+
+## Examples
+
+```macaulay2
+i1 : f = method()
+
+o1 = f
+
+o1 : MethodFunction
+
+i2 : f ZZ := x -> -x;
+```
+
+## See Also
+

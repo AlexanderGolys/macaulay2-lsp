@@ -1,0 +1,56 @@
+---
+title: "localDictionaries"
+kind: Function
+---
+
+# localDictionaries
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+localDictionaries, -- get local dictionaries, class => element, Usage: , localDictionaries f, class => language-macaulay2, Inputs:, f, , , () or , a , Macaulay2Doc :: Function, function, , , a , Macaulay2Doc :: Symbol, symbol, , , an instance of the type , Macaulay2Doc :: PseudocodeClosure, , or , a , Macaulay2Doc :: Dictionary, dictionary, Outputs:, a , Macaulay2Doc :: List, list, , , a list of the local dictionaries associated with the lexical scopes containing , f, Description, class => examples, i1 : f := x -> y -> z -> 11;, class => language-macaulay2, i2 : d := localDictionaries ((f 22) 33)
+
+o2 = {LocalDictionary{...1..., LocalDictionary{...1...,
+ ------------------------------------------------------------------------
+ LocalDictionary{...2...
+
+o2 : List, class => language-macaulay2, i3 : peek d
+
+o3 = {LocalDictionary{"y" => y, LocalDictionary{"x" => x,
+ 
+ ------------------------------------------------------------------------
+ LocalDictionary{"d" => d
+ "f" => f, class => language-macaulay2, i4 : d#0#"y"
+
+o4 = y
+
+o4 : Symbol, class => language-macaulay2, i5 : value d#0#"y"
+
+o5 = 33, class => language-macaulay2, i6 : peek localDictionaries()
+
+o6 = {LocalDictionary{"d" => d
+ "f" => f, class => language-macaulay2, See also, Macaulay2Doc :: fileDictionaries, class => waystouse, Ways to use , localDictionaries, :, localDictionaries(Dictionary), localDictionaries(FunctionClosure), localDictionaries(PseudocodeClosure), localDictionaries(Symbol), Macaulay2Doc :: localDictionaries(CompiledFunction), Macaulay2Doc :: localDictionaries(CompiledFunctionClosure), Macaulay2Doc :: localDictionaries(Sequence), class => waystouse, For the programmer, The object , Macaulay2Doc :: localDictionaries, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:481:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `localDictionaries(Sequence)`
+- `localDictionaries(Symbol)`
+- `localDictionaries(PseudocodeClosure)`
+- `localDictionaries(CompiledFunctionClosure)`
+- `localDictionaries(CompiledFunction)`
+- `localDictionaries(Dictionary)`
+- `localDictionaries(FunctionClosure)`
+
+## Examples
+
+```macaulay2
+i1 : f := x -> y -> z -> 11;
+```
+
+## See Also
+

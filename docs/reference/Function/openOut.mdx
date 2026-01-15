@@ -1,0 +1,53 @@
+---
+title: "openOut"
+kind: Function
+---
+
+# openOut
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+openOut, -- open an output file, class => element, Usage: , openOut fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: File, file, , , an open output file whose filename is , fn, . Filenames starting with , !, or with , $, are treated specially, see , Macaulay2Doc :: openInOut, ., Description, class => examples, i1 : g = openOut "test-file"
+
+o1 = test-file
+
+o1 : File, class => language-macaulay2, i2 : g << "hi there"
+
+o2 = test-file
+
+o2 : File, class => language-macaulay2, i3 : g << close
+
+o3 = test-file
+
+o3 : File, class => language-macaulay2, i4 : get "test-file"
+
+o4 = hi there, class => language-macaulay2, i5 : removeFile "test-file", class => language-macaulay2, A filename starting with , ~/, will have the tilde replaced by the user's home directory., See also, Macaulay2Doc :: openIn, Macaulay2Doc :: openInOut, Macaulay2Doc :: openOutAppend, Macaulay2Doc :: get, Macaulay2Doc :: removeFile, Macaulay2Doc :: close, Macaulay2Doc :: File << Thing, class => waystouse, Ways to use , openOut, :, Macaulay2Doc :: openOut(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: openOut, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:463:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `openOut(String)`
+
+## Examples
+
+```macaulay2
+i1 : g = openOut "test-file"
+
+o1 = test-file
+
+o1 : File
+
+i2 : g << "hi there"
+
+o2 = test-file
+
+o2 : File
+```
+
+## See Also
+

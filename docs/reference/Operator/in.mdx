@@ -1,0 +1,88 @@
+---
+title: "in"
+kind: Operator
+---
+
+# in
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+in, -- for loops, Description, Synopsis, class => element, Usage: , for i from m to n when p list x do z, class => language-macaulay2, Inputs:, m, , , an , Macaulay2Doc :: ZZ, integer, n, , , an , Macaulay2Doc :: ZZ, integer, Outputs:, the list of values of the clause , x, , as described above, Consequences:, The numbers , m, and , n, must be small integers that fit into a single word. The variable , i, is initialized to , m, . As long as , i, is not greater than , n, , evaluation of the loop continues. First , p, is evaluated; as long as the value of , p, is true, evaluation of the loop continues. Next , x, is evaluated and its value is saved, and , z, is evaluated and its value is discarded. Then , i, is incremented by 1, and the loop repeats. When the value of , p, is false, then the loop terminates, and the list of values of , x, is returned as the value of the entire expression., Synopsis, class => element, Usage: , for i in v when p list x do z, class => language-macaulay2, Inputs:, v, , , a , Macaulay2Doc :: BasicList, basic list, or an instance of a class with the , Macaulay2Doc :: iterator, method installed, Consequences:, The variable , i, is set to consecutive values of the list , v, . First , p, is evaluated. As long as the value of , p, is true, evaluation of the loop continues. Next , x, is evaluated, and its value is saved. Then , z, is evaluated and its value is discarded. Then the loop repeats with the next element of , v, . When the value of , p, is false, then the loop terminates, and the list of values of , x, is returned as the value of the entire expression., examples, class => examples, i1 : for i from 1 to 5 when i < 15 list i^2 do print i
+1
+2
+3
+4
+5
+
+o1 = {1, 4, 9, 16, 25
+
+o1 : List, class => language-macaulay2, i2 : for i from 1 to 5 when i^2 < 15 list i^2 do print i
+1
+2
+3
+
+o2 = {1, 4, 9
+
+o2 : List, class => language-macaulay2, The expressions in this construction may be arbitrarily complicated. Here is an example where , z, is a sequence of expressions separated by semicolons (see , Macaulay2Doc :: ;, )., class => examples, i3 : for i from 1 to 3 do (
+ print "The value of i is : ";
+ print i
+ )
+The value of i is : 
+1
+The value of i is : 
+2
+The value of i is : 
+3, class => language-macaulay2, The , do z, clause may be omitted., class => examples, i4 : 
+ for i from 1 to 5 when i < 15 list i^2
+
+o4 = {1, 4, 9, 16, 25
+
+o4 : List, class => language-macaulay2, The , from m, clause may be omitted, in which case , i, starts with , 0, ., class => examples, i5 : for i to 5 when i < 15 list i^2
+
+o5 = {0, 1, 4, 9, 16, 25
+
+o5 : List, class => language-macaulay2, The , when p, clause may be omitted., class => examples, i6 : for i to 5 list i^2
+
+o6 = {0, 1, 4, 9, 16, 25
+
+o6 : List, class => language-macaulay2, The , to n, clause may be omitted., class => examples, i7 : for i when i < 15 list i^2
+
+o7 = {0, 1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144, 169, 196
+
+o7 : List, class => language-macaulay2, The , list x, clause may be omitted., class => examples, i8 : for i when i^2 < 15 do print i
+0
+1
+2
+3, class => language-macaulay2, If , Macaulay2Doc :: continue, is executed by , x, then execution of , x, is interrupted, no value is added to the list, and iteration of the loop continues., class => examples, i9 : for i from 0 when i < 10 list (if odd i then continue; i^2)
+
+o9 = {0, 4, 16, 36, 64
+
+o9 : List, class => language-macaulay2, If , continue w, is executed by , x, then execution of , x, is interrupted, the value of , w, is added to the list, and iteration of the loop continues., class => examples, i10 : for i from 0 when i < 10 list (if odd i then continue 4567; i^2)
+
+o10 = {0, 4567, 4, 4567, 16, 4567, 36, 4567, 64, 4567
+
+o10 : List, class => language-macaulay2, If , break v, is executed by , x, , then the loop is stopped and , v, is returned as its value., class => examples, i11 : for i from 0 when i < 10 list (if i== 5 then break i; i^2)
+
+o11 = 5, class => language-macaulay2, If , Macaulay2Doc :: break, is executed by , x, , then the loop is stopped and the list accumulated so far is returned as the value., class => examples, i12 : for i from 0 when i < 10 list (if i== 5 then break; i^2)
+
+o12 = {0, 1, 4, 9, 16
+
+o12 : List, class => language-macaulay2, class => examples, i13 : for i in 0..3 list i^2
+
+o13 = {0, 1, 4, 9
+
+o13 : List, class => language-macaulay2, If , v, is an instance of any class with the , Macaulay2Doc :: iterator, method installed (e.g., a string), then the values of , i, are obtained by repeatedly calling , Macaulay2Doc :: next, on the output of , iterator v, until , Macaulay2Doc :: StopIteration, is returned., class => examples, i14 : for i in "foo" do print i
+f
+o
+o, class => language-macaulay2, Caveat, The variable , i, is a new local variable whose scope includes only the expressions , p, , , x, , and , z, in the body of the loop. Moreover, new local variables defined inside the body of the loop will not be visible outside it., class => waystouse, For the programmer, The object , Macaulay2Doc :: in, is , a , Macaulay2Doc :: Keyword, keyword, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_language.m2:899:0, .
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

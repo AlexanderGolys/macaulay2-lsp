@@ -1,0 +1,57 @@
+---
+title: "preimage"
+kind: Function
+---
+
+# preimage
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+preimage, -- preimage of a map, Description, preimage of an ideal under a ring map, class => element, Usage: , preimage(f, I), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingMap, ring map, , , M, , , an , Macaulay2Doc :: Ideal, ideal, , , in the target of $f$; , Outputs:, an , Macaulay2Doc :: Ideal, ideal, , , the preimage of $I$ under the map $f$; , class => examples, i1 : R = QQ[x,y,z]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : S = QQ[t,u]
+
+o2 = S
+
+o2 : PolynomialRing, class => language-macaulay2, i3 : f = map(R, S, {x*y, y*z)
+
+o3 = map (R, S, {x*y, y*z)
+
+o3 : RingMap R <-- S, class => language-macaulay2, i4 : preimage_f ideal(x^2,y^2)
+
+ 2 2
+o4 = ideal (u , t*u, t )
+
+o4 : Ideal of S, class => language-macaulay2, preimage of a submodule under a module map, class => element, Usage: , preimage(f, M), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Matrix, matrix, , , M, , , a , Macaulay2Doc :: Module, module, , , a submodule in the target of $f$; , Outputs:, a , Macaulay2Doc :: Module, module, , , the preimage of $M$ under the map $f$; , $M$ and , Macaulay2Doc :: target, of $f$ should have the same , Macaulay2Doc :: ambient, module., See also, Macaulay2Doc :: coimage, Macaulay2Doc :: image, Macaulay2Doc :: kernel, Macaulay2Doc :: source, Macaulay2Doc :: target, class => waystouse, Ways to use , preimage, :, preimage(Matrix,Module), preimage(RingMap,Ideal), class => waystouse, For the programmer, The object , Macaulay2Doc :: preimage, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/preimage-doc.m2:46:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `preimage(RingMap, Ideal)`
+- `preimage(Matrix, Module)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[x,y,z]
+
+o1 = R
+
+o1 : PolynomialRing
+
+i2 : S = QQ[t,u]
+
+o2 = S
+
+o2 : PolynomialRing
+```
+
+## See Also
+

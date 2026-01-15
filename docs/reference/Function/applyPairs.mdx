@@ -1,0 +1,52 @@
+---
+title: "applyPairs"
+kind: Function
+---
+
+# applyPairs
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+applyPairs, -- apply a function to each pair in a hash table, class => element, Usage: , applyPairs(H, f), class => language-macaulay2, Inputs:, H, , , a , Macaulay2Doc :: HashTable, hash table, , , a , Macaulay2Doc :: BasicList, basic list, , or , a , Macaulay2Doc :: Dictionary, dictionary, , , or any instance of a class with an , Macaulay2Doc :: iterator, method installed, f, , , a , Macaulay2Doc :: Function, function, , , of two arguments, returning a pair or , Macaulay2Doc :: null, Outputs:, a , Macaulay2Doc :: HashTable, hash table, , , obtained by applying , f, to each key/value pair in , H, , Description, class => examples, i1 : H = new HashTable from {1 => 10, 2 => 15, 3 => 20
+
+o1 = HashTable{1 => 10
+ 2 => 15
+ 3 => 20
+
+o1 : HashTable, class => language-macaulay2, i2 : applyPairs(H, (k,v) -> (k+1, v+10))
+
+o2 = HashTable{2 => 20
+ 3 => 25
+ 4 => 30
+
+o2 : HashTable, class => language-macaulay2, i3 : applyPairs(H, (k,v) -> (v,k))
+
+o3 = HashTable{10 => 1
+ 15 => 2
+ 20 => 3
+
+o3 : HashTable, class => language-macaulay2, If , H, is not a hash table, then , apply(pairs H, f), class => language-macaulay2, is called., class => examples, i4 : applyPairs({4, 5, 6, (i, x) -> i * x)
+
+o4 = {0, 5, 12
+
+o4 : List, class => language-macaulay2, Caveat, It is an error for the function , f, to return two pairs with the same key., See also, Macaulay2Doc :: hash tables, Macaulay2Doc :: applyKeys, Macaulay2Doc :: applyValues, Macaulay2Doc :: pairs, Macaulay2Doc :: scanPairs, class => waystouse, Ways to use , applyPairs, :, applyPairs(BasicList,Function), applyPairs(Dictionary,Function), applyPairs(HashTable,Function), applyPairs(Thing,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: applyPairs, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/applyPairs-doc.m2:43:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `applyPairs(HashTable, Function)`
+- `applyPairs(Thing, Function)`
+- `applyPairs(BasicList, Function)`
+- `applyPairs(Dictionary, Function)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

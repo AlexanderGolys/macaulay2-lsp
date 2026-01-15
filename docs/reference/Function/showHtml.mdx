@@ -1,0 +1,27 @@
+---
+title: "showHtml"
+kind: Function
+---
+
+# showHtml
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+showHtml, -- display various objects in an external viewer, class => element, Usage: , show x, class => language-macaulay2, Inputs:, x, , , a , Text :: Hypertext, markup list, , , an instance of the type , Text :: TEX, , or , an instance of the type , Macaulay2Doc :: URL, , , Consequences:, An external viewer, such as a web browser or PDF viewer, is started to view the object , x, Description, The functions , showTex, and , showHtml, are specializations of the , show, method which first convert , x, to a , Text :: TEX, or , Text :: Hypertext, object, respectively, and display that result., For example, the following lines would display a matrix in a browser or PDF viewer:, class => examples, i1 : showTex matrix{{1,2,3,{4,5,6
++ cd /tmp/M2-95678-0/0/
++ pdflatex -interaction=batchmode show
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex)
+restricted \write18 enabled.
+entering extended mode, class => language-macaulay2, i2 : showHtml matrix{{1,2,3,{4,5,6
+Opening in existing browser session., class => language-macaulay2, By default, the viewer is determined by either , open, on macOS or , xdg-open, on Linux distributions. As backup for when neither , open, nor , xdg-open, is available, the environmental variable , WWWBROWSER, or , firefox, is used., Caveat, No attempt is made to wrap large matrices or equations. The code for this function is Unix dependent at the moment, requiring that certain commands like , pdflatex, are present., See also, Macaulay2Doc :: tex, Macaulay2Doc :: texMath, Macaulay2Doc :: html, class => waystouse, For the programmer, The object , Macaulay2Doc :: showHtml, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/show-doc.m2:70:0, .
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

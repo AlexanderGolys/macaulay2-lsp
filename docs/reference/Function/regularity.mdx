@@ -1,0 +1,89 @@
+---
+title: "regularity"
+kind: Function
+---
+
+# regularity
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+regularity, -- compute the Castelnuovo-Mumford regularity, class => element, Usage: , r = regularity C, class => language-macaulay2, r = regularity(C, Weights => w), class => language-macaulay2, Inputs:, C, , , an Ideal, a Module, or a ChainComplex; , Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Weights, => , a , Macaulay2Doc :: List, list, , , default value , null, , , a weight vector , w, , see , Macaulay2Doc :: betti(...,Weights=>...), ; , Outputs:, r, , , an , Macaulay2Doc :: ZZ, integer, , , Description, For a free chain complex , C, , the regularity , r, is the smallest number so that each basis element of , C_i, has degree at most , i+r, . For an ideal , I, , regularity is one plus the regularity of the minimal free resolution of the quotient of the ambient ring by , I, . For a module , M, , regularity is the regularity of a minimal free resolution of , M, ., class => examples, i1 : R = ZZ/32003[a..d];, class => language-macaulay2, i2 : I = ideal(a^20, b^20, a*c^19-b*d^19);
+
+o2 : Ideal of R, class => language-macaulay2, i3 : C = resolution I
+
+ 1 3 23 40 19
+o3 = R <-- R <-- R <-- R <-- R <-- 0
+ 
+ 0 1 2 3 4 5
+
+o3 : ChainComplex, class => language-macaulay2, i4 : regularity C
+
+o4 = 398, class => language-macaulay2, i5 : regularity comodule I
+
+o5 = 398, class => language-macaulay2, i6 : regularity I
+
+o6 = 399, class => language-macaulay2, i7 : regularity module I
+
+o7 = 399, class => language-macaulay2, The regularity is the label of the last row in the , Macaulay2Doc :: betti, Betti diagram, of a chain complex. However, this depends on the total degree weights in the Betti tally, which are computed based on the , Macaulay2Doc :: heft vectors, heft vector, of the underlying ring. To adjust this vector, a vector , w, whose length is the same as the , Macaulay2Doc :: degreeLength, degree length, of the ring can be provided using the option , Weights, . The dot products of , w, with the multidegrees in the tally will be used in the resulting computation., class => examples, i8 : C = resolution ideal(a^3, a^2*b, a*b^6, a^2*c);, class => language-macaulay2, i9 : betti C
+
+ 0 1 2 3
+o9 = total: 1 4 4 1
+ 0: 1 . . .
+ 1: . . . .
+ 2: . 3 3 1
+ 3: . . . .
+ 4: . . . .
+ 5: . . . .
+ 6: . 1 1 .
+
+o9 : BettiTally, class => language-macaulay2, i10 : regularity C
+
+o10 = 6, class => language-macaulay2, i11 : betti(C, Weights => {2)
+
+ 0 1 2 3
+o11 = total: 1 4 4 1
+ 0: 1 . . .
+ 1: . . . .
+ 2: . . . .
+ 3: . . . .
+ 4: . . . .
+ 5: . 3 . .
+ 6: . . 3 .
+ 7: . . . 1
+ 8: . . . .
+ 9: . . . .
+ 10: . . . .
+ 11: . . . .
+ 12: . . . .
+ 13: . 1 . .
+ 14: . . 1 .
+
+o11 : BettiTally, class => language-macaulay2, i12 : regularity(C, Weights => {2)
+
+o12 = 14, class => language-macaulay2, See also, OldChainComplexes :: resolution, Macaulay2Doc :: betti, Macaulay2Doc :: comodule, VirtualResolutions :: multigradedRegularity, class => waystouse, Ways to use , regularity, :, regularity(BettiTally), -- see , Macaulay2Doc :: BettiTally, regularity(Ideal), regularity(Module), OldChainComplexes :: regularity(ChainComplex), class => waystouse, For the programmer, The object , Macaulay2Doc :: regularity, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/regularity-doc.m2:56:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `regularity(BettiTally)`
+- `regularity(ChainComplex)`
+- `regularity(Ideal)`
+- `regularity(Module)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/32003[a..d];
+
+i2 : I = ideal(a^20, b^20, a*c^19-b*d^19);
+
+o2 : Ideal of R
+```
+
+## See Also
+

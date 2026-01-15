@@ -1,0 +1,46 @@
+---
+title: "_*"
+kind: Operator
+---
+
+# _*
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+_*, -- a unary postfix operator, used for indicating pushforward maps, empty documentation body, class => waystouse, Ways to use , symbol _*, :, Ideal _*, -- see , Macaulay2Doc :: generators of rings, ideals, and modules, Module _*, -- see , Macaulay2Doc :: generators of rings, ideals, and modules, Monoid _*, -- see , Macaulay2Doc :: generators of rings, ideals, and modules, Ring _*, -- see , Macaulay2Doc :: generators of rings, ideals, and modules, Macaulay2Doc :: RingFamily _*, class => waystouse, For the programmer, The object , Macaulay2Doc :: _*, is , a , Macaulay2Doc :: Keyword, keyword, ., This operator may be used as a postfix unary operator in an expression like , x_*, . , The user may , Macaulay2Doc :: :=, install a method, for handling such expressions with code such as, X _* := (x) -> ..., where , X, is the class of , x, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators.m2:526:0, .
+
+## Operator Installations
+
+### Unary Operator
+
+Usage: `_* x` or `x _*`
+
+- `_*(Module)`
+- `_*(Ideal)`
+- `_*(Monoid)`
+- `_*(RingFamily)`
+- `_*(Ring)`
+- `_*(Thing)`
+
+### Augmented Assignment
+
+Usage: `x _*= y` (modifies `x` in place)
+
+:::info[Special Installation Syntax]
+Augmented assignment methods require special installation using `installAssignmentMethod`. See [Macaulay2 documentation](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/Macaulay2Doc/html/_installing_spaugmented_spassignment_spmethods.html) for details.
+:::
+
+- `(_*,=)(Type)`
+- `(_*,=)(RingFamily)`
+- `(_*,=)(Thing)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

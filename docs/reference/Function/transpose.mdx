@@ -1,0 +1,63 @@
+---
+title: "transpose"
+kind: Function
+---
+
+# transpose
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+transpose, -- transpose a matrix or table, class => element, Usage: , transpose f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Matrix, matrix, or , a , Macaulay2Doc :: List, list, which is a table, Outputs:, a , Macaulay2Doc :: Matrix, matrix, , , the transpose of , f, Description, Here is an example., class => examples, i1 : S = ZZ/10007[x,y,z];, class => language-macaulay2, i2 : f = matrix{{x^3,x*y^2,x,{y*x^2,y^3,y
+
+o2 = | x3 xy2 x |
+ | x2y y3 y |
+
+ 2 3
+o2 : Matrix S <-- S, class => language-macaulay2, i3 : entries f
+
+ 3 2 2 3
+o3 = {{x , x*y , x, {x y, y , y
+
+o3 : List, class => language-macaulay2, i4 : g = transpose f
+
+o4 = {-3 | x3 x2y |
+ {-3 | xy2 y3 |
+ {-1 | x y |
+
+ 3 2
+o4 : Matrix S <-- S, class => language-macaulay2, i5 : transpose entries f
+
+ 3 2 2 3
+o5 = {{x , x y, {x*y , y , {x, y
+
+o5 : List, class => language-macaulay2, The output of , transpose, is a map between the duals of the original source and target free modules. See:, class => examples, i6 : degrees f
+
+o6 = {{{0, {0, {{3, {3, {1
+
+o6 : List, class => language-macaulay2, i7 : degrees g
+
+o7 = {{{-3, {-3, {-1, {{0, {0
+
+o7 : List, class => language-macaulay2, Caveat, transpose, works only for maps between free modules. Use , dual, for more general maps., See also, Macaulay2Doc :: dual, class => waystouse, Ways to use , transpose, :, transpose(List), transpose(Matrix), transpose(MutableMatrix), OldChainComplexes :: transpose(ChainComplexMap), class => waystouse, For the programmer, The object , Macaulay2Doc :: transpose, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/transpose-doc.m2:40:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `transpose(List)`
+- `transpose(Matrix)`
+- `transpose(MutableMatrix)`
+- `transpose(ChainComplexMap)`
+
+## Examples
+
+```macaulay2
+i1 : S = ZZ/10007[x,y,z];
+```
+
+## See Also
+

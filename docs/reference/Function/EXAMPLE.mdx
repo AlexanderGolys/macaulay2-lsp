@@ -1,0 +1,34 @@
+---
+title: "EXAMPLE"
+kind: Function
+---
+
+# EXAMPLE
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+EXAMPLE, -- construct a hypertext item from a Macaulay2 input string, class => element, Usage: , EXAMPLE x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: String, string, , , a , Macaulay2Doc :: VisibleList, visible list, , or , an instance of the type , Text :: PRE, , , containing strings or objects of class , Text :: PRE, Outputs:, an instance of the type , Text :: TABLE, , , a table containing the examples, Description, If the table is included in the input provided to , Macaulay2Doc :: document, , the input string will be evaluated by , Macaulay2Doc :: installPackage, and the result will be displayed in the documentation. Each object of class , Text :: PRE, will be inserted unchanged into the documentation as example output. For example, the code, EXAMPLE { "1+1" , produces a display that looks like this:, class => examples, i1 : 1+1
+
+o1 = 2, class => language-macaulay2, See also, Macaulay2Doc :: examples, Macaulay2Doc :: hypertext, Macaulay2Doc :: document, Macaulay2Doc :: installPackage, class => waystouse, Ways to use , EXAMPLE, :, EXAMPLE(PRE), EXAMPLE(String), EXAMPLE(VisibleList), class => waystouse, For the programmer, The object , Macaulay2Doc :: EXAMPLE, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/examples-doc.m2:134:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `EXAMPLE(String)`
+- `EXAMPLE(VisibleList)`
+
+## Examples
+
+```macaulay2
+i1 : 1+1
+
+o1 = 2
+```
+
+## See Also
+

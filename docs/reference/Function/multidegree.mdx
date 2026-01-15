@@ -1,0 +1,57 @@
+---
+title: "multidegree"
+kind: Function
+---
+
+# multidegree
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+multidegree, -- multidegree, class => element, Usage: , multidegree M, class => language-macaulay2, Inputs:, M, , , a , Macaulay2Doc :: Module, module, , , an , Macaulay2Doc :: Ideal, ideal, , or , a , Macaulay2Doc :: Ring, ring, Outputs:, the multidegree of , M, . If , M, is an ideal, the corresponding quotient ring is used., Description, The multidegree is defined on page 165 of , Combinatorial Commutative Algebra, , by Miller and Sturmfels. It is an element of the degrees ring of , M, . Our implementation agrees with their definition provided the heft vector of the ring has every entry equal to 1. See also , Gröbner geometry of Schubert polynomials, , by Allen Knutson and Ezra Miller., class => examples, i1 : S = QQ[a..d, Degrees => {{2,-1,{1,0,{0,1,{-1,2];, class => language-macaulay2, i2 : heft S
+
+o2 = {1, 1
+
+o2 : List, class => language-macaulay2, i3 : multidegree ideal (b^2,b*c,c^2)
+
+o3 = 3T T
+ 0 1
+
+o3 : ZZ[T ..T ]
+ 0 1, class => language-macaulay2, i4 : multidegree ideal a
+
+o4 = 2T - T
+ 0 1
+
+o4 : ZZ[T ..T ]
+ 0 1, class => language-macaulay2, i5 : multidegree ideal (a^2,a*b,b^2)
+
+ 2
+o5 = 6T - 3T T
+ 0 0 1
+
+o5 : ZZ[T ..T ]
+ 0 1, class => language-macaulay2, i6 : describe ring oo
+
+o6 = ZZ[T ..T , Degrees => {2:1, MonomialOrder => {MonomialSize => 32, Inverses => true, Global => false]
+ 0 1 {Weights => {2:-1 
+ {GroupLex => 2 
+ {Position => Up , class => language-macaulay2, Caveat, This implementation is provisional in the case where the heft vector does not have every entry equal to 1., See also, Macaulay2Doc :: heft vectors, Macaulay2Doc :: degreesRing, class => waystouse, Ways to use , multidegree, :, multidegree(Ideal), multidegree(Module), multidegree(Ring), class => waystouse, For the programmer, The object , Macaulay2Doc :: multidegree, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_rings.m2:365:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `multidegree(Ring)`
+- `multidegree(Ideal)`
+- `multidegree(Module)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

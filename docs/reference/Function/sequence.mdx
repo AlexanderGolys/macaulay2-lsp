@@ -1,0 +1,55 @@
+---
+title: "sequence"
+kind: Function
+---
+
+# sequence
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+sequence, -- make a sequence, class => element, Usage: , sequence v, class => language-macaulay2, Inputs:, v, , , a , Macaulay2Doc :: Thing, thing, Outputs:, a , Macaulay2Doc :: Sequence, sequence, , , v, if , v, is a sequence, otherwise a sequence of length 1 containing , v, Description, Such a function is needed occasionally to restore uniformity, because a nonempty parenthesized expression with no commas is not parsed as a sequence., class => examples, i1 : sequence()
+
+o1 = ()
+
+o1 : Sequence, class => language-macaulay2, i2 : sequence(4)
+
+o2 = 1 : (4)
+
+o2 : Sequence, class => language-macaulay2, i3 : sequence(4,5)
+
+o3 = (4, 5)
+
+o3 : Sequence, class => language-macaulay2, i4 : identity()
+
+o4 = ()
+
+o4 : Sequence, class => language-macaulay2, i5 : identity(4)
+
+o5 = 4, class => language-macaulay2, i6 : identity(4,5)
+
+o6 = (4, 5)
+
+o6 : Sequence, class => language-macaulay2, See also, Macaulay2Doc :: unsequence, class => waystouse, For the programmer, The object , Macaulay2Doc :: sequence, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_lists.m2:783:0, .
+
+## Examples
+
+```macaulay2
+i1 : sequence()
+
+o1 = ()
+
+o1 : Sequence
+
+i2 : sequence(4)
+
+o2 = 1 : (4)
+
+o2 : Sequence
+```
+
+## See Also
+

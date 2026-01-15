@@ -1,0 +1,49 @@
+---
+title: "fileLength"
+kind: Function
+---
+
+# fileLength
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+fileLength, -- the length of a file, class => element, Usage: , fileLength f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: String, string, or , a , Macaulay2Doc :: File, file, Outputs:, an , Macaulay2Doc :: ZZ, integer, , , the length of the file , f, or the file whose name is , f, Description, The length of an open output file is determined from the internal count of the number of bytes written so far., class => examples, i1 : f = temporaryFileName() << "hi there"
+
+o1 = /tmp/M2-710621-0/0
+
+o1 : File, class => language-macaulay2, i2 : fileLength f
+
+o2 = 8, class => language-macaulay2, i3 : close f
+
+o3 = /tmp/M2-710621-0/0
+
+o3 : File, class => language-macaulay2, i4 : filename = toString f
+
+o4 = /tmp/M2-710621-0/0, class => language-macaulay2, i5 : fileLength filename
+
+o5 = 8, class => language-macaulay2, i6 : get filename
+
+o6 = hi there, class => language-macaulay2, i7 : length oo
+
+o7 = 8, class => language-macaulay2, i8 : removeFile filename, class => language-macaulay2, See also, Macaulay2Doc :: fileTime, class => waystouse, For the programmer, The object , Macaulay2Doc :: fileLength, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1868:0, .
+
+## Examples
+
+```macaulay2
+i1 : f = temporaryFileName() << "hi there"
+
+o1 = /tmp/M2-710621-0/0
+
+o1 : File
+
+i2 : fileLength f
+
+o2 = 8
+```
+
+## See Also
+

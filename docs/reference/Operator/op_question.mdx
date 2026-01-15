@@ -1,0 +1,128 @@
+---
+title: "?"
+kind: Operator
+---
+
+# ?
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+?, -- comparison operator, class => element, Usage: , x ? y, class => language-macaulay2, Inputs:, x, y, Outputs:, One of the symbols , symbol <, , , symbol >, , , symbol ==, , or , incomparable, , depending (respectively) on whether , x < y, , , x > y, , , x == y, , or , x, and , y, are not comparable., Description, Many types of objects may be compared. Numbers are handled as one would expect, and strings, lists and sequences are generally compared lexicographically., class => examples, i1 : 3 ? 4
+
+o1 = <
+
+o1 : Keyword, class => language-macaulay2, i2 : "book" ? "boolean"
+
+o2 = <
+
+o2 : Keyword, class => language-macaulay2, i3 : 3 ? 3.
+
+o3 = ==
+
+o3 : Keyword, class => language-macaulay2, i4 : {1,2,3 ? {4,5
+
+o4 = <
+
+o4 : Keyword, class => language-macaulay2, , Polynomials from the same ring may also be compared. The order depends on the monomial order in the ring., class => examples, i5 : R = ZZ[a,b,c]
+
+o5 = R
+
+o5 : PolynomialRing, class => language-macaulay2, i6 : a*c ? b^2
+
+o6 = <
+
+o6 : Keyword, class => language-macaulay2, A set is smaller than another if it is a subset; for tallies, corresponding counts should all be smaller., class => examples, i7 : set {1,2 ? set {2,3
+
+o7 = incomparable
+
+o7 : Symbol, class => language-macaulay2, i8 : set {1,2 ? set {1,2,3
+
+o8 = <
+
+o8 : Keyword, class => language-macaulay2, i9 : tally {1,1,2 ? tally {1,2,3
+
+o9 = incomparable
+
+o9 : Symbol, class => language-macaulay2, i10 : tally {1,1,2 ? tally {1,1,2,3
+
+o10 = <
+
+o10 : Keyword, class => language-macaulay2, See also, Macaulay2Doc :: sort, Macaulay2Doc :: rsort, Macaulay2Doc :: ? Symbol, Macaulay2Doc :: incomparable, class => waystouse, Ways to use , symbol ?, :, IndexedVariable ? IndexedVariable, List ? List, Symbol ? IndexedVariable, VirtualTally ? VirtualTally, ? Function, -- see , Macaulay2Doc :: ? Symbol, ? Keyword, -- see , Macaulay2Doc :: ? Symbol, ? Package, -- see , Macaulay2Doc :: ? Symbol, ? ScriptedFunctor, -- see , Macaulay2Doc :: ? Symbol, Macaulay2Doc :: ? Symbol, ? Type, -- see , Macaulay2Doc :: ? Symbol, Bag ? Bag, -- see , Macaulay2Doc :: Bag, Polyhedra :: Cone ? Cone, class => waystouse, For the programmer, The object , Macaulay2Doc :: ?, is , a , Macaulay2Doc :: Keyword, keyword, ., This operator may be used as a binary operator in an expression like , x?y, . , The user may install , Macaulay2Doc :: binary methods, for handling such expressions with code such as, X ? Y := (x,y) -> ..., where , X, is the class of , x, and , Y, is the class of , y, ., This operator may be used as a prefix unary operator in an expression like , ?y, . , The user may , Macaulay2Doc :: installing methods, install a method, for handling such expressions with code such as, ? Y := (y) -> ..., where , Y, is the class of , y, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators/comparison.m2:91:0, .
+
+## Operator Installations
+
+### Binary Operator
+
+Usage: `x ? y`
+
+- `?(Bag, Bag)`
+- `?(DocumentTag, DocumentTag)`
+- `?(DocumentTag, String)`
+- `?(String, DocumentTag)`
+- `?(RingElement, ZZ)`
+- `?(ZZ, RingElement)`
+- `?(List, List)`
+- `?(Option, Option)`
+- `?(InfiniteNumber, InfiniteNumber)`
+- `?(Thing, InfiniteNumber)`
+- `?(InfiniteNumber, Thing)`
+- `?(RR, InfiniteNumber)`
+- `?(InfiniteNumber, RR)`
+- `?(CC, InfiniteNumber)`
+- `?(InfiniteNumber, CC)`
+- `?(CoherentSheaf, CoherentSheaf)`
+- `?(Module, Module)`
+- `?(MonoidElement, MonoidElement)`
+- `?(MonoidElement, ZZ)`
+- `?(ZZ, MonoidElement)`
+
+*Showing 20 of 32 binary signatures*
+
+### Unary Operator
+
+Usage: `? x` or `x ?`
+
+- `?(ScriptedFunctor)`
+- `?(Keyword)`
+- `?(Symbol)`
+- `?(Command)`
+- `?(Package)`
+- `?(Thing)`
+- `?(Function)`
+- `?(Type)`
+
+### Augmented Assignment
+
+Usage: `x ?= y` (modifies `x` in place)
+
+:::info[Special Installation Syntax]
+Augmented assignment methods require special installation using `installAssignmentMethod`. See [Macaulay2 documentation](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/Macaulay2Doc/html/_installing_spaugmented_spassignment_spmethods.html) for details.
+:::
+
+- `(?,=)(Type, Type)`
+- `(?,=)(Type)`
+- `(?,=)(Thing, Thing)`
+- `(?,=)(Thing)`
+
+## Examples
+
+```macaulay2
+i1 : 3 ? 4
+
+o1 = <
+
+o1 : Keyword
+
+i2 : "book" ? "boolean"
+
+o2 = <
+
+o2 : Keyword
+```
+
+## See Also
+

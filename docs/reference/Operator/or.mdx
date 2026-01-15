@@ -1,0 +1,68 @@
+---
+title: "or"
+kind: Operator
+---
+
+# or
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+or, -- disjunction, class => element, Usage: , t or u, class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: Boolean, Boolean value, or , a , Macaulay2Doc :: Function, function, , , u, , , a , Macaulay2Doc :: Boolean, Boolean value, or , a , Macaulay2Doc :: Function, function, , , Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, or , a , Macaulay2Doc :: Function, function, , , Description, If , t, or , u, are booleans, then , t or u, class => language-macaulay2, returns true if either is true., class => examples, i1 : even 7 or isPrime 7
+
+o1 = true, class => language-macaulay2, If , t, is true, then the code in , u, is not evaluated., class => examples, i2 : even 6 or 1/0
+
+o2 = true, class => language-macaulay2, If they are both functions that return booleans, then the return value is also a function., class => examples, i3 : isEvenOrPrime = even or isPrime
+
+o3 = isEvenOrPrime
+
+o3 : FunctionClosure, class => language-macaulay2, i4 : isEvenOrPrime 7
+
+o4 = true, class => language-macaulay2, i5 : isEvenOrPrime 9
+
+o5 = false, class => language-macaulay2, See also, Macaulay2Doc :: and, Macaulay2Doc :: not, Macaulay2Doc :: xor, class => waystouse, Ways to use , symbol or, :, Boolean or Boolean, Function or Function, class => waystouse, For the programmer, The object , Macaulay2Doc :: or, is , a , Macaulay2Doc :: Keyword, keyword, ., This operator may be used as a binary operator in an expression like , x or y, . , The user may install , Macaulay2Doc :: binary methods, for handling such expressions with code such as, X or Y := (x,y) -> ..., where , X, is the class of , x, and , Y, is the class of , y, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators.m2:294:0, .
+
+## Operator Installations
+
+### Binary Operator
+
+Usage: `x or y`
+
+- `or(Expression, Expression)`
+- `or(Expression, Holder)`
+- `or(Holder, Expression)`
+- `or(Holder, Holder)`
+- `or(Expression, Thing)`
+- `or(Thing, Expression)`
+- `or(Function, Function)`
+- `or(Thing, Thing)`
+- `or(Boolean, Boolean)`
+
+### Augmented Assignment
+
+Usage: `x or= y` (modifies `x` in place)
+
+:::info[Special Installation Syntax]
+Augmented assignment methods require special installation using `installAssignmentMethod`. See [Macaulay2 documentation](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/Macaulay2Doc/html/_installing_spaugmented_spassignment_spmethods.html) for details.
+:::
+
+- `(or,=)(Type, Type)`
+- `(or,=)(Thing, Thing)`
+
+## Examples
+
+```macaulay2
+i1 : even 7 or isPrime 7
+
+o1 = true
+
+i2 : even 6 or 1/0
+
+o2 = true
+```
+
+## See Also
+

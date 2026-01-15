@@ -1,0 +1,65 @@
+---
+title: "toField"
+kind: Function
+---
+
+# toField
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+toField, -- declare that a ring is a field, class => element, Usage: , L = toField R, class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: Ring, ring, Outputs:, L, , , a new ring, isomorphic to , R, , declared to be a field. Polynomial rings over it will support Gröbner basis operations., Description, class => examples, i1 : A = QQ[i]/(i^2+1);, class => language-macaulay2, i2 : L = toField A
+
+o2 = L
+
+o2 : PolynomialRing, class => language-macaulay2, i3 : B = L[x,y,z]
+
+o3 = B
+
+o3 : PolynomialRing, class => language-macaulay2, i4 : I = ideal(i*x^2-y-i, i*y^2-z-i)
+
+ 2 2
+o4 = ideal (i*x - y - i, i*y - z - i)
+
+o4 : Ideal of B, class => language-macaulay2, i5 : gens gb I
+
+o5 = | y2+iz-1 x2+iy-1 |
+
+ 1 2
+o5 : Matrix B <-- B, class => language-macaulay2, If the engine eventually discovers that some nonzero element of , L, is not a unit, an error will be signalled. The user may then use , Macaulay2Doc :: getNonUnit, to obtain a non-invertible element of , L, . If a ring probably is a field, it can be used as a field until a contradiction is found, and this may be a good way of discovering whether a ring is a field., class => examples, i6 : A = ZZ[a]/(a^2+3);, class => language-macaulay2, i7 : L = toField A
+
+o7 = L
+
+o7 : PolynomialRing, class => language-macaulay2, i8 : L[x,y,z]
+
+o8 = L[x..z]
+
+o8 : PolynomialRing, class => language-macaulay2, i9 : try gb ideal (a*x^2-y^2-z^2, y^3, z^3) else getNonUnit L
+
+o9 = a
+
+o9 : L, class => language-macaulay2, See also, Macaulay2Doc :: getNonUnit, Macaulay2Doc :: try, class => waystouse, Ways to use , toField, :, Macaulay2Doc :: toField(Ring), class => waystouse, For the programmer, The object , Macaulay2Doc :: toField, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/toField-doc.m2:40:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `toField(Ring)`
+
+## Examples
+
+```macaulay2
+i1 : A = QQ[i]/(i^2+1);
+
+i2 : L = toField A
+
+o2 = L
+
+o2 : PolynomialRing
+```
+
+## See Also
+

@@ -1,0 +1,41 @@
+---
+title: "regexQuote"
+kind: Function
+---
+
+# regexQuote
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+regexQuote, -- escape special characters in regular expressions, class => element, Usage: , regexQuote s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, , , Outputs:, a , Macaulay2Doc :: String, string, , , obtained from , s, by escaping all of the characters that have special meanings in regular expressions (, \, ^, $, ., |, ?, *, +, (, ), [, ], {, , ) with a , \, ., Description, class => examples, i1 : match("2+2", "2+2")
+
+o1 = false, class => language-macaulay2, i2 : regexQuote "2+2"
+
+o2 = 2\+2, class => language-macaulay2, i3 : match(oo, "2+2")
+
+o3 = true, class => language-macaulay2, See also, Macaulay2Doc :: regular expressions, Macaulay2Doc :: regex, Macaulay2Doc :: match, class => waystouse, Ways to use , regexQuote, :, regexQuote(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: regexQuote, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/regex-doc.m2:346:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `regexQuote(String)`
+
+## Examples
+
+```macaulay2
+i1 : match("2+2", "2+2")
+
+o1 = false
+
+i2 : regexQuote "2+2"
+
+o2 = 2\+2
+```
+
+## See Also
+

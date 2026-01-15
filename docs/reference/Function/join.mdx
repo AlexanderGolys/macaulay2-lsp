@@ -1,0 +1,49 @@
+---
+title: "join"
+kind: Function
+---
+
+# join
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+join, -- join lists, sequences, and iterable objects, class => element, Usage: , join(A, B, ...), class => language-macaulay2, Inputs:, A, , , a , Macaulay2Doc :: BasicList, basic list, , , B, , , a , Macaulay2Doc :: BasicList, basic list, , , or any instance of a class with the , Macaulay2Doc :: iterator, method installed, Outputs:, Z, , , a , Macaulay2Doc :: BasicList, basic list, or , an , Macaulay2Doc :: Iterator, iterator, , , Description, , join(A, B, ...), joins the elements of the lists or sequences , A, B, ..., into a single list or sequence. The inputs may belong to different classes; the class of the result will match the class of the first argument passed to , join, ., class => examples, i1 : join( {1,2,3, (4,5,6), (7,8,9) )
+
+o1 = {1, 2, 3, 4, 5, 6, 7, 8, 9
+
+o1 : List, class => language-macaulay2, i2 : join( (1,2,3), {4,5,6, {7, (8,9,10) )
+
+o2 = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+
+o2 : Sequence, class => language-macaulay2, The operator , Macaulay2Doc :: |, is a convenient shorthand for joining two inputs of the same class., class => examples, i3 : {1,2,3 | {4,5,6
+
+o3 = {1, 2, 3, 4, 5, 6
+
+o3 : List, class => language-macaulay2, i4 : (1,2,3) | (4,5,6)
+
+o4 = (1, 2, 3, 4, 5, 6)
+
+o4 : Sequence, class => language-macaulay2, If the first argument is a list or sequence and any later arguments are instances of a class with the , Macaulay2Doc :: iterator, method installed, then these instances are converted to sequences and are then joined., class => examples, i5 : join({1, 2, 3, iterator {4, 5, 6)
+
+o5 = {1, 2, 3, 4, 5, 6
+
+o5 : List, class => language-macaulay2, If the first argument is not a list or sequence, then an , Macaulay2Doc :: Iterator, object is returned that iterates through each argument sequentially, provided that each argument is an iterable object., class => examples, i6 : join(iterator {1, 2, 3, {4, 5, 6)
+
+o6 = iterator (iterator {1, 2, 3, {4, 5, 6)
+
+o6 : Iterator, class => language-macaulay2, i7 : toList oo
+
+o7 = {1, 2, 3, 4, 5, 6
+
+o7 : List, class => language-macaulay2, See also, Macaulay2Doc :: concatenate, Macaulay2Doc :: demark, Macaulay2Doc :: flatten, Macaulay2Doc :: mingle, Macaulay2Doc :: List | List, Macaulay2Doc :: lists and sequences, class => waystouse, For the programmer, The object , Macaulay2Doc :: join, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/join-doc.m2:53:0, .
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

@@ -1,0 +1,58 @@
+---
+title: "partitions"
+kind: Function
+---
+
+# partitions
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+partitions, -- list the partitions of an integer, class => element, Usage: , partitions(n), class => language-macaulay2, partitions(n, k), class => language-macaulay2, Inputs:, n, , , an , Macaulay2Doc :: ZZ, integer, , , a nonnegative integer, k, , , an , Macaulay2Doc :: ZZ, integer, , , a nonnegative integer, the maximum size of each part, Outputs:, a , Macaulay2Doc :: List, list, , , of all partitions of , n, , Description, class => examples, i1 : partitions(4)
+
+o1 = {Partition{4, Partition{3, 1, Partition{2, 2, Partition{2, 1, 1,
+ ------------------------------------------------------------------------
+ Partition{1, 1, 1, 1
+
+o1 : List, class => language-macaulay2, i2 : partitions(4, 2)
+
+o2 = {Partition{2, 2, Partition{2, 1, 1, Partition{1, 1, 1, 1
+
+o2 : List, class => language-macaulay2, Each partition is a basic list of type , Macaulay2Doc :: Partition, ., class => examples, i3 : p = new Partition from {2,2,1
+
+o3 = Partition{2, 2, 1
+
+o3 : Partition, class => language-macaulay2, i4 : member(p, partitions(5,2))
+
+o4 = true, class => language-macaulay2, i5 : member(p, partitions(5,1))
+
+o5 = false, class => language-macaulay2, i6 : conjugate(p)
+
+o6 = Partition{3, 2
+
+o6 : Partition, class => language-macaulay2, For ordered lists of exactly , k, nonnegative integers that sum to , n, , use , Macaulay2Doc :: compositions, instead. In the following example, we create Partition objects from the output of , compositions, to find all the partitions of 10, of length exactly 4, with no part greater than 5., class => examples, i7 : A = unique apply(compositions(4, 10), comp -> rsort comp);, class => language-macaulay2, i8 : B = select(A, a -> all(a, i -> 0<i and i<6));, class => language-macaulay2, i9 : apply(B, b -> new Partition from b)
+
+o9 = {Partition{5, 3, 1, 1, Partition{4, 4, 1, 1, Partition{5, 2, 2, 1,
+ ------------------------------------------------------------------------
+ Partition{4, 3, 2, 1, Partition{3, 3, 3, 1, Partition{4, 2, 2, 2,
+ ------------------------------------------------------------------------
+ Partition{3, 3, 2, 2
+
+o9 : List, class => language-macaulay2, If , partitions n, is called on a negative integer , n, , an empty list is returned. If a negative integer is given for , k, , it will cause an error., See also, Macaulay2Doc :: compositions, Macaulay2Doc :: subsets, Macaulay2Doc :: Partition, Macaulay2Doc :: Partition _ ZZ, Macaulay2Doc :: conjugate(Partition), class => waystouse, Ways to use , partitions, :, partitions(ZZ), partitions(ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: partitions, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/partitions-doc.m2:57:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `partitions(ZZ)`
+- `partitions(ZZ, ZZ)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

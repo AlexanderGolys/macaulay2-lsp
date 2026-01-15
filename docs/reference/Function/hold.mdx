@@ -1,0 +1,40 @@
+---
+title: "hold"
+kind: Function
+---
+
+# hold
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+hold, -- hold something in a holder expression, class => element, Usage: , hold x, class => language-macaulay2, Inputs:, x, Outputs:, an , Macaulay2Doc :: Expression, expression, , , of class , Macaulay2Doc :: Holder, containing , x, as its single element, unless , x, is already an expression, in which case , x, is returned., Description, class => examples, i1 : (hold 2)^5 * (hold 3)^3
+
+ 5 3
+o1 = 2 3
+
+o1 : Expression of class Product, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: hold, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/expression-doc.m2:102:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `hold(Thing)`
+- `hold(Expression)`
+
+## Examples
+
+```macaulay2
+i1 : (hold 2)^5 * (hold 3)^3
+
+      5 3
+o1 = 2 3
+
+o1 : Expression of class Product
+```
+
+## See Also
+

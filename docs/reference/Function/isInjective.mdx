@@ -1,0 +1,65 @@
+---
+title: "isInjective"
+kind: Function
+---
+
+# isInjective
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isInjective, -- whether a map is injective, class => element, Usage: , isInjective f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Matrix, matrix, , or , a , Macaulay2Doc :: RingMap, ring map, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether the kernel is zero, Description, This function computes the kernel, and checks whether it is zero., class => examples, i1 : R = QQ[a..d];, class => language-macaulay2, i2 : F = matrix{{a,b,{c,d
+
+o2 = | a b |
+ | c d |
+
+ 2 2
+o2 : Matrix R <-- R, class => language-macaulay2, i3 : isInjective F
+
+o3 = true, class => language-macaulay2, i4 : G = substitute(F, R/(det F))
+
+o4 = | a b |
+ | c d |
+
+ R 2 R 2
+o4 : Matrix (-----------) <-- (-----------)
+ - b*c + a*d - b*c + a*d, class => language-macaulay2, i5 : isInjective G
+
+o5 = false, class => language-macaulay2, , Similarly for ring maps:, class => examples, i6 : S = QQ[r,s,t];, class => language-macaulay2, i7 : phi = map(S,R,{r^3, r^2*s, r*s*t, s^3)
+
+ 3 2 3
+o7 = map (S, R, {r , r s, r*s*t, s )
+
+o7 : RingMap S <-- R, class => language-macaulay2, i8 : isInjective phi
+
+o8 = false, class => language-macaulay2, i9 : S' = coimage phi
+
+o9 = S'
+
+o9 : QuotientRing, class => language-macaulay2, i10 : phi' = phi * map(R,S')
+
+ 3 2 3
+o10 = map (S, S', {r , r s, r*s*t, s )
+
+o10 : RingMap S <-- S', class => language-macaulay2, i11 : isInjective phi'
+
+o11 = true, class => language-macaulay2, Caveat, One could imagine a faster routine for this. If you write one, please send it to us!, See also, Macaulay2Doc :: kernel, Macaulay2Doc :: isSurjective, Macaulay2Doc :: coimage(RingMap), Macaulay2Doc :: determinant, Macaulay2Doc :: substitution and maps between rings, class => waystouse, Ways to use , isInjective, :, isInjective(Matrix), isInjective(RingMap), class => waystouse, For the programmer, The object , Macaulay2Doc :: isInjective, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isInjective-doc.m2:39:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isInjective(Matrix)`
+- `isInjective(RingMap)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[a..d];
+```
+
+## See Also
+

@@ -1,0 +1,76 @@
+---
+title: "baseName"
+kind: Function
+---
+
+# baseName
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+baseName, -- the base name of a generator, Description, baseName x, -- returns the variable or symbol upon which an indexed variable table or a generator of a monoid or polynomial ring is based., class => examples, i1 : R = QQ[x_1 .. x_4,y]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : y
+
+o2 = y
+
+o2 : R, class => language-macaulay2, i3 : baseName y
+
+o3 = y
+
+o3 : Symbol, class => language-macaulay2, i4 : x_1
+
+o4 = x
+ 1
+
+o4 : R, class => language-macaulay2, i5 : baseName x_1
+
+o5 = x
+ 1
+
+o5 : IndexedVariable, class => language-macaulay2, i6 : x
+
+o6 = x
+
+o6 : IndexedVariableTable, class => language-macaulay2, i7 : baseName x
+
+o7 = x
+
+o7 : Symbol, class => language-macaulay2, class => waystouse, Ways to use , baseName, :, baseName(IndexedVariable), baseName(IndexedVariableTable), baseName(MonoidElement), baseName(RingElement), baseName(Subscript), baseName(Symbol), baseName(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: baseName, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_rings.m2:331:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `baseName(RingElement)`
+- `baseName(MonoidElement)`
+- `baseName(Thing)`
+- `baseName(IndexedVariableTable)`
+- `baseName(Subscript)`
+- `baseName(Holder)`
+- `baseName(IndexedVariable)`
+- `baseName(Symbol)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[x_1 .. x_4,y]
+
+o1 = R
+
+o1 : PolynomialRing
+
+i2 : y
+
+o2 = y
+
+o2 : R
+```
+
+## See Also
+

@@ -1,0 +1,37 @@
+---
+title: "removeDirectory"
+kind: Function
+---
+
+# removeDirectory
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+removeDirectory, -- remove a directory, class => element, Usage: , removeDirectory dir, class => language-macaulay2, Inputs:, dir, , , a , Macaulay2Doc :: String, string, , , a filename or path to a directory, Consequences:, the directory is removed, Description, class => examples, i1 : dir = temporaryFileName()
+
+o1 = /tmp/M2-706318-0/0, class => language-macaulay2, i2 : makeDirectory dir
+
+o2 = /tmp/M2-706318-0/0, class => language-macaulay2, i3 : readDirectory dir
+
+o3 = {., ..
+
+o3 : List, class => language-macaulay2, i4 : removeDirectory dir, class => language-macaulay2, See also, Macaulay2Doc :: readDirectory, Macaulay2Doc :: makeDirectory, class => waystouse, For the programmer, The object , Macaulay2Doc :: removeDirectory, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/removeDirectory-doc.m2:19:0, .
+
+## Examples
+
+```macaulay2
+i1 : dir = temporaryFileName()
+
+o1 = /tmp/M2-706318-0/0
+
+i2 : makeDirectory dir
+
+o2 = /tmp/M2-706318-0/0
+```
+
+## See Also
+

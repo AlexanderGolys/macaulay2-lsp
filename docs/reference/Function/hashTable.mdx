@@ -1,0 +1,48 @@
+---
+title: "hashTable"
+kind: Function
+---
+
+# hashTable
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+hashTable, -- make a hash table, Description, hashTable(h,v), -- produce a hash table from a list , v, of key-value pairs, with an optional collision handler function , h, ., , The pairs may be of the form , a=>b, , , {a,b, , or , (a,b), ., , Missing entries in the list, represented by , Macaulay2Doc :: null, , will be silently ignored., , class => examples, i1 : x = hashTable {a=>b, c=>d, 
+
+o1 = HashTable{a => b
+ c => d
+
+o1 : HashTable, class => language-macaulay2, i2 : x#a
+
+o2 = b
+
+o2 : Symbol, class => language-macaulay2, i3 : hashTable(plus, {(a,3),(b,4),(a,10))
+
+o3 = HashTable{a => 13
+ b => 4
+
+o3 : HashTable, class => language-macaulay2, class => waystouse, Ways to use , hashTable, :, hashTable(BasicList), hashTable(Function,BasicList), class => waystouse, For the programmer, The object , Macaulay2Doc :: hashTable, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_hashtables.m2:161:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `hashTable(BasicList)`
+- `hashTable(Function, BasicList)`
+
+## Examples
+
+```macaulay2
+i2 : x#a
+
+o2 = b
+
+o2 : Symbol
+```
+
+## See Also
+

@@ -1,0 +1,48 @@
+---
+title: "BesselY"
+kind: Function
+---
+
+# BesselY
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+BesselY, -- Bessel function of the second kind, class => element, Usage: , BesselY(n,x), class => language-macaulay2, BesselY_n x, class => language-macaulay2, Inputs:, n, , , an , Macaulay2Doc :: ZZ, integer, , , the order, x, , , an , Macaulay2Doc :: ZZ, integer, , , a , Macaulay2Doc :: QQ, rational number, , or , a , Macaulay2Doc :: RR, real number, Outputs:, the Bessel function of the second kind of order , n, at , x, Description, class => examples, i1 : BesselY_0 .5
+
+o1 = -.4445187335067066
+
+o1 : RR (of precision 53), class => language-macaulay2, i2 : BesselY_2 3p200
+
+o2 = -.1604003934849237296757682995379809181040120401743782209819082
+
+o2 : RR (of precision 200), class => language-macaulay2, See , https://en.wikipedia.org/wiki/Bessel_function, Bessel function, ., See also, Macaulay2Doc :: BesselJ, class => waystouse, Ways to use , BesselY, :, BesselY(Number,Number), BesselY(ZZ,Number), class => waystouse, For the programmer, The object , Macaulay2Doc :: BesselY, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_analytic_functions.m2:417:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `BesselY(ZZ, Number)`
+- `BesselY(Number, Number)`
+
+## Examples
+
+```macaulay2
+i1 : BesselY_0 .5
+
+o1 = -.4445187335067066
+
+o1 : RR (of precision 53)
+
+i2 : BesselY_2 3p200
+
+o2 = -.1604003934849237296757682995379809181040120401743782209819082
+
+o2 : RR (of precision 200)
+```
+
+## See Also
+

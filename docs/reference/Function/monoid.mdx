@@ -1,0 +1,137 @@
+---
+title: "monoid"
+kind: Function
+---
+
+# monoid
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+monoid, -- make or retrieve a monoid, class => element, Usage: , monoid[a,b,c,...], class => language-macaulay2, monoid{a,b,c,..., class => language-macaulay2, Inputs:, TT "[a,b,c,...]", , , an , Macaulay2Doc :: Array, array, , , listing generators of the monoid, as well as optional arguments., TT "{a,b,c,...", , , a , Macaulay2Doc :: List, list, , , same as above, but equivalent to also passing , Local => true, ., Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Macaulay2Doc :: monoid(...,Variables=>...), Variables, => , a , Macaulay2Doc :: List, list, , , default value , null, , , see , Macaulay2Doc :: monoid(...,Variables=>...), ; , Macaulay2Doc :: monoid(...,VariableBaseName=>...), VariableBaseName, => , a , Macaulay2Doc :: Symbol, symbol, , , default value , "p", , , see , Macaulay2Doc :: monoid(...,VariableBaseName=>...), ; , Macaulay2Doc :: monoid(...,Global=>...), Global, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , true, , , see , Macaulay2Doc :: monoid(...,Global=>...), ; , Macaulay2Doc :: monoid(...,Local=>...), Local, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , see , Macaulay2Doc :: monoid(...,Local=>...), ; , Macaulay2Doc :: monoid(...,Inverses=>...), Inverses, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , see , Macaulay2Doc :: monoid(...,Inverses=>...), ; , Macaulay2Doc :: monoid(...,Weights=>...), Weights, => , a , Macaulay2Doc :: List, list, , , default value , {, , , see , Macaulay2Doc :: monoid(...,Weights=>...), ; , Macaulay2Doc :: monoid(...,Degrees=>...), Degrees, => , a , Macaulay2Doc :: List, list, , , default value , null, , , see , Macaulay2Doc :: monoid(...,Degrees=>...), ; , Macaulay2Doc :: monoid(...,DegreeMap=>...), DegreeMap, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , null, , , see , Macaulay2Doc :: monoid(...,DegreeMap=>...), ; , Macaulay2Doc :: monoid(...,DegreeLift=>...), DegreeLift, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , null, , , see , Macaulay2Doc :: monoid(...,DegreeLift=>...), ; , Macaulay2Doc :: monoid(...,DegreeRank=>...), DegreeRank, => , an , Macaulay2Doc :: ZZ, integer, , , default value , null, , , see , Macaulay2Doc :: monoid(...,DegreeRank=>...), ; , Macaulay2Doc :: monoid(...,DegreeGroup=>...), DegreeGroup, => , a , Macaulay2Doc :: Module, module, , , default value , null, , , see , Macaulay2Doc :: monoid(...,DegreeGroup=>...), ; , Macaulay2Doc :: monoid(...,Heft=>...), Heft, => , a , Macaulay2Doc :: List, list, , , default value , null, , , see , Macaulay2Doc :: monoid(...,Heft=>...), ; , Macaulay2Doc :: monoid(...,Join=>...), Join, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , null, , , see , Macaulay2Doc :: monoid(...,Join=>...), ; , Macaulay2Doc :: monoid(...,Constants=>...), Constants, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , see , Macaulay2Doc :: monoid(...,Join=>...), ; , Macaulay2Doc :: monoid(...,MonomialOrder=>...), MonomialOrder, => , a , Macaulay2Doc :: List, list, , , default value , {GRevLex, Position => Up, , , see , Macaulay2Doc :: monoid(...,MonomialOrder=>...), ; , Macaulay2Doc :: monoid(...,MonomialSize=>...), MonomialSize, => , an , Macaulay2Doc :: ZZ, integer, , , default value , 32, , , see , Macaulay2Doc :: monoid(...,MonomialSize=>...), ; , Macaulay2Doc :: monoid(...,SkewCommutative=>...), SkewCommutative, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , {, , , see , Macaulay2Doc :: monoid(...,SkewCommutative=>...), ; , Macaulay2Doc :: monoid(...,WeylAlgebra=>...), WeylAlgebra, => , a , Macaulay2Doc :: List, list, , , default value , {, , , see , Macaulay2Doc :: monoid(...,WeylAlgebra=>...), ; , Outputs:, a , Macaulay2Doc :: Monoid, monoid, , , Description, The function , Macaulay2Doc :: monoid, is called whenever a polynomial ring is created, see , Macaulay2Doc :: Ring Array, , or when a local polynomial ring is made, see , Macaulay2Doc :: Ring List, . Some of the options provided when making a monoid don't take effect until the monoid is made into a polynomial ring., Let's make a free ordered commutative monoid on the variables , a,b,c, , with degrees 2, 3, and 4, respectively., class => examples, i1 : M = monoid[a,b,c, Degrees => {2,3,4]
+
+o1 = M
+
+o1 : GeneralOrderedMonoid, class => language-macaulay2, i2 : degrees M
+
+o2 = {{2, {3, {4
+
+o2 : List, class => language-macaulay2, i3 : M_0 * M_1^6
+
+ 6
+o3 = a*b
+
+o3 : M, class => language-macaulay2, Call , Macaulay2Doc :: use, to assign the variables their values in the monoid., class => examples, i4 : monoid[x,y,z]
+
+o4 = monoid[x..z, Degrees => {3:1, Heft => {1]
+
+o4 : GeneralOrderedMonoid, class => language-macaulay2, i5 : x
+
+o5 = x
+
+o5 : Symbol, class => language-macaulay2, i6 : use ooo
+
+o6 = monoid[x..z, Degrees => {3:1, Heft => {1]
+
+o6 : GeneralOrderedMonoid, class => language-macaulay2, i7 : x * y^6
+
+ 6
+o7 = x*y
+
+o7 : monoid[x..z, Degrees => {3:1, Heft => {1], class => language-macaulay2, The options used when the monoid was created can be recovered with , Macaulay2Doc :: options, ., class => examples, i8 : options M
+
+o8 = OptionTable{Constants => false 
+ 1
+ DegreeGroup => ZZ
+ DegreeLift => null
+ DegreeMap => null
+ DegreeRank => 1
+ Degrees => {{2, {3, {4
+ Global => true
+ Heft => {1
+ Inverses => false
+ Join => null
+ Local => false
+ MonomialOrder => {MonomialSize => 32 
+ {GRevLex => {2, 3, 4
+ {Position => Up 
+ SkewCommutative => {
+ Variables => {a, b, c
+ WeylAlgebra => {
+
+o8 : OptionTable, class => language-macaulay2, i9 : describe M
+
+o9 = monoid[a..c, Degrees => {2..4, Heft => {1, MonomialOrder => {MonomialSize => 32]
+ {GRevLex => {2..4 
+ {Position => Up , class => language-macaulay2, i10 : toExternalString M
+
+o10 = monoid[a..c, Degrees => {2..4, Heft => {1, MonomialOrder =>
+ VerticalList{MonomialSize => 32, GRevLex => {2..4, Position => Up], class => language-macaulay2, The variables listed may be symbols or indexed variables. The values assigned to these variables are the corresponding monoid generators. The function , Macaulay2Doc :: baseName, may be used to recover the original symbol or indexed variable., The , Macaulay2Doc :: monoid(...,Heft=>...), option is used, for instance, by , Macaulay2Doc :: Ext(Module,Module), ., class => examples, i11 : R = ZZ[x,y, Degrees => {-1,-2, Heft => {-1]
+
+o11 = R
+
+o11 : PolynomialRing, class => language-macaulay2, i12 : degree \ gens R
+
+o12 = {{-1, {-2
+
+o12 : List, class => language-macaulay2, i13 : transpose vars R
+
+o13 = {1 | x |
+ {2 | y |
+
+ 2 1
+o13 : Matrix R <-- R, class => language-macaulay2, By default, (multi)degrees are concatenated when forming polynomial rings over polynomial rings, as can be seen by examining the corresponding flattened monoid, which displays information about all of the variables., class => examples, i14 : QQ[x][y]
+
+o14 = QQ[x][y]
+
+o14 : PolynomialRing, class => language-macaulay2, i15 : oo.FlatMonoid
+
+o15 = monoid[y, x, Degrees => {{1, {0, Heft => {2:1, MonomialOrder => {MonomialSize => 32]
+ {0 {1 {GRevLex => {1 
+ {Position => Up 
+ {GRevLex => {1 
+
+o15 : GeneralOrderedMonoid, class => language-macaulay2, i16 : QQ[x][y][z]
+
+o16 = QQ[x][y][z]
+
+o16 : PolynomialRing, class => language-macaulay2, i17 : oo.FlatMonoid
+
+o17 = monoid[z, y, x, Degrees => {{1, {0, {0, Heft => {3:1, MonomialOrder => {MonomialSize => 32]
+ {0 {1 {0 {GRevLex => {1 
+ {0 {0 {1 {Position => Up 
+ {2:(GRevLex => {1)
+
+o17 : GeneralOrderedMonoid, class => language-macaulay2, That behavior can be overridden with the , Macaulay2Doc :: monoid(...,Join=>...), option., class => examples, i18 : QQ[x][y, Join => false]
+
+o18 = QQ[x][y]
+
+o18 : PolynomialRing, class => language-macaulay2, i19 : oo.FlatMonoid
+
+o19 = monoid[y, x, Degrees => {2:1, Heft => {1, Join => false, MonomialOrder => {MonomialSize => 32]
+ {GRevLex => {1 
+ {Position => Up 
+ {GRevLex => {1 
+
+o19 : GeneralOrderedMonoid, class => language-macaulay2, Macaulay2Doc :: monoid(Ring), Macaulay2Doc :: FlatMonoid, Optional arguments, Macaulay2Doc :: options(Monoid), Macaulay2Doc :: monoid(...,Variables=>...), Macaulay2Doc :: monoid(...,Local=>...), Macaulay2Doc :: monoid(...,Inverses=>...), Macaulay2Doc :: monoid(...,Weights=>...), Macaulay2Doc :: monoid(...,Degrees=>...), Macaulay2Doc :: monoid(...,DegreeMap=>...), Macaulay2Doc :: monoid(...,Heft=>...), Macaulay2Doc :: monoid(...,Join=>...), Macaulay2Doc :: monoid(...,MonomialOrder=>...), Macaulay2Doc :: monoid(...,MonomialSize=>...), Macaulay2Doc :: monoid(...,SkewCommutative=>...), Macaulay2Doc :: monoid(...,WeylAlgebra=>...), class => waystouse, Ways to use , monoid, :, monoid(Array), monoid(List), Macaulay2Doc :: monoid(Ring), class => waystouse, For the programmer, The object , Macaulay2Doc :: monoid, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/monoid-doc.m2:563:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `monoid(List)`
+- `monoid(Array)`
+- `monoid(PolynomialRing)`
+- `monoid(FractionField)`
+- `monoid(Ring)`
+- `monoid(QuotientRing)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

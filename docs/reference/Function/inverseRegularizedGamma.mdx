@@ -1,0 +1,50 @@
+---
+title: "inverseRegularizedGamma"
+kind: Function
+---
+
+# inverseRegularizedGamma
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+inverseRegularizedGamma, -- inverse of the upper regularized gamma function, class => element, Usage: , inverseRegularizedGamma(s, q), class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: RR, real number, , , q, , , a , Macaulay2Doc :: RR, real number, , , Outputs:, a , Macaulay2Doc :: RR, real number, , , Description, This is the inverse of , Macaulay2Doc :: regularizedGamma, with respect to the second argument., class => examples, i1 : regularizedGamma(3, 7)
+
+o1 = .02963616388052177
+
+o1 : RR (of precision 53), class => language-macaulay2, i2 : inverseRegularizedGamma(3, oo)
+
+o2 = 7
+
+o2 : RR (of precision 53), class => language-macaulay2, See also, Macaulay2Doc :: Gamma, Macaulay2Doc :: regularizedGamma, class => waystouse, Ways to use , inverseRegularizedGamma, :, inverseRegularizedGamma(RR,RR), class => waystouse, For the programmer, The object , Macaulay2Doc :: inverseRegularizedGamma, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/Gamma-doc.m2:96:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `inverseRegularizedGamma(Number, RR)`
+- `inverseRegularizedGamma(RR, Number)`
+- `inverseRegularizedGamma(Number, Number)`
+- `inverseRegularizedGamma(RR, RR)`
+
+## Examples
+
+```macaulay2
+i1 : regularizedGamma(3, 7)
+
+o1 = .02963616388052177
+
+o1 : RR (of precision 53)
+
+i2 : inverseRegularizedGamma(3, oo)
+
+o2 = 7
+
+o2 : RR (of precision 53)
+```
+
+## See Also
+

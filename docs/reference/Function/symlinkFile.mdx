@@ -1,0 +1,33 @@
+---
+title: "symlinkFile"
+kind: Function
+---
+
+# symlinkFile
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+symlinkFile, -- make a symbolic link to a file, class => element, Usage: , symlinkFile(src,dst), class => language-macaulay2, Inputs:, src, , , a , Macaulay2Doc :: String, string, dst, , , a , Macaulay2Doc :: String, string, Consequences:, a symbolic link at the location in the directory tree specified by , dst, is created, pointing to , src, Description, class => examples, i1 : fn = temporaryFileName()
+
+o1 = /tmp/M2-707794-0/0, class => language-macaulay2, i2 : symlinkFile("qwert", fn), class => language-macaulay2, i3 : fileExists fn
+
+o3 = false, class => language-macaulay2, i4 : readlink fn
+
+o4 = qwert, class => language-macaulay2, i5 : removeFile fn, class => language-macaulay2, See also, Macaulay2Doc :: symlinkDirectory, class => waystouse, For the programmer, The object , Macaulay2Doc :: symlinkFile, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1087:0, .
+
+## Examples
+
+```macaulay2
+i1 : fn = temporaryFileName()
+
+o1 = /tmp/M2-707794-0/0
+
+i2 : symlinkFile("qwert", fn)
+```
+
+## See Also
+

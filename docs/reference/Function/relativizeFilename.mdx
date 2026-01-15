@@ -1,0 +1,35 @@
+---
+title: "relativizeFilename"
+kind: Function
+---
+
+# relativizeFilename
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+relativizeFilename, -- relativize a file name, class => element, Usage: , relativizeFilename(dir,fn), class => language-macaulay2, Inputs:, dir, , , a path to a directory, fn, , , a path to a file, Outputs:, a relativized path, equivalent to , fn, when starting from , dir, Description, class => examples, i1 : relativizeFilename("a/b/","a/b/c/d")
+
+o1 = c/d, class => language-macaulay2, i2 : relativizeFilename("a/b/c/d","a/b/")
+
+o2 = ../../, class => language-macaulay2, i3 : relativizeFilename("a/b/c/d","a/b/e/f")
+
+o3 = ../../e/f, class => language-macaulay2, Paths of the form , foo/x/../bar, , are shortened to , foo/bar, without checking the file system to see whether , x, is a symbolic link. For the other behavior, see , Macaulay2Doc :: realpath, ., See also, Macaulay2Doc :: File, Macaulay2Doc :: minimizeFilename, Macaulay2Doc :: baseFilename, Macaulay2Doc :: toAbsolutePath, Macaulay2Doc :: searchPath, Macaulay2Doc :: path, class => waystouse, For the programmer, The object , Macaulay2Doc :: relativizeFilename, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1403:0, .
+
+## Examples
+
+```macaulay2
+i1 : relativizeFilename("a/b/","a/b/c/d")
+
+o1 = c/d
+
+i2 : relativizeFilename("a/b/c/d","a/b/")
+
+o2 = ../../
+```
+
+## See Also
+

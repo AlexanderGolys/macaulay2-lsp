@@ -1,0 +1,55 @@
+---
+title: "round"
+kind: Function
+---
+
+# round
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+round, -- round a number, Description, Synopsis, class => element, Usage: , round x, class => language-macaulay2, Inputs:, x, , , a number, Outputs:, the integer nearest to , x, class => examples, i1 : round(-2.3)
+
+o1 = -2, class => language-macaulay2, i2 : round(-2.3+5*ii)
+
+o2 = -2, class => language-macaulay2, i3 : round(2/3)
+
+o3 = 1, class => language-macaulay2, Synopsis, class => element, Usage: , round(n,x), class => language-macaulay2, Inputs:, n, , , an , Macaulay2Doc :: ZZ, integer, x, , , a , Macaulay2Doc :: RR, real number, Outputs:, the real number with just n decimal digits to the right of the decimal point nearest to , x, class => examples, i4 : round(2,1234.5678)
+
+o4 = 1234.57
+
+o4 : RR (of precision 53), class => language-macaulay2, i5 : round(-2,1234.5678)
+
+o5 = 1200
+
+o5 : RR (of precision 53), class => language-macaulay2, See also, Macaulay2Doc :: floor, Macaulay2Doc :: ceiling, class => waystouse, Ways to use , round, :, round(Number), round(QQ), round(ZZ), round(ZZ,CC), round(ZZ,Number), round(ZZ,RR), round(ZZ,RRi), class => waystouse, For the programmer, The object , Macaulay2Doc :: round, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_arithmetic.m2:33:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `round(Number)`
+- `round(QQ)`
+- `round(ZZ, RR)`
+- `round(ZZ, CC)`
+- `round(ZZ, RRi)`
+- `round(ZZ, Number)`
+- `round(ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : round(-2.3)
+
+o1 = -2
+
+i2 : round(-2.3+5*ii)
+
+o2 = -2
+```
+
+## See Also
+

@@ -1,0 +1,41 @@
+---
+title: "readDirectory"
+kind: Function
+---
+
+# readDirectory
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+readDirectory, -- read the contents of a directory, class => element, Usage: , readDirectory dir, class => language-macaulay2, Inputs:, dir, , , a , Macaulay2Doc :: String, string, , , a filename or path to a directory, Outputs:, a , Macaulay2Doc :: List, list, , , the list of filenames stored in the directory, Description, class => examples, i1 : dir = temporaryFileName()
+
+o1 = /tmp/M2-708930-0/0, class => language-macaulay2, i2 : makeDirectory dir
+
+o2 = /tmp/M2-708930-0/0, class => language-macaulay2, i3 : (fn = dir | "/" | "foo") << "hi there" << close
+
+o3 = /tmp/M2-708930-0/0/foo
+
+o3 : File, class => language-macaulay2, i4 : readDirectory dir
+
+o4 = {., .., foo
+
+o4 : List, class => language-macaulay2, i5 : removeFile fn, class => language-macaulay2, i6 : removeDirectory dir, class => language-macaulay2, See also, Macaulay2Doc :: removeDirectory, Macaulay2Doc :: removeFile, Macaulay2Doc :: makeDirectory, class => waystouse, For the programmer, The object , Macaulay2Doc :: readDirectory, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/readDirectory-doc.m2:21:0, .
+
+## Examples
+
+```macaulay2
+i1 : dir = temporaryFileName()
+
+o1 = /tmp/M2-708930-0/0
+
+i2 : makeDirectory dir
+
+o2 = /tmp/M2-708930-0/0
+```
+
+## See Also
+

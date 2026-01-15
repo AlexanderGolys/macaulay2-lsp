@@ -1,0 +1,153 @@
+---
+title: "lift"
+kind: Function
+---
+
+# lift
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+lift, -- lift to another ring, class => element, Usage: , lift(f,R), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingElement, ring element, , , Macaulay2Doc :: Ideal, ideal, , or , Macaulay2Doc :: Matrix, matrix, R, , , a , Macaulay2Doc :: Ring, ring, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Verify, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , true, , , whether to give an error message if lifting is not possible, or, alternatively, to return , Macaulay2Doc :: null, Outputs:, a , Macaulay2Doc :: RingElement, ring element, , , Macaulay2Doc :: Ideal, ideal, , or , Macaulay2Doc :: Matrix, matrix, , over the ring , R, Description, (Disambiguation: for division of matrices, which is thought of as lifting one homomorphism over another, see instead , Macaulay2Doc :: Matrix // Matrix, . For lifting a map between modules to a map between their free resolutions, see , Macaulay2Doc :: extend, .), The ring , R, should be one of the base rings associated with the ring of , f, . An error is raised if , f, cannot be lifted to , R, ., The first example is lifting from the fraction field of R to R., class => examples, i1 : lift(4/2,ZZ)
+
+o1 = 2, class => language-macaulay2, i2 : R = ZZ[x];, class => language-macaulay2, i3 : f = ((x+1)^3*(x+4))/((x+4)*(x+1))
+
+ 2
+o3 = x + 2x + 1
+
+o3 : frac R, class => language-macaulay2, i4 : lift(f,R)
+
+ 2
+o4 = x + 2x + 1
+
+o4 : R, class => language-macaulay2, Another use of lift is to take polynomials in a quotient ring and lift them to the polynomial ring., class => examples, i5 : A = QQ[a..d];, class => language-macaulay2, i6 : B = A/(a^2-b,c^2-d-a-3);, class => language-macaulay2, i7 : f = c^5
+
+ 2
+o7 = 2a*c*d + c*d + 6a*c + b*c + 6c*d + 9c
+
+o7 : B, class => language-macaulay2, i8 : lift(f,A)
+
+ 2
+o8 = 2a*c*d + c*d + 6a*c + b*c + 6c*d + 9c
+
+o8 : A, class => language-macaulay2, i9 : jf = jacobian ideal f
+
+o9 = {1 | 2cd+6c |
+ {1 | c |
+ {1 | 2ad+d2+6a+b+6d+9 |
+ {1 | 2ac+2cd+6c |
+
+ 4 1
+o9 : Matrix B <-- B, class => language-macaulay2, i10 : lift(jf,A)
+
+o10 = {1 | 2cd+6c |
+ {1 | c |
+ {1 | 2ad+d2+6a+b+6d+9 |
+ {1 | 2ac+2cd+6c |
+
+ 4 1
+o10 : Matrix A <-- A, class => language-macaulay2, Elements may be lifted to any base ring, if such a lift exists., class => examples, i11 : use B;, class => language-macaulay2, i12 : g = (a^2+2*a-3)-(a+1)^2
+
+o12 = -4
+
+o12 : B, class => language-macaulay2, i13 : lift(g,A)
+
+o13 = -4
+
+o13 : A, class => language-macaulay2, i14 : lift(g,QQ)
+
+o14 = -4
+
+o14 : QQ, class => language-macaulay2, i15 : lift(lift(g,QQ),ZZ)
+
+o15 = -4, class => language-macaulay2, The functions , lift, and , Macaulay2Doc :: substitute, are useful to move numbers from one kind of coefficient ring to another., class => examples, i16 : lift(3.0,ZZ)
+
+o16 = 3, class => language-macaulay2, i17 : lift(3.0,QQ)
+
+o17 = 3
+
+o17 : QQ, class => language-macaulay2, A continued fraction method is used to lift a real number to a rational number, whereas , Macaulay2Doc :: promote, uses the internal binary representation., class => examples, i18 : lift(123/2341.,QQ)
+
+ 123
+o18 = ----
+ 2341
+
+o18 : QQ, class => language-macaulay2, i19 : promote(123/2341.,QQ)
+
+ 7572049608428139
+o19 = ------------------
+ 144115188075855872
+
+o19 : QQ, class => language-macaulay2, i20 : factor oo
+
+ 3*811*39877*78045679
+o20 = --------------------
+ 57
+ 2
+
+o20 : Expression of class Divide, class => language-macaulay2, For numbers and ring elements, an alternate syntax with , Macaulay2Doc :: ^, is available, analogous to the use of , Macaulay2Doc :: _, for , Macaulay2Doc :: promote, ., class => examples, i21 : .0001^QQ
+
+ 1
+o21 = -----
+ 10000
+
+o21 : QQ, class => language-macaulay2, i22 : .0001_QQ
+
+ 7378697629483821
+o22 = --------------------
+ 73786976294838206464
+
+o22 : QQ, class => language-macaulay2, See also, Macaulay2Doc :: baseRings, Macaulay2Doc :: promote, Macaulay2Doc :: liftable, Macaulay2Doc :: setupLift, class => waystouse, Ways to use , lift, :, lift(BettiTally,type of ZZ), -- see , Macaulay2Doc :: BettiTally, lift(CC,type of QQ), lift(CC,type of RR_*), lift(CC,type of ZZ), lift(Ideal,type of QQ), lift(Ideal,type of RingElement), lift(Ideal,type of ZZ), lift(Matrix,type of CC_*,type of QQ), lift(Matrix,type of CC_*,type of RR_*), lift(Matrix,type of CC_*,type of ZZ), lift(Matrix,type of Number), lift(Matrix,type of QQ,type of QQ), lift(Matrix,type of QQ,type of ZZ), lift(Matrix,type of RingElement), lift(Matrix,type of RR_*,type of QQ), lift(Matrix,type of RR_*,type of ZZ), lift(Matrix,type of RRi_*,type of QQ), lift(Matrix,type of RRi_*,type of RR_*), lift(Matrix,type of RRi_*,type of ZZ), lift(Matrix,type of ZZ,type of ZZ), lift(Module,type of RingElement), lift(MutableMatrix,type of RingElement), lift(QQ,type of QQ), lift(QQ,type of ZZ), lift(RR,type of QQ), lift(RR,type of ZZ), lift(RRi,type of QQ), lift(RRi,type of RR_*), lift(RRi,type of ZZ), lift(Vector,type of RingElement), lift(ZZ,type of ZZ), Varieties :: lift(SheafMap), class => waystouse, For the programmer, The object , Macaulay2Doc :: lift, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/lift-doc.m2:141:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `lift(BettiTally, ZZ)`
+- `lift(ZZ, ZZ)`
+- `lift(Ideal, ZZ)`
+- `lift(Ideal, QQ)`
+- `lift(Ideal, RingElement)`
+- `lift(Matrix, InexactNumber)`
+- `lift(Matrix, Number)`
+- `lift(Matrix, InexactNumber')`
+- `lift(Matrix, RingElement)`
+- `lift(Matrix, QQ, QQ)`
+- `lift(Matrix, ZZ, ZZ)`
+- `lift(Matrix, QQ, ZZ)`
+- `lift(Matrix, CC_*, CC_*)`
+- `lift(Matrix, RR_*, RR_*)`
+- `lift(Matrix, RRi_*, QQ)`
+- `lift(Matrix, RRi_*, ZZ)`
+- `lift(Matrix, RR_*, QQ)`
+- `lift(Matrix, RR_*, ZZ)`
+- `lift(Matrix, CC_*, QQ)`
+- `lift(Matrix, CC_*, ZZ)`
+- `lift(Matrix, RRi_*, RR_*)`
+- `lift(Matrix, CC_*, RR_*)`
+- `lift(Vector, RingElement)`
+- `lift(Vector, Number)`
+- `lift(Vector, InexactNumber')`
+- `lift(Vector, InexactNumber)`
+- `lift(Module, InexactNumber)`
+- `lift(Module, InexactNumber')`
+- `lift(Module, RingElement)`
+- `lift(Module, Number)`
+
+*... and 18 more*
+
+## Examples
+
+```macaulay2
+i1 : lift(4/2,ZZ)
+
+o1 = 2
+
+i2 : R = ZZ[x];
+```
+
+## See Also
+

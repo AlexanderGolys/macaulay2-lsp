@@ -1,0 +1,43 @@
+---
+title: "synonym"
+kind: Function
+---
+
+# synonym
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+synonym, -- synonym for members of a class, class => element, Usage: , synonym X, class => language-macaulay2, Inputs:, X, , , a , Macaulay2Doc :: Type, type, Outputs:, a , Macaulay2Doc :: String, string, , , a synonym for members of the class , X, Description, A synonym can be installed with the assignment statement , X.synonym=t, . The synonym is used by , Macaulay2Doc :: ofClass, ., class => examples, i1 : synonym ZZ
+
+o1 = integer, class => language-macaulay2, i2 : Stack = new Type of HashTable
+
+o2 = Stack
+
+o2 : Type, class => language-macaulay2, i3 : synonym Stack
+
+o3 = object of class Stack, class => language-macaulay2, i4 : Stack.synonym = "Deligne-Mumford stack"
+
+o4 = Deligne-Mumford stack, class => language-macaulay2, i5 : ofClass Stack
+
+o5 = a "Deligne-Mumford stack", class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: synonym, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_types.m2:648:0, .
+
+## Examples
+
+```macaulay2
+i1 : synonym ZZ
+
+o1 = integer
+
+i2 : Stack = new Type of HashTable
+
+o2 = Stack
+
+o2 : Type
+```
+
+## See Also
+

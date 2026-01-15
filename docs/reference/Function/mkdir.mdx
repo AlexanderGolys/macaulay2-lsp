@@ -1,0 +1,37 @@
+---
+title: "mkdir"
+kind: Function
+---
+
+# mkdir
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+mkdir, , class => element, Usage: , mkdir p, class => language-macaulay2, Inputs:, p, , , a , Macaulay2Doc :: String, string, , , a path to a directory to be made, Consequences:, a directory will be created at the path , p, Description, Only one directory will be made, so the components of the path p other than the last must already exist., class => examples, i1 : p = temporaryFileName() | "/"
+
+o1 = /tmp/M2-706169-0/0/, class => language-macaulay2, i2 : mkdir p, class => language-macaulay2, i3 : isDirectory p
+
+o3 = true, class => language-macaulay2, i4 : (fn = p | "foo") << "hi there" << close
+
+o4 = /tmp/M2-706169-0/0/foo
+
+o4 : File, class => language-macaulay2, i5 : get fn
+
+o5 = hi there, class => language-macaulay2, i6 : removeFile fn, class => language-macaulay2, i7 : removeDirectory p, class => language-macaulay2, A filename starting with , ~/, will have the tilde replaced by the home directory., See also, Macaulay2Doc :: makeDirectory, class => waystouse, For the programmer, The object , Macaulay2Doc :: mkdir, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1238:0, .
+
+## Examples
+
+```macaulay2
+i1 : p = temporaryFileName() | "/"
+
+o1 = /tmp/M2-706169-0/0/
+
+i2 : mkdir p
+```
+
+## See Also
+

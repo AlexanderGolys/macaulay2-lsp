@@ -1,0 +1,96 @@
+---
+title: "merge"
+kind: Function
+---
+
+# merge
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+merge, -- merge two hash tables, class => element, Usage: , z = merge(x, y, f), class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: HashTable, hash table, , , y, , , a , Macaulay2Doc :: HashTable, hash table, , , f, , , a , Macaulay2Doc :: Function, function, , , of two variables specifying how to handle duplicate keys, Outputs:, z, , , a , Macaulay2Doc :: HashTable, hash table, , , a new hash table whose keys are the union of the keys of , x, and the keys of , y, , Description, Key-value pairs whose keys appear in only one of the input tables appear unchanged in the output table. If the key , k, appears in both , x, and , y, , then , f(x#k, y#k), is the value associated to , k, in the output hash table., For example, we could take the max of the two values, their average, or make a list containing both., class => examples, i1 : x = new HashTable from {1 => 203, 2 => 21, 3 => 5, 4 => 130
+
+o1 = HashTable{1 => 203
+ 2 => 21
+ 3 => 5
+ 4 => 130
+
+o1 : HashTable, class => language-macaulay2, i2 : y = new HashTable from {2 => 37, 3 => 5, 4 => 56, 5 => 1
+
+o2 = HashTable{2 => 37
+ 3 => 5
+ 4 => 56
+ 5 => 1
+
+o2 : HashTable, class => language-macaulay2, i3 : merge(x, y, max)
+
+o3 = HashTable{1 => 203
+ 2 => 37
+ 3 => 5
+ 4 => 130
+ 5 => 1
+
+o3 : HashTable, class => language-macaulay2, i4 : merge(x, y, (i,j) -> (i+j)/2)
+
+o4 = HashTable{1 => 203
+ 2 => 29
+ 3 => 5
+ 4 => 93
+ 5 => 1
+
+o4 : HashTable, class => language-macaulay2, i5 : merge(x, y, (i,j) -> {i,j)
+
+o5 = HashTable{1 => 203 
+ 2 => {21, 37
+ 3 => {5, 5
+ 4 => {130, 56
+ 5 => 1
+
+o5 : HashTable, class => language-macaulay2, If the function , f(x#k, y#k), returns , Macaulay2Doc :: continue, , then the key , k, is omitted from the merged table., class => examples, i6 : merge(x, y, (i,j) -> if i==j then i else continue)
+
+o6 = HashTable{1 => 203
+ 3 => 5
+ 5 => 1
+
+o6 : HashTable, class => language-macaulay2, Here is a simple implementation of the free abelian group on four letters, where each element is represented as a hash table that associates coefficients to strings., class => examples, i7 : Free = new Type of HashTable
+
+o7 = Free
+
+o7 : Type, class => language-macaulay2, i8 : p = new Free from { "x" => 2, "y" => 3, "z" => 5 
+
+o8 = Free{"x" => 2
+ "y" => 3
+ "z" => 5
+
+o8 : Free, class => language-macaulay2, i9 : q = new Free from { "x" => 100, "y" => 200, "w" => 7 
+
+o9 = Free{"w" => 7 
+ "x" => 100
+ "y" => 200
+
+o9 : Free, class => language-macaulay2, i10 : Free + Free := (p,q) -> merge(p, q, plus);, class => language-macaulay2, i11 : p+q
+
+o11 = Free{"w" => 7 
+ "x" => 102
+ "y" => 203
+ "z" => 5
+
+o11 : Free, class => language-macaulay2, If , x, and , y, have the same , Macaulay2Doc :: class, and have the same , Macaulay2Doc :: parent, , as in the previous example, then so will , z, ., class => examples, i12 : x = new MutableHashTable from {"alice" => 53709, "bob" => 6549;, class => language-macaulay2, i13 : y = new MutableHashTable from {"bob" => 86, "charlie" => 23;, class => language-macaulay2, i14 : mutable merge(x, y, plus)
+
+o14 = true, class => language-macaulay2, The function , Macaulay2Doc :: combine, allows much greater control when combining two hash tables: you can give functions for how to handle every key and value of the input tables, not just the duplicates. The function , Macaulay2Doc :: mergePairs, is similar to , merge, , but works on lists of pairs rather than hash tables., See also, Macaulay2Doc :: applyKeys, Macaulay2Doc :: applyPairs, Macaulay2Doc :: applyValues, Macaulay2Doc :: combine, Macaulay2Doc :: keys, Macaulay2Doc :: mergePairs, Macaulay2Doc :: pairs, Macaulay2Doc :: scanKeys, Macaulay2Doc :: scanPairs, Macaulay2Doc :: scanValues, Macaulay2Doc :: values, Macaulay2Doc :: hash tables, class => waystouse, Ways to use , merge, :, merge(HashTable,HashTable,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: merge, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/merge-doc.m2:111:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `merge(HashTable, HashTable, Function)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

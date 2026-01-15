@@ -1,0 +1,65 @@
+---
+title: "parts"
+kind: Function
+---
+
+# parts
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+parts, -- display terms of a polynomial degree by degree, class => element, Usage: , parts f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingElement, ring element, , , Outputs:, an , Macaulay2Doc :: Expression, expression, , , with the terms of , f, parenthesized degree by degree. The degrees are given in increasing order, Description, By default, , Macaulay2, displays a polynomial , Macaulay2Doc :: RingElement, by putting its terms in decreasing order, with respect to the , Macaulay2Doc :: MonomialOrder, of the ambient ring. On the other hand, , parts, will display the terms in order of increasing degree, regardless of the term order of the ring. Parentheses group together all terms of the same degree., class => examples, i1 : R = QQ[x,y];, class => language-macaulay2, i2 : f = (x + y + 1)^2
+
+ 2 2
+o2 = x + 2x*y + y + 2x + 2y + 1
+
+o2 : R, class => language-macaulay2, i3 : parts f
+
+ 2 2
+o3 = (1) + (2x + 2y) + (x + 2x*y + y )
+
+o3 : Expression of class Sum, class => language-macaulay2, i4 : R = QQ[x,y, MonomialOrder => Lex];, class => language-macaulay2, i5 : f = (x + y + 1)^2
+
+ 2 2
+o5 = x + 2x*y + 2x + y + 2y + 1
+
+o5 : R, class => language-macaulay2, i6 : parts f
+
+ 2 2
+o6 = (1) + (2x + 2y) + (x + 2x*y + y )
+
+o6 : Expression of class Sum, class => language-macaulay2, The output is an , Macaulay2Doc :: Expression, of a special class, , Macaulay2Doc :: Parenthesize, . Accessing the individual parenthesized parts of this expression is difficult, so for this purpose it may be better to use , Macaulay2Doc :: part, ., class => examples, i7 : part(2, f)
+
+ 2 2
+o7 = x + 2x*y + y
+
+o7 : R, class => language-macaulay2, i8 : part(0, 1, f)
+
+o8 = 2x + 2y + 1
+
+o8 : R, class => language-macaulay2, See also, Macaulay2Doc :: degree, Macaulay2Doc :: monomials, Macaulay2Doc :: part, Macaulay2Doc :: select, Macaulay2Doc :: terms, Macaulay2Doc :: someTerms, Macaulay2Doc :: graded and multigraded polynomial rings, Macaulay2Doc :: manipulating polynomials, class => waystouse, Ways to use , parts, :, parts(RingElement), class => waystouse, For the programmer, The object , Macaulay2Doc :: parts, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/parts-doc.m2:49:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `parts(RingElement)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[x,y];
+
+i2 : f = (x + y + 1)^2
+
+      2           2
+o2 = x  + 2x*y + y  + 2x + 2y + 1
+
+o2 : R
+```
+
+## See Also
+

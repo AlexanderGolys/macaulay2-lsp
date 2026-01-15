@@ -1,0 +1,49 @@
+---
+title: "rowSwap"
+kind: Function
+---
+
+# rowSwap
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+rowSwap, -- interchange rows, class => element, Usage: , rowSwap(m,i,j), class => language-macaulay2, Inputs:, m, , , a , Macaulay2Doc :: MutableMatrix, mutable matrix, i, , , an , Macaulay2Doc :: ZZ, integer, j, , , an , Macaulay2Doc :: ZZ, integer, Consequences:, Interchanges the , i, th and , j, th rows of , m, Description, class => examples, i1 : m = mutableMatrix matrix{{1,2,3,{4,5,6
+
+o1 = | 1 2 3 |
+ | 4 5 6 |
+
+o1 : MutableMatrix, class => language-macaulay2, i2 : rowSwap(m,0,1)
+
+o2 = | 4 5 6 |
+ | 1 2 3 |
+
+o2 : MutableMatrix, class => language-macaulay2, i3 : m
+
+o3 = | 4 5 6 |
+ | 1 2 3 |
+
+o3 : MutableMatrix, class => language-macaulay2, See also, Macaulay2Doc :: mutable matrices, Macaulay2Doc :: row and column operations, class => waystouse, Ways to use , rowSwap, :, rowSwap(MutableMatrix,ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: rowSwap, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_mutablematrices.m2:188:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `rowSwap(MutableMatrix, ZZ, ZZ)`
+
+## Examples
+
+```macaulay2
+i2 : rowSwap(m,0,1)
+
+o2 = | 4 5 6 |
+     | 1 2 3 |
+
+o2 : MutableMatrix
+```
+
+## See Also
+

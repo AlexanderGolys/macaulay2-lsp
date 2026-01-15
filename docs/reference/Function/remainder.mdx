@@ -1,0 +1,67 @@
+---
+title: "remainder"
+kind: Function
+---
+
+# remainder
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+remainder, -- matrix remainder, class => element, Usage: , r = remainder(f,g), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Matrix, matrix, g, , , a , Macaulay2Doc :: GroebnerBasis, Gröbner basis, or , a , Macaulay2Doc :: Matrix, matrix, , with the same target as , f, Outputs:, r, , , the remainder of , f, upon division by , g, Description, This operation is the same as , Macaulay2Doc :: Matrix % GroebnerBasis, ., The equation , g*q+r == f, will hold, where , q, is the map provided by , Macaulay2Doc :: quotient, . The source of , f, should be a free module., class => examples, i1 : R = ZZ[x,y]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : f = random(R^2,R^{2:-1)
+
+o2 = | 8x+y 8x+3y |
+ | 3x+7y 3x+7y |
+
+ 2 2
+o2 : Matrix R <-- R, class => language-macaulay2, i3 : g = vars R ++ vars R
+
+o3 = | x y 0 0 |
+ | 0 0 x y |
+
+ 2 4
+o3 : Matrix R <-- R, class => language-macaulay2, i4 : remainder(f,g)
+
+o4 = 0
+
+ 2 2
+o4 : Matrix R <-- R, class => language-macaulay2, i5 : f = f + map(target f, source f, id_(R^2))
+
+o5 = | 8x+y+1 8x+3y |
+ | 3x+7y 3x+7y+1 |
+
+ 2 2
+o5 : Matrix R <-- R, class => language-macaulay2, i6 : remainder(f,g)
+
+o6 = | 1 0 |
+ | 0 1 |
+
+ 2 2
+o6 : Matrix R <-- R, class => language-macaulay2, See also, Macaulay2Doc :: quotientRemainder, Macaulay2Doc :: remainder', class => waystouse, Ways to use , remainder, :, remainder(Matrix,GroebnerBasis), remainder(Matrix,Matrix), class => waystouse, For the programmer, The object , Macaulay2Doc :: remainder, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/quotient-remainder-doc.m2:249:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `remainder(Matrix, GroebnerBasis)`
+- `remainder(Matrix, Matrix)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ[x,y]
+
+o1 = R
+
+o1 : PolynomialRing
+```
+
+## See Also
+

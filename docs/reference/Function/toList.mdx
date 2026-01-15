@@ -1,0 +1,52 @@
+---
+title: "toList"
+kind: Function
+---
+
+# toList
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+toList, -- create a list, class => element, Usage: , toList A, class => language-macaulay2, Inputs:, A, , , a , Macaulay2Doc :: Set, set, , , a , Macaulay2Doc :: String, string, , , a , Macaulay2Doc :: BasicList, basic list, , or , a , Macaulay2Doc :: Tally, tally, , , or an instance of a class with the , Macaulay2Doc :: iterator, method installed, Outputs:, L, , , a , Macaulay2Doc :: List, list, , , a list whose elements are the elements of , A, , Description, class => examples, i1 : toList "foo"
+
+o1 = {f, o, o
+
+o1 : List, class => language-macaulay2, i2 : A = set(3,7,9,6)
+
+o2 = set {9, 3, 6, 7
+
+o2 : Set, class => language-macaulay2, i3 : toList A
+
+o3 = {9, 3, 6, 7
+
+o3 : List, class => language-macaulay2, The command , toList 1..9, will throw an error, because , toList, comes before , Macaulay2Doc :: .., in Macaulay2's order of operations. To create a list from a range, use , toList (1..9), instead., class => examples, i4 : toList (1..9)
+
+o4 = {1, 2, 3, 4, 5, 6, 7, 8, 9
+
+o4 : List, class => language-macaulay2, Converting between list types may change the order of the elements in unexpected ways., class => examples, i5 : toList set {4,5,13
+
+o5 = {4, 13, 5
+
+o5 : List, class => language-macaulay2, See also, Macaulay2Doc :: BasicList, Macaulay2Doc :: List, Macaulay2Doc :: toSequence, Macaulay2Doc :: lists and sequences, class => waystouse, Ways to use , toList, :, toList(BasicList), toList(Set), toList(String), toList(Tally), toList(Thing), Macaulay2Doc :: toList(Pseudocode), class => waystouse, For the programmer, The object , Macaulay2Doc :: toList, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/toList-doc.m2:44:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `toList(Thing)`
+- `toList(Tally)`
+- `toList(BasicList)`
+- `toList(String)`
+- `toList(Pseudocode)`
+- `toList(Set)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

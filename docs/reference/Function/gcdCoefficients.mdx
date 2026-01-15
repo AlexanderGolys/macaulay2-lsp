@@ -1,0 +1,75 @@
+---
+title: "gcdCoefficients"
+kind: Function
+---
+
+# gcdCoefficients
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+gcdCoefficients, -- greatest common divisor with coefficients, class => element, Usage: , gcdCoefficients(a, b), class => language-macaulay2, Inputs:, a, , , a , Macaulay2Doc :: RingElement, ring element, or , an , Macaulay2Doc :: ZZ, integer, , , b, , , a , Macaulay2Doc :: RingElement, ring element, or , an , Macaulay2Doc :: ZZ, integer, , , Description, This returns a sequence of the form , (d, r, s), , where $d=\gcd(a, b)$ and $r$ and $s$ are the minimal Bézout coefficients satisfying the equation $d = ar + bs$., It works for integers or elements of polynomial rings in one variable., class => examples, i1 : (d, r, s) = gcdCoefficients(46, 240)
+
+o1 = (2, 47, -9)
+
+o1 : Sequence, class => language-macaulay2, i2 : gcd(46, 240)
+
+o2 = 2, class => language-macaulay2, i3 : 46 * r + 240 * s
+
+o3 = 2, class => language-macaulay2, i4 : R = ZZ/2[x]
+
+o4 = R
+
+o4 : PolynomialRing, class => language-macaulay2, i5 : f = x^8 + x^4 + x^3 + x + 1
+
+ 8 4 3
+o5 = x + x + x + x + 1
+
+o5 : R, class => language-macaulay2, i6 : g = x^6 + x^4 + x + 1
+
+ 6 4
+o6 = x + x + x + 1
+
+o6 : R, class => language-macaulay2, i7 : (d, r, s) = gcdCoefficients(f, g)
+
+ 5 4 3 2 7 6 3
+o7 = (1, x + x + x + x + 1, x + x + x + x)
+
+o7 : Sequence, class => language-macaulay2, i8 : gcd(f, g)
+
+o8 = 1
+
+o8 : R, class => language-macaulay2, i9 : f * r + g * s
+
+o9 = 1
+
+o9 : R, class => language-macaulay2, See also, Macaulay2Doc :: gcd, class => waystouse, Ways to use , gcdCoefficients, :, gcdCoefficients(RingElement,RingElement), gcdCoefficients(RingElement,ZZ), gcdCoefficients(ZZ,RingElement), gcdCoefficients(ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: gcdCoefficients, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_arithmetic.m2:149:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `gcdCoefficients(ZZ, RingElement)`
+- `gcdCoefficients(RingElement, ZZ)`
+- `gcdCoefficients(RingElement, RingElement)`
+- `gcdCoefficients(ZZ, ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : (d, r, s) = gcdCoefficients(46, 240)
+
+o1 = (2, 47, -9)
+
+o1 : Sequence
+
+i2 : gcd(46, 240)
+
+o2 = 2
+```
+
+## See Also
+

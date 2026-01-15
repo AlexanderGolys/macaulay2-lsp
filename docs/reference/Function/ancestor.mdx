@@ -1,0 +1,51 @@
+---
+title: "ancestor"
+kind: Function
+---
+
+# ancestor
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+ancestor, -- whether one type is an ancestor of another, class => element, Usage: , ancestor(x,y), class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Type, type, y, , , a , Macaulay2Doc :: Type, type, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , x, is an ancestor of , y, Description, The ancestors of , y, are , y, , , parent y, , , parent parent y, , and so on., If , x, is an ancestor of , y, , then we also say that , y, is a , specialization, of , x, ., class => examples, i1 : parent String
+
+o1 = Net
+
+o1 : Type, class => language-macaulay2, i2 : parent parent String
+
+o2 = Thing
+
+o2 : Type, class => language-macaulay2, i3 : parent parent parent String
+
+o3 = Thing
+
+o3 : Type, class => language-macaulay2, See also, Macaulay2Doc :: ancestors, class => waystouse, Ways to use , ancestor, :, Macaulay2Doc :: ancestor(Type,Type), class => waystouse, For the programmer, The object , Macaulay2Doc :: ancestor, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_types.m2:478:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `ancestor(Type, Type)`
+
+## Examples
+
+```macaulay2
+i1 : parent String
+
+o1 = Net
+
+o1 : Type
+
+i2 : parent parent String
+
+o2 = Thing
+
+o2 : Type
+```
+
+## See Also
+

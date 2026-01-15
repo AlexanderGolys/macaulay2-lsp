@@ -1,0 +1,21 @@
+---
+title: "run"
+kind: Function
+---
+
+# run
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+run, -- run an external command, class => element, Usage: , run s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, , , a command understandable by the operating system, Outputs:, an , Macaulay2Doc :: ZZ, integer, , , the return code, Description, The process is run in the same process group, so signals invoked by control characters at the terminal will go both to it and to Macaulay2., Under Linux and Mac OS, the return code is 256 times the exit status code of the command, if the command exited normally; by convention, an exit status code of 0 indicates error free execution or the Boolean value , true, , an exit status code of 1 indicates an error or the Boolean value , false, ; if the command terminated in response to a signal or fault, the signal number (in the range 1-126) is returned, added to 128 if a core dump was created; if the shell (command interpreter) could not be executed, then 127 is returned. Signal numbers typically include 2 for interrupt, 3 for quit, 6 for abort, 9 for kill, 11 for segmentation fault, and 15 for termination. For details, see the man page of the libc routine , system(), ., class => waystouse, For the programmer, The object , Macaulay2Doc :: run, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:870:0, .
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

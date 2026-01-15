@@ -1,0 +1,61 @@
+---
+title: "^"
+kind: Operator
+---
+
+# ^
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+^, -- a binary operator, usually used for powers, class => element, Usage: , x ^ y, class => language-macaulay2, Description, , This operator is used for exponentiation, making free modules and sheaves, for shifting complexes left or right, for projection maps involving direct sums, and for making nets., class => waystouse, Ways to use , symbol ^, :, OldChainComplexes :: ChainComplex ^ Array, OldChainComplexes :: ChainComplex ^ ZZ, OldChainComplexes :: ChainComplexMap ^ Array, OldChainComplexes :: ChainComplexMap ^ ZZ, GradedModuleMap ^ ZZ, -- see , OldChainComplexes :: ChainComplexMap ^ ZZ, CoherentSheaf ^ List, -- see , Varieties :: CoherentSheaf ^ ZZ, Varieties :: CoherentSheaf ^ ZZ, OldChainComplexes :: GradedModuleMap ^ Array, Macaulay2Doc :: Ideal ^ Array, MonomialIdeal ^ Array, -- see , Macaulay2Doc :: Ideal ^ Array, Macaulay2Doc :: Ideal ^ ZZ, MonomialIdeal ^ ZZ, -- see , Macaulay2Doc :: Ideal ^ ZZ, Number ^ Ring, -- see , Macaulay2Doc :: lift, Number ^ RingFamily, -- see , Macaulay2Doc :: lift, Macaulay2Doc :: Matrix ^ Array, Macaulay2Doc :: Matrix ^ List, MutableMatrix ^ List, -- see , Macaulay2Doc :: Matrix ^ List, Vector ^ List, -- see , Macaulay2Doc :: Matrix ^ List, Macaulay2Doc :: Matrix ^ ZZ, MutableMatrix ^ ZZ, -- see , Macaulay2Doc :: Matrix ^ ZZ, Macaulay2Doc :: Module ^ Array, Macaulay2Doc :: Module ^ List, Macaulay2Doc :: Module ^ ZZ, Macaulay2Doc :: Net ^ ZZ, String ^ ZZ, -- see , Macaulay2Doc :: Net ^ ZZ, OldChainComplexes :: Ring ^ BettiTally, Macaulay2Doc :: Ring ^ List, RingFamily ^ List, -- see , Macaulay2Doc :: Ring ^ List, Macaulay2Doc :: Ring ^ ZZ, RingFamily ^ ZZ, -- see , Macaulay2Doc :: Ring ^ ZZ, MonoidElement ^ ZZ, -- see , Macaulay2Doc :: RingElement ^ ZZ, Macaulay2Doc :: RingElement ^ ZZ, Macaulay2Doc :: RingMap ^ ZZ, ScriptedFunctor ^ Thing, -- see , Macaulay2Doc :: ScriptedFunctor, Varieties :: SheafMap ^ ZZ, Varieties :: SheafOfRings ^ List, SheafOfRings ^ ZZ, -- see , Varieties :: SheafOfRings ^ List, Macaulay2Doc :: String ^ Sequence, class => waystouse, For the programmer, The object , Macaulay2Doc :: ^, is , a , Macaulay2Doc :: Keyword, keyword, ., This operator may be used as a binary operator in an expression like , x^y, . , The user may install , Macaulay2Doc :: binary methods, for handling such expressions with code such as, X ^ Y := (x,y) -> ..., where , X, is the class of , x, and , Y, is the class of , y, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators/caret.m2:38:0, .
+
+## Operator Installations
+
+### Binary Operator
+
+Usage: `x ^ y`
+
+- `^(RingElement, ZZ)`
+- `^(Expression, OneExpression)`
+- `^(Holder, OneExpression)`
+- `^(OneExpression, Expression)`
+- `^(Holder, ZeroExpression)`
+- `^(Expression, ZeroExpression)`
+- `^(ZeroExpression, Expression)`
+- `^(ZeroExpression, Holder)`
+- `^(ZeroExpression, ZeroExpression)`
+- `^(Expression, Expression)`
+- `^(Expression, Holder)`
+- `^(Holder, Expression)`
+- `^(Holder, Holder)`
+- `^(Expression, Thing)`
+- `^(Thing, Expression)`
+- `^(ScriptedFunctor, Thing)`
+- `^(Module, ZZ)`
+- `^(Matrix, List)`
+- `^(Ideal, ZZ)`
+- `^(Ideal, Array)`
+
+*Showing 20 of 67 binary signatures*
+
+### Augmented Assignment
+
+Usage: `x ^= y` (modifies `x` in place)
+
+:::info[Special Installation Syntax]
+Augmented assignment methods require special installation using `installAssignmentMethod`. See [Macaulay2 documentation](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/Macaulay2Doc/html/_installing_spaugmented_spassignment_spmethods.html) for details.
+:::
+
+- `(^,=)(Type, Type)`
+- `(^,=)(Thing, Thing)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

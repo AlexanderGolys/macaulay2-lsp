@@ -1,0 +1,55 @@
+---
+title: "randomMutableMatrix"
+kind: Function
+---
+
+# randomMutableMatrix
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+randomMutableMatrix, -- a random mutable matrix of integers, class => element, Usage: , randomMutableMatrix(nrows,ncols,zerof,max), class => language-macaulay2, Inputs:, nrows, , , an , Macaulay2Doc :: ZZ, integer, ncols, , , an , Macaulay2Doc :: ZZ, integer, zerof, , , a , Macaulay2Doc :: RR, real number, , , between 0 and 1, max, , , an , Macaulay2Doc :: ZZ, integer, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Dense, => , ..., , , default value , false, , , whether the encoding of the matrix should be dense or not: see , Macaulay2Doc :: MutableMatrix, Outputs:, a , Macaulay2Doc :: MutableMatrix, mutable matrix, , , a random mutable , nrows, by , ncols, matrix of integers. The absolute value of the entries is less than , max, , and the frequency of entries equal to zero is given by , zerof, ., Description, This function has been superseded by , Macaulay2Doc :: fillMatrix, , which works over more rings, is much faster for large matrices, and is more flexible., class => examples, i1 : randomMutableMatrix(10,15,.9,100)
+
+o1 = | 0 0 0 0 0 0 0 0 0 0 49 0 0 0 0 |
+ | 0 0 0 0 14 0 0 0 0 0 0 0 0 0 0 |
+ | 0 0 0 0 0 0 0 0 0 0 0 -12 -17 0 0 |
+ | 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 |
+ | 0 -87 80 0 0 0 0 0 0 0 -34 0 0 88 0 |
+ | 1 0 0 0 0 0 -70 0 0 0 0 0 0 0 0 |
+ | 0 0 0 100 0 0 0 0 0 0 0 0 0 0 0 |
+ | 0 0 0 0 0 0 82 0 0 0 0 0 0 0 72 |
+ | 0 0 0 0 0 0 0 0 48 0 0 0 0 99 0 |
+ | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+
+o1 : MutableMatrix, class => language-macaulay2, See also, Macaulay2Doc :: mutableMatrix, Macaulay2Doc :: fillMatrix, Macaulay2Doc :: setRandomSeed, Macaulay2Doc :: random, class => waystouse, Ways to use , randomMutableMatrix, :, Macaulay2Doc :: randomMutableMatrix(ZZ,ZZ,RR,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: randomMutableMatrix, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/random-doc.m2:288:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `randomMutableMatrix(ZZ, ZZ, RR, ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : randomMutableMatrix(10,15,.9,100)
+
+o1 = | 0 0   0  0   0  0 0   0 0  0 49  0   0   0  0  |
+     | 0 0   0  0   14 0 0   0 0  0 0   0   0   0  0  |
+     | 0 0   0  0   0  0 0   0 0  0 0   -12 -17 0  0  |
+     | 0 0   0  0   0  0 1   0 0  0 0   0   0   0  0  |
+     | 0 -87 80 0   0  0 0   0 0  0 -34 0   0   88 0  |
+     | 1 0   0  0   0  0 -70 0 0  0 0   0   0   0  0  |
+     | 0 0   0  100 0  0 0   0 0  0 0   0   0   0  0  |
+     | 0 0   0  0   0  0 82  0 0  0 0   0   0   0  72 |
+     | 0 0   0  0   0  0 0   0 48 0 0   0   0   99 0  |
+     | 0 0   0  0   0  0 0   0 0  0 0   0   0   0  0  |
+
+o1 : MutableMatrix
+```
+
+## See Also
+

@@ -1,0 +1,82 @@
+---
+title: "??"
+kind: Operator
+---
+
+# ??
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+??, -- null coalescing operator, class => element, Usage: , x ?? y, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Thing, thing, , , y, , , a , Macaulay2Doc :: Thing, thing, , , Outputs:, a , Macaulay2Doc :: Thing, thing, , , either , x, or , y, ; , Description, If , x, is null or a non-interrupting error, then , y, is returned. When it is an error, the error message is suppressed like it is with , Macaulay2Doc :: try, ., class => examples, i1 : null ?? 2
+
+o1 = 2, class => language-macaulay2, i2 : 1/0 ?? 3
+
+o2 = 3, class => language-macaulay2, In all other cases, , x, is returned., class => examples, i3 : 5 ?? 6
+
+o3 = 5, class => language-macaulay2, Note that , y, is lazily evaluated, that is, it is only evaluated if it is necessary., The null coalescing operator can be combined with , Macaulay2Doc :: augmented assignment, as a shortcut for , if x === null then x = y, class => language-macaulay2, and , if not x#?i then x#i = y, class => language-macaulay2, . Note that it behaves slightly differently than other augmented assignment operators, as , x ??= y, is treated like , x ?? (x = y), rather than , x = x ?? y, ., class => examples, i4 : x = null, class => language-macaulay2, i5 : x ??= 2
+
+o5 = 2, class => language-macaulay2, i6 : x ??= 3
+
+o6 = 2, class => language-macaulay2, i7 : x = new MutableList
+
+o7 = MutableList{
+
+o7 : MutableList, class => language-macaulay2, i8 : x#0 ??= 4
+
+o8 = 4, class => language-macaulay2, i9 : peek x
+
+o9 = MutableList{4, class => language-macaulay2, i10 : x#0 ??= 5
+
+o10 = 4, class => language-macaulay2, i11 : peek x
+
+o11 = MutableList{4, class => language-macaulay2, It is also possible to install a method for a particular type to determine whether an instance , x, of that type should be considered "null" or not. Such a method should return either , x, or , Macaulay2Doc :: null, class => examples, i12 : X = new Type of BasicList;, class => language-macaulay2, i13 : ?? X := x -> if #x > 0 then x;, class => language-macaulay2, i14 : x = new X from {;, class => language-macaulay2, i15 : y = new X from {5;, class => language-macaulay2, i16 : x ?? y
+
+o16 = 5
+
+o16 : X, class => language-macaulay2, i17 : y ?? x
+
+o17 = 5
+
+o17 : X, class => language-macaulay2, It is also possible to use , ??, as a prefix operator to call this method., class => examples, i18 : ?? 2
+
+o18 = 2, class => language-macaulay2, i19 : ?? x, class => language-macaulay2, i20 : ??(1/0), class => language-macaulay2, Caveat, Although this operator is "flexible" in the sense that it possible to install a method to determine the behavior on the left-hand side, it is not truly flexible like most other binary operators. In particular, since it is only lazily evaluated, it is not possible to install a method that uses the value of the right-hand side., class => waystouse, For the programmer, The object , Macaulay2Doc :: ??, is , a , Macaulay2Doc :: Keyword, keyword, ., This operator may be used as a binary operator in an expression like , x??y, . , This operator may be used as a prefix unary operator in an expression like , ??y, . , The user may , Macaulay2Doc :: installing methods, install a method, for handling such expressions with code such as, ?? Y := (y) -> ..., where , Y, is the class of , y, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators/augmented_assignment.m2:154:0, .
+
+## Operator Installations
+
+### Binary Operator
+
+Usage: `x ?? y`
+
+- `??(Thing, Thing)`
+
+### Augmented Assignment
+
+Usage: `x ??= y` (modifies `x` in place)
+
+:::info[Special Installation Syntax]
+Augmented assignment methods require special installation using `installAssignmentMethod`. See [Macaulay2 documentation](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/Macaulay2Doc/html/_installing_spaugmented_spassignment_spmethods.html) for details.
+:::
+
+- `(??,=)(Type, Type)`
+- `(??,=)(Type)`
+- `(??,=)(Thing, Thing)`
+- `(??,=)(Thing)`
+
+## Examples
+
+```macaulay2
+i1 : null ?? 2
+
+o1 = 2
+
+i2 : 1/0 ?? 3
+
+o2 = 3
+```
+
+## See Also
+

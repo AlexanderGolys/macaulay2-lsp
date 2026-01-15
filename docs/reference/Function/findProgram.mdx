@@ -1,0 +1,128 @@
+---
+title: "findProgram"
+kind: Function
+---
+
+# findProgram
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+findProgram, -- load external program, class => element, Usage: , findProgram name, class => language-macaulay2, findProgram(name, cmd), class => language-macaulay2, findProgram(name, cmds), class => language-macaulay2, Inputs:, name, , , a , Macaulay2Doc :: String, string, , , the name of the program to load. This should match the corresponding key in , Macaulay2Doc :: programPaths, ., cmd, , , a , Macaulay2Doc :: String, string, , , a command to run that should return 0 if the program is present., cmds, , , a , Macaulay2Doc :: List, list, , , a list of commands to run that should all return 0 if the program is present., Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, RaiseError, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , true, , , whether to raise an error if the program is not found., Verbose, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , whether to inform the user of each path that is checked., Prefix, => , a , Macaulay2Doc :: List, list, , , default value , {, , , a list of sequences containing two strings identifying a prefix that is added to the executable binaries belonging to the program by some distributions. These sequences should be of the form , (regex, prefix), , where , regex, is a , Macaulay2Doc :: regular expressions, regular expression, that should match all binary executables that need the prefix and , prefix, is the prefix itself., AdditionalPaths, => , a , Macaulay2Doc :: List, list, , , default value , {, , , a list of strings containing any paths to check for the program in addition to the default ones., MinimumVersion, => , a , Macaulay2Doc :: Sequence, sequence, , , default value , null, , , containing two strings the form , (minVersion, versionCommand), where , minVersion, is the minimum required version of the program and , versionCommand, is a shell command to obtain the version number of an installed program., Outputs:, an instance of the type , Macaulay2Doc :: Program, , , the program that was loaded. If the program is not found and , RaiseError, is set to , Macaulay2Doc :: false, , then , Macaulay2Doc :: null, is returned., Description, This function checks for the existence of an external program by running , cmd , (or every element of , cmds, ), prepended with various paths in the following order:, The user-defined path specified by , programPaths#name, , if it exists., The path specified by , prefixDirectory | currentLayout#"programs", , where the programs shipped with Macaulay2 are installed., Each path specified by the , AdditionalPaths, option., Each path specified by the user's , PATH, environment variable., The path to , M2-binary, ., For each path, any prefixes specified by the , Prefix, option are checked., Once this is successful (i.e., , cmd, or each element of , cmds, returns a value of 0) then a , Macaulay2Doc :: Program, object is returned. If it is unsuccessful, then either an error is raised or , Macaulay2Doc :: null, is returned, depending on the value of , RaiseError, ., Note that if a program consists of a single executable binary file, then , name, should coincide with the name of this file., class => examples, i1 : programPaths#"gfan" = "/path/to/gfan/" 
+
+o1 = /path/to/gfan/, class => language-macaulay2, i2 : gfan = findProgram("gfan", "gfan _version --help", Verbose => true)
+ -- /path/to/gfan/gfan does not exist
+ -- /usr/lib/Macaulay2/Macaulay2/bin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/sbin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/games/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/sbin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /home/m2user/.cursor/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts/gfan does not exist
+ -- /home/m2user/.local/share/mise/installs/node/25.2.1/bin/gfan does not exist
+ -- /home/m2user/.local/share/omarchy/bin/gfan does not exist
+ -- /home/m2user/.cargo/bin/gfan does not exist
+ -- /usr/local/sbin/gfan does not exist
+ -- /usr/local/bin/gfan does not exist
+ -- /usr/bin/gfan exists and is executable
+ -- running "/usr/bin/gfan _version --help":
+This program writes out version information of the Gfan installation.
+ -- return value: 0
+
+o2 = gfan
+
+o2 : Program, class => language-macaulay2, If , cmd, is not provided, then , name, is run with the common , --version, command line option., class => examples, i3 : findProgram "normaliz"
+
+o3 = normaliz
+
+o3 : Program, class => language-macaulay2, One program that is shipped with a variety of prefixes in different distributions and for which the , Prefix, option is useful is TOPCOM:, class => examples, i4 : findProgram("topcom", "cube 3", Verbose => true, Prefix => {
+ (".*", "topcom-"),
+ ("^(cross|cube|cyclic|hypersimplex|lattice)$", "TOPCOM-"),
+ ("^cube$", "topcom_"))
+ -- /usr/lib/Macaulay2/Macaulay2/bin/cube exists and is executable
+ -- running "/usr/lib/Macaulay2/Macaulay2/bin/cube 3":
+[[0,0,0,1],[1,0,0,1],[0,1,0,1],[1,1,0,1],[0,0,1,1],[1,0,1,1],[0,1,1,1],[1,1,1,1]]
+[[7,6,5,4,3,2,1,0],[6,7,4,5,2,3,0,1],[4,6,5,7,0,2,1,3],[0,4,2,6,1,5,3,7]]
+ -- return value: 0
+
+o4 = topcom
+
+o4 : Program, class => language-macaulay2, Note that when using the , MinimumVersion, option, the command used to obtain the current version number must remove everything except the version number itself and any leading or trailing whitespace. Piping with standard UNIX utilities such as , sed, , , head, , , tail, , , cut, , and , tr, may be useful., class => examples, i5 : findProgram("gfan", "gfan _version --help", Verbose => true,
+ MinimumVersion => ("0.5",
+ "gfan _version | head -2 | tail -1 | sed 's/gfan//'"))
+ -- /path/to/gfan/gfan does not exist
+ -- /usr/lib/Macaulay2/Macaulay2/bin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/sbin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/games/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/sbin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /home/m2user/.cursor/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts/gfan does not exist
+ -- /home/m2user/.local/share/mise/installs/node/25.2.1/bin/gfan does not exist
+ -- /home/m2user/.local/share/omarchy/bin/gfan does not exist
+ -- /home/m2user/.cargo/bin/gfan does not exist
+ -- /usr/local/sbin/gfan does not exist
+ -- /usr/local/bin/gfan does not exist
+ -- /usr/bin/gfan exists and is executable
+ -- running "/usr/bin/gfan _version --help":
+This program writes out version information of the Gfan installation.
+ -- return value: 0
+ -- found version 0.7 >= 0.5
+
+o5 = gfan
+
+o5 : Program, class => language-macaulay2, See also, Macaulay2Doc :: runProgram, Macaulay2Doc :: searchPath, Macaulay2Doc :: Program, Macaulay2Doc :: programPaths, class => waystouse, Ways to use , findProgram, :, findProgram(String), findProgram(String,List), findProgram(String,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: findProgram, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/findProgram-doc.m2:174:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `findProgram(String)`
+- `findProgram(String, String)`
+- `findProgram(String, List)`
+
+## Examples
+
+```macaulay2
+i1 : programPaths#"gfan" = "/path/to/gfan/" 
+
+o1 = /path/to/gfan/
+
+i2 : gfan = findProgram("gfan", "gfan _version --help", Verbose => true)
+ -- /path/to/gfan/gfan does not exist
+ -- /usr/lib/Macaulay2/Macaulay2/bin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/sbin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/usr/games/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/bin/gfan does not exist
+ -- /tmp/.mount_CursorSjLsj1/sbin/gfan does not exist
+ -- /home/m2user/.local/bin/gfan does not exist
+ -- /home/m2user/.cursor/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts/gfan does not exist
+ -- /home/m2user/.local/share/mise/installs/node/25.2.1/bin/gfan does not exist
+ -- /home/m2user/.local/share/omarchy/bin/gfan does not exist
+ -- /home/m2user/.cargo/bin/gfan does not exist
+ -- /usr/local/sbin/gfan does not exist
+ -- /usr/local/bin/gfan does not exist
+ -- /usr/bin/gfan exists and is executable
+ -- running "/usr/bin/gfan _version --help":
+This program writes out version information of the Gfan installation.
+ -- return value: 0
+
+o2 = gfan
+
+o2 : Program
+```
+
+## See Also
+

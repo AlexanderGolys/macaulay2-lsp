@@ -1,0 +1,29 @@
+---
+title: "utf8substring"
+kind: Function
+---
+
+# utf8substring
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+utf8substring, -- extract part of a utf8 string, class => element, Usage: , utf8substring(s, i, n), class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, , , i, , , an , Macaulay2Doc :: ZZ, integer, , , starting index of substring, n, , , an , Macaulay2Doc :: ZZ, integer, , , length of substring, Outputs:, a , Macaulay2Doc :: String, string, , , Description, Returns the substring of , s, that starts at index , i, and has , n, characters, both measured in utf8 characters., class => examples, i1 : s = "π ≈ 3.14159";, class => language-macaulay2, i2 : utf8substring(s, 4, 4)
+
+o2 = 3.14, class => language-macaulay2, See also, Macaulay2Doc :: substring, class => waystouse, For the programmer, The object , Macaulay2Doc :: utf8substring, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/substring-doc.m2:87:0, .
+
+## Examples
+
+```macaulay2
+i1 : s = "π ≈ 3.14159";
+
+i2 : utf8substring(s, 4, 4)
+
+o2 = 3.14
+```
+
+## See Also
+

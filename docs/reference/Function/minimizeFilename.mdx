@@ -1,0 +1,33 @@
+---
+title: "minimizeFilename"
+kind: Function
+---
+
+# minimizeFilename
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+minimizeFilename, -- minimize a file name, class => element, Usage: , minimizeFilename fn, class => language-macaulay2, Inputs:, fn, , , a path to a file, Outputs:, a minimized path, equivalent to , fn, Description, class => examples, i1 : minimizeFilename "a/b/c/../d"
+
+o1 = a/b/d, class => language-macaulay2, i2 : minimizeFilename "../../../../../../"
+
+o2 = ../../../../../../, class => language-macaulay2, Paths of the form , foo/x/../bar, , are shortened to , foo/bar, without checking the file system to see whether , x, is a symbolic link. For the other behavior, see , Macaulay2Doc :: realpath, ., See also, Macaulay2Doc :: File, Macaulay2Doc :: relativizeFilename, Macaulay2Doc :: baseFilename, Macaulay2Doc :: toAbsolutePath, Macaulay2Doc :: searchPath, Macaulay2Doc :: path, class => waystouse, For the programmer, The object , Macaulay2Doc :: minimizeFilename, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1386:0, .
+
+## Examples
+
+```macaulay2
+i1 : minimizeFilename "a/b/c/../d"
+
+o1 = a/b/d
+
+i2 : minimizeFilename "../../../../../../"
+
+o2 = ../../../../../../
+```
+
+## See Also
+

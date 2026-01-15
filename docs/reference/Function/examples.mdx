@@ -1,0 +1,114 @@
+---
+title: "examples"
+kind: Function
+---
+
+# examples
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+examples, -- list the examples in documentation, class => element, Usage: , examples s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: Thing, thing, , , a descriptor for a documentation node, acceptable by , Macaulay2Doc :: makeDocumentTag, Outputs:, a , Macaulay2Doc :: Net, net, , , containing examples of code provided in the documentation of , s, Description, The output is returned as a , Macaulay2Doc :: Net, of height 0, so the examples will be displayed indented by just white space, allowing immediate entry., class => examples, i1 : ex := examples(resolution, Ideal)
+
+o1 = -- examples for tag: resolution(Ideal)
+ -- /usr/share/Macaulay2/OldChainComplexes/docs/doc10.m2:254:0
+ R = ZZ[a..d]
+ I = ideal(a,b,c,d)
+ C = res I
+ C_2
+ C.dd_2, class => language-macaulay2, i2 : last capture ex 
+
+o2 = 
+ i1 : -- examples for tag: resolution(Ideal)
+ -- /usr/share/Macaulay2/OldChainComplexes/docs/doc10.m2:254:0
+ R = ZZ[a..d]
+
+ o1 = R
+
+ o1 : PolynomialRing
+
+ i2 : I = ideal(a,b,c,d)
+
+ o2 = ideal (a, b, c, d)
+
+ o2 : Ideal of R
+
+ i3 : C = res I
+
+ 1 4 6 4 1
+ o3 = R <-- R <-- R <-- R <-- R <-- 0
+ 
+ 0 1 2 3 4 5
+
+ o3 : ChainComplex
+
+ i4 : C_2
+
+ 6
+ o4 = R
+
+ o4 : R-module, free, degrees {6:2
+
+ i5 : C.dd_2
+
+ o5 = {1 | -b 0 -c 0 0 -d |
+ {1 | a -c 0 0 -d 0 |
+ {1 | 0 b a -d 0 0 |
+ {1 | 0 0 0 c b a |
+
+ 4 6
+ o5 : Matrix R <-- R
+
+ i6 : , class => language-macaulay2, Alternatively, one could use , Macaulay2Doc :: print, to display them with no indentation., class => examples, i3 : print ex
+-- examples for tag: resolution(Ideal)
+-- /usr/share/Macaulay2/OldChainComplexes/docs/doc10.m2:254:0
+R = ZZ[a..d]
+I = ideal(a,b,c,d)
+C = res I
+C_2
+C.dd_2, class => language-macaulay2, If the input is an integer, then the examples will correspond to the documentation node with that index in the last call to , Macaulay2Doc :: about, ., class => examples, i4 : about firstFunction
+
+o4 = {0 => FirstPackage :: firstFunction 
+ {1 => FirstPackage :: firstFunction(ZZ)
+
+o4 : NumberedVerticalList, class => language-macaulay2, i5 : examples 0
+
+o5 = -- examples for tag: firstFunction
+ -- /usr/share/Macaulay2/FirstPackage.m2:53:0
+ firstFunction 1
+ firstFunction 0, class => language-macaulay2, If the input is a list, then the examples for all of its elements will be gathered into a single net., class => examples, i6 : examples about firstFunction
+
+o6 = -- examples for tag: firstFunction
+ -- examples for tag: firstFunction(ZZ)
+ -- /usr/share/Macaulay2/FirstPackage.m2:53:0
+ firstFunction 1
+ firstFunction 0, class => language-macaulay2, See also, Macaulay2Doc :: reading the documentation, Macaulay2Doc :: capture, Macaulay2Doc :: EXAMPLE, Macaulay2Doc :: help, class => waystouse, Ways to use , examples, :, examples(DocumentTag), examples(List), examples(Thing), examples(ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: examples, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/examples-doc.m2:134:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `examples(Thing)`
+- `examples(ZZ)`
+- `examples(DocumentTag)`
+- `examples(List)`
+
+## Examples
+
+```macaulay2
+i1 : ex := examples(resolution, Ideal)
+
+o1 = -- examples for tag: resolution(Ideal)
+     -- /usr/share/Macaulay2/OldChainComplexes/docs/doc10.m2:254:0
+     R = ZZ[a..d]
+     I = ideal(a,b,c,d)
+     C = res I
+     C_2
+     C.dd_2
+```
+
+## See Also
+

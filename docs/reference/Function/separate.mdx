@@ -1,0 +1,63 @@
+---
+title: "separate"
+kind: Function
+---
+
+# separate
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+separate, -- split a string into substrings using a regular expression, class => element, Usage: , separate str, class => language-macaulay2, separate(re, str), class => language-macaulay2, separate(re, n, str), class => language-macaulay2, Inputs:, re, , , a , Macaulay2Doc :: String, string, , , a , Macaulay2Doc :: regular expressions, regular expression, describing a pattern, str, , , a , Macaulay2Doc :: String, string, , , the string to split, n, , , an , Macaulay2Doc :: ZZ, integer, , , the index of the parenthesized expression to split on, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, POSIX, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , if true, interpret the , re, using the POSIX Extended flavor, otherwise the Perl flavor, Outputs:, a , Macaulay2Doc :: List, list, , , a list of strings obtained by breaking , str, at every match to the pattern , re, , or, if a natural number , n, is specified, using the $n$-th parenthesized expression in , re, as the separator. If no , re, is specified, , str, is split at every new line., Description, For an introduction to regular expressions, see , Macaulay2Doc :: regular expressions, ., Example 1: The command , separate(s), breaks the string at every occurrence of , \r\n, or , \n, ., class => examples, i1 : s = "A string with both Unix-style\nand Windows-style\r\nnew line characters."
+
+o1 = A string with both Unix-style
+ and Windows-style
+ new line characters., class => language-macaulay2, i2 : separate s
+
+o2 = {A string with both Unix-style, and Windows-style, new line characters.
+
+o2 : List, class => language-macaulay2, This is equivalent to using the , Macaulay2Doc :: lines, function., class => examples, i3 : lines s
+
+o3 = {A string with both Unix-style, and Windows-style, new line characters.
+
+o3 : List, class => language-macaulay2, Example 2: use commas, periods, and semicolons as separators., class => examples, i4 : separate("[,.;]", "Example: a string. That, is punctuated, weirdly; for demonstration purposes.")
+
+o4 = {Example: a string, That, is punctuated, weirdly, for demonstration
+ ------------------------------------------------------------------------
+ purposes, 
+
+o4 : List, class => language-macaulay2, Example 3: match any number of consecutive spaces., class => examples, i5 : t = separate("[ ]+", "this string has different lengths of spacing between words")
+
+o5 = {this, string, has, different, lengths, of, spacing, between, words
+
+o5 : List, class => language-macaulay2, We can now correct the original string using the , Macaulay2Doc :: demark, and , Macaulay2Doc :: replace, functions., class => examples, i6 : replace("has", "does not have", demark(" ", t))
+
+o6 = this string does not have different lengths of spacing between words, class => language-macaulay2, Example 4: delete every word starting with "x" from a string, by using , Macaulay2Doc :: concatenate, together with , Macaulay2Doc :: separate, ., class => examples, i7 : s = "algng xjfr kfjxse xhgfj xooi xwj kvexr anvi endj xkfi";, class => language-macaulay2, i8 : concatenate separate(" x[A-Za-z]*", s)
+
+o8 = algng kfjxse kvexr anvi endj, class => language-macaulay2, Example 5: The optional argument , n, allows us to specify a separator that differs from the match criteria. In the previous example, words beginning with "x" were both the match and the separator. In this example, we match words beginning with "x", but separate the string using the leading "x". With , Macaulay2Doc :: concatenate, , this results in deleting just the "x" from words starting with "x" (not the same as removing every "x")., class => examples, i9 : concatenate separate(" (x)[A-Za-z]*", 1, s)
+
+o9 = algng jfr kfjxse hgfj ooi wj kvexr anvi endj kfi, class => language-macaulay2, separateRegexp, is a deprecated synonym for , separate, ., Caveat, For backwards compatibility, if the pattern is a single character and it is an unescaped special character, such as , +, , , *, , or , ., , then it is treated as a literal character. In future code, the pattern must be escaped., See also, Macaulay2Doc :: regular expressions, Macaulay2Doc :: strings and nets, Macaulay2Doc :: regex, Macaulay2Doc :: lines, Macaulay2Doc :: demark, Macaulay2Doc :: concatenate, class => waystouse, Ways to use , separate, :, separate(String), separate(String,String), separate(String,ZZ,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: separate, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/separate-doc.m2:129:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `separate(String)`
+- `separate(String, String)`
+- `separate(String, ZZ, String)`
+
+## Examples
+
+```macaulay2
+i1 : s = "A string with both Unix-style\nand Windows-style\r\nnew line characters."
+
+o1 = A string with both Unix-style
+     and Windows-style
+     new line characters.
+```
+
+## See Also
+

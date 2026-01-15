@@ -1,0 +1,59 @@
+---
+title: "isSkewCommutative"
+kind: Function
+---
+
+# isSkewCommutative
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isSkewCommutative, -- whether a ring has skew commuting variables, class => element, Usage: , isSkewCommutative R, class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: Ring, ring, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Macaulay2Doc :: true, if , R, has skew commuting variables and , Macaulay2Doc :: false, otherwise, Description, class => examples, i1 : A = ZZ/3[a,b,c];, class => language-macaulay2, i2 : isSkewCommutative A
+
+o2 = false, class => language-macaulay2, i3 : B = QQ[a..d,SkewCommutative=>{a,b]
+
+o3 = B
+
+o3 : PolynomialRing, 2 skew commutative variable(s), class => language-macaulay2, i4 : isSkewCommutative B
+
+o4 = true, class => language-macaulay2, i5 : C = B[x,y]
+
+o5 = C
+
+o5 : PolynomialRing, class => language-macaulay2, i6 : isSkewCommutative C
+
+o6 = true, class => language-macaulay2, i7 : b_C * a_C
+
+o7 = -a*b
+
+o7 : C, class => language-macaulay2, i8 : D = B/(a*d-b*c)
+
+o8 = D
+
+o8 : QuotientRing, class => language-macaulay2, i9 : isSkewCommutative D
+
+o9 = true, class => language-macaulay2, See also, Macaulay2Doc :: exterior algebras, class => waystouse, Ways to use , isSkewCommutative, :, isSkewCommutative(PolynomialRing), isSkewCommutative(QuotientRing), isSkewCommutative(Ring), class => waystouse, For the programmer, The object , Macaulay2Doc :: isSkewCommutative, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isSkewCommutative-doc.m2:29:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isSkewCommutative(PolynomialRing)`
+- `isSkewCommutative(QuotientRing)`
+- `isSkewCommutative(Ring)`
+
+## Examples
+
+```macaulay2
+i1 : A = ZZ/3[a,b,c];
+
+i2 : isSkewCommutative A
+
+o2 = false
+```
+
+## See Also
+

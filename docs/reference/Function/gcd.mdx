@@ -1,0 +1,56 @@
+---
+title: "gcd"
+kind: Function
+---
+
+# gcd
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionBinary](../Type/MethodFunctionBinary.mdx)
+
+## Description
+
+gcd, -- greatest common divisor, class => element, Usage: , gcd(x,y,...), class => language-macaulay2, Inputs:, x, , , an , Macaulay2Doc :: ZZ, integer, , or , a , Macaulay2Doc :: QQ, rational number, , or , a , Macaulay2Doc :: RingElement, ring element, Outputs:, an , Macaulay2Doc :: ZZ, integer, , , , or , a , Macaulay2Doc :: QQ, rational number, , or , a , Macaulay2Doc :: RingElement, ring element, , the greatest common divisor of the arguments, Description, class => examples, i1 : gcd(12,8,48)
+
+o1 = 4, class => language-macaulay2, i2 : R = QQ[x,y,z];, class => language-macaulay2, i3 : gcd(x^2*y,x*y^3^6)
+
+o3 = x*y
+
+o3 : R, class => language-macaulay2, i4 : gcd(x^36-1,x^24-1)
+
+ 12
+o4 = x - 1
+
+o4 : R, class => language-macaulay2, See also, Macaulay2Doc :: gcdCoefficients, Macaulay2Doc :: lcm, class => waystouse, Ways to use , gcd, :, gcd(), gcd(List), gcd(QQ), gcd(QQ,QQ), gcd(QQ,ZZ), gcd(RingElement), gcd(RingElement,RingElement), gcd(RingElement,ZZ), gcd(Sequence), gcd(ZZ), gcd(ZZ,QQ), gcd(ZZ,RingElement), gcd(ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: gcd, is , an , Macaulay2Doc :: MethodFunctionBinary, associative binary method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators.m2:179:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `gcd(ZZ, RingElement)`
+- `gcd(RingElement, ZZ)`
+- `gcd(RingElement, RingElement)`
+- `gcd()`
+- `gcd(ZZ, QQ)`
+- `gcd(QQ, ZZ)`
+- `gcd(QQ, QQ)`
+- `gcd(Sequence)`
+- `gcd(List)`
+- `gcd(ZZ, ZZ)`
+- `gcd(QQ)`
+- `gcd(ZZ)`
+- `gcd(RingElement)`
+
+## Examples
+
+```macaulay2
+i1 : gcd(12,8,48)
+
+o1 = 4
+
+i2 : R = QQ[x,y,z];
+```
+
+## See Also
+

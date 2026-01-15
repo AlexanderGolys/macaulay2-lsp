@@ -1,0 +1,108 @@
+---
+title: "<-"
+kind: Operator
+---
+
+# <-
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+<-, -- assignment with left side evaluated, Description, assignment to symbols, class => element, Usage: , x <- e, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Symbol, symbol, , , (evaluated), e, , , a , Macaulay2Doc :: Thing, thing, Outputs:, the value of the expression is the value of , e, Consequences:, assuming the value of , x, is a symbol, , t, , say, the value of , e, is assigned to , t, so that future references to the value of , t, yield , e, ., class => examples, i1 : x = t
+
+o1 = t
+
+o1 : Symbol, class => language-macaulay2, i2 : x <- 4
+
+o2 = 4, class => language-macaulay2, i3 : x
+
+o3 = t
+
+o3 : Symbol, class => language-macaulay2, i4 : t
+
+o4 = 4, class => language-macaulay2, Initially, the value of a symbol , y, is , y, itself, and then , y = e, and , y <- e, do the same thing., class => examples, i5 : y <- 44
+
+o5 = 44, class => language-macaulay2, i6 : y
+
+o6 = 44, class => language-macaulay2, The code to the left of the arrow can be any expression whose value is a symbol., class => examples, i7 : f = () -> symbol z
+
+o7 = f
+
+o7 : FunctionClosure, class => language-macaulay2, i8 : (f()) <- 44
+
+o8 = 44, class => language-macaulay2, i9 : z
+
+o9 = 44, class => language-macaulay2, installing new assignment methods, class => element, Usage: , installMethod(symbol <-, X, (x,e) -> ...), class => language-macaulay2, Inputs:, X, , , a , Macaulay2Doc :: Type, type, (x,e) -> ..., , , a , Macaulay2Doc :: Function, function, of two arguments, Outputs:, the value returned is the function provided, Consequences:, the function , (x,e) -> ..., is installed as the method for assignment to objects of type , X, . See the next subsection below for using it., class => examples, i10 : installMethod(symbol <-, String, peek)
+
+o10 = peek
+
+o10 : FunctionClosure, class => language-macaulay2, using installed assignment methods, class => element, Usage: , x <- e, class => language-macaulay2, Inputs:, x, , , an object of type X, e, , , a , Macaulay2Doc :: Thing, thing, Outputs:, the value of the expression is the value returned by the previously installed method, Consequences:, the previously installed method for assignment to objects of type , X, is called with arguments , (x,e), , unless , x, is a symbol, in which case the internal assignment method applies, as described above. If there is no method for , X, , then the ancestors of , X, are consulted, starting with the parent of , X, and ending with , Macaulay2Doc :: Thing, (see , Macaulay2Doc :: inheritance, )., The following example used the method for assignment to strings installed above., class => examples, i11 : "foo" <- "bar"
+
+o11 = ("foo", "bar"), class => language-macaulay2, As before, the left hand side is evaluated, and in this case, it can be any expression whose value is a string., class => examples, i12 : "foo" | "foo" <- "bar"
+
+o12 = ("foofoo", "bar"), class => language-macaulay2, assignment to an indexed variable, class => element, Usage: , x <- e, class => language-macaulay2, Inputs:, x, , , an , Macaulay2Doc :: IndexedVariable, indexed variable, e, , , a , Macaulay2Doc :: Thing, thing, Outputs:, the value of the expression is the value returned by the previously installed method, Consequences:, assuming the value of , x, is , an , Macaulay2Doc :: IndexedVariable, indexed variable, , the value of e is assigned to it, so that future references to , value x, or to , s_i, , if that's what the value of , x, is, yield , e, . Moreover, the value of , s, is set to , s, ., This assignment method is pre-installed., class => examples, i13 : u = s_4
+
+o13 = s
+ 4
+
+o13 : IndexedVariable, class => language-macaulay2, i14 : s = 3
+
+o14 = 3, class => language-macaulay2, i15 : u <- 555
+warning: clearing value of symbol s to allow access to subscripted variables based on it
+ : debug with expression debug 6001 or with command line option --debug 6001
+
+o15 = 555, class => language-macaulay2, i16 : s
+
+o16 = s
+
+o16 : IndexedVariableTable, class => language-macaulay2, i17 : s_4
+
+o17 = 555, class => language-macaulay2, i18 : u
+
+o18 = s
+ 4
+
+o18 : IndexedVariable, class => language-macaulay2, i19 : value u
+
+o19 = 555, class => language-macaulay2, parallel assignment, class => element, Usage: , x <- e, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Sequence, sequence, e, , , a , Macaulay2Doc :: Sequence, sequence, Outputs:, the value of the expression is the value of , e, Consequences:, assuming the values of , x, and of , e, are , a , Macaulay2Doc :: Sequence, sequence, , with the same length, each member of , e, is assigned to the corresponding member of , x, This assignment method is pre-installed., class => examples, i20 : (symbol a, symbol b) <- (3,4)
+
+o20 = (3, 4)
+
+o20 : Sequence, class => language-macaulay2, i21 : a
+
+o21 = 3, class => language-macaulay2, i22 : (symbol r_1 .. symbol r_3) <- (5,6,7)
+
+o22 = (5, 6, 7)
+
+o22 : Sequence, class => language-macaulay2, i23 : r_2
+
+o23 = 6, class => language-macaulay2, See also, Macaulay2Doc :: =, Macaulay2Doc :: :=, Macaulay2Doc :: IndexedVariable <- Thing, class => waystouse, Ways to use , symbol <-, :, IndexedVariable <- Thing, Sequence <- Thing, class => waystouse, For the programmer, The object , Macaulay2Doc :: <-, is , a , Macaulay2Doc :: Keyword, keyword, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators/assignment.m2:120:0, .
+
+## Operator Installations
+
+### Unary Operator
+
+Usage: `<- x` or `x <-`
+
+- `<-(IndexedVariable)`
+- `<-(Sequence)`
+
+## Examples
+
+```macaulay2
+i1 : x = t
+
+o1 = t
+
+o1 : Symbol
+
+i2 : x <- 4
+
+o2 = 4
+```
+
+## See Also
+

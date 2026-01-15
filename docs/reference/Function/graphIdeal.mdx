@@ -1,0 +1,59 @@
+---
+title: "graphIdeal"
+kind: Function
+---
+
+# graphIdeal
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+graphIdeal, -- the ideal of the graph of the regular map corresponding to a ring map, class => element, Usage: , graphIdeal f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingMap, ring map, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, MonomialOrder, => , ..., , , default value , {GRevLex, Position => Up, , , a monomial ordering, see , Macaulay2Doc :: monomial orderings, MonomialSize, => , an , Macaulay2Doc :: ZZ, integer, , , default value , 32, , , the monomial size, see , Macaulay2Doc :: MonomialSize, VariableBaseName, => , a , Macaulay2Doc :: Symbol, symbol, , , default value , "p", , , the variable base name, see , Macaulay2Doc :: VariableBaseName, Outputs:, an , Macaulay2Doc :: Ideal, ideal, , , the ideal of the graph of regular map corresponding to , f, Description, class => examples, i1 : R = QQ[x,y]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : S = QQ[s,t,u]
+
+o2 = S
+
+o2 : PolynomialRing, class => language-macaulay2, i3 : f = map(R,S,{x^2,x*y,y^2)
+
+ 2 2
+o3 = map (R, S, {x , x*y, y )
+
+o3 : RingMap R <-- S, class => language-macaulay2, i4 : graphIdeal f
+
+ 2 2
+o4 = ideal (- p + p , - p p + p , - p + p )
+ 0 2 0 1 3 1 4
+
+o4 : Ideal of QQ[p ..p ]
+ 0 4, class => language-macaulay2, See also, Macaulay2Doc :: graphRing, class => waystouse, Ways to use , graphIdeal, :, Macaulay2Doc :: graphIdeal(RingMap), class => waystouse, For the programmer, The object , Macaulay2Doc :: graphIdeal, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/graphIdeal-doc.m2:20:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `graphIdeal(RingMap)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[x,y]
+
+o1 = R
+
+o1 : PolynomialRing
+
+i2 : S = QQ[s,t,u]
+
+o2 = S
+
+o2 : PolynomialRing
+```
+
+## See Also
+

@@ -1,0 +1,88 @@
+---
+title: "support"
+kind: Function
+---
+
+# support
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+support, -- list of variables occurring in a polynomial or matrix, class => element, Usage: , support f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingElement, ring element, , , or , a , Macaulay2Doc :: Matrix, matrix, over a polynomial ring, Outputs:, a , Macaulay2Doc :: List, list, , , of , Macaulay2Doc :: RingElement, ring elements, , the variables occurring in , f, Description, class => examples, i1 : R = QQ[a..g]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : f = a^3+b^2*c+3*f^10*d-1+e-e
+
+ 10 3 2
+o2 = 3d*f + a + b c - 1
+
+o2 : R, class => language-macaulay2, i3 : support f
+
+o3 = {a, b, c, d, f
+
+o3 : List, class => language-macaulay2, class => examples, i4 : M = matrix"a+b2,c+g2;c,a-1"
+
+o4 = | b2+a g2+c |
+ | c a-1 |
+
+ 2 2
+o4 : Matrix R <-- R, class => language-macaulay2, i5 : support M
+
+o5 = {a, b, c, g
+
+o5 : List, class => language-macaulay2, If the ring is a polynomial ring over another polynomial ring, then the support contains all of the variables, even the ones in the coefficient ring. The ring of each of these is the ring of f., class => examples, i6 : A = ZZ[a,b]; B = A[r,s,t]; C = B[x,y,z,w];, class => language-macaulay2, i9 : f = (a+r+z+1)^2+y
+
+ 2 2 2
+o9 = z + y + (2r + 2a + 2)z + r + (2a + 2)r + a + 2a + 1
+
+o9 : C, class => language-macaulay2, i10 : S = support f
+
+o10 = {y, z, r, a
+
+o10 : List, class => language-macaulay2, i11 : ring S_2 === ring f
+
+o11 = true, class => language-macaulay2, Here is one way to select only the top level variables., class => examples, i12 : select(S, x -> index x < numgens C)
+
+o12 = {y, z
+
+o12 : List, class => language-macaulay2, To obtain a list of the integer indices of the variables one can use either , Macaulay2Doc :: indices(RingElement), or apply , Macaulay2Doc :: index, to each variable., class => examples, i13 : indices f
+
+o13 = {1, 2, 4, 7
+
+o13 : List, class => language-macaulay2, i14 : apply(support f, index)
+
+o14 = {1, 2, 4, 7
+
+o14 : List, class => language-macaulay2, See also, Macaulay2Doc :: index, Macaulay2Doc :: indices(RingElement), Macaulay2Doc :: indices(Matrix), Macaulay2Doc :: Ring _ ZZ, class => waystouse, Ways to use , support, :, support(Matrix), support(RingElement), Macaulay2Doc :: support(Ideal), class => waystouse, For the programmer, The object , Macaulay2Doc :: support, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/support-doc.m2:41:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `support(Matrix)`
+- `support(RingElement)`
+- `support(Ideal)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[a..g]
+
+o1 = R
+
+o1 : PolynomialRing
+
+i2 : f = a^3+b^2*c+3*f^10*d-1+e-e
+
+         10    3    2
+o2 = 3d*f   + a  + b c - 1
+
+o2 : R
+```
+
+## See Also
+

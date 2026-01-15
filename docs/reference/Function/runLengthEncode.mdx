@@ -1,0 +1,45 @@
+---
+title: "runLengthEncode"
+kind: Function
+---
+
+# runLengthEncode
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+runLengthEncode, -- run length encoding, class => element, Usage: , runLengthEncode x, class => language-macaulay2, Inputs:, x, Outputs:, a list equivalent to , x, , in which runs and sequences have been expressed symbolically as , Macaulay2Doc :: Expression, expressions, Description, The result is useful in printed displays, as a way of making them more compact. , The original list can be recovered by applying , Macaulay2Doc :: value, to the elements of the result, and then using , Macaulay2Doc :: deepSplice, , provided that , x, contains no entries that are sequences., class => examples, i1 : x = {1,2,3,a,b,c,a,b,c,4,4,4,"asdf";, class => language-macaulay2, i2 : y = runLengthEncode x
+
+o2 = {1..3, 2:a..c, 3:4, asdf
+
+o2 : List, class => language-macaulay2, i3 : peek y
+
+o3 = {BinaryOperation{.., 1, 3, BinaryOperation{:, 2, a..c,
+ ------------------------------------------------------------------------
+ BinaryOperation{:, 3, 4, Holder{asdf, class => language-macaulay2, i4 : value \ y
+
+o4 = {(1, 2, 3), ((a, b, c), (a, b, c)), (4, 4, 4), asdf
+
+o4 : List, class => language-macaulay2, i5 : deepSplice \\ oo
+
+o5 = {1, 2, 3, a, b, c, a, b, c, 4, 4, 4, asdf
+
+o5 : List, class => language-macaulay2, i6 : x === oo
+
+o6 = true, class => language-macaulay2, See also, Macaulay2Doc :: BinaryOperation, Macaulay2Doc :: Holder, class => waystouse, Ways to use , runLengthEncode, :, runLengthEncode(VisibleList), class => waystouse, For the programmer, The object , Macaulay2Doc :: runLengthEncode, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_lists.m2:849:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `runLengthEncode(VisibleList)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

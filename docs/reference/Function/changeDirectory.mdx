@@ -1,0 +1,37 @@
+---
+title: "changeDirectory"
+kind: Function
+---
+
+# changeDirectory
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+changeDirectory, -- change the current working directory, class => element, Usage: , changeDirectory dir, class => language-macaulay2, Inputs:, dir, , , a , Macaulay2Doc :: String, string, , , Outputs:, a , Macaulay2Doc :: String, string, , , the new working directory; , Description, Change the current working directory to , dir, ., class => examples, i1 : dir = temporaryFileName()
+
+o1 = /tmp/M2-705221-0/0, class => language-macaulay2, i2 : makeDirectory dir
+
+o2 = /tmp/M2-705221-0/0, class => language-macaulay2, i3 : changeDirectory dir
+
+o3 = /tmp/M2-705221-0/0/, class => language-macaulay2, i4 : currentDirectory()
+
+o4 = /tmp/M2-705221-0/0/, class => language-macaulay2, If , dir, is omitted, then the current working directory is changed to the user's home directory., See also, Macaulay2Doc :: currentDirectory, class => waystouse, For the programmer, The object , Macaulay2Doc :: changeDirectory, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:717:0, .
+
+## Examples
+
+```macaulay2
+i1 : dir = temporaryFileName()
+
+o1 = /tmp/M2-705221-0/0
+
+i2 : makeDirectory dir
+
+o2 = /tmp/M2-705221-0/0
+```
+
+## See Also
+

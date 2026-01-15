@@ -1,0 +1,37 @@
+---
+title: "throw"
+kind: Operator
+---
+
+# throw
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+throw, -- throw and catch exceptions, class => element, Usage: , catch c, class => language-macaulay2, throw x, class => language-macaulay2, Outputs:, catch, returns the value obtained by evaluating the code , c, , or, if a , throw, was executed during the evaluation of , c, , the argument given to , throw, ., Consequences:, throw, passes the flow of control to the surrounding , catch, , and , x, is returned as its value, Description, class => examples, i1 : catch scan(0..10, i -> if i == 5 then throw 18 else print i)
+0
+1
+2
+3
+4
+
+o1 = 18, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: throw, is , a , Macaulay2Doc :: Keyword, keyword, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_language.m2:598:0, .
+
+## Examples
+
+```macaulay2
+i1 : catch scan(0..10, i -> if i == 5 then throw 18 else print i)
+0
+1
+2
+3
+4
+
+o1 = 18
+```
+
+## See Also
+

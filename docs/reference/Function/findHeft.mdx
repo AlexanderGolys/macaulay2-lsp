@@ -1,0 +1,35 @@
+---
+title: "findHeft"
+kind: Function
+---
+
+# findHeft
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+findHeft, -- find a heft vector for a list of degrees, class => element, Usage: , findHeft(degs, DegreeRank => r), class => language-macaulay2, Inputs:, degs, , , a , Macaulay2Doc :: List, list, , , of multi-degrees, each of which is a list of integers of fixed length , r, , Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, DegreeRank, => , an , Macaulay2Doc :: ZZ, integer, , , default value , null, DegreeGroup, => , ..., , , default value , null, Outputs:, a , Macaulay2Doc :: List, list, , , of integers of length , r, , or, Macaulay2Doc :: null, , if there is none, Description, findHeft, returns a weight co-vector whose dot product with each member of , degs, is strictly positive., class => examples, i1 : findHeft({{-1,0, {2,1, DegreeRank => 2)
+
+o1 = {-1, 3
+
+o1 : List, class => language-macaulay2, i2 : findHeft({, DegreeRank => 0)
+
+o2 = {
+
+o2 : List, class => language-macaulay2, See also, Macaulay2Doc :: heft, class => waystouse, Ways to use , findHeft, :, findHeft(List), class => waystouse, For the programmer, The object , Macaulay2Doc :: findHeft, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/heft-doc.m2:111:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `findHeft(List)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

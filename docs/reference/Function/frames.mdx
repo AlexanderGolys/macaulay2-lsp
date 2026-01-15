@@ -1,0 +1,58 @@
+---
+title: "frames"
+kind: Function
+---
+
+# frames
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+frames, -- get the frames associated to a closure, class => element, Usage: , frames f, class => language-macaulay2, Inputs:, f, , , () or , a , Macaulay2Doc :: Symbol, symbol, , , a , Macaulay2Doc :: Function, function, , or , an instance of the type , Macaulay2Doc :: PseudocodeClosure, Outputs:, a list of mutable lists, the frames attached to the closure , f, or, if , f, is , (), , then the frames attached to the current lexical scope, Description, This function is occasionally useful as a debugging tool., class => examples, i1 : f = (x,y,z) -> t -> t
+
+o1 = f
+
+o1 : FunctionClosure, class => language-macaulay2, i2 : g = f(111,222,"hi there")
+
+o2 = g
+
+o2 : FunctionClosure, class => language-macaulay2, i3 : frames g
+
+o3 = {MutableList{...3..., MutableList{
+
+o3 : List, class => language-macaulay2, i4 : peek first oo
+
+o4 = MutableList{111, 222, hi there, class => language-macaulay2, class => waystouse, Ways to use , frames, :, frames(CompiledFunction), frames(CompiledFunctionClosure), frames(FunctionClosure), frames(PseudocodeClosure), frames(Sequence), frames(Symbol), class => waystouse, For the programmer, The object , Macaulay2Doc :: frames, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:181:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `frames(FunctionClosure)`
+- `frames(Sequence)`
+- `frames(Symbol)`
+- `frames(CompiledFunctionClosure)`
+- `frames(PseudocodeClosure)`
+- `frames(CompiledFunction)`
+
+## Examples
+
+```macaulay2
+i1 : f = (x,y,z) -> t -> t
+
+o1 = f
+
+o1 : FunctionClosure
+
+i2 : g = f(111,222,"hi there")
+
+o2 = g
+
+o2 : FunctionClosure
+```
+
+## See Also
+

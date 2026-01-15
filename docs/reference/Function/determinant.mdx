@@ -1,0 +1,68 @@
+---
+title: "determinant"
+kind: Function
+---
+
+# determinant
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+determinant, -- determinant of a matrix, class => element, Usage: , det M, class => language-macaulay2, Inputs:, M, , , a square , Macaulay2Doc :: Matrix, matrix, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Macaulay2Doc :: determinant(...,Strategy=>...), Strategy, => , ..., , , default value , null, , , choose between Bareiss, Cofactor and Dynamic algorithms, Outputs:, a , Macaulay2Doc :: RingElement, ring element, , , which is the determinant of , M, Description, class => examples, i1 : R = QQ[vars(0..8)]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : M = genericMatrix(R,2,2)
+
+o2 = | a c |
+ | b d |
+
+ 2 2
+o2 : Matrix R <-- R, class => language-macaulay2, i3 : det M
+
+o3 = - b*c + a*d
+
+o3 : R, class => language-macaulay2, i4 : N = genericMatrix(R,3,3)
+
+o4 = | a d g |
+ | b e h |
+ | c f i |
+
+ 3 3
+o4 : Matrix R <-- R, class => language-macaulay2, i5 : det N
+
+o5 = - c*e*g + b*f*g + c*d*h - a*f*h - b*d*i + a*e*i
+
+o5 : R, class => language-macaulay2, See also, Macaulay2Doc :: exteriorPower, Macaulay2Doc :: minors, Macaulay2Doc :: permanents, Macaulay2Doc :: pfaffians, Macaulay2Doc :: determinant(...,Strategy=>...), Macaulay2Doc :: Bareiss, Macaulay2Doc :: Cofactor, Macaulay2Doc :: Dynamic, class => waystouse, Ways to use , determinant, :, determinant(Matrix), determinant(MutableMatrix), Varieties :: determinant(CoherentSheaf), class => waystouse, For the programmer, The object , Macaulay2Doc :: determinant, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/det-doc.m2:25:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `determinant(Matrix)`
+- `determinant(MutableMatrix)`
+- `determinant(CoherentSheaf)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[vars(0..8)]
+
+o1 = R
+
+o1 : PolynomialRing
+
+i2 : M = genericMatrix(R,2,2)
+
+o2 = | a c |
+     | b d |
+
+             2      2
+o2 : Matrix R  <-- R
+```
+
+## See Also
+

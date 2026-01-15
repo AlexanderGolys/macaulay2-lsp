@@ -1,0 +1,57 @@
+---
+title: "selectPairs"
+kind: Function
+---
+
+# selectPairs
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+selectPairs, -- select a part of a hash table by pairs, class => element, Usage: , selectPairs(x, f), class => language-macaulay2, selectPairs(n, x, f), class => language-macaulay2, Inputs:, n, , , an , Macaulay2Doc :: ZZ, integer, , , x, , , a , Macaulay2Doc :: HashTable, hash table, or , a , Macaulay2Doc :: BasicList, basic list, , , f, , , a , Macaulay2Doc :: Function, function, , , Outputs:, a , Macaulay2Doc :: HashTable, hash table, or , a , Macaulay2Doc :: BasicList, basic list, , , containing all (or , n, , if it is given) key-value pairs (, k, ,, v, ) from , x, for which , f(k,v), evaluates to true., Description, class => examples, i1 : x = hashTable{(1, 2), (2, 4), (3, 6), (4, 8), (5, 10)
+
+o1 = HashTable{1 => 2 
+ 2 => 4
+ 3 => 6
+ 4 => 8
+ 5 => 10
+
+o1 : HashTable, class => language-macaulay2, i2 : selectPairs(x, (k,v) -> odd(k + v))
+
+o2 = HashTable{1 => 2 
+ 3 => 6
+ 5 => 10
+
+o2 : HashTable, class => language-macaulay2, i3 : selectPairs(2, x, (k, v) -> odd(k + v))
+
+o3 = HashTable{1 => 2
+ 3 => 6
+
+o3 : HashTable, class => language-macaulay2, If , x, is not a hash table, then , select(pairs x, f), class => language-macaulay2, (or , select(n, pairs x, f), class => language-macaulay2, ) is called., class => examples, i4 : selectPairs(toList(1..10), (i, x) -> even x)
+
+o4 = {(1, 2), (3, 4), (5, 6), (7, 8), (9, 10)
+
+o4 : List, class => language-macaulay2, i5 : selectPairs(3, toList(1..10), (i, x) -> even x)
+
+o5 = {(1, 2), (3, 4), (5, 6)
+
+o5 : List, class => language-macaulay2, Caveat, If , x, is a hash table, then it must be immutable., See also, Macaulay2Doc :: selectValues, Macaulay2Doc :: selectKeys, class => waystouse, Ways to use , selectPairs, :, selectPairs(BasicList,Function), selectPairs(HashTable,Function), selectPairs(ZZ,BasicList,Function), selectPairs(ZZ,HashTable,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: selectPairs, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/select-doc.m2:295:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `selectPairs(HashTable, Function)`
+- `selectPairs(BasicList, Function)`
+- `selectPairs(ZZ, HashTable, Function)`
+- `selectPairs(ZZ, BasicList, Function)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

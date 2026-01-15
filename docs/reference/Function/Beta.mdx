@@ -1,0 +1,50 @@
+---
+title: "Beta"
+kind: Function
+---
+
+# Beta
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+Beta, -- Beta function, class => element, Usage: , Beta(x, y), class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: RR, real number, , , y, , , a , Macaulay2Doc :: RR, real number, , , Outputs:, a , Macaulay2Doc :: RR, real number, , , the beta function of , x, and , y, ; , Description, This is the , https://en.wikipedia.org/wiki/beta_function, beta function, \(B(x,y) = \int_0^1 t^{x - 1(1 - t)^{y - 1\,dt\)., class => examples, i1 : Beta(3, 4)
+
+o1 = .01666666666666667
+
+o1 : RR (of precision 53), class => language-macaulay2, See also, Macaulay2Doc :: regularizedBeta, Macaulay2Doc :: inverseRegularizedBeta, class => waystouse, Ways to use , Beta, :, Beta(CC,CC), Beta(CC,RR), Beta(RR,CC), Beta(RR,RR), Beta(RR,RRi), Beta(RRi,RR), Beta(RRi,RRi), class => waystouse, For the programmer, The object , Macaulay2Doc :: Beta, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/Beta-doc.m2:30:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `Beta(Number, RR)`
+- `Beta(Number, RRi)`
+- `Beta(Number, CC)`
+- `Beta(CC, Number)`
+- `Beta(RR, Number)`
+- `Beta(RRi, Number)`
+- `Beta(Number, Number)`
+- `Beta(CC, CC)`
+- `Beta(RR, CC)`
+- `Beta(CC, RR)`
+- `Beta(RR, RR)`
+- `Beta(RR, RRi)`
+- `Beta(RRi, RR)`
+- `Beta(RRi, RRi)`
+
+## Examples
+
+```macaulay2
+i1 : Beta(3, 4)
+
+o1 = .01666666666666667
+
+o1 : RR (of precision 53)
+```
+
+## See Also
+

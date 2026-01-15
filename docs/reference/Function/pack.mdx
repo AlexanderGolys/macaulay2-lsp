@@ -1,0 +1,56 @@
+---
+title: "pack"
+kind: Function
+---
+
+# pack
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+pack, -- pack elements of a list or string into several shorter lists or strings, class => element, Usage: , pack(A, n), class => language-macaulay2, pack(n, A), class => language-macaulay2, Inputs:, A, , , a , Macaulay2Doc :: BasicList, basic list, or , a , Macaulay2Doc :: String, string, , , n, , , an , Macaulay2Doc :: ZZ, integer, , , how many elements of , A, to put in each new list or string, Outputs:, L, , , a , Macaulay2Doc :: List, list, , , a list of lists or strings, with the elements of , A, taken , n, at a time., Description, The commands , pack(A, n), and , pack(n, A), produce identical results., class => examples, i1 : pack(a..l, 3)
+
+o1 = {{a, b, c, {d, e, f, {g, h, i, {j, k, l
+
+o1 : List, class => language-macaulay2, i2 : pack(3, a..l)
+
+o2 = {{a, b, c, {d, e, f, {g, h, i, {j, k, l
+
+o2 : List, class => language-macaulay2, i3 : pack("Hello world!", 4)
+
+o3 = {Hell, o wo, rld!
+
+o3 : List, class => language-macaulay2, i4 : pack(4, "Hello world!")
+
+o4 = {Hell, o wo, rld!
+
+o4 : List, class => language-macaulay2, If , n, doesn't divide the length of , A, , the last list will have fewer than , n, elements., class => examples, i5 : pack(a..m, 3)
+
+o5 = {{a, b, c, {d, e, f, {g, h, i, {j, k, l, {m
+
+o5 : List, class => language-macaulay2, , pack, and , Macaulay2Doc :: mingle, can be used together to take a transpose of lists, class => examples, i6 : pack(2, mingle(a..m, 0..12))
+
+o6 = {{a, 0, {b, 1, {c, 2, {d, 3, {e, 4, {f, 5, {g, 6, {h, 7, {i, 8,
+ ------------------------------------------------------------------------
+ {j, 9, {k, 10, {l, 11, {m, 12
+
+o6 : List, class => language-macaulay2, See also, Macaulay2Doc :: mingle, Macaulay2Doc :: sort, Macaulay2Doc :: sublists, Macaulay2Doc :: take, Macaulay2Doc :: lists and sequences, class => waystouse, Ways to use , pack, :, pack(BasicList,ZZ), pack(String,ZZ), pack(ZZ,BasicList), pack(ZZ,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: pack, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/pack-doc.m2:47:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `pack(BasicList, ZZ)`
+- `pack(String, ZZ)`
+- `pack(ZZ, BasicList)`
+- `pack(ZZ, String)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

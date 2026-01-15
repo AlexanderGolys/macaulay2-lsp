@@ -1,0 +1,70 @@
+---
+title: "gbRemove"
+kind: Function
+---
+
+# gbRemove
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+gbRemove, -- remove Gröbner basis, class => element, Usage: , gbRemove M, class => language-macaulay2, Inputs:, M, , , an , Macaulay2Doc :: Ideal, ideal, , , a , Macaulay2Doc :: Matrix, matrix, , or , a , Macaulay2Doc :: Module, module, Consequences:, all Gröbner bases computed for M are removed, Description, This is a simple way to remove the space associated with large Gröbner bases that are no longer needed., class => examples, i1 : R = ZZ[a]/(a^2-3)[x,y]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : F = y^2-x*(x-1)*(x-a)
+
+ 3 2 2
+o2 = - x + (a + 1)x + y - a*x
+
+o2 : R, class => language-macaulay2, i3 : J = ideal(diff(x,F),diff(y,F),F)
+
+ 2 3 2 2
+o3 = ideal (- 3x + (2a + 2)x - a, 2y, - x + (a + 1)x + y - a*x)
+
+o3 : Ideal of R, class => language-macaulay2, i4 : gens gb J
+
+o4 = | 12 6a+6 2y 4x-2a+6 (2a+2)x+2a+6 y2+2x-a-3 x2+3a |
+
+ 1 7
+o4 : Matrix R <-- R, class => language-macaulay2, i5 : peek J.generators.cache
+
+o5 = CacheTable{GroebnerBasisOptions{HardDegreeLimit => null => GroebnerBasis[status: done; S-pairs encountered up to degree 8]
+ Syzygies => false
+ SyzygyRows => 0
+ image => image | -3x2+(2a+2)x-a 2y -x3+(a+1)x2+y2-ax |
+ isHomogeneous => false, class => language-macaulay2, i6 : gbRemove J, class => language-macaulay2, i7 : peek J.generators.cache
+
+o7 = CacheTable{image => image | -3x2+(2a+2)x-a 2y -x3+(a+1)x2+y2-ax |
+ isHomogeneous => false, class => language-macaulay2, See also, Macaulay2Doc :: gb, Macaulay2Doc :: gbTrace, Macaulay2Doc :: gbSnapshot, class => waystouse, Ways to use , gbRemove, :, gbRemove(Ideal), gbRemove(Matrix), gbRemove(Module), class => waystouse, For the programmer, The object , Macaulay2Doc :: gbRemove, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/gbRemove-doc.m2:28:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `gbRemove(Module)`
+- `gbRemove(Ideal)`
+- `gbRemove(Matrix)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ[a]/(a^2-3)[x,y]
+
+o1 = R
+
+o1 : PolynomialRing
+
+i2 : F = y^2-x*(x-1)*(x-a)
+
+        3           2    2
+o2 = - x  + (a + 1)x  + y  - a*x
+
+o2 : R
+```
+
+## See Also
+

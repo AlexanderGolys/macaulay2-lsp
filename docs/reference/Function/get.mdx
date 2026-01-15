@@ -1,0 +1,46 @@
+---
+title: "get"
+kind: Function
+---
+
+# get
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+get, -- get the contents of a file, class => element, Usage: , get f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: File, file, or , a , Macaulay2Doc :: String, string, . If , f, is a string, then it is opened, as with , Macaulay2Doc :: openIn, . Filenames starting with , !, or with , $, are treated specially, see , Macaulay2Doc :: openInOut, ., Outputs:, a string containing the contents of the file. If the file was already open and partially read, the remainder of the contents of the file are returned., Consequences:, In the case where , f, is a file, its input side is closed., Description, class => examples, i1 : "test-file" << "hi there" << close
+
+o1 = test-file
+
+o1 : File, class => language-macaulay2, i2 : get "test-file"
+
+o2 = hi there, class => language-macaulay2, i3 : removeFile "test-file", class => language-macaulay2, i4 : get "!date"
+
+o4 = Wed Jan 7 03:50:53 PM CET 2026, class => language-macaulay2, See also, Macaulay2Doc :: read, Macaulay2Doc :: removeFile, Macaulay2Doc :: close, Macaulay2Doc :: File << Thing, class => waystouse, Ways to use , get, :, get(File), get(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: get, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:340:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `get(File)`
+- `get(String)`
+
+## Examples
+
+```macaulay2
+i1 : "test-file" << "hi there" << close
+
+o1 = test-file
+
+o1 : File
+
+i2 : get "test-file"
+
+o2 = hi there
+```
+
+## See Also
+

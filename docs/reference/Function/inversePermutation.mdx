@@ -1,0 +1,55 @@
+---
+title: "inversePermutation"
+kind: Function
+---
+
+# inversePermutation
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+inversePermutation, -- inverse permutation, class => element, Usage: , y = inversePermutation x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: List, list, , , a list of length , n, whose elements are the numbers 0, 1, 2, ..., , n-1, , in some order, representing the permutation defined by sending , i, to , x#i, Outputs:, y, , , a , Macaulay2Doc :: List, list, , , the list representing the inverse permutation of , x, Description, class => examples, i1 : x = {1,2,3,4,5,0
+
+o1 = {1, 2, 3, 4, 5, 0
+
+o1 : List, class => language-macaulay2, i2 : y = inversePermutation x
+
+o2 = {5, 0, 1, 2, 3, 4
+
+o2 : List, class => language-macaulay2, i3 : all(#x, i -> x#(y#i) == i)
+
+o3 = true, class => language-macaulay2, i4 : all(#x, i -> y#(x#i) == i)
+
+o4 = true, class => language-macaulay2, We compose permutations with , _, ; see , Macaulay2Doc :: VisibleList _ List, ., class => examples, i5 : x_x_x
+
+o5 = {3, 4, 5, 0, 1, 2
+
+o5 : List, class => language-macaulay2, i6 : x_x_x_x_x_x
+
+o6 = {0, 1, 2, 3, 4, 5
+
+o6 : List, class => language-macaulay2, i7 : x_y
+
+o7 = {0, 1, 2, 3, 4, 5
+
+o7 : List, class => language-macaulay2, i8 : y_x
+
+o8 = {0, 1, 2, 3, 4, 5
+
+o8 : List, class => language-macaulay2, class => waystouse, Ways to use , inversePermutation, :, inversePermutation(VisibleList), class => waystouse, For the programmer, The object , Macaulay2Doc :: inversePermutation, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/permutations-doc.m2:63:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `inversePermutation(VisibleList)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

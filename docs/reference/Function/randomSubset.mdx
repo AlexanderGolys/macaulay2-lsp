@@ -1,0 +1,56 @@
+---
+title: "randomSubset"
+kind: Function
+---
+
+# randomSubset
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+randomSubset, , class => element, Usage: , randomSubset(x, n), class => language-macaulay2, randomSubset x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: VisibleList, visible list, , , a , Macaulay2Doc :: Set, set, , or , an , Macaulay2Doc :: ZZ, integer, , , n, , , an , Macaulay2Doc :: ZZ, integer, , , Description, When , n, is given, then a random subset , x, of cardinality , n, is returned., class => examples, i1 : randomSubset({2, 3, 5, 7, 11, 2)
+
+o1 = {3, 5
+
+o1 : List, class => language-macaulay2, Otherwise, a random subset of arbitrary cardinality is returned., class => examples, i2 : randomSubset {2, 3, 5, 7, 11
+
+o2 = {7
+
+o2 : List, class => language-macaulay2, i3 : randomSubset {2, 3, 5, 7, 11
+
+o3 = {2, 5, 7, 11
+
+o3 : List, class => language-macaulay2, i4 : randomSubset {2, 3, 5, 7, 11
+
+o4 = {2, 3, 5, 7
+
+o4 : List, class => language-macaulay2, If , x, is an integer, then a subset of $\{0,\ldots,x - 1\$ is returned., class => examples, i5 : randomSubset(4, 2)
+
+o5 = {0, 1
+
+o5 : List, class => language-macaulay2, i6 : randomSubset 5
+
+o6 = {1
+
+o6 : List, class => language-macaulay2, References, Knuth, Donald E. , The Art of Computer Programming: Seminumerical Algorithms, Volume 2, . Addison-Wesley Professional, 2014. (Algorithm S, Section 3.4.2), See also, Macaulay2Doc :: random, class => waystouse, Ways to use , randomSubset, :, randomSubset(Set), randomSubset(Set,ZZ), randomSubset(VisibleList), randomSubset(VisibleList,ZZ), randomSubset(ZZ), randomSubset(ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: randomSubset, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/randomSubset-doc.m2:41:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `randomSubset(ZZ, ZZ)`
+- `randomSubset(ZZ)`
+- `randomSubset(VisibleList, ZZ)`
+- `randomSubset(VisibleList)`
+- `randomSubset(Set, ZZ)`
+- `randomSubset(Set)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

@@ -1,0 +1,72 @@
+---
+title: "weightRange"
+kind: Function
+---
+
+# weightRange
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+weightRange, -- the pair of lowest and highest weights of the monomials, Description, Synopsis, class => element, Usage: , (lo,hi) = weightRange(w,f), class => language-macaulay2, Inputs:, w, , , a , Macaulay2Doc :: List, list, , , of integers, the weight of each variable, f, , , a , Macaulay2Doc :: RingElement, ring element, , , in a polynomial ring, Outputs:, lo, , , an , Macaulay2Doc :: ZZ, integer, , , the least weight of the monomials of , f, hi, , , an , Macaulay2Doc :: ZZ, integer, , , the greatest weight of the monomials of , f, The weight of a monomial is the dot product of w and the exponent vector. If the weight vector has length smaller than the number of variables, the other variables are assumed to have weight zero. If there are too many weights given, the extras are silently ignored., class => examples, i1 : R = QQ[a..g]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : f = a^3+b^2*c+3*f^10*d-1+e-e
+
+ 10 3 2
+o2 = 3d*f + a + b c - 1
+
+o2 : R, class => language-macaulay2, i3 : weightRange({1,1,0,0,0,0,0,f)
+
+o3 = (0, 3)
+
+o3 : Sequence, class => language-macaulay2, Use , Macaulay2Doc :: terms, and , Macaulay2Doc :: weightRange, together to select the terms which have a given weight., class => examples, i4 : f = a^2*b+3*a^2*c+b*c+1
+
+ 2 2
+o4 = a b + 3a c + b*c + 1
+
+o4 : R, class => language-macaulay2, i5 : sum select(terms f, t -> (weightRange({1,0,t))#0 == 2)
+
+ 2 2
+o5 = a b + 3a c
+
+o5 : R, class => language-macaulay2, If the coefficient ring is a polynomial ring, one can use the weights of these variables too. The order of weights is the same as the order of variables (see , Macaulay2Doc :: index, ), class => examples, i6 : S = R[x,y];, class => language-macaulay2, i7 : weightRange({0,0,3,7,a*x^2+b*x*y)
+
+o7 = (3, 7)
+
+o7 : Sequence, class => language-macaulay2, Synopsis, class => element, Usage: , (lo,hi) = weightRange f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingElement, ring element, Outputs:, lo, , , an , Macaulay2Doc :: ZZ, integer, , , the minimum value for (the first component of) the degrees of the monomials occurring in , f, hi, , , an , Macaulay2Doc :: ZZ, integer, , , the corresponding maximum value, class => examples, i8 : R = QQ[x,y];, class => language-macaulay2, i9 : weightRange (x^3+y^2)^5
+
+o9 = (10, 15)
+
+o9 : Sequence, class => language-macaulay2, See also, Macaulay2Doc :: degree, Macaulay2Doc :: homogenize, Macaulay2Doc :: part, Macaulay2Doc :: index, class => waystouse, Ways to use , weightRange, :, weightRange(List,RingElement), weightRange(RingElement), class => waystouse, For the programmer, The object , Macaulay2Doc :: weightRange, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/weightRange-doc.m2:53:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `weightRange(List, RingElement)`
+- `weightRange(RingElement)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[a..g]
+
+o1 = R
+
+o1 : PolynomialRing
+
+i2 : f = a^3+b^2*c+3*f^10*d-1+e-e
+
+         10    3    2
+o2 = 3d*f   + a  + b c - 1
+
+o2 : R
+```
+
+## See Also
+

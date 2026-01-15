@@ -1,0 +1,42 @@
+---
+title: "isCommutative"
+kind: Function
+---
+
+# isCommutative
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isCommutative, -- whether a ring is commutative, class => element, Usage: , isCommutative R, class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: Ring, ring, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Macaulay2Doc :: true, if the , Macaulay2Doc :: Ring, ring, , R, is commutative and , Macaulay2Doc :: false, otherwise, Description, class => examples, i1 : isCommutative(QQ[x,y])
+
+o1 = true, class => language-macaulay2, i2 : isCommutative(QQ[x,y, SkewCommutative => true])
+
+o2 = false, class => language-macaulay2, i3 : isCommutative(QQ[x,dx, WeylAlgebra => {x => dx])
+
+o3 = false, class => language-macaulay2, See also, Macaulay2Doc :: WeylAlgebra, Macaulay2Doc :: SkewCommutative, class => waystouse, Ways to use , isCommutative, :, isCommutative(Ring), Varieties :: isCommutative(SheafOfRings), class => waystouse, For the programmer, The object , Macaulay2Doc :: isCommutative, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isCommutative-doc.m2:23:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isCommutative(Ring)`
+- `isCommutative(SheafOfRings)`
+
+## Examples
+
+```macaulay2
+i1 : isCommutative(QQ[x,y])
+
+o1 = true
+
+i2 : isCommutative(QQ[x,y, SkewCommutative => true])
+
+o2 = false
+```
+
+## See Also
+

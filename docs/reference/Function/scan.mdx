@@ -1,0 +1,54 @@
+---
+title: "scan"
+kind: Function
+---
+
+# scan
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+scan, -- apply a function to each element in a list or sequence, class => element, Usage: , scan(L, f), class => language-macaulay2, scan(L, L', f), class => language-macaulay2, scan(n, f), class => language-macaulay2, Inputs:, L, , , a , Macaulay2Doc :: BasicList, basic list, , , or instance of a class with the , Macaulay2Doc :: iterator, method installed, n, , , an , Macaulay2Doc :: ZZ, integer, , , f, , , a , Macaulay2Doc :: Function, function, , , Description, , scan(L, f), applies the function , f, to each element of the list , L, . The function values are discarded., class => examples, i1 : scan({a, 4, "George", 2^100, print)
+a
+4
+George
+1267650600228229401496703205376, class => language-macaulay2, i2 : scan("foo", print)
+f
+o
+o, class => language-macaulay2, , scan(n, f), applies the function , f, to each element of the list 0, 1, ..., n-1, class => examples, i3 : scan(4, print)
+0
+1
+2
+3, class => language-macaulay2, i4 : v = {a,b,c; scan(#v, i -> print(i,v#i))
+(0, a)
+(1, b)
+(2, c), class => language-macaulay2, The keyword , Macaulay2Doc :: break, can be used to terminate the scan prematurely, and optionally to specify a return value for the expression. Here we use it to locate the first even number in a list., class => examples, i6 : scan({3,5,7,11,44,55,77, i -> if even i then break i)
+
+o6 = 44, class => language-macaulay2, If , L, is an instance of a class with the , Macaulay2Doc :: iterator, method installed (e.g., a string), then , f, is applied to the values obtained by repeatedly calling , Macaulay2Doc :: next, on the output of , iterator L, until , Macaulay2Doc :: StopIteration, is returned., class => examples, i7 : scan("foo", print)
+f
+o
+o, class => language-macaulay2, See also, Macaulay2Doc :: apply, Macaulay2Doc :: accumulate, Macaulay2Doc :: fold, Macaulay2Doc :: lists and sequences, class => waystouse, Ways to use , scan, :, scan(BasicList,BasicList,Function), scan(BasicList,Function), scan(Thing,Function), scan(ZZ,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: scan, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/scan-doc.m2:54:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `scan(ZZ, Function)`
+- `scan(Thing, Function)`
+- `scan(BasicList, Function)`
+- `scan(BasicList, BasicList, Function)`
+
+## Examples
+
+```macaulay2
+i2 : scan("foo", print)
+f
+o
+o
+```
+
+## See Also
+

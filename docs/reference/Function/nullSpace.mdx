@@ -1,0 +1,46 @@
+---
+title: "nullSpace"
+kind: Function
+---
+
+# nullSpace
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+nullSpace, -- find the null space of a mutable matrix, class => element, Usage: , nullSpace m, class => language-macaulay2, Inputs:, m, , , a , Macaulay2Doc :: MutableMatrix, mutable matrix, , , over , Macaulay2Doc :: RR, or , Macaulay2Doc :: CC, Outputs:, a , Macaulay2Doc :: MutableMatrix, mutable matrix, , , a mutable matrix whose columns span the null space of , m, Description, class => examples, i1 : m = mutableMatrix {{1.p500,1,{-2,-2
+
+o1 = | 1 1 |
+ | -2 -2 |
+
+o1 : MutableMatrix, class => language-macaulay2, i2 : nullSpace m
+
+o2 = | 1 |
+ | -1 |
+
+o2 : MutableMatrix, class => language-macaulay2, i3 : precision oo
+
+o3 = 500, class => language-macaulay2, class => waystouse, Ways to use , nullSpace, :, nullSpace(MutableMatrix), class => waystouse, For the programmer, The object , Macaulay2Doc :: nullSpace, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_mutablematrices.m2:311:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `nullSpace(MutableMatrix)`
+
+## Examples
+
+```macaulay2
+i2 : nullSpace m
+
+o2 = | 1  |
+     | -1 |
+
+o2 : MutableMatrix
+```
+
+## See Also
+

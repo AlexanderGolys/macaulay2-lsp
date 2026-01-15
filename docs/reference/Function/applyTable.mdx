@@ -1,0 +1,63 @@
+---
+title: "applyTable"
+kind: Function
+---
+
+# applyTable
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+applyTable, -- apply a function to each element of a table, class => element, Usage: , applyTable(T, f), class => language-macaulay2, Inputs:, T, , , a , Macaulay2Doc :: List, list, , , a table (list of lists of the same length), f, , , a , Macaulay2Doc :: Function, function, , , Outputs:, A, , , a , Macaulay2Doc :: List, list, , , a table of the same shape as $T$, where the function $f$ has been applied elementwise, Description, class => examples, i1 : t = table({1,3,5,7, {0,1,2,4, (i,j) -> i^j);, class => language-macaulay2, i2 : netList t
+
+ +-+-+--+----+
+o2 = |1|1|1 |1 |
+ +-+-+--+----+
+ |1|3|9 |81 |
+ +-+-+--+----+
+ |1|5|25|625 |
+ +-+-+--+----+
+ |1|7|49|2401|
+ +-+-+--+----+, class => language-macaulay2, i3 : netList applyTable(t, i -> 2*i)
+
+ +-+--+--+----+
+o3 = |2|2 |2 |2 |
+ +-+--+--+----+
+ |2|6 |18|162 |
+ +-+--+--+----+
+ |2|10|50|1250|
+ +-+--+--+----+
+ |2|14|98|4802|
+ +-+--+--+----+, class => language-macaulay2, i4 : netList applyTable(t, isPrime)
+
+ +-----+-----+-----+-----+
+o4 = |false|false|false|false|
+ +-----+-----+-----+-----+
+ |false|true |false|false|
+ +-----+-----+-----+-----+
+ |false|true |false|false|
+ +-----+-----+-----+-----+
+ |false|true |false|false|
+ +-----+-----+-----+-----+, class => language-macaulay2, See also, Macaulay2Doc :: isTable, Macaulay2Doc :: subtable, Macaulay2Doc :: table, Macaulay2Doc :: lists and sequences, class => waystouse, For the programmer, The object , Macaulay2Doc :: applyTable, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/table-doc.m2:66:0, .
+
+## Examples
+
+```macaulay2
+i2 : netList t
+
+     +-+-+--+----+
+o2 = |1|1|1 |1   |
+     +-+-+--+----+
+     |1|3|9 |81  |
+     +-+-+--+----+
+     |1|5|25|625 |
+     +-+-+--+----+
+     |1|7|49|2401|
+     +-+-+--+----+
+```
+
+## See Also
+

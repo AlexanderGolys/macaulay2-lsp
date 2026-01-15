@@ -1,0 +1,85 @@
+---
+title: "Hom"
+kind: Function
+---
+
+# Hom
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+Hom, -- module of homomorphisms, class => element, Usage: , Hom(M, N), class => language-macaulay2, Inputs:, M, , , a , Macaulay2Doc :: Ring, ring, , , an , Macaulay2Doc :: Ideal, ideal, , or , a , Macaulay2Doc :: Module, module, , , N, , , a , Macaulay2Doc :: Ring, ring, , , an , Macaulay2Doc :: Ideal, ideal, , or , a , Macaulay2Doc :: Module, module, , , Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, DegreeLimit, => , an , Macaulay2Doc :: ZZ, integer, or , a , Macaulay2Doc :: List, list, , , default value , null, , , if set, stop after homomorphisms in this degree have been computed, MinimalGenerators, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , true, , , whether to , Macaulay2Doc :: trim, the resulting module, Strategy, => , a , Macaulay2Doc :: Thing, thing, , , default value , null, Outputs:, a , Macaulay2Doc :: Module, module, , , isomorphic to $\mathrm{Hom_R(M,N)$, where $M$ and $N$ are both $R$-modules, Description, If $M$ or $N$ is an ideal or ring, it is regarded as a module in the evident way., class => examples, i1 : R = QQ[x,y]/(y^2 - x^3);, class => language-macaulay2, i2 : M = image matrix{{x, y
+
+o2 = image | x y |
+
+ 1
+o2 : R-module, submodule of R, class => language-macaulay2, i3 : H = Hom(M, M, MinimalGenerators => true)
+
+o3 = image {-1 | x y |
+ {-1 | y x2 |
+
+ 2
+o3 : R-module, submodule of R, class => language-macaulay2, To recover the modules used to create a Hom-module, use the function , Macaulay2Doc :: formation, ., class => examples, i4 : formation H
+
+o4 = Hom (image | x y |, image | x y |, DegreeLimit => null)
+
+o4 : Expression of class FunctionApplication, class => language-macaulay2, Specific homomorphisms may be obtained using , Macaulay2Doc :: homomorphism, , as follows., class => examples, i5 : f0 = homomorphism H_{0
+
+o5 = {1 | 1 0 |
+ {1 | 0 1 |
+
+o5 : Matrix M <-- M, class => language-macaulay2, i6 : f1 = homomorphism H_{1
+
+o6 = {1 | 0 x |
+ {1 | 1 0 |
+
+o6 : Matrix M <-- M, class => language-macaulay2, In the example above, , f0, is the identity map, and , f1, maps $x$ to $y$ and $y$ to $x^2$., class => examples, i7 : M_0, M_1
+
+o7 = (| x |, | y |)
+
+o7 : Sequence, class => language-macaulay2, i8 : f0 M_0, f0 M_1
+
+o8 = (| x |, | y |)
+
+o8 : Sequence, class => language-macaulay2, i9 : f1 M_0, f1 M_1
+
+o9 = (| y |, | x2 |)
+
+o9 : Sequence, class => language-macaulay2, Contributors, Devlin Mallory implemented the strategy which accepts a degree limit., See also, Macaulay2Doc :: Ext, Macaulay2Doc :: formation, Macaulay2Doc :: adjoint, Macaulay2Doc :: compose, Macaulay2Doc :: homomorphism, Macaulay2Doc :: homomorphism', Macaulay2Doc :: Hom(Module,Matrix), OldChainComplexes :: Hom(Module,ChainComplex), class => waystouse, Ways to use , Hom, :, Hom(Ideal,Ideal), Hom(Ideal,Module), Hom(Ideal,Ring), Hom(Module,Ideal), Hom(Module,Module), Hom(Module,Ring), Hom(Ring,Ideal), Hom(Ring,Module), Hom(Ring,Ring), Varieties :: Hom(CoherentSheaf,CoherentSheaf), Hom(CoherentSheaf,SheafOfRings), -- see , Varieties :: Hom(CoherentSheaf,CoherentSheaf), Hom(SheafOfRings,CoherentSheaf), -- see , Varieties :: Hom(CoherentSheaf,CoherentSheaf), Hom(SheafOfRings,SheafOfRings), -- see , Varieties :: Hom(CoherentSheaf,CoherentSheaf), Hom(ChainComplex,Module), -- see , OldChainComplexes :: Hom(Module,ChainComplex), Hom(ChainComplexMap,Module), -- see , OldChainComplexes :: Hom(Module,ChainComplex), OldChainComplexes :: Hom(Module,ChainComplex), Hom(Module,ChainComplexMap), -- see , OldChainComplexes :: Hom(Module,ChainComplex), Hom(Matrix,Matrix), -- see , Macaulay2Doc :: Hom(Module,Matrix), Hom(Matrix,Module), -- see , Macaulay2Doc :: Hom(Module,Matrix), Macaulay2Doc :: Hom(Module,Matrix), class => waystouse, For the programmer, The object , Macaulay2Doc :: Hom, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/Hom-doc.m2:127:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `Hom(Module, Ideal)`
+- `Hom(Ring, Module)`
+- `Hom(Module, Ring)`
+- `Hom(Ideal, Ring)`
+- `Hom(Ring, Ideal)`
+- `Hom(Ideal, Module)`
+- `Hom(Ideal, Ideal)`
+- `Hom(Ring, Ring)`
+- `Hom(Module, Module)`
+- `Hom(Matrix, Module)`
+- `Hom(Module, Matrix)`
+- `Hom(Matrix, Matrix)`
+- `Hom(ChainComplex, Module)`
+- `Hom(Module, ChainComplex)`
+- `Hom(ChainComplexMap, Module)`
+- `Hom(Module, ChainComplexMap)`
+- `Hom(SheafOfRings, SheafOfRings)`
+- `Hom(SheafOfRings, CoherentSheaf)`
+- `Hom(CoherentSheaf, SheafOfRings)`
+- `Hom(CoherentSheaf, CoherentSheaf)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[x,y]/(y^2 - x^3);
+```
+
+## See Also
+

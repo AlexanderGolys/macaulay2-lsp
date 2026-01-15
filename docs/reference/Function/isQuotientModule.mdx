@@ -1,0 +1,58 @@
+---
+title: "isQuotientModule"
+kind: Function
+---
+
+# isQuotientModule
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isQuotientModule, -- whether something is evidently a quotient of a free module, class => element, Usage: , isQuotientModule M, class => language-macaulay2, Inputs:, M, , , a , Macaulay2Doc :: Thing, thing, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Macaulay2Doc :: true, if the given representation of , M, a quotient of a free module., Description, This function checks if the module , M, is a quotient of its , Macaulay2Doc :: ambient, free module by examining its matrix of , Macaulay2Doc :: generators(Module), generators, ., class => examples, i1 : R = ZZ/101[a,b,c];, class => language-macaulay2, i2 : M = R^1/(a^2,b^2,c^2)
+
+o2 = cokernel | a2 b2 c2 |
+
+ 1
+o2 : R-module, quotient of R, class => language-macaulay2, i3 : isQuotientModule M
+
+o3 = true, class => language-macaulay2, The image of a map from a free module to the first generator of , M, yields an equivalent module that is , not, presented as a quotient., class => examples, i4 : f = M_{0
+
+o4 = | 1 |
+
+ 1
+o4 : Matrix M <-- R, class => language-macaulay2, i5 : N = image f
+
+o5 = subquotient (| 1 |, | a2 b2 c2 |)
+
+ 1
+o5 : R-module, subquotient of R, class => language-macaulay2, i6 : M == N
+
+o6 = true, class => language-macaulay2, i7 : isQuotientModule N
+
+o7 = false, class => language-macaulay2, See also, Macaulay2Doc :: Module _ List, Macaulay2Doc :: ambient, Macaulay2Doc :: isFreeModule, class => waystouse, Ways to use , isQuotientModule, :, isQuotientModule(Module), isQuotientModule(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: isQuotientModule, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isQuotientModule-doc.m2:32:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isQuotientModule(Thing)`
+- `isQuotientModule(Module)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/101[a,b,c];
+
+i2 : M = R^1/(a^2,b^2,c^2)
+
+o2 = cokernel | a2 b2 c2 |
+
+                            1
+o2 : R-module, quotient of R
+```
+
+## See Also
+

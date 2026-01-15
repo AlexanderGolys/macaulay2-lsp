@@ -1,0 +1,110 @@
+---
+title: "+"
+kind: Operator
+---
+
+# +
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
++, -- a unary or binary operator, usually used for addition, class => element, Usage: , +y , class => language-macaulay2, x+y, class => language-macaulay2, Description, In most cases, this operator refers to standard addition., , In many cases, the integer 1 can be used as the identity, and scalars function as multiples of the identity. For example, the 1 below refers to the identity matrix and the 2 to twice the identity matrix., class => examples, i1 : M = matrix{{1,2,3,{2,3,4,{3,4,6
+
+o1 = | 1 2 3 |
+ | 2 3 4 |
+ | 3 4 6 |
+
+ 3 3
+o1 : Matrix ZZ <-- ZZ, class => language-macaulay2, i2 : M+1, M+2
+
+o2 = (| 2 2 3 |, | 3 2 3 |)
+ | 2 4 4 | | 2 5 4 |
+ | 3 4 7 | | 3 4 8 |
+
+o2 : Sequence, class => language-macaulay2, Intervals, If one of the addends is an , Macaulay2Doc :: RRi, , the output is an interval containing all sums of pairs in the addends., class => examples, i3 : 2+interval(1,3)
+
+o3 = [3,5]
+
+o3 : RRi (of precision 53), class => language-macaulay2, i4 : interval(1,3)+interval(-1,2)
+
+o4 = [0,5]
+
+o4 : RRi (of precision 53), class => language-macaulay2, i5 : interval(-1,1)+interval(-1,1)
+
+o5 = [-2,2]
+
+o5 : RRi (of precision 53), class => language-macaulay2, See also, Macaulay2Doc :: plus, Macaulay2Doc :: sum, class => waystouse, Ways to use , symbol +, :, + CC, + Constant, + QQ, + RingElement, + RR, + RRi, + Vector, + ZZ, CC + CC, CC + InfiniteNumber, CC + QQ, CC + RR, CC + ZZ, Constant + Constant, Constant + InexactNumber, Constant + Number, Constant + RingElement, Ideal + Number, Ideal + RingElement, InexactNumber + Constant, InexactNumber + RingElement, InfiniteNumber + CC, InfiniteNumber + InfiniteNumber, InfiniteNumber + Number, Matrix + Matrix, Matrix + Number, Matrix + RingElement, MonomialIdeal + MonomialIdeal, MutableMatrix + MutableMatrix, Number + Constant, Number + Ideal, Number + InfiniteNumber, Number + Matrix, Number + RingElement, Number + Vector, QQ + CC, QQ + QQ, QQ + RR, QQ + RRi, QQ + ZZ, RingElement + Constant, RingElement + Ideal, RingElement + InexactNumber, RingElement + Matrix, RingElement + Number, RingElement + RingElement, RingElement + Vector, RR + CC, RR + QQ, RR + RR, RR + RRi, RR + ZZ, RRi + QQ, RRi + RR, RRi + RRi, RRi + ZZ, Vector + Number, Vector + RingElement, Vector + Vector, ZZ + CC, ZZ + QQ, ZZ + RR, ZZ + RRi, ZZ + ZZ, OldChainComplexes :: ChainComplexMap + ChainComplexMap, OldChainComplexes :: ChainComplexMap + RingElement, OldChainComplexes :: ChainComplexMap + ZZ, Polyhedra :: Cone + Cone, Polyhedra :: Cone + Polyhedron, OldChainComplexes :: GradedModuleMap + GradedModuleMap, OldChainComplexes :: GradedModuleMap + RingElement, Macaulay2Doc :: Ideal + Ideal, Macaulay2Doc :: List + List, Macaulay2Doc :: Module + Module, Polyhedra :: Polyhedron + Cone, Polyhedra :: Polyhedron + Polyhedron, OldChainComplexes :: RingElement + ChainComplexMap, OldChainComplexes :: RingElement + GradedModuleMap, Macaulay2Doc :: Tally + Tally, Set + Set, -- see , Macaulay2Doc :: union(Set,Set), Macaulay2Doc :: VirtualTally + VirtualTally, OldChainComplexes :: ZZ + ChainComplexMap, class => waystouse, For the programmer, The object , Macaulay2Doc :: +, is , a , Macaulay2Doc :: Keyword, keyword, ., This operator may be used as a binary operator in an expression like , x+y, . , The user may install , Macaulay2Doc :: binary methods, for handling such expressions with code such as, X + Y := (x,y) -> ..., where , X, is the class of , x, and , Y, is the class of , y, ., This operator may be used as a prefix unary operator in an expression like , +y, . , The user may , Macaulay2Doc :: installing methods, install a method, for handling such expressions with code such as, + Y := (y) -> ..., where , Y, is the class of , y, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators/plus.m2:104:0, .
+
+## Operator Installations
+
+### Binary Operator
+
+Usage: `x + y`
+
+- `+(Ideal, RingElement)`
+- `+(Number, Ideal)`
+- `+(Ideal, Number)`
+- `+(Number, RingElement)`
+- `+(RingElement, InexactNumber)`
+- `+(Matrix, Matrix)`
+- `+(MonomialIdeal, MonomialIdeal)`
+- `+(RingElement, Number)`
+- `+(RingElement, Ideal)`
+- `+(Ideal, Ideal)`
+- `+(InexactNumber, RingElement)`
+- `+(RingElement, RingElement)`
+- `+(Holder, Sum)`
+- `+(Sum, Holder)`
+- `+(Expression, Expression)`
+- `+(Expression, Thing)`
+- `+(Thing, Expression)`
+- `+(Expression, ZeroExpression)`
+- `+(ZeroExpression, Expression)`
+- `+(Sum, ZeroExpression)`
+
+*Showing 20 of 91 binary signatures*
+
+### Unary Operator
+
+Usage: `+ x` or `x +`
+
+- `+(Constant)`
+- `+(Thing)`
+- `+(ZZ)`
+- `+(QQ)`
+- `+(RRi)`
+- `+(CC)`
+- `+(RR)`
+- `+(Vector)`
+- `+(RingElement)`
+
+### Augmented Assignment
+
+Usage: `x += y` (modifies `x` in place)
+
+:::info[Special Installation Syntax]
+Augmented assignment methods require special installation using `installAssignmentMethod`. See [Macaulay2 documentation](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/Macaulay2Doc/html/_installing_spaugmented_spassignment_spmethods.html) for details.
+:::
+
+- `(+,=)(Type, Type)`
+- `(+,=)(Type)`
+- `(+,=)(Thing, Thing)`
+- `(+,=)(Thing)`
+
+## Examples
+
+```macaulay2
+i2 : M+1, M+2
+
+o2 = (| 2 2 3 |, | 3 2 3 |)
+      | 2 4 4 |  | 2 5 4 |
+      | 3 4 7 |  | 3 4 8 |
+
+o2 : Sequence
+```
+
+## See Also
+

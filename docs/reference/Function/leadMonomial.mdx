@@ -1,0 +1,39 @@
+---
+title: "leadMonomial"
+kind: Function
+---
+
+# leadMonomial
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+leadMonomial, -- the leading monomial of a ring element, class => element, Usage: , leadMonomial f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingElement, ring element, , , a polynomial, Outputs:, a , Macaulay2Doc :: RingElement, ring element, , , the monomial, with no coefficient, of the leading term of , f, , Description, The leading term is with respect to the monomial ordering in the ring. See , Macaulay2Doc :: monomial orderings, for details., class => examples, i1 : R = ZZ/5[a,b,c]; f = a*b^2 + 3*b*c^3 + 2;, class => language-macaulay2, i3 : leadMonomial f
+
+ 3
+o3 = b*c
+
+o3 : R, class => language-macaulay2, i4 : S = ZZ/5[a,b,c, MonomialOrder => Lex]; g = a*b^2 +3*b*c^3 + 2;, class => language-macaulay2, i6 : leadMonomial g
+
+ 2
+o6 = a*b
+
+o6 : S, class => language-macaulay2, See also, Macaulay2Doc :: leadComponent, Macaulay2Doc :: leadMonomial, Macaulay2Doc :: leadTerm, Macaulay2Doc :: monomials, Macaulay2Doc :: someTerms, Macaulay2Doc :: terms, class => waystouse, Ways to use , leadMonomial, :, leadMonomial(RingElement), class => waystouse, For the programmer, The object , Macaulay2Doc :: leadMonomial, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/leadMonomial-doc.m2:35:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `leadMonomial(RingElement)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/5[a,b,c]; f = a*b^2 + 3*b*c^3 + 2;
+```
+
+## See Also
+

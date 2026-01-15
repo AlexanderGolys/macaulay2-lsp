@@ -1,0 +1,54 @@
+---
+title: "size2"
+kind: Function
+---
+
+# size2
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+size2, -- number of binary digits to the left of the point, class => element, Usage: , size2 x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Number, number, Outputs:, the smallest number , n, such that , 2^n, is strictly greater than the absolute value of , x, Description, This function is not implemented for rational numbers., class => examples, i1 : size2 4
+
+o1 = 3, class => language-macaulay2, i2 : size2 3
+
+o2 = 2, class => language-macaulay2, i3 : size2 4.
+
+o3 = 3, class => language-macaulay2, i4 : size2 3.99999999
+
+o4 = 2, class => language-macaulay2, i5 : size2 0
+
+o5 = -1073741824, class => language-macaulay2, i6 : size2 0.
+
+o6 = -1073741824, class => language-macaulay2, i7 : size2 (1/0.)
+
+o7 = 1073741823, class => language-macaulay2, i8 : size2 (1/0.-1/0.)
+
+o8 = 1073741823, class => language-macaulay2, class => waystouse, Ways to use , size2, :, size2(CC), size2(RR), size2(RRi), size2(ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: size2, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_analytic_functions.m2:446:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `size2(RRi)`
+- `size2(ZZ)`
+- `size2(CC)`
+- `size2(RR)`
+
+## Examples
+
+```macaulay2
+i1 : size2 4
+
+o1 = 3
+
+i2 : size2 3
+
+o2 = 2
+```
+
+## See Also
+

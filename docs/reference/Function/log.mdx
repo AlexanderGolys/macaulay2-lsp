@@ -1,0 +1,65 @@
+---
+title: "log"
+kind: Function
+---
+
+# log
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+log, -- logarithm function, class => element, Usage: , log x, class => language-macaulay2, log(b,x), class => language-macaulay2, log_b x, class => language-macaulay2, log I, class => language-macaulay2, log(b,I), class => language-macaulay2, log_b I, class => language-macaulay2, log(J,x), class => language-macaulay2, log_J x, class => language-macaulay2, log(J,I), class => language-macaulay2, log_J I, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: RR, real number, b, , , a , Macaulay2Doc :: RR, real number, , , the base for the logarithm, I, , , a , Macaulay2Doc :: RRi, real interval, J, , , a , Macaulay2Doc :: RRi, real interval, , , an interval of bases for the logarithm, Outputs:, the logarithm of , x, a , Macaulay2Doc :: RRi, real interval, , , an interval containing the logarithms of points of , I, a , Macaulay2Doc :: RRi, real interval, , , an interval containing the logarithms for bases in , J, Description, class => examples, i1 : log 10
+
+o1 = 2.302585092994046
+
+o1 : RR (of precision 53), class => language-macaulay2, i2 : log_2 10
+
+o2 = 3.321928094887363
+
+o2 : RR (of precision 53), class => language-macaulay2, i3 : log_10 2p100
+
+o3 = .3010299956639811952137388947246
+
+o3 : RR (of precision 100), class => language-macaulay2, class => waystouse, Ways to use , log, :, log(CC), log(RR), log(RR,CC), log(RR,RR), log(RR,RRi), log(RRi), log(RRi,RR), log(RRi,RRi), class => waystouse, For the programmer, The object , Macaulay2Doc :: log, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators.m2:96:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `log(Number)`
+- `log(Number, RR)`
+- `log(Number, RRi)`
+- `log(Number, CC)`
+- `log(RR, Number)`
+- `log(RRi, Number)`
+- `log(Number, Number)`
+- `log(RRi, RRi)`
+- `log(RR, CC)`
+- `log(RR, RR)`
+- `log(RRi, RR)`
+- `log(RR, RRi)`
+- `log(CC)`
+- `log(RR)`
+- `log(RRi)`
+
+## Examples
+
+```macaulay2
+i1 : log 10
+
+o1 = 2.302585092994046
+
+o1 : RR (of precision 53)
+
+i2 : log_2 10
+
+o2 = 3.321928094887363
+
+o2 : RR (of precision 53)
+```
+
+## See Also
+

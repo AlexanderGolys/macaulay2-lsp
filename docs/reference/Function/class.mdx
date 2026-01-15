@@ -1,0 +1,51 @@
+---
+title: "class"
+kind: Function
+---
+
+# class
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+class, -- class of an object, class => element, Usage: , class x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Thing, thing, , , any Macaulay2 object, Outputs:, a , Macaulay2Doc :: Type, type, , , the class of , x, Description, Every object in Macaulay2 has a class, see , Macaulay2Doc :: what a class is, for more details., class => examples, i1 : class {1,2,3
+
+o1 = List
+
+o1 : Type, class => language-macaulay2, i2 : R = QQ[a..d]
+
+o2 = R
+
+o2 : PolynomialRing, class => language-macaulay2, i3 : class R
+
+o3 = PolynomialRing
+
+o3 : Type, class => language-macaulay2, Use strict equality , ===, to test the exact class of an object., class => examples, i4 : class R === PolynomialRing
+
+o4 = true, class => language-macaulay2, i5 : class R === Ring
+
+o5 = false, class => language-macaulay2, However, each PolynomialRing is a Ring, by inheritance, so a more useful test uses , Macaulay2Doc :: instance, ., class => examples, i6 : instance(R,Ring)
+
+o6 = true, class => language-macaulay2, See also, Macaulay2Doc :: instance, class => waystouse, Ways to use , class, :, class(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: class, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/class-doc.m2:34:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `class(Thing)`
+
+## Examples
+
+```macaulay2
+i2 : R = QQ[a..d]
+
+o2 = R
+
+o2 : PolynomialRing
+```
+
+## See Also
+

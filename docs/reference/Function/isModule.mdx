@@ -1,0 +1,44 @@
+---
+title: "isModule"
+kind: Function
+---
+
+# isModule
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isModule, -- whether something is a module, class => element, Usage: , isModule M, class => language-macaulay2, Inputs:, M, , , a , Macaulay2Doc :: Thing, thing, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Macaulay2Doc :: true, if , M, is a , Macaulay2Doc :: Module, module, and , Macaulay2Doc :: false, otherwise, Description, class => examples, i1 : R = QQ[a..d]/(a*b*c*d);, class => language-macaulay2, i2 : isModule R
+
+o2 = false, class => language-macaulay2, i3 : M = a^2 * R^2 + a*b * R^2
+
+o3 = image | a2 0 ab 0 |
+ | 0 a2 0 ab |
+
+ 2
+o3 : R-module, submodule of R, class => language-macaulay2, i4 : isModule M
+
+o4 = true, class => language-macaulay2, class => waystouse, Ways to use , isModule, :, isModule(Module), isModule(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: isModule, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isModule-doc.m2:23:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isModule(Thing)`
+- `isModule(Module)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[a..d]/(a*b*c*d);
+
+i2 : isModule R
+
+o2 = false
+```
+
+## See Also
+

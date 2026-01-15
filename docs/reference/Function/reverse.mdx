@@ -1,0 +1,44 @@
+---
+title: "reverse"
+kind: Function
+---
+
+# reverse
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+reverse, -- reverse a list, sequence, or string, class => element, Usage: , reverse(L), class => language-macaulay2, Inputs:, L, , , a , Macaulay2Doc :: BasicList, basic list, or , a , Macaulay2Doc :: String, string, , , Outputs:, R, , , a , Macaulay2Doc :: BasicList, basic list, or , a , Macaulay2Doc :: String, string, , , containing the elements of , L, in reverse order, Description, The output will be the same type as the input., class => examples, i1 : reverse {5, 7, 2, 8
+
+o1 = {8, 2, 7, 5
+
+o1 : List, class => language-macaulay2, i2 : reverse (5, 7, 2, 8)
+
+o2 = (8, 2, 7, 5)
+
+o2 : Sequence, class => language-macaulay2, i3 : reverse "Hello, world!"
+
+o3 = !dlrow ,olleH, class => language-macaulay2, See also, Macaulay2Doc :: sort, class => waystouse, Ways to use , reverse, :, reverse(BasicList), reverse(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: reverse, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/reverse-doc.m2:28:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `reverse(String)`
+- `reverse(BasicList)`
+
+## Examples
+
+```macaulay2
+i2 : reverse (5, 7, 2, 8)
+
+o2 = (8, 2, 7, 5)
+
+o2 : Sequence
+```
+
+## See Also
+

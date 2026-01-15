@@ -1,0 +1,51 @@
+---
+title: "openIn"
+kind: Function
+---
+
+# openIn
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+openIn, -- open an input file, class => element, Usage: , openIn fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: File, file, , , an open input file whose filename is , fn, . Filenames starting with , !, or with , $, are treated specially, see , Macaulay2Doc :: openInOut, ., Description, class => examples, i1 : "test-file" << "hi there" << close;, class => language-macaulay2, i2 : g = openIn "test-file"
+
+o2 = test-file
+
+o2 : File, class => language-macaulay2, i3 : fileLength g
+
+o3 = 8, class => language-macaulay2, i4 : atEndOfFile g
+
+o4 = false, class => language-macaulay2, i5 : read g
+
+o5 = hi there, class => language-macaulay2, i6 : atEndOfFile g
+
+o6 = true, class => language-macaulay2, i7 : close g
+
+o7 = test-file
+
+o7 : File, class => language-macaulay2, i8 : removeFile "test-file", class => language-macaulay2, A filename starting with , ~/, will have the tilde replaced by the user's home directory., See also, Macaulay2Doc :: openOut, Macaulay2Doc :: openOutAppend, Macaulay2Doc :: openInOut, Macaulay2Doc :: fileLength, Macaulay2Doc :: read, Macaulay2Doc :: close, Macaulay2Doc :: atEndOfFile, Macaulay2Doc :: File << Thing, class => waystouse, Ways to use , openIn, :, Macaulay2Doc :: openIn(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: openIn, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:444:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `openIn(String)`
+
+## Examples
+
+```macaulay2
+i1 : "test-file" << "hi there" << close;
+
+i2 : g = openIn "test-file"
+
+o2 = test-file
+
+o2 : File
+```
+
+## See Also
+

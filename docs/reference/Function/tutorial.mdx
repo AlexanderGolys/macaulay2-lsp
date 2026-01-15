@@ -1,0 +1,53 @@
+---
+title: "tutorial"
+kind: Function
+---
+
+# tutorial
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+tutorial, -- convert documentation from tutorial format, class => element, Usage: , tutorial x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: String, string, , , documentation in tutorial format, Outputs:, documentation in hypertext format, Description, Some of the Macaulay2 documentation is written in this format., class => examples, i1 : ///-- We can compute $(x+y)^3$ as follows.
+ 	R = QQ[x,y]
+ 	(x+y)^3
+ 	///
+
+o1 = -- We can compute $(x+y)^3$ as follows.
+ R = QQ[x,y]
+ (x+y)^3
+ , class => language-macaulay2, i2 : tutorial oo
+
+ +---------------+
+o2 = {We can compute $(x+y)^3$ as follows., | R = QQ[x,y] |
+ +---------------+
+ | (x+y)^3 |
+ +---------------+
+
+o2 : List, class => language-macaulay2, i3 : peek oo
+
+o3 = {"We can compute $(x+y)^3$ as follows.", class =>
+ ------------------------------------------------------------------------
+ examples, ExampleItem{"R = QQ[x,y]",
+ ------------------------------------------------------------------------
+ ExampleItem{"(x+y)^3", class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: tutorial, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/document-doc.m2:681:0, .
+
+## Examples
+
+```macaulay2
+i1 : ///-- We can compute $(x+y)^3$ as follows.
+     	R = QQ[x,y]
+     	(x+y)^3
+     	///
+
+o1 = -- We can compute $(x+y)^3$ as follows.
+             R = QQ[x,y]
+             (x+y)^3
+             
+```
+
+## See Also
+

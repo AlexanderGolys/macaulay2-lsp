@@ -1,0 +1,64 @@
+---
+title: "genericMatrix"
+kind: Function
+---
+
+# genericMatrix
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+genericMatrix, -- make a generic matrix of variables, class => element, Usage: , genericMatrix(R,r,m,n), class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: Ring, ring, r, , , a , Macaulay2Doc :: RingElement, ring element, , , which is a variable in the ring , R, (this input is optional), m, , , an , Macaulay2Doc :: ZZ, integer, n, , , an , Macaulay2Doc :: ZZ, integer, Outputs:, a , Macaulay2Doc :: Matrix, matrix, , , with , m, rows and , n, columns whose entries are variables in the ring , R, starting with , r, Description, class => examples, i1 : R = ZZ[a..z];, class => language-macaulay2, i2 : genericMatrix(R,a,2,4)
+
+o2 = | a c e g |
+ | b d f h |
+
+ 2 4
+o2 : Matrix R <-- R, class => language-macaulay2, i3 : genericMatrix(R,i,3,2)
+
+o3 = | i l |
+ | j m |
+ | k n |
+
+ 3 2
+o3 : Matrix R <-- R, class => language-macaulay2, , Omitting the input , r, is the same as having , r, be the first variable in , R, ., class => examples, i4 : genericMatrix(R,2,4)
+
+o4 = | a c e g |
+ | b d f h |
+
+ 2 4
+o4 : Matrix R <-- R, class => language-macaulay2, i5 : genericMatrix(R,3,2)
+
+o5 = | a d |
+ | b e |
+ | c f |
+
+ 3 2
+o5 : Matrix R <-- R, class => language-macaulay2, See also, Macaulay2Doc :: vars(Ring), Macaulay2Doc :: genericSkewMatrix, Macaulay2Doc :: genericSymmetricMatrix, class => waystouse, Ways to use , genericMatrix, :, genericMatrix(Ring,RingElement,ZZ,ZZ), genericMatrix(Ring,ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: genericMatrix, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/genericMatrix-doc.m2:35:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `genericMatrix(Ring, ZZ, ZZ)`
+- `genericMatrix(Ring, RingElement, ZZ, ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ[a..z];
+
+i2 : genericMatrix(R,a,2,4)
+
+o2 = | a c e g |
+     | b d f h |
+
+             2      4
+o2 : Matrix R  <-- R
+```
+
+## See Also
+

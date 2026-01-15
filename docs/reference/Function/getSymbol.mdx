@@ -1,0 +1,47 @@
+---
+title: "getSymbol"
+kind: Function
+---
+
+# getSymbol
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+getSymbol, -- make a global user symbol from a string, class => element, Usage: , getSymbol s, class => language-macaulay2, Inputs:, s, , , a , Macaulay2Doc :: String, string, Outputs:, a , Macaulay2Doc :: Symbol, symbol, , , a global symbol whose name is provided by the string , s, in the private dictionary for the package , User :: User, ., Description, class => examples, i1 : x = "aaaa"
+
+o1 = aaaa, class => language-macaulay2, i2 : s = getSymbol x
+
+o2 = aaaa
+
+o2 : Symbol, class => language-macaulay2, i3 : dictionary s
+
+o3 = GlobalDictionary{...3...
+
+o3 : GlobalDictionary, class => language-macaulay2, i4 : s === getSymbol x
+
+o4 = true, class => language-macaulay2, i5 : keys User#"private dictionary"
+
+o5 = {aaaa, x, s
+
+o5 : List, class => language-macaulay2, Caveat, The old behavior, up to version 1.3.1, was to provide a previously existing global symbol, if one exists and is visible in one of the dictionaries in , Macaulay2Doc :: dictionaryPath, , or, if not, to create a new global symbol in the first mutable dictionary listed in , Macaulay2Doc :: dictionaryPath, ., See also, Macaulay2Doc :: getGlobalSymbol, class => waystouse, For the programmer, The object , Macaulay2Doc :: getSymbol, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:866:0, .
+
+## Examples
+
+```macaulay2
+i1 : x = "aaaa"
+
+o1 = aaaa
+
+i2 : s = getSymbol x
+
+o2 = aaaa
+
+o2 : Symbol
+```
+
+## See Also
+

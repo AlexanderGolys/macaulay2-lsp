@@ -1,0 +1,35 @@
+---
+title: "serialNumber"
+kind: Function
+---
+
+# serialNumber
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+serialNumber, -- serial number of a dictionary, task, symbol, mutable hash table, or mutable list, class => element, Usage: , serialNumber x, class => language-macaulay2, Inputs:, x, Outputs:, an , Macaulay2Doc :: ZZ, integer, , , the serial number of , x, Description, class => examples, i1 : serialNumber asdf
+
+o1 = 1526275, class => language-macaulay2, i2 : serialNumber foo
+
+o2 = 1526277, class => language-macaulay2, i3 : serialNumber ZZ
+
+o3 = 1000050, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: serialNumber, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_types.m2:634:0, .
+
+## Examples
+
+```macaulay2
+i1 : serialNumber asdf
+
+o1 = 1526275
+
+i2 : serialNumber foo
+
+o2 = 1526277
+```
+
+## See Also
+

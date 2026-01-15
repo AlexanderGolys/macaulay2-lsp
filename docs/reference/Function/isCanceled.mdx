@@ -1,0 +1,54 @@
+---
+title: "isCanceled"
+kind: Function
+---
+
+# isCanceled
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+isCanceled, -- whether a task has been canceled, class => element, Usage: , isCanceled t, class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: Task, task, , , Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether the task , t, has been canceled, Description, class => examples, i1 : n = 0
+
+o1 = 0, class => language-macaulay2, i2 : t = schedule(() -> while true do n = n + 1)
+
+o2 = <<task, created>>
+
+o2 : Task, class => language-macaulay2, i3 : sleep 1
+
+o3 = 0, class => language-macaulay2, i4 : isCanceled t
+
+o4 = false, class => language-macaulay2, i5 : sleep 1
+
+o5 = 0, class => language-macaulay2, i6 : cancelTask t, class => language-macaulay2, i7 : sleep 2
+stdio:2:25:(3):[1]: error: interrupted
+
+o7 = 0, class => language-macaulay2, i8 : isCanceled t
+
+o8 = true, class => language-macaulay2, See also, Macaulay2Doc :: parallel programming with threads and tasks, Macaulay2Doc :: cancelTask, class => waystouse, Ways to use , isCanceled, :, Macaulay2Doc :: isCanceled(Task), class => waystouse, For the programmer, The object , Macaulay2Doc :: isCanceled, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isCanceled(Task)`
+
+## Examples
+
+```macaulay2
+i1 : n = 0
+
+o1 = 0
+
+i2 : t = schedule(() -> while true do n = n + 1)
+
+o2 = <<task, created>>
+
+o2 : Task
+```
+
+## See Also
+

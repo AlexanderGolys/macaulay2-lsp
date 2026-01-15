@@ -1,0 +1,56 @@
+---
+title: "getGlobalSymbol"
+kind: Function
+---
+
+# getGlobalSymbol
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+getGlobalSymbol, -- create a global symbol in a global dictionary, class => element, Usage: , getGlobalSymbol(dict,nam), class => language-macaulay2, getGlobalSymbol nam, class => language-macaulay2, Inputs:, dict, , , an instance of the type , Macaulay2Doc :: GlobalDictionary, nam, , , a , Macaulay2Doc :: String, string, Outputs:, a global symbol in the dictionary , dict, whose name is the string , nam, , which will be created, if necessary, Consequences:, if a new symbol is created, it is stored under the name , nam, in the dictionary , dict, Description, If , dict, is omitted, then the first symbol found in the dictionaries listed in , Macaulay2Doc :: dictionaryPath, will be returned. If none is found, one will be created in the first dictionary listed in , Macaulay2Doc :: dictionaryPath, , unless it is not mutable, in which case an error will be signalled; perhaps that behavior should be changed., class => examples, i1 : d = new Dictionary
+
+o1 = d
+
+o1 : GlobalDictionary, class => language-macaulay2, i2 : sym = getGlobalSymbol(d,"foo")
+
+o2 = foo
+
+o2 : Symbol, class => language-macaulay2, i3 : d
+
+o3 = d
+
+o3 : GlobalDictionary, class => language-macaulay2, i4 : peek d
+
+o4 = GlobalDictionary{"foo" => foo, class => language-macaulay2, i5 : d#"foo" === sym
+
+o5 = true, class => language-macaulay2, i6 : d#"asfd" = sym
+
+o6 = foo
+
+o6 : Symbol, class => language-macaulay2, i7 : peek d
+
+o7 = GlobalDictionary{"asfd" => foo
+ "foo" => foo, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: getGlobalSymbol, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:1117:0, .
+
+## Examples
+
+```macaulay2
+i1 : d = new Dictionary
+
+o1 = d
+
+o1 : GlobalDictionary
+
+i2 : sym = getGlobalSymbol(d,"foo")
+
+o2 = foo
+
+o2 : Symbol
+```
+
+## See Also
+

@@ -1,0 +1,51 @@
+---
+title: "log1p"
+kind: Function
+---
+
+# log1p
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+log1p, -- logarithm of 1+x, class => element, Usage: , log1p x, class => language-macaulay2, log1p I, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: CC, complex number, or , a , Macaulay2Doc :: RR, real number, , , I, , , a , Macaulay2Doc :: RRi, real interval, , , Outputs:, a , Macaulay2Doc :: RR, real number, or , a , Macaulay2Doc :: CC, complex number, , , the logarithm of , 1+x, a , Macaulay2Doc :: RRi, real interval, , , an interval containing logarithm of 1 plus the points of , I, Description, class => examples, i1 : log1p 1p100e-10
+
+o1 = 9.999999999500000000033333333333e-11
+
+o1 : RR (of precision 100), class => language-macaulay2, i2 : log(1 + 1p100e-10)
+
+o2 = 9.999999999500000000059340457244e-11
+
+o2 : RR (of precision 100), class => language-macaulay2, class => waystouse, Ways to use , log1p, :, log1p(CC), log1p(RR), log1p(RRi), class => waystouse, For the programmer, The object , Macaulay2Doc :: log1p, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_analytic_functions.m2:176:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `log1p(Number)`
+- `log1p(RingElement)`
+- `log1p(RRi)`
+- `log1p(CC)`
+- `log1p(RR)`
+
+## Examples
+
+```macaulay2
+i1 : log1p 1p100e-10
+
+o1 = 9.999999999500000000033333333333e-11
+
+o1 : RR (of precision 100)
+
+i2 : log(1 + 1p100e-10)
+
+o2 = 9.999999999500000000059340457244e-11
+
+o2 : RR (of precision 100)
+```
+
+## See Also
+

@@ -1,0 +1,50 @@
+---
+title: "apropos"
+kind: Function
+---
+
+# apropos
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+apropos, -- symbols matching a pattern, class => element, Usage: , apropos pattern, class => language-macaulay2, Inputs:, pattern, , , a , Macaulay2Doc :: String, string, , , a regular expression pattern to match, Outputs:, a , Macaulay2Doc :: List, list, , , of global symbols matching the given pattern, Description, In the simplest case, the list of symbols containing the given string is returned., class => examples, i1 : apropos "atrix"
+
+o1 = {blockMatrixForm, ChangeMatrix, compactMatrixForm, diagonalMatrix,
+ ------------------------------------------------------------------------
+ fillMatrix, genericMatrix, genericSkewMatrix, genericSymmetricMatrix,
+ ------------------------------------------------------------------------
+ getChangeMatrix, Matrix, matrix, MatrixExpression, MinimalMatrix,
+ ------------------------------------------------------------------------
+ MutableMatrix, mutableMatrix, randomMutableMatrix, submatrix,
+ ------------------------------------------------------------------------
+ submatrix', submatrixByDegrees, sylvesterMatrix, SyzygyMatrix,
+ ------------------------------------------------------------------------
+ vertexEdgeMatrix, vertexFacetMatrix
+
+o1 : List, class => language-macaulay2, Macaulay2Doc :: regular expressions, Regular expressions, allow for more complicated requests. For example, to find all functions that start with , mat, or , Mat, :, class => examples, i2 : apropos "^[mM]at"
+
+o2 = {match, mathML, Matrix, matrix, MatrixExpression
+
+o2 : List, class => language-macaulay2, It is also possible to view a table of headlines corresponding to the results., class => examples, i3 : headlines apropos "hilbert"
+
+o3 = 0. "Polyhedra :: hilbertBasis" -- computes the Hilbert basis of a Cone
+ 1. "Macaulay2Doc :: hilbertFunction" -- the Hilbert function 
+ 2. "Macaulay2Doc :: hilbertPolynomial" -- compute the Hilbert polynomial 
+ 3. "Macaulay2Doc :: hilbertSeries" -- compute the Hilbert series , class => language-macaulay2, See also, Macaulay2Doc :: help, Macaulay2Doc :: about, Macaulay2Doc :: headlines, Macaulay2Doc :: findSynonyms, Macaulay2Doc :: regular expressions, class => waystouse, Ways to use , apropos, :, apropos(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: apropos, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/help-doc.m2:349:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `apropos(String)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

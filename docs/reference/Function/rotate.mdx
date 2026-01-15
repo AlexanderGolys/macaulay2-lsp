@@ -1,0 +1,61 @@
+---
+title: "rotate"
+kind: Function
+---
+
+# rotate
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+rotate, -- rotate a list, class => element, Usage: , rotate(n,v), class => language-macaulay2, Inputs:, n, v, Outputs:, the list obtained by rotating the list , v, leftward , n, places, Description, class => examples, i1 : p = 0 .. 20
+
+o1 = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+ ------------------------------------------------------------------------
+ 20)
+
+o1 : Sequence, class => language-macaulay2, i2 : rotate(3,p)
+
+o2 = (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 0, 1,
+ ------------------------------------------------------------------------
+ 2)
+
+o2 : Sequence, class => language-macaulay2, i3 : rotate(-3,p)
+
+o3 = (18, 19, 20, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+ ------------------------------------------------------------------------
+ 17)
+
+o3 : Sequence, class => language-macaulay2, class => waystouse, Ways to use , rotate, :, rotate(ZZ,VisibleList), class => waystouse, For the programmer, The object , Macaulay2Doc :: rotate, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_lists.m2:826:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `rotate(ZZ, VisibleList)`
+
+## Examples
+
+```macaulay2
+i1 : p = 0 .. 20
+
+o1 = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+     ------------------------------------------------------------------------
+     20)
+
+o1 : Sequence
+
+i2 : rotate(3,p)
+
+o2 = (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 0, 1,
+     ------------------------------------------------------------------------
+     2)
+
+o2 : Sequence
+```
+
+## See Also
+

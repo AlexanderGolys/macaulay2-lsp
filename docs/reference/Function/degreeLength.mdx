@@ -1,0 +1,52 @@
+---
+title: "degreeLength"
+kind: Function
+---
+
+# degreeLength
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+degreeLength, -- the length of the degree vector, class => element, Usage: , degreeLength A, class => language-macaulay2, Inputs:, A, , , a , Macaulay2Doc :: Ring, ring, or , a , Macaulay2Doc :: Monoid, monoid, , , Outputs:, an , Macaulay2Doc :: ZZ, integer, , , the length of a multidegree vector used as a degree of elements of , A, ., Description, class => examples, i1 : degreeLength ZZ
+
+o1 = 0, class => language-macaulay2, i2 : degreeLength(ZZ[])
+
+o2 = 1, class => language-macaulay2, i3 : degreeLength(ZZ[x])
+
+o3 = 1, class => language-macaulay2, i4 : degreeLength(ZZ[x, Degrees => {{1,2,3])
+
+o4 = 3, class => language-macaulay2, i5 : degreeLength(ZZ[x,y,z, DegreeRank => 3])
+
+o5 = 3, class => language-macaulay2, i6 : degreeLength(GF 9)
+
+o6 = 0, class => language-macaulay2, See also, Macaulay2Doc :: degree, Macaulay2Doc :: degreesRing, Macaulay2Doc :: degreesMonoid, Macaulay2Doc :: monoid(...,DegreeRank=>...), class => waystouse, Ways to use , degreeLength, :, degreeLength(Monoid), degreeLength(Ring), class => waystouse, For the programmer, The object , Macaulay2Doc :: degreeLength, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/degreeLength-doc.m2:40:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `degreeLength(FractionField)`
+- `degreeLength(Ring)`
+- `degreeLength(Monoid)`
+- `degreeLength(PolynomialRing)`
+- `degreeLength(QuotientRing)`
+- `degreeLength(InexactField)`
+
+## Examples
+
+```macaulay2
+i1 : degreeLength ZZ
+
+o1 = 0
+
+i2 : degreeLength(ZZ[])
+
+o2 = 1
+```
+
+## See Also
+

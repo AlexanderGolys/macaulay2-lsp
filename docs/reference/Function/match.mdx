@@ -1,0 +1,70 @@
+---
+title: "match"
+kind: Function
+---
+
+# match
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+match, -- regular expression matching, class => element, Usage: , match(re, str), class => language-macaulay2, match(patterns, str), class => language-macaulay2, Inputs:, re, , , a , Macaulay2Doc :: String, string, , , a , Macaulay2Doc :: regular expressions, regular expression, describing a pattern, str, , , a , Macaulay2Doc :: String, string, , , a subject string to be searched, patterns, , , a , Macaulay2Doc :: List, list, , , a list of regular expressions, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, POSIX, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , if true, interpret the , re, using the POSIX Extended flavor, otherwise the Perl flavor, Strategy, => , a , Macaulay2Doc :: Function, function, , , default value , any, , , logical quantifier for matching a list of patterns, typically , Macaulay2Doc :: all, or , Macaulay2Doc :: any, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether the string , str, is a match for the regular expression , re, , or at least one of , patterns, when , Strategy => any, (default), Consequences:, the variable , Macaulay2Doc :: lastMatch, is set to the value returned by , Macaulay2Doc :: regex, which is called by , Macaulay2Doc :: match, ., Description, For an introduction to regular expressions, see , Macaulay2Doc :: regular expressions, ., class => examples, i1 : s = "three dogs, two catfishes, and a cat"
+
+o1 = three dogs, two catfishes, and a cat, class => language-macaulay2, i2 : match("cat", s)
+
+o2 = true, class => language-macaulay2, i3 : lastMatch
+
+o3 = {(16, 3)
+
+o3 : List, class => language-macaulay2, i4 : substring(first lastMatch, s)
+
+o4 = cat, class => language-macaulay2, i5 : match ("cats", s)
+
+o5 = false, class => language-macaulay2, i6 : lastMatch, class => language-macaulay2, The , POSIX => true, option can be used to specify the POSIX Extended flavor for the regular expression used to match. Note that only the Perl flavor allows the use of lookahead and lookbehinds., class => examples, i7 : s = "catfish cat dog"
+
+o7 = catfish cat dog, class => language-macaulay2, i8 : match("cat(?!fish)", s)
+
+o8 = true, class => language-macaulay2, i9 : substring(lastMatch#0#0, lastMatch#0#1 + 4, s)
+
+o9 = cat dog, class => language-macaulay2, i10 : match("cat(?=fish)", s)
+
+o10 = true, class => language-macaulay2, i11 : substring(lastMatch#0#0, lastMatch#0#1 + 4, s)
+
+o11 = catfish, class => language-macaulay2, i12 : match("(?<!cat)fish", "cat catfish dog")
+
+o12 = false, class => language-macaulay2, i13 : match("(?<!cat)fish", "cat swordfish dog")
+
+o13 = true, class => language-macaulay2, When the first input is a list, by default the output is true if , str, is a match for at least one of the given regular expressions., class => examples, i14 : match({"Cat", "Dog", "CatDog")
+
+o14 = true, class => language-macaulay2, i15 : match({"Cat", "Dog", "Catfish")
+
+o15 = true, class => language-macaulay2, Optionally, , Strategy => all, indicates that the string should match every pattern in the list to be a match., class => examples, i16 : match({"Cat", "Dog", "CatDog", Strategy => all)
+
+o16 = true, class => language-macaulay2, i17 : not match({"Cat", "Dog", "Catfish", Strategy => all)
+
+o17 = true, class => language-macaulay2, The , Strategy, option is not used when the first input is not a list., See also, Macaulay2Doc :: regular expressions, Macaulay2Doc :: strings and nets, Macaulay2Doc :: regex, Macaulay2Doc :: replace, Macaulay2Doc :: substring, Macaulay2Doc :: any, Macaulay2Doc :: all, class => waystouse, Ways to use , match, :, match(List,String), match(String,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: match, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/match-doc.m2:82:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `match(List, String)`
+- `match(String, String)`
+
+## Examples
+
+```macaulay2
+i1 : s = "three dogs, two catfishes, and a cat"
+
+o1 = three dogs, two catfishes, and a cat
+
+i2 : match("cat", s)
+
+o2 = true
+```
+
+## See Also
+

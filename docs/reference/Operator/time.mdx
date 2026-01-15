@@ -1,0 +1,29 @@
+---
+title: "time"
+kind: Operator
+---
+
+# time
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+time, -- time a computation, class => element, Usage: , time e, class => language-macaulay2, Description, time e, evaluates , e, , prints the amount of cpu time used, and returns the value of , e, . The time used by the the current thread and garbage collection during the evaluation of , e, is also shown., class => examples, i1 : time 3^30
+ -- used 1.4609e-05s (cpu); 3.658e-06s (thread); 0s (gc)
+
+o1 = 205891132094649, class => language-macaulay2, See also, Macaulay2Doc :: timing, Macaulay2Doc :: cpuTime, Macaulay2Doc :: elapsedTiming, Macaulay2Doc :: elapsedTime, class => waystouse, For the programmer, The object , Macaulay2Doc :: time, is , a , Macaulay2Doc :: Keyword, keyword, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:909:0, .
+
+## Examples
+
+```macaulay2
+i1 : time 3^30
+ -- used 1.4609e-05s (cpu); 3.658e-06s (thread); 0s (gc)
+
+o1 = 205891132094649
+```
+
+## See Also
+

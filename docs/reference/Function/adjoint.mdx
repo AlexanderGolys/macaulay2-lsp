@@ -1,0 +1,90 @@
+---
+title: "adjoint"
+kind: Function
+---
+
+# adjoint
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+adjoint, -- the tensor-Hom adjunction maps, Description, Recall that , Macaulay2Doc :: tensor(Module,Module), and , Macaulay2Doc :: Hom(Module,Module), form an adjoint pair, meaning that there is a natural isomorphism $$ \mathrm{Hom(F\otimes G,H) \cong \mathrm{Hom(F,\mathrm{Hom(G,H)). $$, Synopsis, class => element, Usage: , adjoint(f, F, G), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Matrix, matrix, , , a homomorphism $F \otimes G \to H$, F, , , a , Macaulay2Doc :: Module, module, , , a free module; , G, , , a , Macaulay2Doc :: Module, module, , , a free module; , Outputs:, a , Macaulay2Doc :: Matrix, matrix, , , the adjoint homomorphism $F \to \mathrm{Hom(G,H)$, class => examples, i1 : R = QQ[x_1 .. x_24];, class => language-macaulay2, i2 : f = genericMatrix(R, 2, 4*3)
+
+o2 = | x_1 x_3 x_5 x_7 x_9 x_11 x_13 x_15 x_17 x_19 x_21 x_23 |
+ | x_2 x_4 x_6 x_8 x_10 x_12 x_14 x_16 x_18 x_20 x_22 x_24 |
+
+ 2 12
+o2 : Matrix R <-- R, class => language-macaulay2, i3 : isHomogeneous f
+
+o3 = true, class => language-macaulay2, i4 : g = adjoint(f, R^4, R^3)
+
+o4 = | x_1 x_7 x_13 x_19 |
+ | x_2 x_8 x_14 x_20 |
+ | x_3 x_9 x_15 x_21 |
+ | x_4 x_10 x_16 x_22 |
+ | x_5 x_11 x_17 x_23 |
+ | x_6 x_12 x_18 x_24 |
+
+ 6 4
+o4 : Matrix R <-- R, class => language-macaulay2, If , f, is homogeneous, and , source f === F ** G, (including the grading), then the resulting matrix will be homogeneous., class => examples, i5 : g = adjoint(f, R^4, R^{-1,-1,-1)
+
+o5 = {-1 | x_1 x_7 x_13 x_19 |
+ {-1 | x_2 x_8 x_14 x_20 |
+ {-1 | x_3 x_9 x_15 x_21 |
+ {-1 | x_4 x_10 x_16 x_22 |
+ {-1 | x_5 x_11 x_17 x_23 |
+ {-1 | x_6 x_12 x_18 x_24 |
+
+ 6 4
+o5 : Matrix R <-- R, class => language-macaulay2, i6 : isHomogeneous g
+
+o6 = true, class => language-macaulay2, i7 : f === adjoint'(g, R^{-1,-1,-1, R^2)
+
+o7 = true, class => language-macaulay2, Synopsis, class => element, Usage: , adjoint'(g, G, H), class => language-macaulay2, Inputs:, g, , , a , Macaulay2Doc :: Matrix, matrix, , , a homomorphism $F \to \mathrm{Hom(G,H)$ between modules, G, , , a , Macaulay2Doc :: Module, module, , , a free module; , H, , , a , Macaulay2Doc :: Module, module, , , a free module; , Outputs:, a , Macaulay2Doc :: Matrix, matrix, , , the adjoint homomorphism $F \otimes G \to H$, If , g, is homogeneous, and , target g === Hom(G,H), (including the grading), then the resulting matrix will be homogeneous., class => examples, i8 : R = QQ[x_1 .. x_12];, class => language-macaulay2, i9 : g = genericMatrix(R, 6, 2)
+
+o9 = | x_1 x_7 |
+ | x_2 x_8 |
+ | x_3 x_9 |
+ | x_4 x_10 |
+ | x_5 x_11 |
+ | x_6 x_12 |
+
+ 6 2
+o9 : Matrix R <-- R, class => language-macaulay2, i10 : f = adjoint'(g, R^2, R^3)
+
+o10 = | x_1 x_4 x_7 x_10 |
+ | x_2 x_5 x_8 x_11 |
+ | x_3 x_6 x_9 x_12 |
+
+ 3 4
+o10 : Matrix R <-- R, class => language-macaulay2, i11 : isHomogeneous f
+
+o11 = true, class => language-macaulay2, i12 : g === adjoint(f, R^{-1,-1, R^2)
+
+o12 = true, class => language-macaulay2, See also, Macaulay2Doc :: dual, Macaulay2Doc :: flip, Macaulay2Doc :: compose, Macaulay2Doc :: reshape, Macaulay2Doc :: Hom(Module,Module), Macaulay2Doc :: tensor(Module,Module), class => waystouse, Ways to use , adjoint, :, adjoint(Matrix,Module,Module), class => waystouse, For the programmer, The object , Macaulay2Doc :: adjoint, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/Hom-doc.m2:264:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `adjoint(Matrix, Module, Module)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[x_1 .. x_24];
+
+i2 : f = genericMatrix(R, 2, 4*3)
+
+o2 = | x_1 x_3 x_5 x_7 x_9  x_11 x_13 x_15 x_17 x_19 x_21 x_23 |
+     | x_2 x_4 x_6 x_8 x_10 x_12 x_14 x_16 x_18 x_20 x_22 x_24 |
+
+             2      12
+o2 : Matrix R  <-- R
+```
+
+## See Also
+

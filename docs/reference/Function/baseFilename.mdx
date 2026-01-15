@@ -1,0 +1,33 @@
+---
+title: "baseFilename"
+kind: Function
+---
+
+# baseFilename
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+baseFilename, -- the base part of a filename or path, class => element, Usage: , baseFilename fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, , , a filename or path, Outputs:, the last component of the path, Description, class => examples, i1 : baseFilename "/a/b/dir/"
+
+o1 = dir, class => language-macaulay2, i2 : baseFilename "/a/b/file"
+
+o2 = file, class => language-macaulay2, See also, Macaulay2Doc :: File, Macaulay2Doc :: minimizeFilename, Macaulay2Doc :: relativizeFilename, Macaulay2Doc :: toAbsolutePath, Macaulay2Doc :: searchPath, Macaulay2Doc :: path, class => waystouse, For the programmer, The object , Macaulay2Doc :: baseFilename, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1362:0, .
+
+## Examples
+
+```macaulay2
+i1 : baseFilename "/a/b/dir/"
+
+o1 = dir
+
+i2 : baseFilename "/a/b/file"
+
+o2 = file
+```
+
+## See Also
+

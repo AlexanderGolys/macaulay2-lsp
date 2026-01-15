@@ -1,0 +1,53 @@
+---
+title: "isInfinite"
+kind: Function
+---
+
+# isInfinite
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isInfinite, -- whether a number is infinite, class => element, Usage: , isInfinite x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Number, number, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , x, is an infinite number, Description, class => examples, i1 : isInfinite 3.
+
+o1 = false, class => language-macaulay2, i2 : inf = 1/0.
+
+o2 = infinity
+
+o2 : RR (of precision 53), class => language-macaulay2, i3 : isInfinite inf
+
+o3 = true, class => language-macaulay2, i4 : nan = inf - inf
+
+o4 = NotANumber
+
+o4 : RR (of precision 53), class => language-macaulay2, i5 : isInfinite nan
+
+o5 = false, class => language-macaulay2, See also, Macaulay2Doc :: isFinite, Macaulay2Doc :: isANumber, class => waystouse, Ways to use , isInfinite, :, isInfinite(Constant), isInfinite(InfiniteNumber), isInfinite(Number), class => waystouse, For the programmer, The object , Macaulay2Doc :: isInfinite, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_analytic_functions.m2:495:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isInfinite(Constant)`
+- `isInfinite(InfiniteNumber)`
+- `isInfinite(Number)`
+
+## Examples
+
+```macaulay2
+i1 : isInfinite 3.
+
+o1 = false
+
+i2 : inf = 1/0.
+
+o2 = infinity
+
+o2 : RR (of precision 53)
+```
+
+## See Also
+

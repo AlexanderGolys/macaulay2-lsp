@@ -1,0 +1,45 @@
+---
+title: "\\"
+kind: Operator
+---
+
+# \\
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+\\, -- a binary operator, empty documentation body, class => waystouse, Ways to use , symbol \\, :, Matrix \\ Matrix, -- see , Macaulay2Doc :: quotient', SheafMap \\ SheafMap, -- see , Varieties :: quotient(SheafMap,SheafMap), Command \\ Thing, -- see , Macaulay2Doc :: VisibleList // Function, Function \\ Thing, -- see , Macaulay2Doc :: VisibleList // Function, SelfInitializingType \\ Thing, -- see , Macaulay2Doc :: VisibleList // Function, class => waystouse, For the programmer, The object , Macaulay2Doc :: \\, is , a , Macaulay2Doc :: Keyword, keyword, ., This operator may be used as a binary operator in an expression like , x\\y, . , The user may install , Macaulay2Doc :: binary methods, for handling such expressions with code such as, X \\ Y := (x,y) -> ..., where , X, is the class of , x, and , Y, is the class of , y, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators.m2:438:0, .
+
+## Operator Installations
+
+### Binary Operator
+
+Usage: `x \\ y`
+
+- `\\(SelfInitializingType, Thing)`
+- `\\(Command, Thing)`
+- `\\(Function, Thing)`
+- `\\(Matrix, Matrix)`
+- `\\(Thing, Thing)`
+- `\\(SheafMap, SheafMap)`
+
+### Augmented Assignment
+
+Usage: `x \\= y` (modifies `x` in place)
+
+:::info[Special Installation Syntax]
+Augmented assignment methods require special installation using `installAssignmentMethod`. See [Macaulay2 documentation](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/Macaulay2Doc/html/_installing_spaugmented_spassignment_spmethods.html) for details.
+:::
+
+- `(\\,=)(Type, Type)`
+- `(\\,=)(Thing, Thing)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

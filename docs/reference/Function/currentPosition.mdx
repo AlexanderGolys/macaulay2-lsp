@@ -1,0 +1,33 @@
+---
+title: "currentPosition"
+kind: Function
+---
+
+# currentPosition
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+currentPosition, -- the current position in the current source file, class => element, Usage: , currentPosition(), class => language-macaulay2, Outputs:, a , Macaulay2Doc :: FilePosition, file position, , , the current position in the source file, Description, class => examples, i1 : currentPosition()
+
+o1 = currentString:2:0
+
+o1 : FilePosition, class => language-macaulay2, i2 : peek'_2 oo
+
+o2 = FilePosition{"currentString", 2, 0, class => language-macaulay2, See also, Macaulay2Doc :: currentRowNumber, Macaulay2Doc :: currentColumnNumber, class => waystouse, For the programmer, The object , Macaulay2Doc :: currentPosition, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:909:0, .
+
+## Examples
+
+```macaulay2
+i1 : currentPosition()
+
+o1 = currentString:2:0
+
+o1 : FilePosition
+```
+
+## See Also
+

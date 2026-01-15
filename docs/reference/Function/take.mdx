@@ -1,0 +1,66 @@
+---
+title: "take"
+kind: Function
+---
+
+# take
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+take, -- take some elements from a list or sequence, class => element, Usage: , take(L, i), class => language-macaulay2, take(L, {j,k), class => language-macaulay2, take(x, i), class => language-macaulay2, Inputs:, L, , , a , Macaulay2Doc :: BasicList, basic list, , , x, , , a , Macaulay2Doc :: Thing, thing, , , i, , , an , Macaulay2Doc :: ZZ, integer, , , j, , , an , Macaulay2Doc :: ZZ, integer, , , k, , , an , Macaulay2Doc :: ZZ, integer, , , Outputs:, L2, , , a , Macaulay2Doc :: BasicList, basic list, , , the list or sequence containing the first , i, elements of , L, , (if , i, positive), or the last , i, elements of , L, (if , i, negative), or, if given the pair , j,k, , the list or sequence containing the elements of , L, with indices , j, through , k, , Description, class => examples, i1 : take({a,b,c,d,e,f,g, 3)
+
+o1 = {a, b, c
+
+o1 : List, class => language-macaulay2, i2 : take({a,b,c,d,e,f,g, -3)
+
+o2 = {e, f, g
+
+o2 : List, class => language-macaulay2, i3 : take({a,b,c,d,e,f,g, {1,3)
+
+o3 = {b, c, d
+
+o3 : List, class => language-macaulay2, i4 : take({a,b,c,d,e,f,g, {2,2)
+
+o4 = {c
+
+o4 : List, class => language-macaulay2, The pair $\{j,k\$ must be given with both entries non-negative, and $j\le k$. Otherwise an empty list is returned., class => examples, i5 : take({a,b,c,d,e,f,g, {3,1)
+
+o5 = {
+
+o5 : List, class => language-macaulay2, i6 : take({a,b,c,d,e,f,g, {4,-1)
+
+o6 = {
+
+o6 : List, class => language-macaulay2, If , x, is any object belonging to a class with the , Macaulay2Doc :: iterator, method installed, then a list containing the first $i$ (or the $(j+1)$th through $(k+1)$th) objects returned when , Macaulay2Doc :: next, is called on the output of , iterator x, class => language-macaulay2, is returned. If fewer than $i$ (or $k+1$) objects are returned before the , Macaulay2Doc :: StopIteration, symbol is encountered, then the list will have shorter than expected length., class => examples, i7 : take("Hello, world!", 5)
+
+o7 = {H, e, l, l, o
+
+o7 : List, class => language-macaulay2, i8 : take("Hello, world!", 20)
+
+o8 = {H, e, l, l, o, ,, , w, o, r, l, d, !
+
+o8 : List, class => language-macaulay2, i9 : take("Hello, world!", {7, 11)
+
+o9 = {w, o, r, l, d
+
+o9 : List, class => language-macaulay2, See also, Macaulay2Doc :: drop, Macaulay2Doc :: select, Macaulay2Doc :: position, Macaulay2Doc :: positions, Macaulay2Doc :: lists and sequences, class => waystouse, Ways to use , take, :, take(BasicList,List), take(BasicList,ZZ), take(Thing,List), take(Thing,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: take, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/take-doc.m2:57:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `take(BasicList, ZZ)`
+- `take(BasicList, List)`
+- `take(Thing, ZZ)`
+- `take(Thing, List)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

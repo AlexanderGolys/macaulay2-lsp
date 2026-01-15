@@ -1,0 +1,78 @@
+---
+title: "newPackage"
+kind: Function
+---
+
+# newPackage
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+newPackage, -- the preamble of a package, class => element, Usage: , newPackage ( PackageName, ... ), class => language-macaulay2, Inputs:, PackageName, , , a , Macaulay2Doc :: String, string, , , the name of the new package, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Version, => , a , Macaulay2Doc :: String, string, , , default value , "0.0", , , the version number of the package. A version number less than 1.0 indicates that the package is under development, and the user interface may change., Date, => , a , Macaulay2Doc :: String, string, , , default value , null, , , the date of this version of the package, InfoDirSection, => , a , Macaulay2Doc :: String, string, , , default value , "Macaulay2 and its packages", , , the title of the section in the info page directory where the menu entry for this package should be made, Headline, => , a , Macaulay2Doc :: String, string, , , default value , null, , , a brief (5-10 words) description of the package, Authors, => , a , Macaulay2Doc :: List, list, , , default value , {, , , each entry is a list of options the form , Name => x, , , Email => x, , or , HomePage => x, , where , x, is a string., Keywords, => , a , Macaulay2Doc :: List, list, , , default value , {Uncategorized, , , the entries are keywords describing the package, used to classify the package in the list of , Macaulay2Doc :: packages provided with Macaulay2, HomePage, => , a , Macaulay2Doc :: String, string, , , default value , null, , , the URI pointing to the home page of the package, if any, DebuggingMode, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , whether , Macaulay2Doc :: debuggingMode, should be true during package loading. However, if , Macaulay2Doc :: debuggingMode, is already , false, , it will remain so., AuxiliaryFiles, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , whether the package source to be distributed includes a directory for auxiliary files, with the same name as the package, PackageExports, => , a , Macaulay2Doc :: List, list, , , default value , {, , , the entries are names of other packages to load, both for the user and for the code of the new package, PackageImports, => , a , Macaulay2Doc :: List, list, , , default value , {, , , the entries of names of other packages to load, just for the code of the new package, CacheExampleOutput, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , null, , , whether , Macaulay2Doc :: installPackage, should cache (newer) example output in a subdirectory of the auxiliary file directory named , examples, , for use in a future installation. This value can be overridden by a value explicitly specified when , Macaulay2Doc :: installPackage, is called. After the directory is created, it will necessary for the user also to specify , AuxiliaryFiles => true, ., OptionalComponentsPresent, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , null, , , whether all optional external components of the package are present on the system. Unless the user sets this option or , CacheExampleOutput, to , true, , this option will be initialized to , true, ., UseCachedExampleOutput, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , null, , , whether , Macaulay2Doc :: installPackage, should copy previously cached example output, if it is present and corresponds to the current example input for a node, rather than rerunning the examples, which might be important if optional external software is not present in the system. This is relevant only when , CacheExampleOutput, and , AuxiliaryFiles, are set to , true, . Unless set by the user, it is set to the negation of the value of , OptionalComponentsPresent, ., Certification, => , a , Macaulay2Doc :: List, list, , , default value , null, , , the certification block inserted by the maintainers of , Macaulay2, after the package has been accepted for publication by a journal, such as The Journal of Software for Algebra and Geometry: , Macaulay2, . Authors should not undertake to create such a certification block themselves., Configuration, => , a , Macaulay2Doc :: List, list, , , default value , {, , , the entries are configuration options for the package. The keys and values should be constant expressions, such as strings and integers, not incorporating symbols to be exported by the package (and not yet defined). The first time the package is loaded by the user, unless the , -q, option is specified on the , M2, command line, these options will be stored in a file in the user's application directory (see , Macaulay2Doc :: applicationDirectory, ). The user can change the configuration by editing the file. The user can override the configuration settings when loading the package; see , Macaulay2Doc :: loadPackage(...,Configuration=>...), and , Macaulay2Doc :: needsPackage(...,Configuration=>...), . The file will be overwritten when a newer version of the package with different configuration options is loaded, but a backup will be made and the user's settings for the surviving options will be retained., Reload, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , whether to reload the package, if it has been loaded before, Outputs:, a , Macaulay2Doc :: Package, package, , , the new package, Consequences:, a package is created, Description, The dictionaries for the symbols in the packages loaded by the user are moved out of the way to avoid conflicts, so just the standard pre-loaded packages are visible to the source code of the package. In addition, the package , SimpleDoc :: SimpleDoc, is made available. If functions from additional packages are needed by the code in the new package, then , Macaulay2Doc :: needsPackage, can be used (after the use of , newPackage, ) to provide them. If functions from additional packages are needed by the user who will load the new package, then , Macaulay2Doc :: needsPackage, can be used (before the use of , newPackage, ) to provide them., class => examples, i1 : newPackage("Foo",
+ Version => "1.1",
+ Headline => "making Foo",
+ Configuration => { "foo" => 42, "bar" => "x" 
+ )
+
+o1 = Foo
+
+o1 : Package, class => language-macaulay2, i2 : endPackage "Foo"
+
+o2 = Foo
+
+o2 : Package, class => language-macaulay2, The options can be recovered with , Macaulay2Doc :: options, as follows., class => examples, i3 : opts = options Foo
+
+o3 = OptionTable{Authors => { 
+ AuxiliaryFiles => false
+ CacheExampleOutput => null
+ Certification => null
+ Configuration => {foo => 42, bar => x
+ Date => null
+ DebuggingMode => false
+ Headline => making Foo
+ HomePage => null
+ InfoDirSection => Macaulay2 and its packages
+ Keywords => {Uncategorized
+ OptionalComponentsPresent => true
+ PackageExports => {
+ PackageImports => {
+ Reload => false
+ UseCachedExampleOutput => false
+ Version => 1.1
+
+o3 : OptionTable, class => language-macaulay2, i4 : opts.Headline
+
+o4 = making Foo, class => language-macaulay2, Here is a template for a typical , newPackage, entry in a package., class => examples, newPackage("PackageName",
+ Headline => "one line description",
+ Version => "0.1",
+ Date => "month XX, 20XX",
+ Authors => {
+ {Name => "author1", Email => "email1", HomePage => "url1",
+ {Name => "author2", Email => "email2", HomePage => "url2",
+ DebuggingMode => false,
+ HomePage => "http://univ.edu/~user/PackageName/",
+ Configuration => {
+ ), class => language-macaulay2, See also, Macaulay2Doc :: packages, Macaulay2Doc :: creating a package, Macaulay2Doc :: readPackage, Macaulay2Doc :: loadPackage, Macaulay2Doc :: needsPackage, class => waystouse, Ways to use , newPackage, :, newPackage(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: newPackage, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/package-doc.m2:688:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `newPackage(Sequence)`
+- `newPackage(String)`
+
+## Examples
+
+```macaulay2
+i2 : endPackage "Foo"
+
+o2 = Foo
+
+o2 : Package
+```
+
+## See Also
+

@@ -1,0 +1,102 @@
+---
+title: "..<"
+kind: Operator
+---
+
+# ..<
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+..<, -- a binary operator, used for sequences of consecutive items, not including the endpoint, Description, The most confusing thing about this operator, in all its guises, is that it is not a syntactic construction, and so the resulting sequences do not splice themselves into enclosing lists, as in each of the following examples., class => examples, i1 : {10..<11
+
+o1 = {1 : (10)
+
+o1 : List, class => language-macaulay2, i2 : {10..<8
+
+o2 = {()
+
+o2 : List, class => language-macaulay2, i3 : {3..<5,8..<10
+
+o3 = {(3, 4), (8, 9)
+
+o3 : List, class => language-macaulay2, Use , Macaulay2Doc :: splice, to fix that., class => examples, i4 : splice {3..<5,8..<10
+
+o4 = {3, 4, 8, 9
+
+o4 : List, class => language-macaulay2, If a type of list, instead of a sequence, is desired, use , Macaulay2Doc :: toList, or the operator , Macaulay2Doc :: new, ., class => examples, i5 : 0..<5
+
+o5 = (0, 1, 2, 3, 4)
+
+o5 : Sequence, class => language-macaulay2, i6 : toList (0..<5)
+
+o6 = {0, 1, 2, 3, 4
+
+o6 : List, class => language-macaulay2, i7 : new Array from 0..<5
+
+o7 = [0, 1, 2, 3, 4]
+
+o7 : Array, class => language-macaulay2, i8 : new Sum from 0..<5
+
+o8 = 0 + 1 + 2 + 3 + 4
+
+o8 : Expression of class Sum, class => language-macaulay2, The operator can be used with sequences or lists, whose elements are of various types, to produce rectangular intervals., class => examples, i9 : (0,0)..<(2,3)
+
+o9 = ((0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2))
+
+o9 : Sequence, class => language-macaulay2, i10 : p_(0,a) ..< r_(2,c)
+
+o10 = (p , p , p , p , q , q , q , q )
+ 0,a 0,b 1,a 1,b 0,a 0,b 1,a 1,b
+
+o10 : Sequence, class => language-macaulay2, Use , Macaulay2Doc :: .., instead to get a sequence that does not stop short of the endpoint., See also, Macaulay2Doc :: polynomial rings, Macaulay2Doc :: subscripted variables, Macaulay2Doc :: .., class => waystouse, Ways to use , symbol ..<, :, Macaulay2Doc :: IndexedVariable ..< IndexedVariable, Macaulay2Doc :: List ..< List, Sequence ..< Sequence, -- see , Macaulay2Doc :: List ..< List, Macaulay2Doc :: RingElement ..< RingElement, Macaulay2Doc :: String ..< String, Macaulay2Doc :: Symbol ..< Symbol, Macaulay2Doc :: ZZ ..< ZZ, class => waystouse, For the programmer, The object , Macaulay2Doc :: ..<, is , a , Macaulay2Doc :: Keyword, keyword, ., This operator may be used as a binary operator in an expression like , x..<y, . , The user may install , Macaulay2Doc :: binary methods, for handling such expressions with code such as, X ..< Y := (x,y) -> ..., where , X, is the class of , x, and , Y, is the class of , y, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators/dotdot.m2:74:0, .
+
+## Operator Installations
+
+### Binary Operator
+
+Usage: `x ..< y`
+
+- `..<(RingElement, RingElement)`
+- `..<(IndexedVariableTable, IndexedVariableTable)`
+- `..<(MonoidElement, MonoidElement)`
+- `..<(MonoidElement, Thing)`
+- `..<(IndexedVariableTable, Thing)`
+- `..<(RingElement, Thing)`
+- `..<(Thing, RingElement)`
+- `..<(Thing, IndexedVariableTable)`
+- `..<(Thing, MonoidElement)`
+- `..<(InfiniteNumber, InfiniteNumber)`
+- `..<(InfiniteNumber, ZZ)`
+- `..<(ZZ, InfiniteNumber)`
+- `..<(Expression, Expression)`
+- `..<(Expression, Holder)`
+- `..<(Holder, Expression)`
+- `..<(Holder, Holder)`
+- `..<(Expression, Thing)`
+- `..<(Thing, Expression)`
+- `..<(Symbol, Symbol)`
+- `..<(Sequence, Sequence)`
+
+*Showing 20 of 25 binary signatures*
+
+### Augmented Assignment
+
+Usage: `x ..<= y` (modifies `x` in place)
+
+:::info[Special Installation Syntax]
+Augmented assignment methods require special installation using `installAssignmentMethod`. See [Macaulay2 documentation](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/Macaulay2Doc/html/_installing_spaugmented_spassignment_spmethods.html) for details.
+:::
+
+- `(..<,=)(Type, Type)`
+- `(..<,=)(Thing, Thing)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

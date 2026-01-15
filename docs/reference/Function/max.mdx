@@ -1,0 +1,54 @@
+---
+title: "max"
+kind: Function
+---
+
+# max
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+max, -- get the maximum element in a list or sequence, class => element, Usage: , max X, class => language-macaulay2, Inputs:, X, , , a , Macaulay2Doc :: VisibleList, visible list, , , Outputs:, m, , , a , Macaulay2Doc :: Thing, thing, , , Description, class => examples, i1 : X = for i from 1 to 10 list random(100)
+
+o1 = {24, 65, 71, 72, 19, 19, 91, 72, 93, 79
+
+o1 : List, class => language-macaulay2, i2 : max X
+
+o2 = 93, class => language-macaulay2, If , L, contains elements in a polynomial ring, the , Macaulay2Doc :: MonomialOrder, of the ring is used for comparisons., class => examples, i3 : R1 = QQ[x, y, z, MonomialOrder => Lex];, class => language-macaulay2, i4 : max {x*y^2, x*y^2 + z^2, y^4, y*z^5
+
+ 2 2
+o4 = x*y + z
+
+o4 : R1, class => language-macaulay2, i5 : R2 = QQ[x, y, z, MonomialOrder => GRevLex];, class => language-macaulay2, i6 : max (x*y^2, x*y^2 + z^2, y^4, y*z^5)
+
+ 5
+o6 = y*z
+
+o6 : R2, class => language-macaulay2, More generally, the order of the elements is determined using the , Macaulay2Doc :: ?, operator., If , X, is a list of lists, , max, acts on the outermost level., class => examples, i7 : max {{3, 1, 2, {2, 9, 6, {3, 7, 5
+
+o7 = {3, 7, 5
+
+o7 : List, class => language-macaulay2, i8 : max flatten {{3, 1, 2, {2, 9, 6, {3, 7, 5
+
+o8 = 9, class => language-macaulay2, See also, Macaulay2Doc :: maxPosition, Macaulay2Doc :: min, Macaulay2Doc :: sort, Macaulay2Doc :: ?, class => waystouse, Ways to use , max, :, max(VisibleList), OldChainComplexes :: max(GradedModule), class => waystouse, For the programmer, The object , Macaulay2Doc :: max, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/max-doc.m2:41:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `max(VisibleList)`
+- `max(GradedModule)`
+
+## Examples
+
+```macaulay2
+i2 : max X
+
+o2 = 93
+```
+
+## See Also
+

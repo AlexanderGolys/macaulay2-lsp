@@ -1,0 +1,82 @@
+---
+title: "accumulate"
+kind: Function
+---
+
+# accumulate
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+accumulate, -- apply a binary operator repeatedly, class => element, Usage: , accumulate(f, x, L), class => language-macaulay2, accumulate(f, L), class => language-macaulay2, accumulate(L, x, f), class => language-macaulay2, accumulate(L, f), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Function, function, , , x, , , a , Macaulay2Doc :: Thing, thing, , , L, , , a , Macaulay2Doc :: VisibleList, visible list, , , or an instance of a class with the , Macaulay2Doc :: iterator, method installed, Outputs:, M, , , a , Macaulay2Doc :: List, list, , , Description, Suppose , L=\{x0, x1, ..., xn\, . Then for any binary operator , f, , , accumulate(f, L), returns the list , \{f(x0, x1), f(f(x0, x1), x2), ...\ , . In other words, the binary operator is applied to the first two elements of , L, , then to that result along with the next unused element of , L, , and so forth., class => examples, i1 : accumulate(plus, {0,1,2,3,4,5)
+
+o1 = {1, 3, 6, 10, 15
+
+o1 : List, class => language-macaulay2, i2 : accumulate(concatenate, {a,b,c,d,e)
+
+o2 = {ab, abc, abcd, abcde
+
+o2 : List, class => language-macaulay2, i3 : accumulate((i,j) -> i|j|i, {"a","b","c","d","e")
+
+o3 = {aba, abacaba, abacabadabacaba, abacabadabacabaeabacabadabacaba
+
+o3 : List, class => language-macaulay2, If , accumulate(f, x, L), is called, the element , x, is used as the first argument of the binary function , f, . In other words, , accumulate(f, \{x0, x1, \ldots, xn\), is equivalent to , accumulate(f, x0, \{x1, \ldots, xn\), ., class => examples, i4 : accumulate(plus, 0, {1,2,3,4,5)
+
+o4 = {1, 3, 6, 10, 15
+
+o4 : List, class => language-macaulay2, i5 : accumulate((x, y) -> x^y, 2, {3,2,1,2)
+
+o5 = {8, 64, 64, 4096
+
+o5 : List, class => language-macaulay2, The function , accumulate(\{x_0, x_1, \ldots, x_n\, f), returns the list , \{..., f(x_{n-2, f(x_{n-1, x_n)), f(x_{n-1, x_n) \ , . That is, , f, is applied to the last two elements of the list, and the result placed at the end of the output. Then the accumulation proceeds backwards through the list. The optional argument , x, in , accumulate(L, x, f), is used as the second argument in the first evaluation of , f, . So , accumulate(\{x_0, x_1, \ldots, x_{n-1\, x_n, f), is equivalent to , accumulate(\{x_0, x_1, \ldots, x_n\, f), ., class => examples, i6 : accumulate({a,b,c,d,e, concatenate)
+
+o6 = {abcde, bcde, cde, de
+
+o6 : List, class => language-macaulay2, i7 : accumulate({a,b,c,d, e, concatenate)
+
+o7 = {abcde, bcde, cde, de
+
+o7 : List, class => language-macaulay2, i8 : accumulate({2,3,2,1, 2, (x, y) -> x^y)
+
+o8 = {512, 9, 2, 1
+
+o8 : List, class => language-macaulay2, If , L, is an instance of class the the , Macaulay2Doc :: iterator, method installed, e.g., a string, then it may also be used with , accumulate, , but only the versions with , f, as the first argument. Its return value in this case is an , Macaulay2Doc :: Iterator, object., class => examples, i9 : iter = accumulate(identity, "abcde")
+
+o9 = iter
+
+o9 : Iterator, class => language-macaulay2, i10 : next iter
+
+o10 = (a, b)
+
+o10 : Sequence, class => language-macaulay2, i11 : next iter
+
+o11 = ((a, b), c)
+
+o11 : Sequence, class => language-macaulay2, i12 : next iter
+
+o12 = (((a, b), c), d)
+
+o12 : Sequence, class => language-macaulay2, The difference between , fold, and , Macaulay2Doc :: accumulate, is that , fold, returns the final result of all the nested evaluations of , f, , while , accumulate, lists all the intermediate values as well., class => examples, i13 : fold({2,3,2,1, 2, (x,y) -> x^y)
+
+o13 = 512, class => language-macaulay2, See also, Macaulay2Doc :: apply, Macaulay2Doc :: fold, Macaulay2Doc :: lists and sequences, class => waystouse, Ways to use , accumulate, :, accumulate(Function,Thing), accumulate(Function,Thing,Thing), accumulate(Function,Thing,VisibleList), accumulate(Function,VisibleList), accumulate(VisibleList,Function), accumulate(VisibleList,Thing,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: accumulate, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/accumulate-doc.m2:78:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `accumulate(Function, Thing, Thing)`
+- `accumulate(Function, Thing, VisibleList)`
+- `accumulate(VisibleList, Thing, Function)`
+- `accumulate(Function, VisibleList)`
+- `accumulate(VisibleList, Function)`
+- `accumulate(Function, Thing)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

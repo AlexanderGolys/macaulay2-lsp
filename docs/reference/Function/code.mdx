@@ -1,0 +1,83 @@
+---
+title: "code"
+kind: Function
+---
+
+# code
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+code, -- display source code, Description, Synopsis, class => element, Usage: , code f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Function, function, or , a , Macaulay2Doc :: Command, command, Outputs:, a , Macaulay2Doc :: Net, net, , , the source code of the function or command, f, class => examples, i1 : code listUserSymbols
+
+o1 = ../../m2/debugging.m2:198:28-198:64: --source code:
+ listUserSymbols = Command ( type -> listSymbols userSymbols type ), class => language-macaulay2, Synopsis, class => element, Usage: , code(f,X), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Function, function, or , a , Macaulay2Doc :: Keyword, keyword, X, , , a , Macaulay2Doc :: Type, type, Outputs:, a , Macaulay2Doc :: Net, net, , , the source code of method for applying , f, to an argument of type , X, class => examples, i2 : code(res,Ideal)
+
+o2 = -- code for method: resolution(Ideal)
+ ../OldChainComplexes/res.m2:283:37-283:78: --source code:
+ resolution Ideal := ChainComplex => opts -> I -> resolution(comodule I, opts), class => language-macaulay2, Synopsis, class => element, Usage: , code(f,X,Y), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Function, function, or , a , Macaulay2Doc :: Keyword, keyword, X, , , a , Macaulay2Doc :: Type, type, Y, , , a , Macaulay2Doc :: Type, type, Outputs:, a , Macaulay2Doc :: Net, net, , , the source code of method for applying , f, to arguments of type , X, and , Y, class => examples, i3 : code(symbol :, Ideal, Ideal)
+
+o3 = -- code for method: Ideal : Ideal
+ ../Saturation.m2:148:51-148:75: --source code:
+ Ideal : Ideal := Ideal => (I, J) -> quotient(I, J), class => language-macaulay2, Synopsis, class => element, Usage: , code(f,X,Y,Z), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Function, function, or , a , Macaulay2Doc :: Keyword, keyword, X, , , a , Macaulay2Doc :: Type, type, Y, , , a , Macaulay2Doc :: Type, type, Z, , , a , Macaulay2Doc :: Type, type, Outputs:, a , Macaulay2Doc :: Net, net, , , the source code of method for applying , f, to arguments of type , X, , , Y, , and , Z, Synopsis, class => element, Usage: , code(f,X,Y,Z,T), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: Function, function, or , a , Macaulay2Doc :: Keyword, keyword, X, , , a , Macaulay2Doc :: Type, type, Y, , , a , Macaulay2Doc :: Type, type, Z, , , a , Macaulay2Doc :: Type, type, T, , , a , Macaulay2Doc :: Type, type, Outputs:, a , Macaulay2Doc :: Net, net, , , the source code of method for applying , f, to arguments of type , X, , , Y, , , Z, , and , T, Synopsis, class => element, Usage: , code {v,w,..., class => language-macaulay2, Inputs:, {v,w,..., , , a , Macaulay2Doc :: List, list, Outputs:, a , Macaulay2Doc :: Net, net, , , the source code of the functions or commands, v,w,..., . Such a list can be obtained, for example, with , Macaulay2Doc :: methods, ., class => examples, i4 : code methods use
+
+o4 = -- code for method: use(Ring)
+ ../../m2/enginering.m2:388:12-393:7: --source code:
+ use Ring := R -> (
+ if R.?ring then use R.ring; -- I'm not sure what this is for. Which rings have this key?
+ generators R;
+ if R.?generators and R.?generatorSymbols then scan(R.generatorSymbols,R.generators,(sym,val) -> sym <- val);
+ if R.?use then R.use R;
+ R)
+ ------------------------------------------------------------------------
+ -- code for method: use(Monoid)
+ ../../m2/monoids.m2:193:21-193:56: --source code:
+ use Monoid := M ->(if M.?use then M.use M; M)
+ ------------------------------------------------------------------------
+ -- code for method: use(Package)
+ ../../m2/packages.m2:550:15-555:42: --source code:
+ use Package := pkg -> (
+ scan(nonnull pkg.Options.PackageExports, needsPackage);
+ loadedPackages = prepend(pkg, delete(pkg, loadedPackages));
+ dictionaryPath = prepend(pkg.Dictionary, delete(pkg.Dictionary, dictionaryPath));
+ checkShadow();
+ if pkg.?use then pkg.use pkg else pkg)
+ ------------------------------------------------------------------------
+ -- code for method: use(Thing)
+ compiled function identity: source code not available, class => language-macaulay2, See also, Macaulay2Doc :: edit, Macaulay2Doc :: methods, class => waystouse, Ways to use , code, :, code(Command), code(Function), code(List), code(Pseudocode), code(Sequence), code(Symbol), code(ZZ), Macaulay2Doc :: code(FilePosition), code(TestInput), -- see , Macaulay2Doc :: tests, class => waystouse, For the programmer, The object , Macaulay2Doc :: code, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_debugging.m2:619:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `code(TestInput)`
+- `code(FilePosition)`
+- `code(Pseudocode)`
+- `code(Symbol)`
+- `code(Sequence)`
+- `code(Function)`
+- `code(Command)`
+- `code(List)`
+- `code(ZZ)`
+- `code(Nothing)`
+
+## Examples
+
+```macaulay2
+i1 : code listUserSymbols
+
+o1 = ../../m2/debugging.m2:198:28-198:64: --source code:
+     listUserSymbols = Command ( type -> listSymbols userSymbols type )
+
+i2 : code(res,Ideal)
+
+o2 = -- code for method: resolution(Ideal)
+     ../OldChainComplexes/res.m2:283:37-283:78: --source code:
+     resolution Ideal  := ChainComplex => opts -> I -> resolution(comodule I, opts)
+```
+
+## See Also
+

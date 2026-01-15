@@ -1,0 +1,1 @@
+/home/flux/m2/macaulay2-lsp/m2-lsp/target/debug/m2-lsp: /home/flux/m2/macaulay2-lsp/m2-lsp/src/main.rs /home/flux/m2/tree-sitter-macaulay2/bindings/rust/build.rs /home/flux/m2/tree-sitter-macaulay2/bindings/rust/lib.rs /home/flux/m2/tree-sitter-macaulay2/src/node-types.json /home/flux/m2/tree-sitter-macaulay2/src/parser.c /home/flux/m2/tree-sitter-macaulay2/src/scanner.c

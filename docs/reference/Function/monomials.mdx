@@ -1,0 +1,45 @@
+---
+title: "monomials"
+kind: Function
+---
+
+# monomials
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+monomials, -- matrix of monomials in a ring element or matrix, class => element, Usage: , monomials f, class => language-macaulay2, Inputs:, f, , , either a , Macaulay2Doc :: Matrix, or a , Macaulay2Doc :: RingElement, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Macaulay2Doc :: monomials(...,Variables=>...), Variables, => , ..., , , default value , null, , , specify variables, Outputs:, a , Macaulay2Doc :: Matrix, matrix, , , a one row matrix in the same ring with all of the monomials that appear in , f, Description, Each monomial only appears once, and the monomials are sorted in what order?, class => examples, i1 : R = ZZ[a..d,x,y];, class => language-macaulay2, i2 : m = matrix{{a*x^2+b*x*y+c*y^2, a*x^3+b*x^2*y+c*x*y^2+d*y^3+a*x^2
+
+o2 = | ax2+bxy+cy2 ax3+bx2y+cxy2+dy3+ax2 |
+
+ 1 2
+o2 : Matrix R <-- R, class => language-macaulay2, i3 : monomials m
+
+o3 = | ax3 bx2y cxy2 dy3 ax2 bxy cy2 |
+
+ 1 7
+o3 : Matrix R <-- R, class => language-macaulay2, If the monomials in only some of the variables are desired, use the optional argument , Macaulay2Doc :: monomials(...,Variables=>...), ., class => examples, i4 : monomials(m, Variables=>{x,y)
+
+o4 = | x3 x2y xy2 y3 x2 xy y2 |
+
+ 1 7
+o4 : Matrix R <-- R, class => language-macaulay2, See also, Macaulay2Doc :: coefficients, Macaulay2Doc :: monomials(...,Variables=>...), class => waystouse, Ways to use , monomials, :, monomials(Matrix), monomials(RingElement), class => waystouse, For the programmer, The object , Macaulay2Doc :: monomials, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/monomials-doc.m2:30:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `monomials(RingElement)`
+- `monomials(Matrix)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ[a..d,x,y];
+```
+
+## See Also
+

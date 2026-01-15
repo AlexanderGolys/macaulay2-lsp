@@ -1,0 +1,47 @@
+---
+title: "scanKeys"
+kind: Function
+---
+
+# scanKeys
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+scanKeys, -- apply a function to each key in a hash table or database, class => element, Usage: , scanKeys(t, f), class => language-macaulay2, Inputs:, t, , , a , Macaulay2Doc :: HashTable, hash table, , , or Database, f, , , a , Macaulay2Doc :: Function, function, , , Description, , scanKeys(t, f), applies the function , f, to each key in the hash table , t, ., class => examples, i1 : t = hashTable {{1,8,{2,20,{3,4,{4,20
+
+o1 = HashTable{1 => 8 
+ 2 => 20
+ 3 => 4
+ 4 => 20
+
+o1 : HashTable, class => language-macaulay2, i2 : scanKeys(t, print)
+1
+2
+3
+4, class => language-macaulay2, i3 : scanKeys(t, k -> if k>2 then print t#k)
+4
+20, class => language-macaulay2, Caveat, This function requires an immutable hash table. To scan the keys in a mutable hash table, use , scan(keys t, f), ., See also, Macaulay2Doc :: hash tables, Macaulay2Doc :: applyKeys, Macaulay2Doc :: keys, Macaulay2Doc :: scan, Macaulay2Doc :: scanPairs, Macaulay2Doc :: scanValues, class => waystouse, Ways to use , scanKeys, :, scanKeys(Database,Function), scanKeys(HashTable,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: scanKeys, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_hashtables.m2:575:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `scanKeys(HashTable, Function)`
+- `scanKeys(Database, Function)`
+
+## Examples
+
+```macaulay2
+i2 : scanKeys(t, print)
+1
+2
+3
+4
+```
+
+## See Also
+

@@ -1,0 +1,60 @@
+---
+title: "tests"
+kind: Function
+---
+
+# tests
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+tests, -- locate a package's tests, class => element, Usage: , tests pkg, class => language-macaulay2, tests(i, pkg), class => language-macaulay2, Inputs:, i, , , an , Macaulay2Doc :: ZZ, integer, , , pkg, , , a , Macaulay2Doc :: Package, package, or , a , Macaulay2Doc :: String, string, , , Outputs:, a , Macaulay2Doc :: NumberedVerticalList, numbered vertical list, or , a , Macaulay2Doc :: TestInput, test input, , , Description, When an integer is not provided, this returns all the tests for the given package. The position of each element would be passed as the first argument of , Macaulay2Doc :: check, to run the test. Each value is a , TestInput, object. These are printed with the location of the file so that you may quickly jump to the source code of the test when using Emacs., class => examples, i1 : tests "FirstPackage"
+ -- warning: reloading FirstPackage; recreate instances of types from this package
+
+o1 = {0 => TestInput[../FirstPackage.m2:54:5-56:3]
+ {1 => TestInput[../FirstPackage.m2:58:5-60:3]
+
+o1 : NumberedVerticalList, class => language-macaulay2, If the test number is also provided, then the corresponding , TestInput, object is returned., class => examples, i2 : t = tests(0, "FirstPackage")
+
+o2 = TestInput[../FirstPackage.m2:54:5-56:3]
+
+o2 : TestInput, class => language-macaulay2, The , Macaulay2Doc :: locate, and , Macaulay2Doc :: code, functions do the expected thing when given a , TestInput, object., class => examples, i3 : locate t
+
+o3 = ../FirstPackage.m2:54:5-56:3
+
+o3 : FilePosition, class => language-macaulay2, i4 : code t
+
+o4 = ../FirstPackage.m2:54:5-56:3: --source code:
+ TEST ///
+ assert ( firstFunction 2 == "D'oh!" )
+ ///, class => language-macaulay2, Passing only the key of the desired test to , Macaulay2Doc :: code, is supported as well., class => examples, i5 : code 0
+
+o5 = ../FirstPackage.m2:54:5-56:3: --source code:
+ TEST ///
+ assert ( firstFunction 2 == "D'oh!" )
+ ///, class => language-macaulay2, You may also pass a , TestInput, object to , Macaulay2Doc :: edit, to open the code in your favorite editor., class => waystouse, Ways to use , tests, :, tests(Package), tests(String), tests(ZZ,Package), tests(ZZ,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: tests, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/tests-doc.m2:51:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `tests(Package)`
+- `tests(String)`
+- `tests(ZZ, Package)`
+- `tests(ZZ, String)`
+
+## Examples
+
+```macaulay2
+i2 : t = tests(0, "FirstPackage")
+
+o2 = TestInput[../FirstPackage.m2:54:5-56:3]
+
+o2 : TestInput
+```
+
+## See Also
+

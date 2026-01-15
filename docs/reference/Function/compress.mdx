@@ -1,0 +1,47 @@
+---
+title: "compress"
+kind: Function
+---
+
+# compress
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+compress, -- extract nonzero columns from a matrix, class => element, Usage: , compress m, class => language-macaulay2, Inputs:, m, , , a , Macaulay2Doc :: Matrix, matrix, Outputs:, a , Macaulay2Doc :: Matrix, matrix, , , the matrix consisting of nonzero columns of , m, Description, class => examples, i1 : m = matrix {{1,2,0,0,{0,0,1,0
+
+o1 = | 1 2 0 0 |
+ | 0 0 1 0 |
+
+ 2 4
+o1 : Matrix ZZ <-- ZZ, class => language-macaulay2, i2 : compress m
+
+o2 = | 1 2 0 |
+ | 0 0 1 |
+
+ 2 3
+o2 : Matrix ZZ <-- ZZ, class => language-macaulay2, See also, Macaulay2Doc :: matrices, class => waystouse, Ways to use , compress, :, compress(Matrix), class => waystouse, For the programmer, The object , Macaulay2Doc :: compress, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/compress-doc.m2:21:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `compress(Matrix)`
+
+## Examples
+
+```macaulay2
+i2 : compress m
+
+o2 = | 1 2 0 |
+     | 0 0 1 |
+
+              2       3
+o2 : Matrix ZZ  <-- ZZ
+```
+
+## See Also
+

@@ -1,0 +1,65 @@
+---
+title: "lcm"
+kind: Function
+---
+
+# lcm
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionBinary](../Type/MethodFunctionBinary.mdx)
+
+## Description
+
+lcm, -- least common multiple, class => element, Usage: , lcm(x,y,...), class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: RingElement, ring element, , , all the elements should be integers, rational numbers or ring elements, Outputs:, m, , , a , Macaulay2Doc :: RingElement, ring element, , , the least common multiple of the elements x,y,..., Description, class => examples, i1 : lcm(-6,15,14)
+
+o1 = 210, class => language-macaulay2, i2 : lcm(-6/7,15,14)
+
+o2 = 210
+
+o2 : QQ, class => language-macaulay2, i3 : R = QQ[a..d];, class => language-macaulay2, i4 : lcm(a^2-d^2,(a-d)*(b+c))
+
+ 2 2 2 2
+o4 = a b + a c - b*d - c*d
+
+o4 : R, class => language-macaulay2, i5 : factor oo
+
+o5 = (b + c)(a - d)(a + d)
+
+o5 : Expression of class Product, class => language-macaulay2, See also, Macaulay2Doc :: gcd, class => waystouse, Ways to use , lcm, :, lcm(), lcm(List), lcm(QQ), lcm(QQ,QQ), lcm(QQ,ZZ), lcm(RingElement), lcm(RingElement,RingElement), lcm(RingElement,ZZ), lcm(Sequence), lcm(ZZ), lcm(ZZ,QQ), lcm(ZZ,RingElement), lcm(ZZ,ZZ), Macaulay2Doc :: lcm(MonomialIdeal), class => waystouse, For the programmer, The object , Macaulay2Doc :: lcm, is , an , Macaulay2Doc :: MethodFunctionBinary, associative binary method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators.m2:216:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `lcm(ZZ, RingElement)`
+- `lcm(RingElement, ZZ)`
+- `lcm(RingElement, RingElement)`
+- `lcm()`
+- `lcm(ZZ, ZZ)`
+- `lcm(QQ, ZZ)`
+- `lcm(ZZ, QQ)`
+- `lcm(QQ, QQ)`
+- `lcm(Sequence)`
+- `lcm(List)`
+- `lcm(MonomialIdeal)`
+- `lcm(RingElement)`
+- `lcm(ZZ)`
+- `lcm(QQ)`
+
+## Examples
+
+```macaulay2
+i1 : lcm(-6,15,14)
+
+o1 = 210
+
+i2 : lcm(-6/7,15,14)
+
+o2 = 210
+
+o2 : QQ
+```
+
+## See Also
+

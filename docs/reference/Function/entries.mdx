@@ -1,0 +1,52 @@
+---
+title: "entries"
+kind: Function
+---
+
+# entries
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+entries, -- get the entries of a matrix, class => element, Usage: , entries M, class => language-macaulay2, Inputs:, M, , , a , Macaulay2Doc :: Matrix, or a , Macaulay2Doc :: MutableMatrix, Outputs:, a doubly nested , Macaulay2Doc :: List, of the entries of M, Description, class => examples, i1 : R = ZZ[x,y,z];, class => language-macaulay2, i2 : M = matrix{{x,z,x*y,{x^2+z,y*z,1
+
+o2 = | x z xy |
+ | x2+z yz 1 |
+
+ 2 3
+o2 : Matrix R <-- R, class => language-macaulay2, i3 : entries M
+
+ 2
+o3 = {{x, z, x*y, {x + z, y*z, 1
+
+o3 : List, class => language-macaulay2, i4 : N = mutableMatrix{{x,z,x*y,{x^2+z,y*z,1
+
+o4 = | x z xy |
+ | x2+z yz 1 |
+
+o4 : MutableMatrix, class => language-macaulay2, i5 : entries N
+
+ 2
+o5 = {{x, z, x*y, {x + z, y*z, 1
+
+o5 : List, class => language-macaulay2, class => waystouse, Ways to use , entries, :, entries(Matrix), entries(MutableMatrix), Macaulay2Doc :: entries(Vector), class => waystouse, For the programmer, The object , Macaulay2Doc :: entries, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/entries-doc.m2:25:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `entries(Matrix)`
+- `entries(Vector)`
+- `entries(MutableMatrix)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ[x,y,z];
+```
+
+## See Also
+

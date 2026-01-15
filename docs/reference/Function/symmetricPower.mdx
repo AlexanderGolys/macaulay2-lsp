@@ -1,0 +1,63 @@
+---
+title: "symmetricPower"
+kind: Function
+---
+
+# symmetricPower
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+symmetricPower, -- symmetric power, class => element, Usage: , symmetricPower(i,f), class => language-macaulay2, Inputs:, i, , , an , Macaulay2Doc :: ZZ, integer, , , M, , , a , Macaulay2Doc :: Matrix, matrix, , , or , a , Macaulay2Doc :: Module, module, Outputs:, a , Macaulay2Doc :: Matrix, matrix, , , or , a , Macaulay2Doc :: Module, module, , the $i$-th symmetric power of the matrix or module $f$, Description, There is currently one restriction: if $f$ is a matrix, then it must have only one row, and be a map of free modules, as in this example., class => examples, i1 : R = ZZ/101[a..d]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : symmetricPower(2,vars R)
+
+o2 = | a2 ab ac ad b2 bc bd c2 cd d2 |
+
+ 1 10
+o2 : Matrix R <-- R, class => language-macaulay2, If G --> F --> M --> 0 is a presentation for the module M = coker(f:G-->F), then symmetricPower(i,f) is the cokernel of the map symmetricPower(i-1,F) ** G --> symmetricPower(i,F)., class => examples, i3 : R = ZZ/101[a,b]
+
+o3 = R
+
+o3 : PolynomialRing, class => language-macaulay2, i4 : symmetricPower(2,image vars R)
+
+o4 = cokernel {2 | -b 0 |
+ {2 | a -b |
+ {2 | 0 a |
+
+ 3
+o4 : R-module, quotient of R, class => language-macaulay2, See also, Macaulay2Doc :: exteriorPower, Macaulay2Doc :: basis, class => waystouse, Ways to use , symmetricPower, :, symmetricPower(ZZ,Matrix), symmetricPower(ZZ,Module), Varieties :: symmetricPower(ZZ,CoherentSheaf), Varieties :: symmetricPower(ZZ,SheafMap), class => waystouse, For the programmer, The object , Macaulay2Doc :: symmetricPower, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc7.m2:222:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `symmetricPower(ZZ, Module)`
+- `symmetricPower(ZZ, Matrix)`
+- `symmetricPower(ZZ, CoherentSheaf)`
+- `symmetricPower(ZZ, SheafMap)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/101[a..d]
+
+o1 = R
+
+o1 : PolynomialRing
+
+i2 : symmetricPower(2,vars R)
+
+o2 = | a2 ab ac ad b2 bc bd c2 cd d2 |
+
+             1      10
+o2 : Matrix R  <-- R
+```
+
+## See Also
+

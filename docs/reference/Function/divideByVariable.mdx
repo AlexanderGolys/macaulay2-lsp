@@ -1,0 +1,54 @@
+---
+title: "divideByVariable"
+kind: Function
+---
+
+# divideByVariable
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+divideByVariable, -- divide all columns by a (power of a) variable, Description, divideByVariable(m,v), -- divide each column of the matrix 'm' by as high a power of the variable 'v' as possible., , divideByVariable(m,v,d), -- divide each column of the matrix 'm' by as high a power of the variable 'v' as possible, but divide by no more than v^d., , class => examples, i1 : R = ZZ/101[a..d]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : m = matrix{{a*b, a^2*c, {a*b^2, a^4*d
+
+o2 = | ab a2c |
+ | ab2 a4d |
+
+ 2 2
+o2 : Matrix R <-- R, class => language-macaulay2, i3 : divideByVariable(m,a)
+
+o3 = (| b c |, 2)
+ | b2 a2d |
+
+o3 : Sequence, class => language-macaulay2, i4 : divideByVariable(m,a,1)
+
+o4 = (| b ac |, 1)
+ | b2 a3d |
+
+o4 : Sequence, class => language-macaulay2, , We may eliminate this routine., Caveat, You can only divide by a variable, not a monomial, and you have little control on what power will be divided. This routine is mostly used by the saturation commands as a fast internal way of dividing., class => waystouse, Ways to use , divideByVariable, :, divideByVariable(Matrix,RingElement), divideByVariable(Matrix,RingElement,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: divideByVariable, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/divideByVariable-doc.m2:26:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `divideByVariable(Matrix, RingElement)`
+- `divideByVariable(Matrix, RingElement, ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/101[a..d]
+
+o1 = R
+
+o1 : PolynomialRing
+```
+
+## See Also
+

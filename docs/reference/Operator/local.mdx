@@ -1,0 +1,45 @@
+---
+title: "local"
+kind: Operator
+---
+
+# local
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+local, -- get a local symbol, Description, local s, provides the local symbol , s, , creating a new symbol if necessary. The initial value of a local symbol is , Macaulay2Doc :: null, ., class => examples, i1 : f = () -> ZZ[local t]
+
+o1 = f
+
+o1 : FunctionClosure, class => language-macaulay2, i2 : f()
+
+o2 = ZZ[t]
+
+o2 : PolynomialRing, class => language-macaulay2, i3 : t
+
+o3 = t
+
+o3 : Symbol, class => language-macaulay2, See also, Macaulay2Doc :: global, Macaulay2Doc :: symbol, class => waystouse, For the programmer, The object , Macaulay2Doc :: local, is , a , Macaulay2Doc :: Keyword, keyword, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:114:0, .
+
+## Examples
+
+```macaulay2
+i1 : f = () -> ZZ[local t]
+
+o1 = f
+
+o1 : FunctionClosure
+
+i2 : f()
+
+o2 = ZZ[t]
+
+o2 : PolynomialRing
+```
+
+## See Also
+

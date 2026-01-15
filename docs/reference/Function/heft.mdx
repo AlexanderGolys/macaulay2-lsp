@@ -1,0 +1,40 @@
+---
+title: "heft"
+kind: Function
+---
+
+# heft
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+heft, -- heft vector of ring or monoid, class => element, Usage: , heft R, class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: Ring, ring, or , a , Macaulay2Doc :: Monoid, monoid, , , Outputs:, a , Macaulay2Doc :: List, list, , , a weight co-vector of integers with length the same as , Macaulay2Doc :: degreeLength, degree length, of , R, , or, Macaulay2Doc :: null, if there is no heft vector., Description, heft, returns the , Macaulay2Doc :: heft vectors, heft vector, in use for , R, ,, class => examples, i1 : S = QQ[a..d, DegreeRank => 4];, class => language-macaulay2, i2 : degrees S
+
+o2 = {{1, 0, 0, 0, {0, 1, 0, 0, {0, 0, 1, 0, {0, 0, 0, 1
+
+o2 : List, class => language-macaulay2, i3 : heft S
+
+o3 = {1, 1, 1, 1
+
+o3 : List, class => language-macaulay2, See also, Macaulay2Doc :: findHeft, class => waystouse, Ways to use , heft, :, heft(Monoid), heft(PolynomialRing), heft(QuotientRing), heft(Ring), class => waystouse, For the programmer, The object , Macaulay2Doc :: heft, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/heft-doc.m2:111:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `heft(Ring)`
+- `heft(Monoid)`
+- `heft(PolynomialRing)`
+- `heft(QuotientRing)`
+
+## Examples
+
+```macaulay2
+i1 : S = QQ[a..d, DegreeRank => 4];
+```
+
+## See Also
+

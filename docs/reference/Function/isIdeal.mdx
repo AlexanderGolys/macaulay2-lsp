@@ -1,0 +1,67 @@
+---
+title: "isIdeal"
+kind: Function
+---
+
+# isIdeal
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isIdeal, -- whether something is an ideal, class => element, Usage: , isIdeal I, class => language-macaulay2, Inputs:, I, , , a , Macaulay2Doc :: Thing, thing, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Macaulay2Doc :: true, if , I, is either an , Macaulay2Doc :: Ideal, ideal, , a , Macaulay2Doc :: MonomialIdeal, monomial ideal, or a , Macaulay2Doc :: Module, module, which is a submodule of a free module of rank 1 with generators in degree 0 and , Macaulay2Doc :: false, otherwise, Description, class => examples, i1 : S = QQ[x,y,z];, class => language-macaulay2, i2 : I = ideal(x^2, y^2)
+
+ 2 2
+o2 = ideal (x , y )
+
+o2 : Ideal of S, class => language-macaulay2, i3 : isIdeal I
+
+o3 = true, class => language-macaulay2, i4 : J = monomialIdeal I
+
+ 2 2
+o4 = monomialIdeal (x , y )
+
+o4 : MonomialIdeal of S, class => language-macaulay2, i5 : isIdeal J
+
+o5 = true, class => language-macaulay2, i6 : R = QQ[a..d]/(a*b*c*d);, class => language-macaulay2, i7 : I = ideal(a^2,b^2) * R^1
+
+o7 = image | a2 b2 |
+
+ 1
+o7 : R-module, submodule of R, class => language-macaulay2, i8 : isIdeal I
+
+o8 = true, class => language-macaulay2, i9 : J = a^2 * R^2 + a*b * R^2
+
+o9 = image | a2 0 ab 0 |
+ | 0 a2 0 ab |
+
+ 2
+o9 : R-module, submodule of R, class => language-macaulay2, i10 : isIdeal J
+
+o10 = false, class => language-macaulay2, See also, Macaulay2Doc :: ideal(Module), class => waystouse, Ways to use , isIdeal, :, isIdeal(Ideal), isIdeal(Module), isIdeal(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: isIdeal, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isIdeal-doc.m2:32:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isIdeal(Ideal)`
+- `isIdeal(Thing)`
+- `isIdeal(Module)`
+
+## Examples
+
+```macaulay2
+i1 : S = QQ[x,y,z];
+
+i2 : I = ideal(x^2, y^2)
+
+             2   2
+o2 = ideal (x , y )
+
+o2 : Ideal of S
+```
+
+## See Also
+

@@ -1,0 +1,44 @@
+---
+title: "standardForm"
+kind: Function
+---
+
+# standardForm
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+standardForm, -- convert to standard form, class => element, Usage: , standardForm f, class => language-macaulay2, Outputs:, a , Macaulay2Doc :: HashTable, hash table, , , the polynomial or monomial in a form involving hash tables., Description, A polynomial is represented by hash tables in which the keys are hash tables representing the monomials and the values are the coefficients. The monomials themselves are represented by hash tables in which the keys are the variables and the values are the corresponding exponents., class => examples, i1 : R = ZZ/101[x,y,z];, class => language-macaulay2, i2 : standardForm (x^2 - 7 + x*y*z^11 + y)
+
+o2 = HashTable{HashTable{ => -7 
+ HashTable{0 => 1 => 1
+ 1 => 1
+ 2 => 11
+ HashTable{0 => 2 => 1
+ HashTable{1 => 1 => 1
+
+o2 : HashTable, class => language-macaulay2, class => waystouse, Code, ../../m2/monoids.m2:146:30-150:86: --source code:
+standardForm RingElement := f -> (
+ R := ring f;
+ k := coefficientRing R;
+ (cc, mm) := rawPairs(raw k, raw f);
+ new HashTable from toList apply(cc, mm, (c, m) -> (standardForm m, new k from c))), class => language-macaulay2, See also, Macaulay2Doc :: listForm, Macaulay2Doc :: content, Macaulay2Doc :: coefficients, Macaulay2Doc :: exponents, Macaulay2Doc :: monomials, class => waystouse, Ways to use , standardForm, :, standardForm(MonoidElement), standardForm(RingElement), class => waystouse, For the programmer, The object , Macaulay2Doc :: standardForm, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_ringelement.m2:130:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `standardForm(MonoidElement)`
+- `standardForm(RingElement)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/101[x,y,z];
+```
+
+## See Also
+

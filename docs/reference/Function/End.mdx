@@ -1,0 +1,60 @@
+---
+title: "End"
+kind: Function
+---
+
+# End
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+End, -- module of endomorphisms, class => element, Usage: , End M, class => language-macaulay2, Inputs:, M, , , a , Macaulay2Doc :: Ring, ring, , , an , Macaulay2Doc :: Ideal, ideal, , or , a , Macaulay2Doc :: Module, module, , , Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, DegreeLimit, => , an , Macaulay2Doc :: ZZ, integer, or , a , Macaulay2Doc :: List, list, , , default value , null, , , see , Macaulay2Doc :: Hom(...,DegreeLimit=>...), MinimalGenerators, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , true, , , see , Macaulay2Doc :: Hom(...,MinimalGenerators=>...), Strategy, => , a , Macaulay2Doc :: Thing, thing, , , default value , null, , , see , Macaulay2Doc :: Hom(...,Strategy=>...), Description, Constructs the module of endomorphisms of $M$., class => examples, i1 : R = QQ[a,b,c];, class => language-macaulay2, i2 : M = coker koszul_2 vars R
+
+o2 = cokernel {1 | -b -c 0 |
+ {1 | a 0 -c |
+ {1 | 0 a b |
+
+ 3
+o2 : R-module, quotient of R, class => language-macaulay2, i3 : End M
+
+o3 = subquotient (| 1 |, | -b 0 -c 0 0 0 0 0 0 |)
+ | 0 | | a -c 0 0 0 0 0 0 0 |
+ | 0 | | 0 b a 0 0 0 0 0 0 |
+ | 0 | | 0 0 0 -b 0 -c 0 0 0 |
+ | 1 | | 0 0 0 a -c 0 0 0 0 |
+ | 0 | | 0 0 0 0 b a 0 0 0 |
+ | 0 | | 0 0 0 0 0 0 -b 0 -c |
+ | 0 | | 0 0 0 0 0 0 a -c 0 |
+ | 1 | | 0 0 0 0 0 0 0 b a |
+
+ 9
+o3 : R-module, subquotient of R, class => language-macaulay2, class => waystouse, Code, ../../m2/option.m2:15:14-18:8: --source code:
+ (opts,f) -> args -> (
+ -- Common code for functions created with >> to process options and arguments.
+ uncurry(f, override (opts,args))
+ )
+| symbol class value location of symbol
+| ------ ----- ----- ------------------ 
+| f FunctionClosure FunctionClosure[../../m2/Hom.m2:15:21-15:43] ../../m2/option.m2:15:8-15:9
+| opts OptionTable OptionTable{DegreeLimit => null ../../m2/option.m2:15:3-15:7
+| MinimalGenerators => true 
+| Strategy => null 
+| -- function f:
+| ../../m2/Hom.m2:15:21-15:43: --source code:
+| End = options Hom >> o -> M -> Hom(M, M, o)
+| -- option table opts:
+| OptionTable{DegreeLimit => null 
+| MinimalGenerators => true
+| Strategy => null, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: End, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/Hom-doc.m2:159:0, .
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[a,b,c];
+```
+
+## See Also
+

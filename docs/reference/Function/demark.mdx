@@ -1,0 +1,37 @@
+---
+title: "demark"
+kind: Function
+---
+
+# demark
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+demark, -- insert a string between elements of a list of strings, class => element, Usage: , demark(d, L), class => language-macaulay2, Inputs:, d, , , a , Macaulay2Doc :: String, string, , , L, , , a , Macaulay2Doc :: List, list, , , of strings, Outputs:, s, , , a , Macaulay2Doc :: String, string, , , the string obtained by concatenating the elements of , L, , with copies of the string , d, inserted between each pair, Description, class => examples, i1 : demark("+", a..f)
+
+o1 = a+b+c+d+e+f, class => language-macaulay2, i2 : demark(" and ", 6:"more")
+
+o2 = more and more and more and more and more and more, class => language-macaulay2, To achieve a similar insertion while keeping the output as a list, see , Macaulay2Doc :: mingle, ., class => examples, i3 : mingle(6: "more", 5: "and")
+
+o3 = {more, and, more, and, more, and, more, and, more, and, more
+
+o3 : List, class => language-macaulay2, See also, Macaulay2Doc :: insert, Macaulay2Doc :: join, Macaulay2Doc :: mingle, Macaulay2Doc :: lists and sequences, class => waystouse, For the programmer, The object , Macaulay2Doc :: demark, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/demark-doc.m2:32:0, .
+
+## Examples
+
+```macaulay2
+i1 : demark("+", a..f)
+
+o1 = a+b+c+d+e+f
+
+i2 : demark(" and ", 6:"more")
+
+o2 = more and more and more and more and more and more
+```
+
+## See Also
+

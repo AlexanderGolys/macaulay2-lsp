@@ -1,0 +1,57 @@
+---
+title: "peek'"
+kind: Function
+---
+
+# peek'
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+peek', -- examine contents of an object, class => element, Usage: , peek'(n, o), class => language-macaulay2, Inputs:, n, , , an , Macaulay2Doc :: ZZ, integer, , , o, , , a , Macaulay2Doc :: Thing, thing, , , any Macaulay2 object, Outputs:, a , Macaulay2Doc :: Net, net, , , laying out the contents of , o, , bypassing installed formatting and printing methods to depth , n, Description, class => examples, i1 : s = factor 112
+
+ 4
+o1 = 2 7
+
+o1 : Expression of class Product, class => language-macaulay2, i2 : peek s
+
+ 4
+o2 = Product{2 , 7, class => language-macaulay2, i3 : peek'_2 s
+
+o3 = Product{Power{2, 4, Power{7, 1, class => language-macaulay2, See also, Macaulay2Doc :: peek, class => waystouse, Ways to use , peek', :, peek'(ZZ,Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: peek', is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/peek-doc.m2:55:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `peek'(ZZ, ZZ)`
+- `peek'(ZZ, Nothing)`
+- `peek'(ZZ, Symbol)`
+- `peek'(ZZ, Thing)`
+- `peek'(ZZ, IndeterminateNumber)`
+- `peek'(ZZ, InfiniteNumber)`
+- `peek'(ZZ, Constant)`
+- `peek'(ZZ, BasicList)`
+- `peek'(ZZ, List)`
+- `peek'(ZZ, String)`
+- `peek'(ZZ, Net)`
+- `peek'(ZZ, Sequence)`
+- `peek'(ZZ, HashTable)`
+- `peek'(ZZ, Dictionary)`
+
+## Examples
+
+```macaulay2
+i1 : s = factor 112
+
+      4
+o1 = 2 7
+
+o1 : Expression of class Product
+```
+
+## See Also
+

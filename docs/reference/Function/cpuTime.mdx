@@ -1,0 +1,41 @@
+---
+title: "cpuTime"
+kind: Function
+---
+
+# cpuTime
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+cpuTime, -- seconds of cpu time used since Macaulay2 began, class => element, Usage: , cpuTime(), class => language-macaulay2, Outputs:, a , Macaulay2Doc :: RR, real number, , , the number of seconds of cpu time used since the program was started, Description, class => examples, i1 : t1 = cpuTime()
+
+o1 = 205.807202529
+
+o1 : RR (of precision 53), class => language-macaulay2, i2 : for i from 0 to 1000000 do 223131321321*324234324324;, class => language-macaulay2, i3 : t2 = cpuTime()
+
+o3 = 206.364938409
+
+o3 : RR (of precision 53), class => language-macaulay2, i4 : t2-t1
+
+o4 = .5577358799999956
+
+o4 : RR (of precision 53), class => language-macaulay2, See also, Macaulay2Doc :: time, Macaulay2Doc :: timing, Macaulay2Doc :: currentTime, class => waystouse, For the programmer, The object , Macaulay2Doc :: cpuTime, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/cpuTime-doc.m2:26:0, .
+
+## Examples
+
+```macaulay2
+i1 : t1 = cpuTime()
+
+o1 = 205.807202529
+
+o1 : RR (of precision 53)
+
+i2 : for i from 0 to 1000000 do 223131321321*324234324324;
+```
+
+## See Also
+

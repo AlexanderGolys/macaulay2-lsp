@@ -1,0 +1,37 @@
+---
+title: "->"
+kind: Operator
+---
+
+# ->
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+->, -- make a function, Description, x -> e, -- denotes a function. When the function is called, the initial value of the variable x is the argument if there is just one, or else is the sequence of arguments., , (x) -> e, -- denotes a function of one argument. When the function is applied to an expression w three things may happen:, if w is not a sequence, then the initial value of x is w;, if w is a sequence of length one, then the initial value of x is the unique element of w; or, if w is a sequence of length other than one, then it is an error., , (x,y) -> e, -- denotes a function of two arguments., , Similarly for more arguments., , These operations create what is usually called a , closure, , which signifies that the function remembers the values of local variables in effect at the time of its creation, can change those values, and share the changes with other functions created at the same time., class => examples, i1 : f = x -> 2*x+1
+
+o1 = f
+
+o1 : FunctionClosure, class => language-macaulay2, i2 : f 100
+
+o2 = 201, class => language-macaulay2, The class of all functions is , Macaulay2Doc :: Function, ., Macaulay2Doc :: options(Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: ->, is , a , Macaulay2Doc :: Keyword, keyword, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_methods.m2:318:0, .
+
+## Examples
+
+```macaulay2
+i1 : f = x -> 2*x+1
+
+o1 = f
+
+o1 : FunctionClosure
+
+i2 : f 100
+
+o2 = 201
+```
+
+## See Also
+

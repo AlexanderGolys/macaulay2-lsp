@@ -1,0 +1,54 @@
+---
+title: "inverseRegularizedBeta"
+kind: Function
+---
+
+# inverseRegularizedBeta
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+inverseRegularizedBeta, -- inverse of the regularized beta function, class => element, Usage: , inverseRegularizedBeta(y, a, b), class => language-macaulay2, Inputs:, y, , , a , Macaulay2Doc :: RR, real number, , , a, , , a , Macaulay2Doc :: RR, real number, , , b, , , a , Macaulay2Doc :: RR, real number, , , Outputs:, a , Macaulay2Doc :: RR, real number, , , Description, This is the inverse of , Macaulay2Doc :: regularizedBeta, with respect to the first argument., class => examples, i1 : regularizedBeta(1/2, 3, 4)
+
+o1 = .6562499999999997
+
+o1 : RR (of precision 53), class => language-macaulay2, i2 : inverseRegularizedBeta(oo, 3, 4)
+
+o2 = .4999999999999996
+
+o2 : RR (of precision 53), class => language-macaulay2, See also, Macaulay2Doc :: Beta, Macaulay2Doc :: regularizedBeta, class => waystouse, Ways to use , inverseRegularizedBeta, :, inverseRegularizedBeta(RR,RR,RR), class => waystouse, For the programmer, The object , Macaulay2Doc :: inverseRegularizedBeta, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/Beta-doc.m2:96:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `inverseRegularizedBeta(Number, RR, RR)`
+- `inverseRegularizedBeta(RR, Number, RR)`
+- `inverseRegularizedBeta(RR, RR, Number)`
+- `inverseRegularizedBeta(Number, Number, RR)`
+- `inverseRegularizedBeta(Number, RR, Number)`
+- `inverseRegularizedBeta(RR, Number, Number)`
+- `inverseRegularizedBeta(Number, Number, Number)`
+- `inverseRegularizedBeta(RR, RR, RR)`
+
+## Examples
+
+```macaulay2
+i1 : regularizedBeta(1/2, 3, 4)
+
+o1 = .6562499999999997
+
+o1 : RR (of precision 53)
+
+i2 : inverseRegularizedBeta(oo, 3, 4)
+
+o2 = .4999999999999996
+
+o2 : RR (of precision 53)
+```
+
+## See Also
+

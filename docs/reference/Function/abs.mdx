@@ -1,0 +1,52 @@
+---
+title: "abs"
+kind: Function
+---
+
+# abs
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+abs, -- absolute value function, class => element, Usage: , abs x, class => language-macaulay2, abs I, class => language-macaulay2, Inputs:, x, , , a number, I, , , a , Macaulay2Doc :: RRi, real interval, Outputs:, the absolute value of , x, a , Macaulay2Doc :: RRi, real interval, , , an interval containing the absolute values of all the point of , I, Description, abs x, computes the absolute value of , x, ., class => examples, i1 : abs(-pi)
+
+o1 = 3.141592653589793
+
+o1 : RR (of precision 53), class => language-macaulay2, i2 : abs(1+ii)
+
+o2 = 1.414213562373095
+
+o2 : RR (of precision 53), class => language-macaulay2, class => waystouse, Ways to use , abs, :, abs(CC), abs(Constant), abs(QQ), abs(RR), abs(RRi), abs(ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: abs, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators.m2:57:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `abs(Constant)`
+- `abs(QQ)`
+- `abs(RRi)`
+- `abs(ZZ)`
+- `abs(CC)`
+- `abs(RR)`
+
+## Examples
+
+```macaulay2
+i1 : abs(-pi)
+
+o1 = 3.141592653589793
+
+o1 : RR (of precision 53)
+
+i2 : abs(1+ii)
+
+o2 = 1.414213562373095
+
+o2 : RR (of precision 53)
+```
+
+## See Also
+

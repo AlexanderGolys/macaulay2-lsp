@@ -1,0 +1,46 @@
+---
+title: "isQuotientRing"
+kind: Function
+---
+
+# isQuotientRing
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isQuotientRing, -- whether something is a quotient ring, class => element, Usage: , isQuotientRing R, class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: Ring, ring, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , Macaulay2Doc :: true, if , R, is a , Macaulay2Doc :: QuotientRing, quotient ring, and , Macaulay2Doc :: false, otherwise, Description, class => examples, i1 : S = ZZ/3[x,y,z];, class => language-macaulay2, i2 : isQuotientRing S
+
+o2 = false, class => language-macaulay2, i3 : R = S/(x^2-y*z);, class => language-macaulay2, i4 : isQuotientRing R
+
+o4 = true, class => language-macaulay2, i5 : ambient R
+
+o5 = S
+
+o5 : PolynomialRing, class => language-macaulay2, i6 : symAlg = symmetricAlgebra R^2;, class => language-macaulay2, i7 : isQuotientRing symAlg
+
+o7 = false, class => language-macaulay2, i8 : sing = singularLocus R;, class => language-macaulay2, i9 : isQuotientRing sing
+
+o9 = true, class => language-macaulay2, See also, Macaulay2Doc :: ambient, class => waystouse, Ways to use , isQuotientRing, :, isQuotientRing(QuotientRing), isQuotientRing(Ring), class => waystouse, For the programmer, The object , Macaulay2Doc :: isQuotientRing, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isQuotientRing-doc.m2:29:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isQuotientRing(Ring)`
+- `isQuotientRing(QuotientRing)`
+
+## Examples
+
+```macaulay2
+i1 : S = ZZ/3[x,y,z];
+
+i2 : isQuotientRing S
+
+o2 = false
+```
+
+## See Also
+

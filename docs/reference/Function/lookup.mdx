@@ -1,0 +1,21 @@
+---
+title: "lookup"
+kind: Function
+---
+
+# lookup
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+lookup, -- look up methods, Description, lookup(M,A), -- provides the unary method named , M, for class , A, . The first place to look is , A#M, . The search proceeds with the parent of , A, , and so on., , lookup(M,A,B), -- provides the binary method named , M, for , (A,B), . The first place to look is , Y#(M,A,B), where , Y, is the younger of , A, and , B, . The search proceeds next with the parent of , B, , and so on. , , lookup(M,A,B,C), -- provides the ternary method named , M, for , (A,B,C), . The first place to look is , Y#(M,A,B,C), where , Y, is the youngest of , A, , , B, , and , C, . The search proceeds with the parent of , C, , and so on., , lookup(M,A,B,C,D), -- provides the quaternary method named , M, for , (A,B,C,D), . The first place to look is , Y#(M,A,B,C,D), where , Y, is the youngest of , A, , , B, , , C, , and , D, . The search proceeds with the parent of , D, , and so on., , lookup x, -- where , x, is a symbol or function, returns , x, ., , If no method is found, then , Macaulay2Doc :: null, is returned., , See also, Macaulay2Doc :: #, Macaulay2Doc :: installMethod, Macaulay2Doc :: youngest, class => waystouse, For the programmer, The object , Macaulay2Doc :: lookup, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_methods.m2:347:0, .
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

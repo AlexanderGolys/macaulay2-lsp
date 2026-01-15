@@ -1,0 +1,21 @@
+---
+title: "installMethod"
+kind: Function
+---
+
+# installMethod
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+installMethod, -- install methods, Description, Most users will use a different way of installing methods., installMethod(M,f), -- installs a function , f, as a nullary method under the name , M, . This is a replacement for the syntax , M () := f, , which hasn't yet been made to work. As currently implemented, this is also the same as , nullaryMethods#(1:M) = f, ., installMethod(M,A,f), -- installs a function , f, as a unary method for the class , A, under the name , M, . This is the same as , M A := f, if , M, is a function. As currently implemented, this is also the same as , A#M = f, ., installMethod(M,A,B,f), -- installs a function , f, as a binary method for classes , A, and , B, under the name , M, . This is the same as , M(A,B) := f, if , M, is a function, or the same as , A M B := f, if , M, is a binary operator. As currently implemented, this is also the same as , Y#(M,A,B) = f, , where , Y, is the younger of , A, and , B, ., installMethod(M,A,B,C,f), -- installs a function , f, as a ternary method for classes , A, , , B, , and , C, under the name , M, . This is the same as , M(A,B,C) := f, if , f, is a function. As currently implemented, this is also the same as , Y#(M,A,B,C) = f, , where , Y, is the youngest of , A, , , B, , and , C, ., See also, Macaulay2Doc :: #, Macaulay2Doc :: lookup, Macaulay2Doc :: new, class => waystouse, For the programmer, The object , Macaulay2Doc :: installMethod, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_methods.m2:381:0, .
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

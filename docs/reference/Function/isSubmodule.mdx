@@ -1,0 +1,50 @@
+---
+title: "isSubmodule"
+kind: Function
+---
+
+# isSubmodule
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isSubmodule, -- whether a module is evidently a submodule of a free module, class => element, Usage: , isSubmodule M, class => language-macaulay2, Inputs:, M, , , a , Macaulay2Doc :: Thing, thing, Outputs:, Macaulay2Doc :: true, if , M, is evidently a submodule of a free module and , Macaulay2Doc :: false, otherwise, Description, No computation is done -- , M, may be a isomorphic to a submodule of a free, module although this function will not detect it., class => examples, i1 : R = ZZ/5[a,b,c];, class => language-macaulay2, i2 : M = R^3;, class => language-macaulay2, i3 : isSubmodule M
+
+o3 = true, class => language-macaulay2, i4 : N = ideal(a,b) * M
+
+o4 = image | a 0 0 b 0 0 |
+ | 0 a 0 0 b 0 |
+ | 0 0 a 0 0 b |
+
+ 3
+o4 : R-module, submodule of R, class => language-macaulay2, i5 : isSubmodule N
+
+o5 = true, class => language-macaulay2, i6 : N' = ideal(a,b) * (R^1 / ideal(a^2,b^2,c^2))
+
+o6 = subquotient (| a b |, | a2 b2 c2 |)
+
+ 1
+o6 : R-module, subquotient of R, class => language-macaulay2, i7 : isSubmodule N'
+
+o7 = false, class => language-macaulay2, class => waystouse, Ways to use , isSubmodule, :, isSubmodule(Module), isSubmodule(Thing), class => waystouse, For the programmer, The object , Macaulay2Doc :: isSubmodule, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isSubmodule-doc.m2:28:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isSubmodule(Thing)`
+- `isSubmodule(Module)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/5[a,b,c];
+
+i2 : M = R^3;
+```
+
+## See Also
+

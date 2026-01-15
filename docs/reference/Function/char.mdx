@@ -1,0 +1,47 @@
+---
+title: "char"
+kind: Function
+---
+
+# char
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+char, -- get the characteristic of the ring or field, class => element, Usage: , char F, class => language-macaulay2, Inputs:, F, , , a , Macaulay2Doc :: Ring, ring, Outputs:, the characteristic of the ring., Description, class => examples, i1 : R = ZZ/10007[x,y];, class => language-macaulay2, i2 : char R
+
+o2 = 10007, class => language-macaulay2, i3 : R = ZZ[x]/823671827384723894723894723892
+
+o3 = R
+
+o3 : QuotientRing, class => language-macaulay2, i4 : char R
+
+o4 = 823671827384723894723894723892, class => language-macaulay2, class => waystouse, Ways to use , char, :, char(Ring), Varieties :: char(AffineVariety), char(ProjectiveVariety), -- see , Varieties :: char(AffineVariety), class => waystouse, For the programmer, The object , Macaulay2Doc :: char, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/char-doc.m2:24:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `char(PolynomialRing)`
+- `char(FractionField)`
+- `char(QuotientRing)`
+- `char(InexactField)`
+- `char(Ring)`
+- `char(AffineVariety)`
+- `char(ProjectiveVariety)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/10007[x,y];
+
+i2 : char R
+
+o2 = 10007
+```
+
+## See Also
+

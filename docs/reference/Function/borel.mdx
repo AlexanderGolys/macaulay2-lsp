@@ -1,0 +1,43 @@
+---
+title: "borel"
+kind: Function
+---
+
+# borel
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+borel, -- make a Borel fixed submodule, Description, borel m, -- make a Borel fixed submodule, , Yields the matrix with the same target as the matrix , m, , whose columns generate the smallest Borel fixed submodule containing the lead monomials of the columns of , m, . If , m, is a monomial ideal, then the minimal Borel fixed monomial ideal containing it is returned., , For example, if R = ZZ/101[a..f], then, class => examples, i1 : R = ZZ/101[a..e]
+
+o1 = R
+
+o1 : PolynomialRing, class => language-macaulay2, i2 : borel matrix {{a*d*e, b^2
+
+o2 = | a2 ab b2 ac2 acd ad2 ace ade |
+
+ 1 8
+o2 : Matrix R <-- R, class => language-macaulay2, class => waystouse, Ways to use , borel, :, Macaulay2Doc :: borel(Matrix), borel(MonomialIdeal), class => waystouse, For the programmer, The object , Macaulay2Doc :: borel, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc7.m2:159:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `borel(Matrix)`
+- `borel(MonomialIdeal)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ/101[a..e]
+
+o1 = R
+
+o1 : PolynomialRing
+```
+
+## See Also
+

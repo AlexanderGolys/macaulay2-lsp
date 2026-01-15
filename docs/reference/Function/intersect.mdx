@@ -1,0 +1,59 @@
+---
+title: "intersect"
+kind: Function
+---
+
+# intersect
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionBinary](../Type/MethodFunctionBinary.mdx)
+
+## Description
+
+intersect, -- compute an intersection, Description, This function calculates the intersection of a list or sequence of compatible objects., When a more efficient algorithm is available for computing the intersection of all inputs simultaneously rather than iteratively, for instance for intersecting , Macaulay2Doc :: Module, s, a specialized function that takes a list or sequence may be installed on , (symbol intersect, Type), ., class => examples, i1 : code lookup(symbol intersect, Module)
+
+o1 = ../../m2/option.m2:15:14-18:8: --source code:
+ (opts,f) -> args -> (
+ -- Common code for functions created with >> to process options and arguments.
+ uncurry(f, override (opts,args))
+ )
+ | symbol class value location of symbol
+ | ------ ----- ----- ------------------ 
+ | f FunctionClosure FunctionClosure[../../m2/intersect.m2:86:42-86:108] ../../m2/option.m2:15:8-15:9
+ | opts OptionTable OptionTable{MinimalGenerators => true ../../m2/option.m2:15:3-15:7
+ | Strategy => null 
+ | -- function f:
+ | ../../m2/intersect.m2:86:42-86:108: --source code:
+ | Module.intersect = moduleIntersectOpts >> opts -> L -> intersectHelper(L, (intersect, Module, Module), opts)
+ | -- option table opts:
+ | OptionTable{MinimalGenerators => true
+ | Strategy => null, class => language-macaulay2, This function may also be called using the synonym , intersection, class => language-macaulay2, ., See also, M0nbar :: intersect, NAGtypes :: intersect(PolySpace,PolySpace), Polyhedra :: intersect, class => waystouse, Ways to use , intersect, :, intersect(Cone,Cone), -- see , Polyhedra :: intersect, intersect(Cone,Polyhedron), -- see , Polyhedra :: intersect, intersect(List), intersect(Polyhedron,Cone), -- see , Polyhedra :: intersect, intersect(Polyhedron,Polyhedron), -- see , Polyhedra :: intersect, intersect(Sequence), intersect(Ideal), -- see , Macaulay2Doc :: intersect(Ideal,Ideal), Macaulay2Doc :: intersect(Ideal,Ideal), intersect(Module), -- see , Macaulay2Doc :: intersect(Ideal,Ideal), intersect(Module,Module), -- see , Macaulay2Doc :: intersect(Ideal,Ideal), Polyhedra :: intersect(Matrix), Polyhedra :: intersect(Matrix,Matrix), intersect(Matrix,Matrix,Matrix,Matrix), -- see , Polyhedra :: intersect(Matrix,Matrix), Macaulay2Doc :: intersect(RRi), intersect(RRi,RRi), -- see , Macaulay2Doc :: intersect(RRi), Macaulay2Doc :: intersect(Set,Set), class => waystouse, For the programmer, The object , Macaulay2Doc :: intersect, is , an , Macaulay2Doc :: MethodFunctionBinary, associative binary method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/shared.m2:120:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `intersect(List)`
+- `intersect(Matrix)`
+- `intersect(RRi, RRi)`
+- `intersect(Polyhedron, Polyhedron)`
+- `intersect(Cone, Cone)`
+- `intersect(Matrix, Matrix, Matrix, Matrix)`
+- `intersect(Module)`
+- `intersect(Ideal)`
+- `intersect(Module, Module)`
+- `intersect(Polyhedron, Cone)`
+- `intersect(Cone, Polyhedron)`
+- `intersect(RRi)`
+- `intersect(Ideal, Ideal)`
+- `intersect(Matrix, Matrix)`
+- `intersect(Set, Set)`
+- `intersect(Sequence)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

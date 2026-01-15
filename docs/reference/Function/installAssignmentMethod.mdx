@@ -1,0 +1,74 @@
+---
+title: "installAssignmentMethod"
+kind: Function
+---
+
+# installAssignmentMethod
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+installAssignmentMethod, -- install methods assignment to the value of an operator, class => element, Usage: , installAssignmentMethod(op,X,Y,f), class => language-macaulay2, Inputs:, op, , , a , Macaulay2Doc :: Keyword, keyword, , , the symbol for a binary operator, X, , , a , Macaulay2Doc :: Type, type, , , the type of the left-hand operand, Y, , , a , Macaulay2Doc :: Type, type, , , the type of the right-hand operand, f, , , a , Macaulay2Doc :: Function, function, , , the method function that will perform the assignment, Consequences:, If the operator to be used is , **, , say, then , op, should be , symbol **, . After installing the assignment method, assignments of the form , x**y=v, will be handled by evaluating , f(x,y,v), ., Description, If the operator is a unary operator, just omit , X, and its comma., We illustrate this function by defining a type of mutable list whose elements can be both extracted and replaced using the operator , _, . We also install a method for , Macaulay2Doc :: net, so objects of the class can be printed., class => examples, i1 : M = new Type of MutableList
+
+o1 = M
+
+o1 : Type, class => language-macaulay2, i2 : net M := m -> peek m
+
+o2 = FunctionClosure[stdio:2:9-2:20]
+
+o2 : FunctionClosure, class => language-macaulay2, i3 : M _ ZZ := (x,i) -> x#i
+
+o3 = FunctionClosure[stdio:3:10-3:22]
+
+o3 : FunctionClosure, class => language-macaulay2, i4 : installAssignmentMethod(symbol _, M, ZZ, (x,i,v) -> x#i = v);, class => language-macaulay2, i5 : y = new M from (a..z)
+
+o5 = a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z
+
+o5 : M, class => language-macaulay2, i6 : y_12
+
+o6 = m
+
+o6 : Symbol, class => language-macaulay2, i7 : y_12 = foo
+
+o7 = foo
+
+o7 : Symbol, class => language-macaulay2, i8 : y
+
+o8 = a, b, c, d, e, f, g, h, i, j, k, l, foo, n, o, p, q, r, s, t, u, v, w, x, y, z
+
+o8 : M, class => language-macaulay2, i9 : y_12
+
+o9 = foo
+
+o9 : Symbol, class => language-macaulay2, For sample applications of this facility, see , Macaulay2Doc :: Symbol _ Thing = Thing, and , Macaulay2Doc :: MutableMatrix _ Sequence = Thing, ., Caveat, The syntax involved here is not pleasant, so we may change it to something briefer, something involving yet another assignment operator, distinct from , =, and , :=, ., See also, Macaulay2Doc :: MutableList, Macaulay2Doc :: BasicList # ZZ, class => waystouse, Ways to use , installAssignmentMethod, :, installAssignmentMethod(Symbol,HashTable,Function), installAssignmentMethod(Symbol,HashTable,HashTable,Function), installAssignmentMethod(Symbol,HashTable,HashTable,Option), installAssignmentMethod(Symbol,HashTable,Option), class => waystouse, For the programmer, The object , Macaulay2Doc :: installAssignmentMethod, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/installAssignmentMethod-doc.m2:41:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `installAssignmentMethod(Symbol, HashTable, HashTable, Option)`
+- `installAssignmentMethod(Symbol, HashTable, HashTable, Function)`
+- `installAssignmentMethod(Symbol, HashTable, Option)`
+- `installAssignmentMethod(Symbol, HashTable, Function)`
+
+## Examples
+
+```macaulay2
+i1 : M = new Type of MutableList
+
+o1 = M
+
+o1 : Type
+
+i2 : net M := m -> peek m
+
+o2 = FunctionClosure[stdio:2:9-2:20]
+
+o2 : FunctionClosure
+```
+
+## See Also
+

@@ -1,0 +1,55 @@
+---
+title: "terms"
+kind: Function
+---
+
+# terms
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+terms, -- provide a list of terms of a polynomial, Description, Synopsis, class => element, Usage: , terms f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingElement, ring element, , , in a polynomial ring , R, with coefficient ring , A, Outputs:, the list of terms of , f, Each term is an element of the coefficient ring , A, , multiplied with a monomial in the variables of , R, ., class => examples, i1 : R = QQ[a..d];, class => language-macaulay2, i2 : terms(a+d^2-1+a*b*c)
+
+ 2
+o2 = {a*b*c, d , a, -1
+
+o2 : List, class => language-macaulay2, In the situation where the ring is a polynomial ring over another polynomial ring, the polynomial is split using the monomials of the outer ring., class => examples, i3 : S = R[x,y];, class => language-macaulay2, i4 : terms(a*x+b*x+c*x*y+c*x^3+1+a)
+
+ 3
+o4 = {c*x , c*x*y, (a + b)x, a + 1
+
+o4 : List, class => language-macaulay2, Synopsis, class => element, Usage: , terms(k,f), class => language-macaulay2, Inputs:, k, , , a , Macaulay2Doc :: Ring, ring, f, , , a , Macaulay2Doc :: RingElement, ring element, , , in a polynomial ring , R, Outputs:, the list of terms of , f, with , k, regarded as the coefficient ring, Each term is an element of the coefficient ring , k, , multiplied with a monomial in the variables of , R, . This is useful in the situation where the polynomial , R, is built from , k, by a sequence of extensions., class => examples, i5 : R = QQ[a][d];, class => language-macaulay2, i6 : f = (1+a+d)^3
+
+ 3 2 2 3 2
+o6 = d + (3a + 3)d + (3a + 6a + 3)d + a + 3a + 3a + 1
+
+o6 : R, class => language-macaulay2, i7 : terms f
+
+ 3 2 2 3 2
+o7 = {d , (3a + 3)d , (3a + 6a + 3)d, a + 3a + 3a + 1
+
+o7 : List, class => language-macaulay2, i8 : terms(QQ,f)
+
+ 3 2 2 2 3 2
+o8 = {d , 3a*d , 3d , 3a d, 6a*d, 3d, a , 3a , 3a, 1
+
+o8 : List, class => language-macaulay2, See also, Macaulay2Doc :: coefficients, Macaulay2Doc :: monomials, Macaulay2Doc :: someTerms, class => waystouse, Ways to use , terms, :, terms(Ring,RingElement), terms(RingElement), class => waystouse, For the programmer, The object , Macaulay2Doc :: terms, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/terms-doc.m2:51:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `terms(RingElement)`
+- `terms(Ring, RingElement)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[a..d];
+```
+
+## See Also
+

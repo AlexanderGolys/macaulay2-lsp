@@ -1,0 +1,53 @@
+---
+title: "exp"
+kind: Function
+---
+
+# exp
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+exp, -- exponential function, class => element, Usage: , exp x, class => language-macaulay2, exp I, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: RR, real number, I, , , a , Macaulay2Doc :: RRi, real interval, Outputs:, the exponential of , x, a , Macaulay2Doc :: RRi, real interval, , , an interval containing the exponentials of points of , I, Description, class => examples, i1 : exp 1p300
+
+o1 = 2.7182818284590452353602874713526624977572470936999595749669676277240766
+ 30353547594571382179
+
+o1 : RR (of precision 300), class => language-macaulay2, i2 : exp(pi*ii)
+
+o2 = -1+1.224646799147353e-16*ii
+
+o2 : CC (of precision 53), class => language-macaulay2, class => waystouse, Ways to use , exp, :, exp(CC), exp(RR), exp(RRi), Macaulay2Doc :: exp(RingElement), class => waystouse, For the programmer, The object , Macaulay2Doc :: exp, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators.m2:82:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `exp(Number)`
+- `exp(RingElement)`
+- `exp(RR)`
+- `exp(RRi)`
+- `exp(CC)`
+
+## Examples
+
+```macaulay2
+i1 : exp 1p300
+
+o1 = 2.7182818284590452353602874713526624977572470936999595749669676277240766
+     30353547594571382179
+
+o1 : RR (of precision 300)
+
+i2 : exp(pi*ii)
+
+o2 = -1+1.224646799147353e-16*ii
+
+o2 : CC (of precision 53)
+```
+
+## See Also
+

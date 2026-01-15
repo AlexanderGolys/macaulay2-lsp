@@ -1,0 +1,72 @@
+---
+title: "someTerms"
+kind: Function
+---
+
+# someTerms
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+someTerms, -- select some terms of a polynomial, class => element, Usage: , someTerms(f,i,n), class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingElement, ring element, , , in a polynomial ring, i, , , an , Macaulay2Doc :: ZZ, integer, , , the starting index, n, , , an , Macaulay2Doc :: ZZ, integer, , , the number of terms to select, Outputs:, a , Macaulay2Doc :: RingElement, ring element, , , the , n, terms of the polynomial , f, starting with the , i, -th one, Description, The index i is 0-based, and a negative number refers to location from the end of the polynomial., class => examples, i1 : R = ZZ[a..d];, class => language-macaulay2, i2 : f = (a+2*b-3)^2
+
+ 2 2
+o2 = a + 4a*b + 4b - 6a - 12b + 9
+
+o2 : R, class => language-macaulay2, i3 : someTerms(f,0,1) -- the lead term
+
+ 2
+o3 = a
+
+o3 : R, class => language-macaulay2, i4 : someTerms(f,-1,1) -- the last term
+
+o4 = 9
+
+o4 : R, class => language-macaulay2, i5 : someTerms(f,-2,2) -- the last 2 terms
+
+o5 = - 12b + 9
+
+o5 : R, class => language-macaulay2, Here is an example where the coefficient ring is also a polynomial ring., class => examples, i6 : S = R[x,y,z];, class => language-macaulay2, i7 : f = (x*(a-b)+y^2+a-1)^2
+
+ 4 2 2 2 2 2 2 
+o7 = y + (2a - 2b)x*y + (a - 2a*b + b )x + (2a - 2)y + (2a - 2a*b - 2a
+ ------------------------------------------------------------------------
+ 2
+ + 2b)x + a - 2a + 1
+
+o7 : S, class => language-macaulay2, i8 : someTerms(f,-1,1) -- the last term
+
+ 2
+o8 = a - 2a + 1
+
+o8 : S, class => language-macaulay2, i9 : someTerms(f,-2,2) -- the last 2 terms
+
+ 2 2
+o9 = (2a - 2a*b - 2a + 2b)x + a - 2a + 1
+
+o9 : S, class => language-macaulay2, See also, Macaulay2Doc :: monomials, Macaulay2Doc :: coefficients, Macaulay2Doc :: terms, Macaulay2Doc :: leadTerm, class => waystouse, Ways to use , someTerms, :, someTerms(RingElement,ZZ,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: someTerms, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/someTerms-doc.m2:35:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `someTerms(RingElement, ZZ, ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ[a..d];
+
+i2 : f = (a+2*b-3)^2
+
+      2            2
+o2 = a  + 4a*b + 4b  - 6a - 12b + 9
+
+o2 : R
+```
+
+## See Also
+

@@ -1,0 +1,73 @@
+---
+title: "genericSkewMatrix"
+kind: Function
+---
+
+# genericSkewMatrix
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+genericSkewMatrix, -- make a generic skew symmetric matrix of variables, class => element, Usage: , genericSkewMatrix(R,r,n), class => language-macaulay2, Inputs:, R, , , a , Macaulay2Doc :: Ring, ring, r, , , a , Macaulay2Doc :: RingElement, ring element, , , which is a variable in the ring , R, (this input is optional), n, , , an , Macaulay2Doc :: ZZ, integer, Outputs:, a skew symmetric , Macaulay2Doc :: Matrix, matrix, with , n, rows whose entries above the diagonal are the variables of , R, starting with , r, Description, A square , Macaulay2Doc :: Matrix, matrix, , M, is , skew symmetric, if , transpose(M) + M == 0, ., class => examples, i1 : R = ZZ[a..z];, class => language-macaulay2, i2 : M = genericSkewMatrix(R,a,3)
+
+o2 = | 0 a b |
+ | -a 0 c |
+ | -b -c 0 |
+
+ 3 3
+o2 : Matrix R <-- R, class => language-macaulay2, i3 : transpose(M) + M == 0
+
+o3 = true, class => language-macaulay2, i4 : genericSkewMatrix(R,d,5)
+
+o4 = | 0 d e f g |
+ | -d 0 h i j |
+ | -e -h 0 k l |
+ | -f -i -k 0 m |
+ | -g -j -l -m 0 |
+
+ 5 5
+o4 : Matrix R <-- R, class => language-macaulay2, , Omitting the input , r, is the same as having , r, be the first variable in , R, ., class => examples, i5 : genericSkewMatrix(R,3)
+
+o5 = | 0 a b |
+ | -a 0 c |
+ | -b -c 0 |
+
+ 3 3
+o5 : Matrix R <-- R, class => language-macaulay2, i6 : genericSkewMatrix(R,5)
+
+o6 = | 0 a b c d |
+ | -a 0 e f g |
+ | -b -e 0 h i |
+ | -c -f -h 0 j |
+ | -d -g -i -j 0 |
+
+ 5 5
+o6 : Matrix R <-- R, class => language-macaulay2, See also, Macaulay2Doc :: vars(Ring), Macaulay2Doc :: genericMatrix, Macaulay2Doc :: genericSymmetricMatrix, class => waystouse, Ways to use , genericSkewMatrix, :, genericSkewMatrix(Ring,RingElement,ZZ), genericSkewMatrix(Ring,ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: genericSkewMatrix, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/genericSkewMatrix-doc.m2:36:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `genericSkewMatrix(Ring, ZZ)`
+- `genericSkewMatrix(Ring, RingElement, ZZ)`
+
+## Examples
+
+```macaulay2
+i1 : R = ZZ[a..z];
+
+i2 : M = genericSkewMatrix(R,a,3)
+
+o2 = | 0  a  b |
+     | -a 0  c |
+     | -b -c 0 |
+
+             3      3
+o2 : Matrix R  <-- R
+```
+
+## See Also
+

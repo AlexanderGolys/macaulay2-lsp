@@ -1,0 +1,198 @@
+---
+title: "part"
+kind: Function
+---
+
+# part
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+part, -- select terms of a polynomial by degree(s) or weight(s), class => element, Usage: , part(deg, f), class => language-macaulay2, part(lo, hi, f), class => language-macaulay2, part(deg, f), class => language-macaulay2, part(lo, hi, wt, f), class => language-macaulay2, part(mdeg, f), class => language-macaulay2, part_deg f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: RingElement, ring element, , , a polynomial, deg, , , an , Macaulay2Doc :: ZZ, integer, , , in which degree to select terms from , f, , lo, , , an , Macaulay2Doc :: ZZ, integer, , , or , Macaulay2Doc :: InfiniteNumber, , the lower bound of degrees to select, hi, , , an , Macaulay2Doc :: ZZ, integer, , , or , Macaulay2Doc :: InfiniteNumber, , the upper bound of degrees to select, wt, , , a , Macaulay2Doc :: List, list, , , (optionally) a list of integers to use as weights before selecting degrees, mdeg, , , a , Macaulay2Doc :: List, list, , , a multidegree, in the case that , f, is defined in a multigraded ring, Outputs:, a , Macaulay2Doc :: RingElement, ring element, , , the sum of all terms of , f, matching the specified degree or range of degrees (after weighting, if weights given), Description, To select terms of a single degree, use , part(deg, f), . An alternate syntax uses an underscore., class => examples, i1 : R = QQ[x,y];, class => language-macaulay2, i2 : f = (x+y+1)^4
+
+ 4 3 2 2 3 4 3 2 2 3 2 
+o2 = x + 4x y + 6x y + 4x*y + y + 4x + 12x y + 12x*y + 4y + 6x +
+ ------------------------------------------------------------------------
+ 2
+ 12x*y + 6y + 4x + 4y + 1
+
+o2 : R, class => language-macaulay2, i3 : part(2, f)
+
+ 2 2
+o3 = 6x + 12x*y + 6y
+
+o3 : R, class => language-macaulay2, i4 : part_2 f
+
+ 2 2
+o4 = 6x + 12x*y + 6y
+
+o4 : R, class => language-macaulay2, To select terms within a range of degrees, use , part(lo, hi, f), ., class => examples, i5 : part(1, 2, f)
+
+ 2 2
+o5 = 6x + 12x*y + 6y + 4x + 4y
+
+o5 : R, class => language-macaulay2, In the next example, we apply the weights , \{2,3\, before selecting terms. In other words, the term , x^ay^b, is considered to have degree , 2a+3b, ., class => examples, i6 : part(6, {2,3, f)
+
+ 3 2
+o6 = 4x + 6y
+
+o6 : R, class => language-macaulay2, i7 : part(6, 8, {2,3, f)
+
+ 4 3 2 2 2
+o7 = x + 4x + 12x y + 12x*y + 6y
+
+o7 : R, class => language-macaulay2, If the generators of the ring were defined to have non-unit degrees, the weights , override, those degrees., class => examples, i8 : R = QQ[x,y, Degrees=>{2,3];, class => language-macaulay2, i9 : f = (x+y+1)^4
+
+ 4 3 2 2 3 3 4 2 2 3 2 
+o9 = y + 4x*y + 6x y + 4x y + 4y + x + 12x*y + 12x y + 4x + 6y +
+ ------------------------------------------------------------------------
+ 2
+ 12x*y + 6x + 4y + 4x + 1
+
+o9 : R, class => language-macaulay2, i10 : part(2, f)
+
+o10 = 4x
+
+o10 : R, class => language-macaulay2, i11 : part(2, {1,1, f)
+
+ 2 2
+o11 = 6y + 12x*y + 6x
+
+o11 : R, class => language-macaulay2, By omitting , lo, or , hi, , but providing a comma indicating the omission, the range of degrees will be unbounded in the appropriate direction., class => examples, i12 : S = QQ[a,b,c]
+
+o12 = S
+
+o12 : PolynomialRing, class => language-macaulay2, i13 : g = (a - b*c + 2)^3
+
+ 3 3 2 2 2 2 2 3 2
+o13 = - b c + 3a*b c - 3a b*c + 6b c + a - 12a*b*c + 6a - 12b*c + 12a +
+ -----------------------------------------------------------------------
+ 8
+
+o13 : S, class => language-macaulay2, i14 : part(4, , g)
+
+ 3 3 2 2 2 2 2
+o14 = - b c + 3a*b c - 3a b*c + 6b c
+
+o14 : S, class => language-macaulay2, i15 : part(, 3, g)
+
+ 3 2
+o15 = a - 12a*b*c + 6a - 12b*c + 12a + 8
+
+o15 : S, class => language-macaulay2, i16 : part(, 3, 1..3, g)
+
+ 3 2
+o16 = a + 6a + 12a + 8
+
+o16 : S, class => language-macaulay2, Infinite numbers may also be given for the bounds., class => examples, i17 : part(4, infinity, g)
+
+ 3 3 2 2 2 2 2
+o17 = - b c + 3a*b c - 3a b*c + 6b c
+
+o17 : S, class => language-macaulay2, i18 : part(-infinity, 3, g)
+
+ 3 2
+o18 = a - 12a*b*c + 6a - 12b*c + 12a + 8
+
+o18 : S, class => language-macaulay2, i19 : part(-infinity, infinity, 1..3, g)
+
+ 3 3 2 2 2 2 2 3 2
+o19 = - b c + 3a*b c - 3a b*c + 6b c + a - 12a*b*c + 6a - 12b*c + 12a +
+ -----------------------------------------------------------------------
+ 8
+
+o19 : S, class => language-macaulay2, For , multigraded rings, , use a list to specify a single multidegree in the first argument. The underscore syntax works here too., class => examples, i20 : R = QQ[x,y,z, Degrees => {{1,0,0,{0,1,0,{0,0,1];, class => language-macaulay2, i21 : f = (x+y+z)^3
+
+ 3 2 2 3 2 2 2 2 3
+o21 = x + 3x y + 3x*y + y + 3x z + 6x*y*z + 3y z + 3x*z + 3y*z + z
+
+o21 : R, class => language-macaulay2, i22 : part({2,0,1, f)
+
+ 2
+o22 = 3x z
+
+o22 : R, class => language-macaulay2, i23 : part_{2,0,1 f
+
+ 2
+o23 = 3x z
+
+o23 : R, class => language-macaulay2, A range of degrees cannot be asked for in the multigraded case. Polynomial rings over polynomial rings are multigraded, so either use a multidegree or specify weights to avoid errors., class => examples, i24 : R = QQ[a][x];, class => language-macaulay2, i25 : h = (1+a+x)^3
+
+ 3 2 2 3 2
+o25 = x + (3a + 3)x + (3a + 6a + 3)x + a + 3a + 3a + 1
+
+o25 : R, class => language-macaulay2, i26 : part(2, {1,0, h)
+
+ 2
+o26 = (3a + 3)x
+
+o26 : R, class => language-macaulay2, i27 : part(2, {0,1, h)
+
+ 2 2
+o27 = 3a x + 3a
+
+o27 : R, class => language-macaulay2, i28 : part({2,1, h)
+
+ 2
+o28 = (3a + 3)x
+
+o28 : R, class => language-macaulay2, See also, Macaulay2Doc :: degree, Macaulay2Doc :: monomials, Macaulay2Doc :: parts, Macaulay2Doc :: select, Macaulay2Doc :: someTerms, Macaulay2Doc :: terms, Macaulay2Doc :: graded and multigraded polynomial rings, Macaulay2Doc :: manipulating polynomials, class => waystouse, Ways to use , part, :, part(InfiniteNumber,InfiniteNumber,Number), part(InfiniteNumber,InfiniteNumber,RingElement), part(InfiniteNumber,InfiniteNumber,VisibleList,RingElement), part(InfiniteNumber,ZZ,Number), part(InfiniteNumber,ZZ,RingElement), part(InfiniteNumber,ZZ,VisibleList,RingElement), part(List,RingElement), part(Nothing,Nothing,RingElement), part(Nothing,Nothing,VisibleList,RingElement), part(Nothing,ZZ,RingElement), part(Nothing,ZZ,VisibleList,RingElement), part(ZZ,InfiniteNumber,Number), part(ZZ,InfiniteNumber,RingElement), part(ZZ,InfiniteNumber,VisibleList,RingElement), part(ZZ,Nothing,RingElement), part(ZZ,Nothing,VisibleList,RingElement), part(ZZ,Number), part(ZZ,RingElement), part(ZZ,VisibleList,RingElement), part(ZZ,ZZ,Number), part(ZZ,ZZ,RingElement), part(ZZ,ZZ,VisibleList,RingElement), Macaulay2Doc :: part(List,Ideal), Macaulay2Doc :: part(List,Matrix), Macaulay2Doc :: part(List,Module), Macaulay2Doc :: part(List,Ring), Macaulay2Doc :: part(Sequence,RingMap), Macaulay2Doc :: part(ZZ,Ideal), Macaulay2Doc :: part(ZZ,Matrix), Macaulay2Doc :: part(ZZ,Module), Macaulay2Doc :: part(ZZ,Ring), class => waystouse, For the programmer, The object , Macaulay2Doc :: part, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/part-doc.m2:125:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `part(List, Ring)`
+- `part(ZZ, Ring)`
+- `part(List, Ideal)`
+- `part(List, Module)`
+- `part(ZZ, Ideal)`
+- `part(ZZ, Module)`
+- `part(ZZ, Matrix)`
+- `part(List, Matrix)`
+- `part(Sequence, RingMap)`
+- `part(ZZ, ZZ, VisibleList, RingElement)`
+- `part(Nothing, Nothing, VisibleList, RingElement)`
+- `part(Nothing, ZZ, VisibleList, RingElement)`
+- `part(ZZ, Nothing, VisibleList, RingElement)`
+- `part(InfiniteNumber, ZZ, VisibleList, RingElement)`
+- `part(ZZ, InfiniteNumber, VisibleList, RingElement)`
+- `part(InfiniteNumber, InfiniteNumber, VisibleList, RingElement)`
+- `part(Nothing, Nothing, RingElement)`
+- `part(InfiniteNumber, ZZ, RingElement)`
+- `part(ZZ, InfiniteNumber, RingElement)`
+- `part(Nothing, ZZ, RingElement)`
+- `part(ZZ, Nothing, RingElement)`
+- `part(InfiniteNumber, InfiniteNumber, RingElement)`
+- `part(ZZ, ZZ, RingElement)`
+- `part(ZZ, RingElement)`
+- `part(ZZ, VisibleList, RingElement)`
+- `part(ZZ, InfiniteNumber, Number)`
+- `part(InfiniteNumber, ZZ, Number)`
+- `part(ZZ, ZZ, Number)`
+- `part(InfiniteNumber, InfiniteNumber, Number)`
+- `part(ZZ, Number)`
+
+*... and 1 more*
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[x,y];
+
+i2 : f = (x+y+1)^4
+
+      4     3      2 2       3    4     3      2         2     3     2  
+o2 = x  + 4x y + 6x y  + 4x*y  + y  + 4x  + 12x y + 12x*y  + 4y  + 6x  +
+     ------------------------------------------------------------------------
+               2
+     12x*y + 6y  + 4x + 4y + 1
+
+o2 : R
+```
+
+## See Also
+

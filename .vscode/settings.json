@@ -1,0 +1,6 @@
+{
+    "files.autoSave": "afterDelay",
+    "explorer.fileNesting.enabled": true,
+    "scm.alwaysShowRepositories": true,
+    "scm.alwaysShowActions": true
+}

@@ -1,0 +1,59 @@
+---
+title: "document"
+kind: Function
+---
+
+# document
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+document, -- create a documentation node, class => element, Usage: , document { Key => key, ... , class => language-macaulay2, Inputs:, a , Macaulay2Doc :: List, list, , , with , Text :: Hypertext, , , Macaulay2Doc :: String, , and special documentation entries as optional arguments such as , Key => "...", (required), Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Macaulay2Doc :: document(...,Key=>...), Key, => , a , Macaulay2Doc :: List, list, , , default value , null, , , key of a documentation node, Macaulay2Doc :: document(...,Headline=>...), Headline, => , a , Macaulay2Doc :: List, list, , , default value , null, , , headline of a documentation node, Macaulay2Doc :: document(...,BaseFunction=>...), BaseFunction, => , a , Macaulay2Doc :: List, list, , , default value , null, , , the basename of a function in a documentation node, Macaulay2Doc :: document(...,Usage=>...), Usage, => , a , Macaulay2Doc :: List, list, , , default value , null, , , ways to use a function in a documentation node, Macaulay2Doc :: document(...,Inputs=>...), Inputs, => , a , Macaulay2Doc :: List, list, , , default value , null, , , inputs for a function in a documentation node, Macaulay2Doc :: document(...,Outputs=>...), Outputs, => , a , Macaulay2Doc :: List, list, , , default value , null, , , outputs for a function in a documentation node, Macaulay2Doc :: document(...,Consequences=>...), Consequences, => , a , Macaulay2Doc :: List, list, , , default value , null, , , side-effects of a function in a documentation node, Macaulay2Doc :: document(...,Acknowledgement=>...), Acknowledgement, => , a , Macaulay2Doc :: List, list, , , default value , null, , , acknowledgements listed in a documentation node, Macaulay2Doc :: document(...,Contributors=>...), Contributors, => , a , Macaulay2Doc :: List, list, , , default value , null, , , non-author contributors listed in a documentation node, Macaulay2Doc :: document(...,References=>...), References, => , a , Macaulay2Doc :: List, list, , , default value , null, , , references listed in a documentation node, Macaulay2Doc :: document(...,Caveat=>...), Caveat, => , a , Macaulay2Doc :: List, list, , , default value , null, , , warnings or limitations listed in a documentation node, Macaulay2Doc :: document(...,SeeAlso=>...), SeeAlso, => , a , Macaulay2Doc :: List, list, , , default value , null, , , cross-references to other documentation nodes, Macaulay2Doc :: document(...,Subnodes=>...), Subnodes, => , a , Macaulay2Doc :: List, list, , , default value , null, , , a menu of documentation nodes, Macaulay2Doc :: document(...,SourceCode=>...), SourceCode, => , a , Macaulay2Doc :: List, list, , , default value , null, , , sources displayed in a documentation node, Macaulay2Doc :: document(...,ExampleFiles=>...), ExampleFiles, => , a , Macaulay2Doc :: List, list, , , default value , null, , , data files corresponding to a documentation node, Macaulay2Doc :: document(...,Citation=>...), Citation, => , ..., , , default value , null, , , , Consequences:, formatted documentation is created and stored in the , Macaulay2Doc :: currentPackage, current package, Description, There are two basic types of documentation:, Documenting a function or a method, as in , Macaulay2Doc :: ideal(List), ., documenting an overview or functions with methods, as in , Macaulay2Doc :: ideals, or , Macaulay2Doc :: ideal, respectively., The headings , Macaulay2Doc :: Usage, , , Macaulay2Doc :: BaseFunction, , , Macaulay2Doc :: Inputs, , , Macaulay2Doc :: Outputs, , and , Macaulay2Doc :: Consequences, , are useful only for documentation of the first type, as well as in a call to , Macaulay2Doc :: SYNOPSIS, ., , Templates for using the , Macaulay2Doc :: document(List), method, Macaulay2Doc :: package documentation template, Macaulay2Doc :: function documentation template, Macaulay2Doc :: optional argument documentation template, Macaulay2Doc :: overview documentation template, Here is a basic template:, class => examples, 
+ document {
+ Key => {myFunc, (myFunc, MyType), [myFunc, MyOption], ...,
+ Headline => "one line description of myFunc", -- not needed for overviews
+ BaseFunction => myFunc, -- usually not needed
+ Usage => "myFunc x",
+ Inputs => { inputs, ... ,
+ Outputs => { outputs, ... ,
+ SourceCode => { METHOD1, ... , -- usually not needed
+ Consequences => { side-effects, ... ,
+ "A list of strings containing names of files in the auxiliary
+ directory of the package can go here; the files will be visible
+ in the current directory while example code is run.",
+ ExampleFiles => {"datafile1", "datafile2",
+ "There can be explanatory prose here in the form of a hypertext list.",
+ EXAMPLE lines ///
+ m2code
+ m2code
+ m2code
+ ///,
+ "There can be explanatory prose here in the form of a hypertext list.",
+ Caveat => {"warning",
+ SeeAlso => {"other things",
+ Subnodes => {
+ "subheading a",
+ TO "node 1",
+ TO "node 2",
+ "subheading b",
+ TO "node 3",
+ ...
+ ,
+ , class => language-macaulay2, Other Functions generating , Macaulay2Doc :: hypertext list format, that you may use:, Macaulay2Doc :: SYNOPSIS, Macaulay2Doc :: EXAMPLE, See also, Macaulay2Doc :: writing documentation, Macaulay2Doc :: hypertext, Documentation templates based on the hypertext list format, Macaulay2Doc :: package documentation template, Macaulay2Doc :: function documentation template, Macaulay2Doc :: optional argument documentation template, Macaulay2Doc :: overview documentation template, Special documentation keywords, Macaulay2Doc :: document(...,Key=>...), Macaulay2Doc :: document(...,Headline=>...), Macaulay2Doc :: document(...,BaseFunction=>...), Macaulay2Doc :: document(...,Usage=>...), Macaulay2Doc :: document(...,Inputs=>...), Macaulay2Doc :: document(...,Outputs=>...), Macaulay2Doc :: document(...,Consequences=>...), Macaulay2Doc :: document(...,Acknowledgement=>...), Macaulay2Doc :: document(...,Contributors=>...), Macaulay2Doc :: document(...,References=>...), Macaulay2Doc :: document(...,Caveat=>...), Macaulay2Doc :: document(...,SeeAlso=>...), Macaulay2Doc :: document(...,Subnodes=>...), Macaulay2Doc :: document(...,SourceCode=>...), Macaulay2Doc :: document(...,ExampleFiles=>...), class => waystouse, Ways to use , document, :, document(List), class => waystouse, For the programmer, The object , Macaulay2Doc :: document, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/document-doc.m2:461:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `document(List)`
+- `document(String)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

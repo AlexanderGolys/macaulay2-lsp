@@ -1,0 +1,1477 @@
+[
+{
+"name": "Acknowledgement",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "AdditionalPaths",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "AfterEval",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "AfterNoPrint",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "AfterPrint",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Algorithm",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Alignment",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Ascending",
+"type": "Value",
+"relatedKey": "Ascending"
+}
+,
+{
+"name": "Authors",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "AuxiliaryFiles",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Bareiss",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Base",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "BaseFunction",
+"type": "Value",
+"relatedKey": "BaseFunction"
+}
+,
+{
+"name": "BaseRow",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "BasisElementLimit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Bayer",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "BeforePrint",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Binary",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Binomial",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "Body",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Boxes",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "CacheExampleOutput",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "CallLimit",
+"type": "Value",
+"relatedKey": "f"
+}
+,
+{
+"name": "Caveat",
+"type": "Value",
+"relatedKey": "Caveat"
+}
+,
+{
+"name": "Center",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "Certification",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "ChangeMatrix",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "CheckDocumentation",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Citation",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "ClosestFit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "CodimensionLimit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "CoefficientRing",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Cofactor",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Complement",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "CompleteIntersection",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Configuration",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Consequences",
+"type": "Value",
+"relatedKey": "Consequences"
+}
+,
+{
+"name": "Constants",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Contributors",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Date",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "DebuggingMode",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Decompose",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "Default",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "Degree",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "DegreeGroup",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "DegreeLift",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "DegreeLimit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "DegreeMap",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "DegreeOrder",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "DegreeRank",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Degrees",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Dense",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Density",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Descending",
+"type": "Value",
+"relatedKey": "Descending"
+}
+,
+{
+"name": "Description",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Dispatch",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "DivideConquer",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Down",
+"type": "Value",
+"relatedKey": "MonomialOrder"
+}
+,
+{
+"name": "Dynamic",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Email",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Engine",
+"type": "Value",
+"relatedKey": "Engine"
+}
+,
+{
+"name": "ExampleFiles",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Exclude",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "FastNonminimal",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "FileName",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "FindOne",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "First",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "FlatMonoid",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Flexible",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "FollowLinks",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Format",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "GBDegrees",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "GLex",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "GRevLex",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "GenerateAssertions",
+"type": "Value",
+"relatedKey": "f"
+}
+,
+{
+"name": "Generic",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Global",
+"type": "Value",
+"relatedKey": "MonomialOrder"
+}
+,
+{
+"name": "GlobalAssignHook",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "GlobalReleaseHook",
+"type": "Value",
+"relatedKey": "GlobalReleaseHook"
+}
+,
+{
+"name": "GroupLex",
+"type": "Value",
+"relatedKey": "n"
+}
+,
+{
+"name": "GroupRevLex",
+"type": "Value",
+"relatedKey": "n"
+}
+,
+{
+"name": "HardDegreeLimit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Heading",
+"type": "Value",
+"relatedKey": "SYNOPSIS"
+}
+,
+{
+"name": "Headline",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Heft",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Height",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Hermitian",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Hilbert",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "HomePage",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Homogeneous",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Homogeneous2",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "HorizontalSpace",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "IgnoreExampleErrors",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "InfoDirSection",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Inhomogeneous",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "Inputs",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "InstallPrefix",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Intersection",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "InverseMethod",
+"type": "Value",
+"relatedKey": "InverseMethod"
+}
+,
+{
+"name": "Inverses",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Invertible",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Iterate",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "Jacobian",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Join",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "KeepFiles",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "KeepZeroes",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Key",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Keywords",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Left",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "LengthLimit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Lex",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Limit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Linear",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "LinearAlgebra",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "LoadDocumentation",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Local",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "LongPolynomial",
+"type": "Value",
+"relatedKey": "LongPolynomial"
+}
+,
+{
+"name": "Maintainer",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "MakeDocumentation",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "MakeHTML",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "MakeInfo",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "MakePDF",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "MaxReductionCount",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "MaximalRank",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "MinimalGenerators",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "MinimalMatrix",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Minimize",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "MinimumVersion",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Monomial",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "MonomialOrder",
+"type": "Value",
+"relatedKey": "MonomialOrder"
+}
+,
+{
+"name": "MonomialSize",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Monomials",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "NCLex",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Name",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "NewFromMethod",
+"type": "Value",
+"relatedKey": "NewFromMethod"
+}
+,
+{
+"name": "NewMethod",
+"type": "Value",
+"relatedKey": "NewMethod"
+}
+,
+{
+"name": "NewOfFromMethod",
+"type": "Value",
+"relatedKey": "NewOfFromMethod"
+}
+,
+{
+"name": "NewOfMethod",
+"type": "Value",
+"relatedKey": "NewOfMethod"
+}
+,
+{
+"name": "NoPrint",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "OptionalComponentsPresent",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Options",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Order",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Outputs",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "POSIX",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "PackageExports",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "PackageImports",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "PairLimit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "PairsRemaining",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "ParallelF4",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "ParallelizeByDegree",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Position",
+"type": "Value",
+"relatedKey": "MonomialOrder"
+}
+,
+{
+"name": "Postfix",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "Precision",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Prefix",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "PrimaryTag",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "PrimitiveElement",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Print",
+"type": "Value",
+"relatedKey": "f"
+}
+,
+{
+"name": "Projective",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Prune",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "Quotient",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "RaiseError",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Range",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Reduce",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "References",
+"type": "Value",
+"relatedKey": "References"
+}
+,
+{
+"name": "Reload",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "RemakeAllDocumentation",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "RerunExamples",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Result",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "RevLex",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Reverse",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Right",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "RunDirectory",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "RunExamples",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "SeeAlso",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "SeparateExec",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "SizeLimit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "SkewCommutative",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Sort",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "SortStrategy",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "SourceCode",
+"type": "Value",
+"relatedKey": "SourceCode"
+}
+,
+{
+"name": "SourceRing",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Standard",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "StopBeforeComputation",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "StopIteration",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "StopWithMinimalGenerators",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Strategy",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Strict",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Subnodes",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "SubringLimit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Sugarless",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Syzygies",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "SyzygyLimit",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "SyzygyMatrix",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "SyzygyRows",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "TeXmacs",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Test",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "Threads",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Toric",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Torsion",
+"type": "Value",
+"relatedKey": null
+}
+,
+{
+"name": "TotalPairs",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Tries",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Truncate",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "TypicalValue",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Undo",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Unique",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Unmixed",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Up",
+"type": "Value",
+"relatedKey": "MonomialOrder"
+}
+,
+{
+"name": "UpdateOnly",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "UpperTriangular",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Usage",
+"type": "Value",
+"relatedKey": "Usage"
+}
+,
+{
+"name": "UseCachedExampleOutput",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "UseHilbertFunction",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "UseSyzygies",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "UserMode",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Variable",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "VariableBaseName",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Variables",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Verbose",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Verbosity",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Verify",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "Version",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "VerticalSpace",
+"type": "Key",
+"relatedKey": null
+}
+,
+{
+"name": "WebApp",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "Weights",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "WeylAlgebra",
+"type": "Value",
+"relatedKey": "WeylAlgebra"
+}
+,
+{
+"name": "Wrap",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "argument",
+"type": "Value",
+"relatedKey": "argument"
+}
+,
+{
+"name": "baseRings",
+"type": "Value",
+"relatedKey": "baseRings"
+}
+,
+{
+"name": "cache",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "dd",
+"type": "Value",
+"relatedKey": "dd"
+}
+,
+{
+"name": "end",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "incomparable",
+"type": "Value",
+"relatedKey": "incomparable"
+}
+,
+{
+"name": "indexComponents",
+"type": "Value",
+"relatedKey": "indexComponents"
+}
+,
+{
+"name": "minimalPresentationMap",
+"type": "Value",
+"relatedKey": "R"
+}
+,
+{
+"name": "minimalPresentationMapInv",
+"type": "Value",
+"relatedKey": "R"
+}
+,
+{
+"name": "oo",
+"type": "Value",
+"relatedKey": "oo"
+}
+,
+{
+"name": "ooo",
+"type": "Value",
+"relatedKey": "ooo"
+}
+,
+{
+"name": "oooo",
+"type": "Value",
+"relatedKey": "oooo"
+}
+,
+{
+"name": "order",
+"type": "Value",
+"relatedKey": "order"
+}
+,
+{
+"name": "pruningMap",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "pullbackMaps",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "pushoutMaps",
+"type": "Unknown",
+"relatedKey": null
+}
+,
+{
+"name": "returnCode",
+"type": "Value",
+"relatedKey": "returnCode"
+}
+,
+{
+"name": "subscript",
+"type": "Value",
+"relatedKey": "subscript"
+}
+,
+{
+"name": "superscript",
+"type": "Value",
+"relatedKey": "superscript"
+}
+,
+{
+"name": "topLevelMode",
+"type": "Unknown",
+"relatedKey": null
+}
+]

@@ -1,0 +1,39 @@
+---
+title: "isDirectory"
+kind: Function
+---
+
+# isDirectory
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+isDirectory, -- whether a file is a directory, class => element, Usage: , isDirectory fn, class => language-macaulay2, Inputs:, fn, , , a , Macaulay2Doc :: String, string, , , a filename or path, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether , fn, is the path to a directory, Description, class => examples, i1 : isDirectory "."
+
+o1 = true, class => language-macaulay2, i2 : fn = temporaryFileName()
+
+o2 = /tmp/M2-704998-0/0, class => language-macaulay2, i3 : fn << "hi there" << close
+
+o3 = /tmp/M2-704998-0/0
+
+o3 : File, class => language-macaulay2, i4 : isDirectory fn
+
+o4 = false, class => language-macaulay2, i5 : removeFile fn, class => language-macaulay2, See also, Macaulay2Doc :: isRegularFile, Macaulay2Doc :: readlink, class => waystouse, For the programmer, The object , Macaulay2Doc :: isDirectory, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/isDirectory-doc.m2:20:0, .
+
+## Examples
+
+```macaulay2
+i1 : isDirectory "."
+
+o1 = true
+
+i2 : fn = temporaryFileName()
+
+o2 = /tmp/M2-704998-0/0
+```
+
+## See Also
+

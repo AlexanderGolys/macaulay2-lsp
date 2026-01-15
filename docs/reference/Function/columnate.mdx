@@ -1,0 +1,35 @@
+---
+title: "columnate"
+kind: Function
+---
+
+# columnate
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+columnate, -- arrange strings in columns, Description, columnate(w,s), -- arranges the strings in the list , s, in columns, returning a , Macaulay2Doc :: Net, suitable for output to a terminal with a linewidth of , w, ., , class => examples, i1 : columnate(12, characters ascii (65 .. 90))
+
+o1 = A F K P U Z
+ B G L Q V
+ C H M R W
+ D I N S X
+ E J O T Y, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: columnate, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_strings.m2:531:0, .
+
+## Examples
+
+```macaulay2
+i1 : columnate(12, characters ascii (65 .. 90))
+
+o1 = A F K P U Z
+     B G L Q V
+     C H M R W
+     D I N S X
+     E J O T Y
+```
+
+## See Also
+

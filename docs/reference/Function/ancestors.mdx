@@ -1,0 +1,48 @@
+---
+title: "ancestors"
+kind: Function
+---
+
+# ancestors
+
+**Type:** `Function`
+
+**Instance of:** [FunctionClosure](../Type/FunctionClosure.mdx)
+
+## Description
+
+ancestors, -- the ancestors of something, class => element, Usage: , ancestors x, class => language-macaulay2, Inputs:, x, Outputs:, the list of ancestors of , x, Description, class => examples, i1 : ancestors String
+
+o1 = {String, Net, Thing
+
+o1 : List, class => language-macaulay2, i2 : ancestors class 3
+
+o2 = {ZZ, Number, Thing
+
+o2 : List, class => language-macaulay2, i3 : ancestors class 3.
+
+o3 = {RR, InexactNumber, Number, Thing
+
+o3 : List, class => language-macaulay2, i4 : ancestors ring 3.
+
+o4 = {RR , RR , InexactNumber , Nothing, Thing
+ 53 * *
+
+o4 : List, class => language-macaulay2, i5 : ancestors class ring 3.
+
+o5 = {RealField, InexactField, EngineRing, Ring, Type, MutableHashTable,
+ ------------------------------------------------------------------------
+ HashTable, Thing
+
+o5 : List, class => language-macaulay2, i6 : ancestors 3
+
+o6 = {3, Nothing, Thing
+
+o6 : List, class => language-macaulay2, See also, Macaulay2Doc :: ancestor, Macaulay2Doc :: showStructure, class => waystouse, For the programmer, The object , Macaulay2Doc :: ancestors, is , a , Macaulay2Doc :: FunctionClosure, function closure, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_types.m2:495:0, .
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

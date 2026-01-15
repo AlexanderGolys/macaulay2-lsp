@@ -1,0 +1,28 @@
+---
+title: "openInOut"
+kind: Function
+---
+
+# openInOut
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+openInOut, -- open an input output file, class => element, Usage: , openInOut f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: String, string, or , a , Macaulay2Doc :: File, file, Outputs:, an open input output file, Description, There are various options for the argument , f, ., a string not starting with , !, or , $, : the string is taken as the name of an input output file to open. For example, in Unix, it might be a named pipe. A filename starting with , ~/, will have the tilde replaced by the user's home directory., a string of the form , "!cmd", : the command , cmd, will be started, and two pipes will be opened, connected to its standard input and standard output file descriptors. Warning: pipes hold only 4096 bites, so if you write more than that to the resulting input output file (as input for the command) without reading any data, you may block while the command is blocked waiting to write more output; in this case, Macaulay2 will appear to hang., a string of the form , "$hostname:service", : a connection will be made to the specified service at the specified host. If the service port is omitted, along with the colon, then port 2500 is used. If the hostname is omitted, an incoming connection will be waited for., a listener created previously by , Macaulay2Doc :: openListener, : a new connection will be created. To avoid blocking the Macaulay2 process while waiting for the incoming connection, use , Macaulay2Doc :: isReady, ., In order to open a socket successfully, there must be a process accepting connections for the desired service on the specified host., The various forms listed above can be used also with all other input output operations that open files, such as , Macaulay2Doc :: openIn, , , Macaulay2Doc :: openOut, , , Macaulay2Doc :: get, , and , Macaulay2Doc :: <<, , with data transfer possible only in the direction specified. A possibly confusing asymmetry is that with , openIn "!foo", or with , get "!foo", the standard input of the command , foo, is closed, but with , openOut "!foo", the standard output of the command , foo, is connected to the standard output of the parent Macaulay2 process., See also, Macaulay2Doc :: openIn, Macaulay2Doc :: openOut, Macaulay2Doc :: openListener, class => waystouse, Ways to use , openInOut, :, openInOut(File), openInOut(String), class => waystouse, For the programmer, The object , Macaulay2Doc :: openInOut, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:537:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `openInOut(File)`
+- `openInOut(String)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

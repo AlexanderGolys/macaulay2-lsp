@@ -1,0 +1,48 @@
+---
+title: "break"
+kind: Operator
+---
+
+# break
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+break, -- break from a loop, class => element, Usage: , break x, class => language-macaulay2, Consequences:, this interrupts execution of a loop controlled by , Macaulay2Doc :: for, , , Macaulay2Doc :: while, , , Macaulay2Doc :: apply, , or , Macaulay2Doc :: scan, , returning , x, as the value of the loop currently being evaluated., Alternatively, as a top level command in the debugger, it leaves the debugger, returning the user to top level., Description, Omitting , x, , and executing , break, , interrupts execution of a loop as above, returning , Macaulay2Doc :: null, as the value of the function currently being evaluated, except, in the case of a , Macaulay2Doc :: for, loop or a , Macaulay2Doc :: while, loop with a list clause, the list accumulated so far is returned as the value., class => examples, i1 : for i from 1 to 10 do if i == 7 then break 12345
+
+o1 = 12345, class => language-macaulay2, Warning: trying to break from a loop controlled by , Macaulay2Doc :: table, will probably not do what you expect, since , Macaulay2Doc :: table, is implemented by two nested loops controlled by , Macaulay2Doc :: apply, , and only the inner one will stop, as in the following example., class => examples, i2 : table(3,3,(i,j) -> if i == 1 then break 3 else "hi")
+
+o2 = {{hi, hi, hi, 3, {hi, hi, hi
+
+o2 : List, class => language-macaulay2, i3 : table(3,3,(i,j) -> if j == 1 then break 3 else "hi")
+
+o3 = {3, 3, 3
+
+o3 : List, class => language-macaulay2, Here is an example as a debugger command., class => examples, i4 : load "Macaulay2Doc/demos/demo1.m2", class => language-macaulay2, i5 : g 2
+/usr/share/Macaulay2/Macaulay2Doc/demos/demo1.m2:8:11:(3):[2]: error: division by zero
+/usr/share/Macaulay2/Macaulay2Doc/demos/demo1.m2:8:11:(3): entering debugger (enter 'help' to see commands)
+/usr/share/Macaulay2/Macaulay2Doc/
+demos/demo1.m2:8:10-8:13: --source code:
+ b := 1/x;, class => language-macaulay2, ii6 : x
+
+oo6 = 0, class => language-macaulay2, ii7 : break, class => language-macaulay2, i8 : g 3
+
+ 7
+o8 = -
+ 2
+
+o8 : QQ, class => language-macaulay2, See also, Macaulay2Doc :: apply, Macaulay2Doc :: scan, Macaulay2Doc :: while, Macaulay2Doc :: for, class => waystouse, For the programmer, The object , Macaulay2Doc :: break, is , a , Macaulay2Doc :: Keyword, keyword, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_language.m2:776:0, .
+
+## Examples
+
+```macaulay2
+i1 : for i from 1 to 10 do if i == 7 then break 12345
+
+o1 = 12345
+```
+
+## See Also
+

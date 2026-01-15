@@ -1,0 +1,54 @@
+---
+title: "isDirectSum"
+kind: Function
+---
+
+# isDirectSum
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+isDirectSum, -- whether something is a direct sum, Description, Works for modules, chain complexes, etc. The components of the sum can be recovered with , Macaulay2Doc :: components, ., class => examples, i1 : isDirectSum ZZ^6
+
+o1 = false, class => language-macaulay2, i2 : F = ZZ^2 ++ ZZ^3
+
+ 5
+o2 = ZZ
+
+o2 : ZZ-module, free, class => language-macaulay2, i3 : isDirectSum F
+
+o3 = true, class => language-macaulay2, i4 : components F
+
+ 2 3
+o4 = {ZZ , ZZ 
+
+o4 : List, class => language-macaulay2, class => waystouse, Ways to use , isDirectSum, :, isDirectSum(Module), OldChainComplexes :: isDirectSum(ChainComplex), OldChainComplexes :: isDirectSum(GradedModule), class => waystouse, For the programmer, The object , Macaulay2Doc :: isDirectSum, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/directSum-doc.m2:26:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `isDirectSum(Module)`
+- `isDirectSum(ChainComplex)`
+- `isDirectSum(GradedModule)`
+
+## Examples
+
+```macaulay2
+i1 : isDirectSum ZZ^6
+
+o1 = false
+
+i2 : F = ZZ^2 ++ ZZ^3
+
+       5
+o2 = ZZ
+
+o2 : ZZ-module, free
+```
+
+## See Also
+

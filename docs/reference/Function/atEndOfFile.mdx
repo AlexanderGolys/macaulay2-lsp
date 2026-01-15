@@ -1,0 +1,45 @@
+---
+title: "atEndOfFile"
+kind: Function
+---
+
+# atEndOfFile
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+atEndOfFile, -- test for end of file, class => element, Usage: , atEndOfFile f, class => language-macaulay2, Inputs:, f, , , a , Macaulay2Doc :: File, file, Outputs:, a , Macaulay2Doc :: Boolean, Boolean value, , , whether the input file , f, is at the end, Description, class => examples, i1 : f = openInOut "!cat"
+
+o1 = !cat
+
+o1 : File, class => language-macaulay2, i2 : f << "hi there" << closeOut;, class => language-macaulay2, i3 : atEndOfFile f
+
+o3 = false, class => language-macaulay2, i4 : peek read f
+
+o4 = "hi there", class => language-macaulay2, i5 : atEndOfFile f
+
+o5 = true, class => language-macaulay2, class => waystouse, Ways to use , atEndOfFile, :, Macaulay2Doc :: atEndOfFile(File), class => waystouse, For the programmer, The object , Macaulay2Doc :: atEndOfFile, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_files.m2:374:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `atEndOfFile(File)`
+
+## Examples
+
+```macaulay2
+i1 : f = openInOut "!cat"
+
+o1 = !cat
+
+o1 : File
+
+i2 : f << "hi there" << closeOut;
+```
+
+## See Also
+

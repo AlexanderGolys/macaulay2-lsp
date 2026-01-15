@@ -1,0 +1,94 @@
+---
+title: "memoize"
+kind: Function
+---
+
+# memoize
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunction](../Type/MethodFunction.mdx)
+
+## Description
+
+memoize, -- record results of function evaluation for future use, Description, memoize f, -- produces, from a function , f, , a new function that behaves the same as , f, , but remembers previous answers to be provided the next time the same arguments are presented., , class => examples, i1 : fib = n -> if n <= 1 then 1 else fib(n-1) + fib(n-2)
+
+o1 = fib
+
+o1 : FunctionClosure, class => language-macaulay2, i2 : time fib 28
+ -- used 0.54804s (cpu); 0.429224s (thread); 0s (gc)
+
+o2 = 514229, class => language-macaulay2, i3 : fib = memoize fib
+
+o3 = fib
+
+o3 : FunctionClosure, class => language-macaulay2, i4 : time fib 28
+ -- used 5.535e-05s (cpu); 5.5032e-05s (thread); 0s (gc)
+
+o4 = 514229, class => language-macaulay2, i5 : time fib 28
+ -- used 1.659e-06s (cpu); 1.562e-06s (thread); 0s (gc)
+
+o5 = 514229, class => language-macaulay2, An optional second argument to memoize provides a list of initial values, each of the form , x => v, , where , v, is the value to be provided for the argument , x, ., Alternatively, values can be provided after defining the memoized function using the syntax , f x = v, . A slightly more efficient implementation of the above would be, class => examples, i6 : fib = memoize( n -> fib(n-1) + fib(n-2) )
+
+o6 = fib
+
+o6 : FunctionClosure, class => language-macaulay2, i7 : fib 0 = fib 1 = 1;, class => language-macaulay2, i8 : fib 28
+
+o8 = 514229, class => language-macaulay2, The function , memoize, operates by constructing a , Macaulay2Doc :: MutableHashTable, , in which the arguments are used as keys for accessing the return value of the function. This mutable hash table can be obtained using the function , memoizeValues, , as follows., class => examples, i9 : peek memoizeValues fib
+
+o9 = MutableHashTable{0 => 1 
+ 1 => 1
+ 2 => 2
+ 3 => 3
+ 4 => 5
+ 5 => 8
+ 6 => 13
+ 7 => 21
+ 8 => 34
+ 9 => 55
+ 10 => 89
+ 11 => 144
+ 12 => 233
+ 13 => 377
+ 14 => 610
+ 15 => 987
+ 16 => 1597
+ 17 => 2584
+ 18 => 4181
+ 19 => 6765
+ 20 => 10946
+ 21 => 17711
+ 22 => 28657
+ 23 => 46368
+ 24 => 75025
+ 25 => 121393
+ 26 => 196418
+ 27 => 317811
+ 28 => 514229, class => language-macaulay2, That hash table can be replaced by an empty one with the function , memoizeClear, ., class => examples, i10 : memoizeClear fib, class => language-macaulay2, i11 : peek memoizeValues fib
+
+o11 = MutableHashTable{, class => language-macaulay2, Warning: the new function created by , memoize, will save references to all arguments and values it encounters, and this will often prevent those arguments and values from being garbage-collected as soon as they might have been. If the arguments are implemented as mutable hash tables (modules, matrices and rings are implemented this way) then a viable strategy is to stash computed results in the arguments themselves. See also , CacheTable, ., class => waystouse, Ways to use , memoize, :, memoize(Function), memoize(Function,List), class => waystouse, For the programmer, The object , Macaulay2Doc :: memoize, is , a , Macaulay2Doc :: MethodFunction, method function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_repl.m2:708:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `memoize(Function, List)`
+- `memoize(Function)`
+
+## Examples
+
+```macaulay2
+i1 : fib = n -> if n <= 1 then 1 else fib(n-1) + fib(n-2)
+
+o1 = fib
+
+o1 : FunctionClosure
+
+i2 : time fib 28
+ -- used 0.54804s (cpu); 0.429224s (thread); 0s (gc)
+
+o2 = 514229
+```
+
+## See Also
+

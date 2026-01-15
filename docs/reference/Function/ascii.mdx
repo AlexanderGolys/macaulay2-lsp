@@ -1,0 +1,41 @@
+---
+title: "ascii"
+kind: Function
+---
+
+# ascii
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+ascii, -- ASCII character conversion, Description, Synopsis, class => element, Usage: , ascii v, class => language-macaulay2, Inputs:, v, , , containing small integers, Outputs:, the string whose characters have the , https://en.wikipedia.org/wiki/ASCII, ASCII, codes listed in , v, Synopsis, class => element, Usage: , ascii s, class => language-macaulay2, Inputs:, s, Outputs:, the list of (small integer) , https://en.wikipedia.org/wiki/ASCII, ASCII, codes of the characters of , s, class => examples, i1 : ascii "abcdef"
+
+o1 = {97, 98, 99, 100, 101, 102
+
+o1 : List, class => language-macaulay2, i2 : ascii oo
+
+o2 = abcdef, class => language-macaulay2, i3 : first ascii "A"
+
+o3 = 65, class => language-macaulay2, class => waystouse, Ways to use , ascii, :, ascii(BasicList), ascii(String), ascii(ZZ), class => waystouse, For the programmer, The object , Macaulay2Doc :: ascii, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_strings.m2:395:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `ascii(ZZ)`
+- `ascii(String)`
+- `ascii(BasicList)`
+
+## Examples
+
+```macaulay2
+i2 : ascii oo
+
+o2 = abcdef
+```
+
+## See Also
+

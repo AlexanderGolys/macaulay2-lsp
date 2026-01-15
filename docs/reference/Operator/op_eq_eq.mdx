@@ -1,0 +1,106 @@
+---
+title: "=="
+kind: Operator
+---
+
+# ==
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+==, -- equality, class => element, Usage: , x == y, class => language-macaulay2, Description, Returns true or false, depending on whether the objects x and y are (mathematically) equal. The objects x and y are typically numbers, elements of rings, matrices, modules, ideals, chain complexes, and so on., A test for mathematical equality will typically involve doing a computation to see whether two representations of the same mathematical object are being compared. For example, an ideal in a ring is represented by giving its generators, and checking whether two sets of generators produce the same ideal involves a computation with Gröbner bases. The ideals must be defined in the same ring., Ideals, class => examples, i1 : R = QQ[a,b,c];, class => language-macaulay2, i2 : ideal(a^2-b,a^3) == ideal(b^2, a*b, a^2-b)
+
+o2 = true, class => language-macaulay2, Often mathematical objects can be tested to see if they are 0 or 1., class => examples, i3 : L = ideal(a^2-a-1,a^3+a+3)
+
+ 2 3
+o3 = ideal (a - a - 1, a + a + 3)
+
+o3 : Ideal of R, class => language-macaulay2, i4 : L == 1
+
+o4 = true, class => language-macaulay2, i5 : L == 0
+
+o5 = false, class => language-macaulay2, Matrices, Two , Macaulay2Doc :: matrices, are equal if their entries are equal, the source and target are the same (including degrees), and the degree of the matrices are the same. In this example, m and n have different source free modules., class => examples, i6 : m = matrix{{a,b,{c,a
+
+o6 = | a b |
+ | c a |
+
+ 2 2
+o6 : Matrix R <-- R, class => language-macaulay2, i7 : n = map(R^2,R^2,m)
+
+o7 = | a b |
+ | c a |
+
+ 2 2
+o7 : Matrix R <-- R, class => language-macaulay2, i8 : m == n
+
+o8 = false, class => language-macaulay2, i9 : source m == source n
+
+o9 = false, class => language-macaulay2, If you only want to know if they have the same entries, test the difference against zero., class => examples, i10 : m-n == 0
+
+o10 = true, class => language-macaulay2, Rings, Modules, Two , Macaulay2Doc :: modules, are equal if they are isomorphic as subquotients of the same ambient free module., class => examples, i11 : image matrix {{2,a,{1,5 == R^2
+
+o11 = false, class => language-macaulay2, i12 : image matrix {{2,a,{0,5 == R^2
+
+o12 = true, class => language-macaulay2, Intervals, If either side of the equality is an , Macaulay2Doc :: RRi, , the equality is an equality of sets., class => examples, i13 : interval(1,3) == interval(1,3)
+
+o13 = true, class => language-macaulay2, i14 : interval(1/2) == 1/2
+
+o14 = true, class => language-macaulay2, i15 : interval(1/3) == 1/3
+
+o15 = false, class => language-macaulay2, It may happen that for certain types of objects, there is no method installed (yet) for testing mathematical equality, in which case an error message will be printed. A good alternative may be to test for strict equality with the operator , Macaulay2Doc :: ===, ., Since various sorts of mathematical objects are implemented as types, i.e., as instances of , Macaulay2Doc :: Type, , there is no generic method for checking equality of types, so that new mathematical comparison code can be provided in the future without breaking code that works., Caveat, Warning: whether this comparison operator returns true is not necessarily related to whether the comparison operator , Macaulay2Doc :: ?, returns , symbol ==, ., See also, Macaulay2Doc :: !=, Macaulay2Doc :: ===, Macaulay2Doc :: =!=, Macaulay2Doc :: operators, class => waystouse, Ways to use , symbol ==, :, Matrix == Matrix, -- see , Macaulay2Doc :: basic arithmetic of matrices, OldChainComplexes :: ChainComplex == ChainComplex, OldChainComplexes :: ChainComplex == ZZ, OldChainComplexes :: ChainComplexMap == ChainComplexMap, OldChainComplexes :: ChainComplexMap == RingElement, OldChainComplexes :: ChainComplexMap == ZZ, Varieties :: CoherentSheaf == Module, Polyhedra :: Cone == Cone, Ideal == Ideal, -- see , Macaulay2Doc :: equality and containment, Ideal == ZZ, -- see , Macaulay2Doc :: equality and containment, ZZ == Ideal, -- see , Macaulay2Doc :: equality and containment, Module == Module, -- see , Macaulay2Doc :: equality and containment of modules, Polyhedra :: Fan == Fan, OldChainComplexes :: GradedModule == GradedModule, OldChainComplexes :: GradedModuleMap == GradedModuleMap, OldChainComplexes :: GradedModuleMap == RingElement, OldChainComplexes :: GradedModuleMap == ZZ, Varieties :: Module == CoherentSheaf, Polyhedra :: Polyhedron == Polyhedron, OldChainComplexes :: RingElement == ChainComplexMap, OldChainComplexes :: RingElement == GradedModuleMap, OldChainComplexes :: ZZ == ChainComplex, OldChainComplexes :: ZZ == ChainComplexMap, OldChainComplexes :: ZZ == GradedModuleMap, class => waystouse, For the programmer, The object , Macaulay2Doc :: ==, is , a , Macaulay2Doc :: Keyword, keyword, ., This operator may be used as a binary operator in an expression like , x==y, . , The user may install , Macaulay2Doc :: binary methods, for handling such expressions with code such as, X == Y := (x,y) -> ..., where , X, is the class of , x, and , Y, is the class of , y, ., , class => waystouse, The source of this document is in , Macaulay2Doc/operators/equality.m2:146:0, .
+
+## Operator Installations
+
+### Binary Operator
+
+Usage: `x == y`
+
+- `==(BettiTally, BettiTally)`
+- `==(Number, RingElement)`
+- `==(RingElement, Number)`
+- `==(InexactNumber, RingElement)`
+- `==(RingElement, InexactNumber)`
+- `==(ZZ, RingElement)`
+- `==(RingElement, ZZ)`
+- `==(RingElement, RingElement)`
+- `==(Holder, Equation)`
+- `==(Equation, Holder)`
+- `==(Expression, Expression)`
+- `==(Expression, Thing)`
+- `==(Thing, Expression)`
+- `==(GroebnerBasis, GroebnerBasis)`
+- `==(ProjectiveHilbertPolynomial, ProjectiveHilbertPolynomial)`
+- `==(ProjectiveHilbertPolynomial, ZZ)`
+- `==(ZZ, ProjectiveHilbertPolynomial)`
+- `==(RingElement, Matrix)`
+- `==(RingElement, Vector)`
+- `==(Number, Vector)`
+
+*Showing 20 of 129 binary signatures*
+
+### Augmented Assignment
+
+Usage: `x === y` (modifies `x` in place)
+
+:::info[Special Installation Syntax]
+Augmented assignment methods require special installation using `installAssignmentMethod`. See [Macaulay2 documentation](https://macaulay2.com/doc/Macaulay2/share/doc/Macaulay2/Macaulay2Doc/html/_installing_spaugmented_spassignment_spmethods.html) for details.
+:::
+
+- `(==,=)(Type, Type)`
+- `(==,=)(Thing, Thing)`
+
+## Examples
+
+```macaulay2
+i1 : R = QQ[a,b,c];
+
+i2 : ideal(a^2-b,a^3) == ideal(b^2, a*b, a^2-b)
+
+o2 = true
+```
+
+## See Also
+

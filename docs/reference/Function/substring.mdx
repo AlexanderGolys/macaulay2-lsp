@@ -1,0 +1,49 @@
+---
+title: "substring"
+kind: Function
+---
+
+# substring
+
+**Type:** `Function`
+
+**Instance of:** [CompiledFunction](../Type/CompiledFunction.mdx)
+
+## Description
+
+substring, -- extract part of a string, class => element, Usage: , substring(i, s), class => language-macaulay2, substring(i, n, s), class => language-macaulay2, substring(s, i, n), class => language-macaulay2, substring(s, i), class => language-macaulay2, substring((i, n), s), class => language-macaulay2, Inputs:, i, , , an , Macaulay2Doc :: ZZ, integer, , , starting index of substring, n, , , an , Macaulay2Doc :: ZZ, integer, , , length of substring, s, , , a , Macaulay2Doc :: String, string, , , Outputs:, a , Macaulay2Doc :: String, string, , , Description, The expressions , substring(i, n, s), , , substring(s, i, n), , and , substring((i, n), s), all return the substring that starts at index , i, and has , n, characters., In other words, if $s=s_0s_1s_2\ldots s_k$, then the substring returned is $s_i s_{i+1\ldots s_{i+n-1$., Indices begin at zero, and a negative index is counted from the end of the string. Requests for out-of-bound character positions are silently ignored., class => examples, i1 : s = "I love computing Gröbner bases in Macaulay2.";, class => language-macaulay2, i2 : substring(0, 5, s)
+
+o2 = I lov, class => language-macaulay2, i3 : substring(s, -10, 5)
+
+o3 = Macau, class => language-macaulay2, i4 : substring(s, 100, 5)
+
+o4 = , class => language-macaulay2, i5 : substring((3, 10), s)
+
+o5 = ove comput, class => language-macaulay2, The expressions , substring(i, s), and , substring(s, i), return the substring that starts at index , i, and continues to the end of the string., In other words, if $s=s_0s_1s_2\ldots s_k$, then the substring returned is $s_i s_{i+1\ldots s_k$., , class => examples, i6 : substring(3, s)
+
+o6 = ove computing Gröbner bases in Macaulay2., class => language-macaulay2, i7 : substring(s, -10)
+
+o7 = Macaulay2., class => language-macaulay2, See also, Macaulay2Doc :: lines, Macaulay2Doc :: separate, Macaulay2Doc :: strings and nets, Macaulay2Doc :: regular expressions, Macaulay2Doc :: utf8substring, class => waystouse, Ways to use , substring, :, substring(Sequence,String), substring(String,ZZ), substring(String,ZZ,ZZ), substring(ZZ,String), substring(ZZ,ZZ,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: substring, is , a , Macaulay2Doc :: CompiledFunction, compiled function, ., , class => waystouse, The source of this document is in , Macaulay2Doc/functions/substring-doc.m2:62:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `substring(ZZ, String)`
+- `substring(String, ZZ)`
+- `substring(Sequence, String)`
+- `substring(String, ZZ, ZZ)`
+- `substring(ZZ, ZZ, String)`
+
+## Examples
+
+```macaulay2
+i1 : s = "I love computing Gröbner bases in Macaulay2.";
+
+i2 : substring(0, 5, s)
+
+o2 = I lov
+```
+
+## See Also
+

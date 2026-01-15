@@ -1,0 +1,27 @@
+---
+title: "parallelApply"
+kind: Function
+---
+
+# parallelApply
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+parallelApply, -- apply a function to each element in parallel, class => element, Usage: , parallelApply(L,f), class => language-macaulay2, Inputs:, L, , , a , Macaulay2Doc :: BasicList, basic list, , , f, , , a , Macaulay2Doc :: Function, function, , , Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Strategy, => , Macaulay2Doc :: null, or , a , Macaulay2Doc :: String, string, , , default value , null, Outputs:, a , Macaulay2Doc :: List, list, or , a , Macaulay2Doc :: BasicList, basic list, , , If the , Macaulay2Doc :: Strategy, option is , Macaulay2Doc :: null, , then this behaves like , toList apply(L,f), class => language-macaulay2, , with the result computed in parallel in chunks using all cores. If it is the string , "raw", , then this behaves like , apply(apply(L, e -> schedule(f, e)), taskResult), class => language-macaulay2, ., Description, If the option , Strategy, is given the string , "raw", , then a separate task is created for each element of , L, . , L, is not split into chunks, , Macaulay2Doc :: allowableThreads, is used unchanged, and the result has the same class as , L, . Normally the default strategy (, Strategy => null, class => language-macaulay2, ) is more efficient., See , Macaulay2Doc :: parallel programming with threads and tasks, for more information and an important warning about thread safety., class => waystouse, Ways to use , parallelApply, :, parallelApply(BasicList,Function), class => waystouse, For the programmer, The object , Macaulay2Doc :: parallelApply, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `parallelApply(BasicList, Function)`
+
+## Examples
+
+*Examples would be extracted from M2 documentation here*
+
+## See Also
+

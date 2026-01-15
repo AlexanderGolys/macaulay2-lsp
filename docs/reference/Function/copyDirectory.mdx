@@ -1,0 +1,85 @@
+---
+title: "copyDirectory"
+kind: Function
+---
+
+# copyDirectory
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionWithOptions](../Type/MethodFunctionWithOptions.mdx)
+
+## Description
+
+copyDirectory, , class => element, Usage: , copyDirectory(src,dst), class => language-macaulay2, Inputs:, src, , , a , Macaulay2Doc :: String, string, dst, , , a , Macaulay2Doc :: String, string, Macaulay2Doc :: using functions with optional inputs, Optional inputs, :, Exclude, => , ..., , , default value , "\\.~[0-9.]+~$", , , a string containing a regular expression, or a list of such strings. If the base part of the name of a file in the source tree matches one of the regular expressions, then no link to it is created, UpdateOnly, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , whether to copy files only if the target file does not exist or is older than the source file, FollowLinks, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , whether to follow symbolic links in the source tree to directories, Verbose, => , a , Macaulay2Doc :: Boolean, Boolean value, , , default value , false, , , whether to report individual file operations, Consequences:, a copy of the directory tree rooted at , src, is created, rooted at , dst, Description, class => examples, i1 : src = temporaryFileName() | "/"
+
+o1 = /tmp/M2-707743-0/0/, class => language-macaulay2, i2 : dst = temporaryFileName() | "/"
+
+o2 = /tmp/M2-707743-0/1/, class => language-macaulay2, i3 : makeDirectory (src|"a/")
+
+o3 = /tmp/M2-707743-0/0/a/, class => language-macaulay2, i4 : makeDirectory (src|"b/")
+
+o4 = /tmp/M2-707743-0/0/b/, class => language-macaulay2, i5 : makeDirectory (src|"b/c/")
+
+o5 = /tmp/M2-707743-0/0/b/c/, class => language-macaulay2, i6 : src|"a/f" << "hi there" << close
+
+o6 = /tmp/M2-707743-0/0/a/f
+
+o6 : File, class => language-macaulay2, i7 : src|"a/g" << "hi there" << close
+
+o7 = /tmp/M2-707743-0/0/a/g
+
+o7 : File, class => language-macaulay2, i8 : src|"b/c/g" << "ho there" << close
+
+o8 = /tmp/M2-707743-0/0/b/c/g
+
+o8 : File, class => language-macaulay2, i9 : stack findFiles src
+
+o9 = /tmp/M2-707743-0/0/
+ /tmp/M2-707743-0/0/b/
+ /tmp/M2-707743-0/0/b/c/
+ /tmp/M2-707743-0/0/b/c/g
+ /tmp/M2-707743-0/0/a/
+ /tmp/M2-707743-0/0/a/g
+ /tmp/M2-707743-0/0/a/f, class => language-macaulay2, i10 : copyDirectory(src,dst,Verbose=>true)
+ -- copying: /tmp/M2-707743-0/0/b/c/g -> /tmp/M2-707743-0/1/b/c/g
+ -- copying: /tmp/M2-707743-0/0/a/g -> /tmp/M2-707743-0/1/a/g
+ -- copying: /tmp/M2-707743-0/0/a/f -> /tmp/M2-707743-0/1/a/f, class => language-macaulay2, i11 : copyDirectory(src,dst,Verbose=>true,UpdateOnly => true)
+ -- skipping: /tmp/M2-707743-0/0/b/c/g not newer than /tmp/M2-707743-0/1/b/c/g
+ -- skipping: /tmp/M2-707743-0/0/a/g not newer than /tmp/M2-707743-0/1/a/g
+ -- skipping: /tmp/M2-707743-0/0/a/f not newer than /tmp/M2-707743-0/1/a/f, class => language-macaulay2, i12 : stack findFiles dst
+
+o12 = /tmp/M2-707743-0/1/
+ /tmp/M2-707743-0/1/a/
+ /tmp/M2-707743-0/1/a/f
+ /tmp/M2-707743-0/1/a/g
+ /tmp/M2-707743-0/1/b/
+ /tmp/M2-707743-0/1/b/c/
+ /tmp/M2-707743-0/1/b/c/g, class => language-macaulay2, i13 : get (dst|"b/c/g")
+
+o13 = ho there, class => language-macaulay2, Now we remove the files and directories we created., class => examples, i14 : rm = d -> if isDirectory d then removeDirectory d else removeFile d
+
+o14 = rm
+
+o14 : FunctionClosure, class => language-macaulay2, i15 : scan(reverse findFiles src, rm), class => language-macaulay2, i16 : scan(reverse findFiles dst, rm), class => language-macaulay2, See also, Macaulay2Doc :: symlinkDirectory, class => waystouse, Ways to use , copyDirectory, :, Macaulay2Doc :: copyDirectory(String,String), class => waystouse, For the programmer, The object , Macaulay2Doc :: copyDirectory, is , a , Macaulay2Doc :: MethodFunctionWithOptions, method function with options, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_system.m2:1168:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `copyDirectory(String, String)`
+
+## Examples
+
+```macaulay2
+i1 : src = temporaryFileName() | "/"
+
+o1 = /tmp/M2-707743-0/0/
+
+i2 : dst = temporaryFileName() | "/"
+
+o2 = /tmp/M2-707743-0/1/
+```
+
+## See Also
+

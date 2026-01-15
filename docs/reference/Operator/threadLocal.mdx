@@ -1,0 +1,45 @@
+---
+title: "threadLocal"
+kind: Operator
+---
+
+# threadLocal
+
+**Type:** `Operator`
+
+**Instance of:** [Keyword](../Type/Keyword.mdx)
+
+## Description
+
+threadLocal, -- create a symbol whose value in one thread is not shared with others, class => element, Usage: , threadLocal foo, class => language-macaulay2, Outputs:, a new symbol, whose name is "foo", for example, whose values in each thread will be independent of each other, with initial value , Macaulay2Doc :: null, Description, class => examples, i1 : threadLocal x
+
+o1 = x
+
+o1 : Symbol, class => language-macaulay2, i2 : x = 1
+
+o2 = 1, class => language-macaulay2, i3 : t = schedule ( () -> ( x = 2 ; x ) )
+
+o3 = <<task, created>>
+
+o3 : Task, class => language-macaulay2, i4 : taskResult t
+
+o4 = 2, class => language-macaulay2, i5 : x
+
+o5 = 1, class => language-macaulay2, class => waystouse, For the programmer, The object , Macaulay2Doc :: threadLocal, is , a , Macaulay2Doc :: Keyword, keyword, ., , class => waystouse, The source of this document is in , Macaulay2Doc/ov_threads.m2:498:0, .
+
+## Examples
+
+```macaulay2
+i1 : threadLocal x
+
+o1 = x
+
+o1 : Symbol
+
+i2 : x = 1
+
+o2 = 1
+```
+
+## See Also
+

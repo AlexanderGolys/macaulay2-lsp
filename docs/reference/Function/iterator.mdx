@@ -1,0 +1,74 @@
+---
+title: "iterator"
+kind: Function
+---
+
+# iterator
+
+**Type:** `Function`
+
+**Instance of:** [MethodFunctionSingle](../Type/MethodFunctionSingle.mdx)
+
+## Description
+
+iterator, -- get an iterator, class => element, Usage: , iterator x, class => language-macaulay2, Inputs:, x, , , a , Macaulay2Doc :: Thing, thing, , , Outputs:, a , Macaulay2Doc :: Thing, thing, , , likely an , Macaulay2Doc :: Iterator, ; , Description, An iterator is an object that is used to traverse through , x, . Usually, but not necessarily, this will be an instance of the , Macaulay2Doc :: Iterator, class., class => examples, i1 : iter = iterator {1, 2, 3
+
+o1 = iter
+
+o1 : Iterator, class => language-macaulay2, The class of an iterator should have a , Macaulay2Doc :: next, method installed that gets the next element of , x, ., class => examples, i2 : next iter
+
+o2 = 1, class => language-macaulay2, i3 : next iter
+
+o3 = 2, class => language-macaulay2, i4 : next iter
+
+o4 = 3, class => language-macaulay2, If , x, contains only a finite number of elements, then , Macaulay2Doc :: next, should return the symbol , Macaulay2Doc :: StopIteration, after exhausting them all., class => examples, i5 : next iter
+
+o5 = StopIteration
+
+o5 : Symbol, class => language-macaulay2, Instances of classes with this method installed can be used like lists in , Macaulay2Doc :: for, loops and , Macaulay2Doc :: scan, ., class => examples, i6 : lookup(iterator, String)
+
+o6 = FunctionClosure[../../m2/iterators.m2:20:24-27:16]
+
+o6 : FunctionClosure, class => language-macaulay2, i7 : for i in "foo" list i
+
+o7 = {f, o, o
+
+o7 : List, class => language-macaulay2, i8 : scan("foo", print)
+f
+o
+o, class => language-macaulay2, They can also be passed to , Macaulay2Doc :: apply, and , Macaulay2Doc :: select, . In each case, an , Macaulay2Doc :: Iterator, object will be returned that is an iterator for itself., class => examples, i9 : apply("foo", toUpper)
+
+o9 = (F, O, O)
+
+o9 : Sequence, class => language-macaulay2, i10 : for i in oo list i
+
+o10 = {F, O, O
+
+o10 : List, class => language-macaulay2, i11 : select("foo", i -> i == "o")
+
+o11 = iterator "foo"
+
+o11 : Iterator, class => language-macaulay2, i12 : for i in oo list i
+
+o12 = {o, o
+
+o12 : List, class => language-macaulay2, See also, Macaulay2Doc :: Iterator, Macaulay2Doc :: next, Macaulay2Doc :: StopIteration, class => waystouse, Ways to use , iterator, :, iterator(Iterator), iterator(String), iterator(VisibleList), class => waystouse, For the programmer, The object , Macaulay2Doc :: iterator, is , a , Macaulay2Doc :: MethodFunctionSingle, method function with a single argument, ., , class => waystouse, The source of this document is in , Macaulay2Doc/doc_iterators.m2:106:0, .
+
+## Installations
+
+Type signatures for this function:
+
+- `iterator(VisibleList)`
+- `iterator(String)`
+- `iterator(Iterator)`
+
+## Examples
+
+```macaulay2
+i2 : next iter
+
+o2 = 1
+```
+
+## See Also
+
