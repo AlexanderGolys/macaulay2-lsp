@@ -4,6 +4,7 @@ use tree_sitter::{Node, Tree};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SymbolKind {
+    Function,
     Variable,
     Parameter,
 }
@@ -29,24 +30,19 @@ pub struct Analysis {
 
 impl Analysis {
     pub fn find_definition(&self, name: &str, pos: Position) -> Option<LspRange> {
-        let scope_idx = self.find_scope_at(pos)?;
-        let mut curr = Some(scope_idx);
-        while let Some(idx) = curr {
-            if let Some(symbol) = self.scopes[idx].symbols.get(name) {
-                return Some(symbol.range);
-            }
-            curr = self.scopes[idx].parent_idx;
-        }
-
-        None
+        self.get_symbol_at(name, pos).map(|symbol| symbol.range)
     }
 
     pub fn get_symbol_kind_at(&self, name: &str, pos: Position) -> Option<SymbolKind> {
+        self.get_symbol_at(name, pos).map(|symbol| symbol.kind)
+    }
+
+    pub fn get_symbol_at(&self, name: &str, pos: Position) -> Option<&SymbolInfo> {
         let scope_idx = self.find_scope_at(pos)?;
         let mut curr = Some(scope_idx);
         while let Some(idx) = curr {
             if let Some(symbol) = self.scopes[idx].symbols.get(name) {
-                return Some(symbol.kind);
+                return Some(symbol);
             }
             curr = self.scopes[idx].parent_idx;
         }
@@ -137,12 +133,19 @@ impl Analysis {
             "assignment_expression" => {
                 let left = node.child_by_field_name("left");
                 let op = node.child_by_field_name("operator");
+                let right = node.child_by_field_name("right");
 
                 if let (Some(left), Some(op)) = (left, op) {
                     let op_text = &text[op.start_byte()..op.end_byte()];
                     let is_local = op_text == ":=";
+                    let symbol_kind = match right {
+                        Some(right) if right.kind() == "function_expression" => {
+                            SymbolKind::Function
+                        }
+                        _ => SymbolKind::Variable,
+                    };
 
-                    self.collect_definitions(left, text, current_scope_idx, is_local);
+                    self.collect_definitions(left, text, current_scope_idx, is_local, symbol_kind);
                 }
             }
             _ => {}
@@ -171,23 +174,30 @@ impl Analysis {
         }
     }
 
-    fn collect_definitions(&mut self, node: Node, text: &str, scope_idx: usize, is_local: bool) {
+    fn collect_definitions(
+        &mut self,
+        node: Node,
+        text: &str,
+        scope_idx: usize,
+        is_local: bool,
+        kind: SymbolKind,
+    ) {
         match node.kind() {
             "symbol" => {
                 let name = &text[node.start_byte()..node.end_byte()];
                 if is_local {
-                    self.add_symbol(name, SymbolKind::Variable, node, scope_idx);
+                    self.add_symbol(name, kind, node, scope_idx);
                 } else {
                     // Search if it exists in parent scopes, otherwise it's global (scope 0)
                     if !self.is_defined_in_chain(name, scope_idx) {
-                        self.add_symbol(name, SymbolKind::Variable, node, 0);
+                        self.add_symbol(name, kind, node, 0);
                     }
                 }
             }
             "sequence" | "list" => {
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
-                    self.collect_definitions(child, text, scope_idx, is_local);
+                    self.collect_definitions(child, text, scope_idx, is_local, kind);
                 }
             }
             _ => {}
@@ -246,4 +256,33 @@ fn is_range_smaller(a: LspRange, b: LspRange) -> bool {
     let ends_inside =
         a.end.line < b.end.line || (a.end.line == b.end.line && a.end.character <= b.end.character);
     starts_inside && ends_inside && a != b
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tree_sitter::Parser;
+
+    fn analyze(text: &str) -> Analysis {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        Analysis::new(&tree, text)
+    }
+
+    #[test]
+    fn classifies_user_defined_functions_and_parameters() {
+        let analysis = analyze("f := x -> x\nf 1");
+
+        assert_eq!(
+            analysis.get_symbol_kind_at("f", Position::new(1, 0)),
+            Some(SymbolKind::Function)
+        );
+        assert_eq!(
+            analysis.get_symbol_kind_at("x", Position::new(0, 10)),
+            Some(SymbolKind::Parameter)
+        );
+    }
 }

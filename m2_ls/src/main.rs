@@ -8,7 +8,7 @@ use typesystem::{BuiltinData, M2SemanticTokenType};
 mod analysis;
 mod typesystem;
 
-use analysis::Analysis;
+use analysis::{Analysis, SymbolInfo, SymbolKind};
 
 // @@@tag.a
 
@@ -21,15 +21,21 @@ struct Backend {
 }
 
 const LEGEND_TYPES: &[SemanticTokenType] = &[
-    SemanticTokenType::TYPE,           // 0
-    SemanticTokenType::FUNCTION,       // 1
-    SemanticTokenType::VARIABLE,       // 2
-    SemanticTokenType::PARAMETER,      // 3
-    SemanticTokenType::PROPERTY,       // 4
-    SemanticTokenType::NAMESPACE,      // 5
-    SemanticTokenType::new("file"),    // 6
-    SemanticTokenType::new("command"), // 7
+    SemanticTokenType::TYPE,        // 0
+    SemanticTokenType::FUNCTION,    // 1
+    SemanticTokenType::VARIABLE,    // 2
+    SemanticTokenType::PARAMETER,   // 3
+    SemanticTokenType::PROPERTY,    // 4
+    SemanticTokenType::NAMESPACE,   // 5
+    SemanticTokenType::ENUM_MEMBER, // 6
 ];
+
+const OPTION_MODIFIER: u32 = 1 << 0;
+const DEFAULT_LIBRARY_MODIFIER: u32 = 1 << 1;
+const LIBRARY_MODIFIER: u32 = 1 << 2;
+const COMMAND_MODIFIER: u32 = 1 << 3;
+const FILE_MODIFIER: u32 = 1 << 4;
+const MANIPULATOR_MODIFIER: u32 = 1 << 5;
 
 fn utf16_col_to_byte(line: &str, utf16_col: u32) -> usize {
     let mut current_col = 0;
@@ -86,6 +92,51 @@ fn symbol_prefix_at(text: &str, position: Position) -> Option<String> {
     (!prefix.is_empty()).then(|| prefix.to_string())
 }
 
+fn option_assignment_role(node: tree_sitter::Node) -> Option<M2SemanticTokenType> {
+    let parent = node.parent()?;
+    if parent.kind() != "option_assignment" {
+        return None;
+    }
+
+    if parent
+        .child_by_field_name("left")
+        .is_some_and(|left| left.id() == node.id())
+    {
+        return Some(M2SemanticTokenType::Property);
+    }
+
+    if parent
+        .child_by_field_name("right")
+        .is_some_and(|right| right.id() == node.id())
+    {
+        return Some(M2SemanticTokenType::EnumMember);
+    }
+
+    None
+}
+
+fn local_symbol_hover(name: &str, symbol: &SymbolInfo) -> Hover {
+    let label = match symbol.kind {
+        SymbolKind::Function => "User-defined function",
+        SymbolKind::Variable => "User-defined variable",
+        SymbolKind::Parameter => "Function parameter",
+    };
+    let line = symbol.range.start.line + 1;
+    let character = symbol.range.start.character + 1;
+    let markdown = format!(
+        "**{}**\n\n{}\n\nDefined at `{line}:{character}`",
+        name, label
+    );
+
+    Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: markdown,
+        }),
+        range: None,
+    }
+}
+
 impl Backend {
     fn new(client: Client) -> Self {
         let builtin_names = include_str!("./data/builtins.names");
@@ -140,7 +191,11 @@ impl LanguageServer for Backend {
                                 token_types: LEGEND_TYPES.into(),
                                 token_modifiers: vec![
                                     SemanticTokenModifier::new("option"),
-                                    SemanticTokenModifier::new("builtin"),
+                                    SemanticTokenModifier::DEFAULT_LIBRARY,
+                                    SemanticTokenModifier::new("library"),
+                                    SemanticTokenModifier::new("command"),
+                                    SemanticTokenModifier::new("file"),
+                                    SemanticTokenModifier::new("manipulator"),
                                 ],
                             },
                             full: Some(SemanticTokensFullOptions::Bool(true)),
@@ -220,6 +275,12 @@ impl LanguageServer for Backend {
             let start_byte = node.start_byte();
             let end_byte = node.end_byte();
             let node_text = &text[start_byte..end_byte];
+
+            if let Some(analysis) = self.analyses.get(uri) {
+                if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
+                    return Ok(Some(local_symbol_hover(node_text, symbol)));
+                }
+            }
 
             if self.builtins.contains_name(node_text) {
                 let Some(record) = self
@@ -337,37 +398,46 @@ impl LanguageServer for Backend {
 
                 let mut token_type: Option<u32> = None;
                 let mut modifiers: u32 = 0;
+                let option_role = option_assignment_role(node);
+
+                if let Some(role) = option_role {
+                    token_type = Some(role as u32);
+                    modifiers |= OPTION_MODIFIER;
+                }
 
                 // 1. Check local analysis first
-                if let Some(analysis) = self.analyses.get(&uri) {
-                    if let Some(symbol_kind) = analysis.get_symbol_kind_at(node_text, position) {
-                        token_type = match symbol_kind {
-                            analysis::SymbolKind::Variable => {
-                                Some(M2SemanticTokenType::Variable as u32)
-                            }
-                            analysis::SymbolKind::Parameter => {
-                                Some(M2SemanticTokenType::Parameter as u32)
-                            }
-                        };
+                if token_type.is_none() {
+                    if let Some(analysis) = self.analyses.get(&uri) {
+                        if let Some(symbol_kind) = analysis.get_symbol_kind_at(node_text, position)
+                        {
+                            token_type = match symbol_kind {
+                                analysis::SymbolKind::Function => {
+                                    Some(M2SemanticTokenType::Function as u32)
+                                }
+                                analysis::SymbolKind::Variable => {
+                                    Some(M2SemanticTokenType::Variable as u32)
+                                }
+                                analysis::SymbolKind::Parameter => {
+                                    Some(M2SemanticTokenType::Parameter as u32)
+                                }
+                            };
+                        }
                     }
                 }
 
                 // 2. Fallback to builtins
                 if token_type.is_none() {
-                    let result = self.builtins.get_token_index(node_text);
-                    if let Some(t) = result {
-                        token_type = Some(t as u32);
-                        modifiers |= 2; // RESERVED
-                    }
-                }
-
-                // 3. Check if it's a key (left side of =>)
-                if let Some(parent) = node.parent() {
-                    if parent.kind() == "option_assignment" {
-                        if let Some(left) = parent.child_by_field_name("left") {
-                            if left.id() == node.id() {
-                                modifiers |= 1; // KEY
-                            }
+                    if let Some(token) = self.builtins.get_semantic_token(node_text) {
+                        token_type = Some(token.token_type as u32);
+                        modifiers |= DEFAULT_LIBRARY_MODIFIER | LIBRARY_MODIFIER;
+                        if token.is_command {
+                            modifiers |= COMMAND_MODIFIER;
+                        }
+                        if token.is_file {
+                            modifiers |= FILE_MODIFIER;
+                        }
+                        if token.is_manipulator {
+                            modifiers |= MANIPULATOR_MODIFIER;
                         }
                     }
                 }
@@ -509,5 +579,58 @@ mod tests {
 
         assert_eq!(utf16_len_for_byte_span(text, 0, start), 3);
         assert_eq!(utf16_len_for_byte_span(text, start, end), 5);
+    }
+
+    #[test]
+    fn option_assignment_symbols_have_context_roles() {
+        let text = "f(x, Strategy => LongPolynomial)";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let root = tree.root_node();
+
+        let mut roles = Vec::new();
+        let mut cursor = root.walk();
+        let mut reached_root = false;
+        while !reached_root {
+            let node = cursor.node();
+            if node.kind() == "symbol" {
+                roles.push((
+                    &text[node.start_byte()..node.end_byte()],
+                    option_assignment_role(node),
+                ));
+            }
+
+            if cursor.goto_first_child() {
+                continue;
+            }
+            if cursor.goto_next_sibling() {
+                continue;
+            }
+            loop {
+                if !cursor.goto_parent() {
+                    reached_root = true;
+                    break;
+                }
+                if cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+        }
+
+        assert!(roles.contains(&("Strategy", Some(M2SemanticTokenType::Property))));
+        assert!(roles.contains(&("LongPolynomial", Some(M2SemanticTokenType::EnumMember))));
+    }
+
+    #[test]
+    fn semantic_token_modifier_bits_match_legend_order() {
+        assert_eq!(OPTION_MODIFIER, 1 << 0);
+        assert_eq!(DEFAULT_LIBRARY_MODIFIER, 1 << 1);
+        assert_eq!(LIBRARY_MODIFIER, 1 << 2);
+        assert_eq!(COMMAND_MODIFIER, 1 << 3);
+        assert_eq!(FILE_MODIFIER, 1 << 4);
+        assert_eq!(MANIPULATOR_MODIFIER, 1 << 5);
     }
 }

@@ -182,9 +182,17 @@ pub enum M2SemanticTokenType {
     Function = 1,
     Variable = 2,
     Parameter = 3,
+    Property = 4,
     Namespace = 5,
-    File = 6,
-    Command = 7,
+    EnumMember = 6,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct M2SemanticToken {
+    pub token_type: M2SemanticTokenType,
+    pub is_command: bool,
+    pub is_file: bool,
+    pub is_manipulator: bool,
 }
 
 impl BuiltinData {
@@ -222,39 +230,60 @@ impl BuiltinData {
         }
     }
 
-    pub fn get_token_index(&self, name: &str) -> Option<M2SemanticTokenType> {
+    pub fn get_semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
         let record = self.get_record(&InstanceID::new(name))?;
         let data_type = &record.data_type;
 
         let function_type = InstanceID::new("Function");
         let command_type = InstanceID::new("Command");
         let file_type = InstanceID::new("File");
+        let manipulator_type = InstanceID::new("Manipulator");
         let package_type = InstanceID::new("Package");
         let keyword_type = InstanceID::new("Keyword");
         let operator_type = InstanceID::new("Operator");
         let symbol_type = InstanceID::new("Symbol");
 
+        let is_command = self.is_subtype(data_type, &command_type);
+        let is_file = self.is_subtype(data_type, &file_type);
+        let is_manipulator = self.is_subtype(data_type, &manipulator_type);
+
         // 1. If it has a parent type, it's a derived Type (like ZZ, Ring, etc.)
         if let Some(type_info) = &record.type_info {
             if type_info.parent_type.is_some() {
-                return Some(M2SemanticTokenType::Type);
+                return Some(M2SemanticToken {
+                    token_type: M2SemanticTokenType::Type,
+                    is_command: false,
+                    is_file: false,
+                    is_manipulator: false,
+                });
             }
         }
 
         // 2. Hierarchy traversal for other categories
-        if self.is_subtype(data_type, &function_type) {
-            Some(M2SemanticTokenType::Function)
-        } else if self.is_subtype(data_type, &command_type) {
-            Some(M2SemanticTokenType::Command)
-        } else if self.is_subtype(data_type, &file_type) {
-            Some(M2SemanticTokenType::File)
+        if self.is_subtype(data_type, &function_type) || is_manipulator || is_command {
+            Some(M2SemanticToken {
+                token_type: M2SemanticTokenType::Function,
+                is_command,
+                is_file: false,
+                is_manipulator,
+            })
         } else if self.is_subtype(data_type, &package_type) {
-            Some(M2SemanticTokenType::Namespace)
-        } else if self.is_subtype(data_type, &symbol_type)
+            Some(M2SemanticToken {
+                token_type: M2SemanticTokenType::Namespace,
+                is_command: false,
+                is_file: false,
+                is_manipulator: false,
+            })
+        } else if (self.is_subtype(data_type, &symbol_type) || is_file)
             && !self.is_subtype(data_type, &keyword_type)
             && !self.is_subtype(data_type, &operator_type)
         {
-            Some(M2SemanticTokenType::Variable)
+            Some(M2SemanticToken {
+                token_type: M2SemanticTokenType::Variable,
+                is_command: false,
+                is_file,
+                is_manipulator: false,
+            })
         } else {
             None
         }
@@ -413,16 +442,61 @@ mod tests {
         let builtins = generated_builtins();
 
         assert_eq!(
-            builtins.get_token_index("ideal"),
+            builtins
+                .get_semantic_token("ideal")
+                .map(|token| token.token_type),
             Some(M2SemanticTokenType::Function)
         );
         assert_eq!(
-            builtins.get_token_index("Ring"),
+            builtins
+                .get_semantic_token("Ring")
+                .map(|token| token.token_type),
             Some(M2SemanticTokenType::Type)
         );
         assert_eq!(
-            builtins.get_token_index("ZZ"),
+            builtins
+                .get_semantic_token("ZZ")
+                .map(|token| token.token_type),
             Some(M2SemanticTokenType::Type)
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("endl")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Function),
+            "M2 Manipulator values should still receive a useful semantic token"
+        );
+        assert!(
+            builtins
+                .get_semantic_token("endl")
+                .is_some_and(|token| token.is_manipulator),
+            "M2 Manipulator values should retain their runtime-class modifier"
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("clearAll")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Function),
+            "M2 Command values should use a standard semantic token"
+        );
+        assert!(
+            builtins
+                .get_semantic_token("clearAll")
+                .is_some_and(|token| token.is_command),
+            "M2 Command values should retain their runtime-class modifier"
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("stderr")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Variable),
+            "M2 File values should use a standard semantic token"
+        );
+        assert!(
+            builtins
+                .get_semantic_token("stderr")
+                .is_some_and(|token| token.is_file),
+            "M2 File values should retain their runtime-class modifier"
         );
     }
 
