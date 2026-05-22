@@ -1,0 +1,14 @@
+[package]
+name = "m2_ls"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dashmap = "5"
+tree-sitter = { git = "https://github.com/tree-sitter/tree-sitter", tag = "v0.25.1" }
+tree-sitter-macaulay2 = { git = "https://github.com/AlexanderGolys/tree-sitter-macaulay2", rev = "29113eeaa2538eac0ea36067b6a1e587b8749c77" }
+ropey = "1.6.1"

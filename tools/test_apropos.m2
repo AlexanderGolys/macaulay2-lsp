@@ -1,1 +1,0 @@
-print(toString apropos "CC")
