@@ -241,14 +241,9 @@ fn is_pos_in_range(pos: Position, range: LspRange) -> bool {
 
 fn is_range_smaller(a: LspRange, b: LspRange) -> bool {
     // Very simple check: is a contained in b?
-    if a.start.line > b.start.line
-        || (a.start.line == b.start.line && a.start.character >= b.start.character)
-    {
-        if a.end.line < b.end.line
-            || (a.end.line == b.end.line && a.end.character <= b.end.character)
-        {
-            return a != b;
-        }
-    }
-    false
+    let starts_inside = a.start.line > b.start.line
+        || (a.start.line == b.start.line && a.start.character >= b.start.character);
+    let ends_inside =
+        a.end.line < b.end.line || (a.end.line == b.end.line && a.end.character <= b.end.character);
+    starts_inside && ends_inside && a != b
 }
