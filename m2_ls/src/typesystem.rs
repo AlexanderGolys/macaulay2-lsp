@@ -168,6 +168,20 @@ impl BuiltinData {
             .collect()
     }
 
+    pub fn matching_names(&self, query: &str, limit: usize) -> Vec<&str> {
+        if query.is_empty() || limit == 0 {
+            return Vec::new();
+        }
+
+        let query = query.to_lowercase();
+        self.names
+            .iter()
+            .map(|name| name.0.as_str())
+            .filter(|name| name.to_lowercase().contains(&query))
+            .take(limit)
+            .collect()
+    }
+
     pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
         let index = *self.name_to_index.get(name)?;
         let (start, end) = *self.detail_ranges.get(index)?;
@@ -185,6 +199,16 @@ pub enum M2SemanticTokenType {
     Property = 4,
     Namespace = 5,
     EnumMember = 6,
+    Class = 7,
+    Keyword = 8,
+    String = 9,
+    Number = 10,
+    Operator = 11,
+    Comment = 12,
+    Method = 13,
+    Regexp = 14,
+    Constructor = 15,
+    Modifier = 16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -241,17 +265,34 @@ impl BuiltinData {
         let package_type = InstanceID::new("Package");
         let keyword_type = InstanceID::new("Keyword");
         let operator_type = InstanceID::new("Operator");
+        let scripted_functor_type = InstanceID::new("ScriptedFunctor");
         let symbol_type = InstanceID::new("Symbol");
+        let type_type = InstanceID::new("Type");
 
         let is_command = self.is_subtype(data_type, &command_type);
         let is_file = self.is_subtype(data_type, &file_type);
         let is_manipulator = self.is_subtype(data_type, &manipulator_type);
+        let is_scripted_functor = self.is_subtype(data_type, &scripted_functor_type);
 
-        // 1. If it has a parent type, it's a derived Type (like ZZ, Ring, etc.)
+        // 1. M2 classes are runtime objects whose own class is a subtype of Type.
+        // Other values that participate in the type hierarchy keep the generic
+        // LSP type role.
         if let Some(type_info) = &record.type_info {
             if type_info.parent_type.is_some() {
+                let token_type = match &record.relation_info {
+                    Some(relation_info)
+                        if relation_info
+                            .class_ancestors
+                            .iter()
+                            .any(|ancestor| ancestor == &type_type) =>
+                    {
+                        M2SemanticTokenType::Class
+                    }
+                    _ => M2SemanticTokenType::Type,
+                };
+
                 return Some(M2SemanticToken {
-                    token_type: M2SemanticTokenType::Type,
+                    token_type,
                     is_command: false,
                     is_file: false,
                     is_manipulator: false,
@@ -260,9 +301,29 @@ impl BuiltinData {
         }
 
         // 2. Hierarchy traversal for other categories
-        if self.is_subtype(data_type, &function_type) || is_manipulator || is_command {
+        if self.is_subtype(data_type, &function_type)
+            || is_scripted_functor
+            || is_manipulator
+            || is_command
+        {
+            let has_installed_methods = record
+                .function_info
+                .as_ref()
+                .is_some_and(|info| !info.methods.is_empty());
+            let token_type =
+                if self.is_constructor_name(&record.name.0) && !is_manipulator && !is_command {
+                    M2SemanticTokenType::Constructor
+                } else if (has_installed_methods || is_scripted_functor)
+                    && !is_manipulator
+                    && !is_command
+                {
+                    M2SemanticTokenType::Method
+                } else {
+                    M2SemanticTokenType::Function
+                };
+
             Some(M2SemanticToken {
-                token_type: M2SemanticTokenType::Function,
+                token_type,
                 is_command,
                 is_file: false,
                 is_manipulator,
@@ -287,6 +348,36 @@ impl BuiltinData {
         } else {
             None
         }
+    }
+
+    pub fn is_constructor_name(&self, name: &str) -> bool {
+        let unqualified_name = name.rsplit_once('$').map_or(name, |(_, name)| name);
+        let Some(target_name) = unqualified_name.strip_prefix("to") else {
+            return false;
+        };
+        if target_name.is_empty() {
+            return false;
+        }
+
+        self.get_record(&InstanceID::new(target_name))
+            .is_some_and(|record| self.is_type_like_record(&record))
+    }
+
+    fn is_type_like_record(&self, record: &Record) -> bool {
+        let type_type = InstanceID::new("Type");
+        if record.relation_info.as_ref().is_some_and(|relation_info| {
+            relation_info
+                .class_ancestors
+                .iter()
+                .any(|ancestor| ancestor == &type_type)
+        }) {
+            return true;
+        }
+
+        record
+            .type_info
+            .as_ref()
+            .is_some_and(|type_info| type_info.parent_type.is_some())
     }
 
     /// Check if child is a subtype of parent (inclusive)
@@ -445,19 +536,79 @@ mod tests {
             builtins
                 .get_semantic_token("ideal")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Function)
+            Some(M2SemanticTokenType::Method)
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("drop")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Method),
+            "CompiledFunction is only the future defaultLibrary boundary, not a token-type boundary"
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("apply")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Method),
+            "CompiledFunction values with installed methods still use the method token type"
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("match")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Method)
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("toString")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Constructor)
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("toList")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Constructor)
+        );
+        assert!(
+            !builtins.is_constructor_name("toLower"),
+            "to-prefixed names only count as constructors when the suffix is an M2 type"
         );
         assert_eq!(
             builtins
                 .get_semantic_token("Ring")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Type)
+            Some(M2SemanticTokenType::Class)
         );
         assert_eq!(
             builtins
                 .get_semantic_token("ZZ")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Type)
+            Some(M2SemanticTokenType::Class)
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("MutableHashTable")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Class)
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("Function")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Class)
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("ScriptedFunctor")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Class)
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("Tor")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Method)
         );
         assert_eq!(
             builtins
