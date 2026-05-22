@@ -1,4 +1,4 @@
--- Generate src/data/builtins.json from Macaulay2's installed documentation
+-- Generate src/data/builtins.details.jsonl and src/data/builtins.names from Macaulay2's installed documentation
 -- database and live runtime symbol table.
 --
 -- Usage from m2_ls/:
