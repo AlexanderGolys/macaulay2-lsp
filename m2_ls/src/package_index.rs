@@ -102,18 +102,7 @@ impl PackageIndexer {
         let cache_dir = std::env::var_os("M2_LSP_PACKAGE_INDEX_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(default_package_index_dir);
-        let extractor_script = std::env::var_os("M2_LSP_EXTRACT_PACKAGE_INDEX")
-            .map(PathBuf::from)
-            .or_else(|| {
-                let local = PathBuf::from("scripts/extract_package_index.m2");
-                local.exists().then_some(local)
-            })
-            .or_else(|| {
-                std::env::current_exe().ok().and_then(|exe| {
-                    let script = exe.parent()?.join("scripts/extract_package_index.m2");
-                    script.exists().then_some(script)
-                })
-            });
+        let extractor_script = find_extractor_script();
 
         PackageIndexer {
             cache_dir,
@@ -163,6 +152,49 @@ impl PackageIndexer {
 
     fn details_path(&self, package_name: &str) -> PathBuf {
         self.cache_dir.join(format!("{package_name}.details.jsonl"))
+    }
+}
+
+fn find_extractor_script() -> Option<PathBuf> {
+    std::env::var_os("M2_LSP_EXTRACT_PACKAGE_INDEX")
+        .map(PathBuf::from)
+        .or_else(|| {
+            extractor_script_candidates()
+                .into_iter()
+                .find(|candidate| candidate.exists())
+        })
+}
+
+pub(crate) fn extractor_script_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    push_extractor_candidates(&mut candidates, Path::new("."));
+
+    if let Ok(current_dir) = std::env::current_dir() {
+        push_extractor_candidates(&mut candidates, &current_dir);
+    }
+
+    push_extractor_candidates(&mut candidates, Path::new(env!("CARGO_MANIFEST_DIR")));
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            for ancestor in exe_dir.ancestors() {
+                push_extractor_candidates(&mut candidates, ancestor);
+            }
+        }
+    }
+
+    candidates
+}
+
+fn push_extractor_candidates(candidates: &mut Vec<PathBuf>, root: &Path) {
+    let local = root.join("scripts/extract_package_index.m2");
+    if !candidates.iter().any(|candidate| candidate == &local) {
+        candidates.push(local);
+    }
+
+    let workspace = root.join("m2_ls/scripts/extract_package_index.m2");
+    if !candidates.iter().any(|candidate| candidate == &workspace) {
+        candidates.push(workspace);
     }
 }
 

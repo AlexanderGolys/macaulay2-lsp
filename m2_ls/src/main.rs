@@ -1,24 +1,112 @@
 use std::collections::HashSet;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::task::{Context, Poll};
 
 use dashmap::DashMap;
-use tower_lsp::jsonrpc::Result;
+use serde_json::{json, Value};
+use tower::Service;
+use tower_lsp::jsonrpc::{Request, Response, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use tree_sitter::Parser;
 use typesystem::{BuiltinData, M2SemanticTokenType};
 
 mod analysis;
+mod formatting;
 mod package_index;
 mod record_lsp;
 mod typesystem;
 
 use analysis::{Analysis, SymbolInfo, SymbolKind};
+use formatting::{format_document_text_with_options, FormatOptions};
+#[cfg(test)]
+use package_index::extractor_script_candidates;
 use package_index::{
     collect_imported_packages, package_source_string, PackageIndexer, SourceResolver,
 };
 #[cfg(test)]
 use record_lsp::record_package;
-use record_lsp::{record_hover, record_source_file, record_source_line, record_symbol_kind};
+use record_lsp::{
+    record_hover_with_package, record_source_file, record_source_line, record_symbol_kind,
+};
+
+const TYPE_HIERARCHY_METHOD: &str = "textDocument/prepareTypeHierarchy";
+
+#[derive(Debug)]
+struct TypeHierarchyCapabilityService<S> {
+    inner: S,
+}
+
+impl<S> TypeHierarchyCapabilityService<S> {
+    fn new(inner: S) -> Self {
+        Self { inner }
+    }
+}
+
+impl<S> Service<Request> for TypeHierarchyCapabilityService<S>
+where
+    S: Service<Request, Response = Option<Response>> + Send + 'static,
+    S::Error: Send + 'static,
+    S::Future: Send + 'static,
+{
+    type Response = Option<Response>;
+    type Error = S::Error;
+    type Future =
+        Pin<Box<dyn Future<Output = std::result::Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<std::result::Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: Request) -> Self::Future {
+        let should_advertise_type_hierarchy = req.method() == "initialize"
+            && !request_type_hierarchy_dynamic_registration(req.params());
+        let fut = self.inner.call(req);
+
+        Box::pin(async move {
+            let response = fut.await?;
+            if should_advertise_type_hierarchy {
+                Ok(response.map(advertise_type_hierarchy_capability))
+            } else {
+                Ok(response)
+            }
+        })
+    }
+}
+
+fn request_type_hierarchy_dynamic_registration(params: Option<&Value>) -> bool {
+    params
+        .and_then(|params| params.get("capabilities"))
+        .and_then(|capabilities| capabilities.get("textDocument"))
+        .and_then(|text_document| text_document.get("typeHierarchy"))
+        .and_then(|type_hierarchy| type_hierarchy.get("dynamicRegistration"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn advertise_type_hierarchy_capability(response: Response) -> Response {
+    if !response.is_ok() {
+        return response;
+    }
+
+    let (id, body) = response.into_parts();
+    Response::from_parts(
+        id,
+        body.map(|mut result| {
+            if let Some(capabilities) = result
+                .get_mut("capabilities")
+                .and_then(Value::as_object_mut)
+            {
+                capabilities
+                    .entry("typeHierarchyProvider")
+                    .or_insert_with(|| json!(true));
+            }
+            result
+        }),
+    )
+}
 
 #[derive(Debug)]
 struct Backend {
@@ -29,26 +117,27 @@ struct Backend {
     package_indexes: DashMap<String, BuiltinData>,
     documents: DashMap<Url, String>,
     analyses: DashMap<Url, Analysis>,
+    semantic_tokens_augment_syntax: AtomicBool,
+    type_hierarchy_dynamic_registration: AtomicBool,
 }
 
 const LEGEND_TYPES: &[SemanticTokenType] = &[
-    SemanticTokenType::TYPE,               // 0
-    SemanticTokenType::FUNCTION,           // 1
-    SemanticTokenType::VARIABLE,           // 2
-    SemanticTokenType::PARAMETER,          // 3
-    SemanticTokenType::PROPERTY,           // 4
-    SemanticTokenType::NAMESPACE,          // 5
-    SemanticTokenType::ENUM_MEMBER,        // 6
-    SemanticTokenType::CLASS,              // 7
-    SemanticTokenType::KEYWORD,            // 8
-    SemanticTokenType::STRING,             // 9
-    SemanticTokenType::NUMBER,             // 10
-    SemanticTokenType::OPERATOR,           // 11
-    SemanticTokenType::COMMENT,            // 12
-    SemanticTokenType::METHOD,             // 13
-    SemanticTokenType::REGEXP,             // 14
-    SemanticTokenType::new("constructor"), // 15
-    SemanticTokenType::MODIFIER,           // 16
+    SemanticTokenType::TYPE,        // 0
+    SemanticTokenType::FUNCTION,    // 1
+    SemanticTokenType::VARIABLE,    // 2
+    SemanticTokenType::PARAMETER,   // 3
+    SemanticTokenType::PROPERTY,    // 4
+    SemanticTokenType::NAMESPACE,   // 5
+    SemanticTokenType::ENUM_MEMBER, // 6
+    SemanticTokenType::CLASS,       // 7
+    SemanticTokenType::KEYWORD,     // 8
+    SemanticTokenType::STRING,      // 9
+    SemanticTokenType::NUMBER,      // 10
+    SemanticTokenType::OPERATOR,    // 11
+    SemanticTokenType::COMMENT,     // 12
+    SemanticTokenType::METHOD,      // 13
+    SemanticTokenType::REGEXP,      // 14
+    SemanticTokenType::MODIFIER,    // 15
 ];
 
 const OPTION_MODIFIER: u32 = 1 << 0;
@@ -56,6 +145,7 @@ const COMMAND_MODIFIER: u32 = 1 << 1;
 const FILE_MODIFIER: u32 = 1 << 2;
 const MANIPULATOR_MODIFIER: u32 = 1 << 3;
 const DECLARATION_MODIFIER: u32 = 1 << 4;
+const CONSTRUCTOR_MODIFIER: u32 = 1 << 5;
 
 fn utf16_col_to_byte(line: &str, utf16_col: u32) -> usize {
     let mut current_col = 0;
@@ -112,22 +202,29 @@ fn symbol_prefix_at(text: &str, position: Position) -> Option<String> {
     (!prefix.is_empty()).then(|| prefix.to_string())
 }
 
-fn option_assignment_role(node: tree_sitter::Node) -> Option<M2SemanticTokenType> {
+fn option_assignment_role(
+    text: &str,
+    node: tree_sitter::Node,
+    builtins: &BuiltinData,
+) -> Option<M2SemanticTokenType> {
     let parent = node.parent()?;
     if parent.kind() != "option_assignment" {
         return None;
     }
 
+    let node_text = &text[node.start_byte()..node.end_byte()];
     if parent
         .child_by_field_name("left")
         .is_some_and(|left| left.id() == node.id())
+        && builtins.is_option_name(node_text)
     {
-        return Some(M2SemanticTokenType::Property);
+        return Some(M2SemanticTokenType::EnumMember);
     }
 
     if parent
         .child_by_field_name("right")
         .is_some_and(|right| right.id() == node.id())
+        && builtins.is_option_value_name(node_text)
     {
         return Some(M2SemanticTokenType::EnumMember);
     }
@@ -143,9 +240,14 @@ fn local_symbol_hover(name: &str, symbol: &SymbolInfo) -> Hover {
     };
     let line = symbol.range.start.line + 1;
     let character = symbol.range.start.character + 1;
+    let type_line = symbol
+        .type_name
+        .as_ref()
+        .map(|type_name| format!("\n\nType: `{type_name}`"))
+        .unwrap_or_default();
     let markdown = format!(
-        "**{}**\n\n{}\n\nDefined at `{line}:{character}`",
-        name, label
+        "**{}**\n\n{}{}\n\nDefined at `{line}:{character}`",
+        name, label, type_line
     );
 
     Hover {
@@ -160,7 +262,14 @@ fn local_symbol_hover(name: &str, symbol: &SymbolInfo) -> Hover {
 fn local_symbol_semantic_token_type(
     symbol: &SymbolInfo,
     _position: Position,
+    builtins: &BuiltinData,
 ) -> M2SemanticTokenType {
+    if let Some(type_name) = &symbol.type_name {
+        if let Some(token) = builtins.get_semantic_token_for_static_type(type_name) {
+            return token.token_type;
+        }
+    }
+
     match symbol.kind {
         SymbolKind::Function => M2SemanticTokenType::Function,
         SymbolKind::Variable => M2SemanticTokenType::Variable,
@@ -245,25 +354,57 @@ fn is_regexp_string_argument(text: &str, node: tree_sitter::Node) -> bool {
         return false;
     }
 
-    let Some(parent) = node.parent() else {
+    call_like_left_symbol_for_argument(text, node, false)
+        .is_some_and(|name| matches!(name, "match" | "regex" | "select" | "replace" | "separate"))
+}
+
+fn is_namespace_string_argument(text: &str, node: tree_sitter::Node) -> bool {
+    if node.kind() != "string_literal" {
         return false;
-    };
-
-    if parent.kind() == "sequence" {
-        if !is_first_named_child(parent, node) {
-            return false;
-        }
-
-        return parent
-            .parent()
-            .and_then(|call| binary_expression_left_symbol(text, call))
-            .is_some_and(|name| {
-                matches!(name, "match" | "regex" | "select" | "replace" | "separate")
-            });
     }
 
-    binary_expression_left_symbol(text, parent)
-        .is_some_and(|name| matches!(name, "match" | "regex" | "select"))
+    call_like_left_symbol_for_argument(text, node, true).is_some_and(|name| {
+        matches!(
+            name,
+            "loadPackage"
+                | "installPackage"
+                | "uninstallPackage"
+                | "needsPackage"
+                | "export"
+                | "endPackage"
+                | "newPackage"
+                | "importFrom"
+                | "exportFrom"
+        )
+    })
+}
+
+fn call_like_left_symbol_for_argument<'a>(
+    text: &'a str,
+    mut node: tree_sitter::Node,
+    allow_list_argument: bool,
+) -> Option<&'a str> {
+    let mut parent = node.parent()?;
+    if parent.kind() == "sequence" && !is_first_named_child(parent, node) {
+        return None;
+    }
+
+    loop {
+        if let Some(name) = binary_expression_left_symbol(text, parent) {
+            return Some(name);
+        }
+
+        if parent.kind() == "list" && !allow_list_argument {
+            return None;
+        }
+
+        if !matches!(parent.kind(), "sequence" | "list") {
+            return None;
+        }
+
+        node = parent;
+        parent = node.parent()?;
+    }
 }
 
 fn enclosing_node_of_kind<'a>(
@@ -288,6 +429,9 @@ fn syntax_semantic_token_type(text: &str, node: tree_sitter::Node) -> Option<M2S
         "string_literal" if is_regexp_string_argument(text, node) => {
             Some(M2SemanticTokenType::Regexp)
         }
+        "string_literal" if is_namespace_string_argument(text, node) => {
+            Some(M2SemanticTokenType::Namespace)
+        }
         "string_literal" => Some(M2SemanticTokenType::String),
         "line_comment" | "block_comment" => Some(M2SemanticTokenType::Comment),
         kind if !node.is_named() && is_modifier_node_kind(kind) => {
@@ -298,6 +442,31 @@ fn syntax_semantic_token_type(text: &str, node: tree_sitter::Node) -> Option<M2S
         }
         _ => None,
     }
+}
+
+fn should_emit_syntax_token_when_augmenting(text: &str, node: tree_sitter::Node) -> bool {
+    matches!(
+        syntax_semantic_token_type(text, node),
+        Some(M2SemanticTokenType::Modifier)
+            | Some(M2SemanticTokenType::Regexp)
+            | Some(M2SemanticTokenType::EnumMember)
+            | Some(M2SemanticTokenType::Property)
+            | Some(M2SemanticTokenType::Namespace)
+    )
+}
+
+fn should_emit_builtin_token_when_augmenting(token: &typesystem::M2SemanticToken) -> bool {
+    matches!(
+        token.token_type,
+        M2SemanticTokenType::Function
+            | M2SemanticTokenType::Method
+            | M2SemanticTokenType::Class
+            | M2SemanticTokenType::Type
+            | M2SemanticTokenType::Namespace
+    ) || token.is_command
+        || token.is_file
+        || token.is_manipulator
+        || token.is_constructor
 }
 
 fn builtin_semantic_token_modifiers(token: &typesystem::M2SemanticToken) -> u32 {
@@ -311,13 +480,25 @@ fn builtin_semantic_token_modifiers(token: &typesystem::M2SemanticToken) -> u32 
     if token.is_manipulator {
         modifiers |= MANIPULATOR_MODIFIER;
     }
+    if token.is_constructor {
+        modifiers |= CONSTRUCTOR_MODIFIER;
+    }
     modifiers
+}
+
+fn workspace_symbol_dedupe_key(package: &str, name: &str) -> String {
+    format!("{package}:{name}")
+}
+
+fn should_include_workspace_symbol(package: &str, name: &str) -> bool {
+    !(package == "Core" && name.starts_with("Core$"))
 }
 
 fn collect_semantic_tokens(
     text: &str,
     analysis: Option<&Analysis>,
     builtins: &BuiltinData,
+    augments_syntax_tokens: bool,
 ) -> Vec<SemanticToken> {
     let mut parser = Parser::new();
     parser
@@ -353,7 +534,7 @@ fn collect_semantic_tokens(
 
             let mut token_type: Option<u32> = None;
             let mut modifiers: u32 = 0;
-            let option_role = option_assignment_role(node);
+            let option_role = option_assignment_role(text, node, builtins);
 
             if let Some(role) = option_role {
                 token_type = Some(role as u32);
@@ -363,10 +544,23 @@ fn collect_semantic_tokens(
             if token_type.is_none() {
                 if let Some(analysis) = analysis {
                     if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
-                        token_type =
-                            Some(local_symbol_semantic_token_type(symbol, position) as u32);
+                        token_type = Some(local_symbol_semantic_token_type(
+                            symbol, position, builtins,
+                        ) as u32);
+                        if let Some(type_name) = &symbol.type_name {
+                            if let Some(token) =
+                                builtins.get_semantic_token_for_static_type(type_name)
+                            {
+                                modifiers |= builtin_semantic_token_modifiers(&token);
+                            }
+                        }
                         if symbol.kind == SymbolKind::Parameter && position == symbol.range.start {
                             modifiers |= DECLARATION_MODIFIER;
+                        }
+                        if symbol.kind == SymbolKind::Function
+                            && builtins.is_constructor_name(node_text)
+                        {
+                            modifiers |= CONSTRUCTOR_MODIFIER;
                         }
                     }
                 }
@@ -374,14 +568,19 @@ fn collect_semantic_tokens(
 
             if token_type.is_none() {
                 if let Some(token) = builtins.get_semantic_token(node_text) {
-                    token_type = Some(token.token_type as u32);
-                    modifiers |= builtin_semantic_token_modifiers(&token);
+                    if !augments_syntax_tokens || should_emit_builtin_token_when_augmenting(&token)
+                    {
+                        token_type = Some(token.token_type as u32);
+                        modifiers |= builtin_semantic_token_modifiers(&token);
+                    }
                 }
             }
 
             if token_type.is_none() {
-                token_type =
-                    syntax_semantic_token_type(text, node).map(|token_type| token_type as u32);
+                if !augments_syntax_tokens || should_emit_syntax_token_when_augmenting(text, node) {
+                    token_type =
+                        syntax_semantic_token_type(text, node).map(|token_type| token_type as u32);
+                }
             }
 
             if let Some(token_type) = token_type {
@@ -429,14 +628,20 @@ fn collect_semantic_tokens(
     tokens
 }
 
-fn node_range(node: tree_sitter::Node) -> Range {
+fn node_range(text: &str, node: tree_sitter::Node) -> Range {
     let range = node.range();
+    let start_line_byte = range.start_byte.saturating_sub(range.start_point.column);
+    let end_line_byte = range.end_byte.saturating_sub(range.end_point.column);
+
     Range::new(
         Position::new(
             range.start_point.row as u32,
-            range.start_point.column as u32,
+            utf16_len_for_byte_span(text, start_line_byte, range.start_byte),
         ),
-        Position::new(range.end_point.row as u32, range.end_point.column as u32),
+        Position::new(
+            range.end_point.row as u32,
+            utf16_len_for_byte_span(text, end_line_byte, range.end_byte),
+        ),
     )
 }
 
@@ -462,26 +667,7 @@ fn full_document_range(text: &str) -> Range {
     }
 }
 
-fn format_document_text(text: &str) -> String {
-    let mut formatted = text
-        .lines()
-        .map(str::trim_end)
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    if text.ends_with('\n') {
-        formatted.push('\n');
-    }
-
-    formatted
-}
-
-fn assignment_symbol_kind(
-    node: tree_sitter::Node,
-    name: &str,
-    text: &str,
-    builtins: &BuiltinData,
-) -> tower_lsp::lsp_types::SymbolKind {
+fn assignment_symbol_kind(node: tree_sitter::Node, text: &str) -> tower_lsp::lsp_types::SymbolKind {
     match node.child_by_field_name("right") {
         Some(right)
             if right.kind() == "new_statement"
@@ -490,11 +676,7 @@ fn assignment_symbol_kind(
             tower_lsp::lsp_types::SymbolKind::CLASS
         }
         Some(right) if right.kind() == "function_expression" => {
-            if builtins.is_constructor_name(name) {
-                tower_lsp::lsp_types::SymbolKind::CONSTRUCTOR
-            } else {
-                tower_lsp::lsp_types::SymbolKind::FUNCTION
-            }
+            tower_lsp::lsp_types::SymbolKind::FUNCTION
         }
         _ => tower_lsp::lsp_types::SymbolKind::VARIABLE,
     }
@@ -694,8 +876,8 @@ fn collect_property_document_symbols(node: tree_sitter::Node, text: &str) -> Vec
             tags: None,
             #[allow(deprecated)]
             deprecated: None,
-            range: node_range(node),
-            selection_range: node_range(symbol),
+            range: node_range(text, node),
+            selection_range: node_range(text, symbol),
             children: None,
         })
         .collect()
@@ -738,12 +920,12 @@ fn collect_assignment_document_symbols(
                 DocumentSymbol {
                     name: name.to_string(),
                     detail: None,
-                    kind: assignment_symbol_kind(node, name, text, builtins),
+                    kind: assignment_symbol_kind(node, text),
                     tags: None,
                     #[allow(deprecated)]
                     deprecated: None,
-                    range: node_range(node),
-                    selection_range: node_range(symbol),
+                    range: node_range(text, node),
+                    selection_range: node_range(text, symbol),
                     children: children.clone(),
                 }
             })
@@ -764,8 +946,8 @@ fn collect_assignment_document_symbols(
                 tags: None,
                 #[allow(deprecated)]
                 deprecated: None,
-                range: node_range(node),
-                selection_range: node_range(left),
+                range: node_range(text, node),
+                selection_range: node_range(text, left),
                 children,
             }]
         }
@@ -776,8 +958,8 @@ fn collect_assignment_document_symbols(
             tags: None,
             #[allow(deprecated)]
             deprecated: None,
-            range: node_range(node),
-            selection_range: node_range(left),
+            range: node_range(text, node),
+            selection_range: node_range(text, left),
             children: None,
         }],
         (AssignmentOperator::Equal, Some(_))
@@ -793,8 +975,8 @@ fn collect_assignment_document_symbols(
                 tags: None,
                 #[allow(deprecated)]
                 deprecated: None,
-                range: node_range(node),
-                selection_range: node_range(left),
+                range: node_range(text, node),
+                selection_range: node_range(text, left),
                 children,
             }]
         }
@@ -862,9 +1044,9 @@ fn collect_reference_ranges(
         if matches!(node.kind(), "symbol" | "identifier" | "resolved_symbol") {
             let node_text = &text[node.start_byte()..node.end_byte()];
             if node_text == target_name {
-                let position = node_range(node).start;
+                let position = node_range(text, node).start;
                 if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
-                    let range = node_range(node);
+                    let range = node_range(text, node);
                     if symbol.range == target_range
                         && (include_declaration || range != target_range)
                     {
@@ -907,6 +1089,8 @@ impl Backend {
             package_indexes: DashMap::new(),
             documents: DashMap::new(),
             analyses: DashMap::new(),
+            semantic_tokens_augment_syntax: AtomicBool::new(false),
+            type_hierarchy_dynamic_registration: AtomicBool::new(false),
         }
     }
 
@@ -942,6 +1126,82 @@ impl Backend {
         })
     }
 
+    fn type_hierarchy_index(&self, package: Option<&str>) -> Option<BuiltinData> {
+        match package {
+            Some(package) if package != "Core" => self.package_index(package),
+            _ => Some(self.builtins.clone()),
+        }
+    }
+
+    fn type_hierarchy_package(item: &TypeHierarchyItem) -> Option<&str> {
+        item.data
+            .as_ref()
+            .and_then(|data| data.get("package"))
+            .and_then(|package| package.as_str())
+    }
+
+    fn type_hierarchy_record(
+        &self,
+        package: Option<&str>,
+        name: &str,
+    ) -> Option<(String, BuiltinData, typesystem::Record)> {
+        let index = self.type_hierarchy_index(package)?;
+        let record = index.get_record(&typesystem::InstanceID::new(name))?;
+        record.type_info.as_ref()?;
+        Some((package.unwrap_or("Core").to_string(), index, record))
+    }
+
+    fn type_hierarchy_related_record(
+        &self,
+        package: &str,
+        index: &BuiltinData,
+        name: &typesystem::InstanceID,
+    ) -> Option<(String, typesystem::Record)> {
+        if let Some(record) = index.get_record(name) {
+            return Some((package.to_string(), record));
+        }
+
+        self.builtins
+            .get_record(name)
+            .map(|record| ("Core".to_string(), record))
+    }
+
+    fn type_hierarchy_item(
+        &self,
+        package: &str,
+        record: &typesystem::Record,
+        occurrence_uri: Option<Url>,
+        occurrence_range: Option<Range>,
+    ) -> TypeHierarchyItem {
+        let location = self.record_location(record);
+        let uri = occurrence_uri
+            .or_else(|| location.as_ref().map(|location| location.uri.clone()))
+            .unwrap_or_else(|| Url::parse("macaulay2:/builtins").expect("valid builtin URI"));
+        let range = occurrence_range
+            .or_else(|| location.as_ref().map(|location| location.range))
+            .unwrap_or_else(|| Range::new(Position::new(0, 0), Position::new(0, 0)));
+        let detail = record
+            .type_info
+            .as_ref()
+            .and_then(|type_info| type_info.parent_type.as_ref())
+            .filter(|parent| parent != &&record.name)
+            .map(|parent| format!("Parent: {parent}"));
+
+        TypeHierarchyItem {
+            name: record.name.0.clone(),
+            kind: record_symbol_kind(record),
+            tags: None,
+            detail,
+            uri,
+            range,
+            selection_range: range,
+            data: Some(serde_json::json!({
+                "name": record.name.0.clone(),
+                "package": package,
+            })),
+        }
+    }
+
     async fn on_change(&self, params: TextDocumentItem) {
         let uri = params.uri.clone();
         self.documents.insert(uri.clone(), params.text.clone());
@@ -952,7 +1212,7 @@ impl Backend {
             .set_language(&tree_sitter_macaulay2::language())
             .unwrap();
         if let Some(tree) = parser.parse(&params.text, None) {
-            let analysis = Analysis::new(&tree, &params.text);
+            let analysis = Analysis::new_with_builtins(&tree, &params.text, Some(&self.builtins));
             let diagnostics = analysis.diagnostics.clone();
             self.analyses.insert(uri.clone(), analysis);
 
@@ -965,7 +1225,23 @@ impl Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
+        let text_document_capabilities = params.capabilities.text_document;
+        let augments_syntax_tokens = text_document_capabilities
+            .as_ref()
+            .and_then(|capabilities| capabilities.semantic_tokens.as_ref())
+            .and_then(|semantic_tokens| semantic_tokens.augments_syntax_tokens)
+            .unwrap_or(false);
+        self.semantic_tokens_augment_syntax
+            .store(augments_syntax_tokens, Ordering::Relaxed);
+        let type_hierarchy_dynamic_registration = text_document_capabilities
+            .as_ref()
+            .and_then(|capabilities| capabilities.type_hierarchy)
+            .and_then(|type_hierarchy| type_hierarchy.dynamic_registration)
+            .unwrap_or(false);
+        self.type_hierarchy_dynamic_registration
+            .store(type_hierarchy_dynamic_registration, Ordering::Relaxed);
+
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -992,6 +1268,7 @@ impl LanguageServer for Backend {
                                     SemanticTokenModifier::new("file"),
                                     SemanticTokenModifier::new("manipulator"),
                                     SemanticTokenModifier::DECLARATION,
+                                    SemanticTokenModifier::new("constructor"),
                                 ],
                             },
                             full: Some(SemanticTokensFullOptions::Bool(true)),
@@ -1007,6 +1284,30 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
+        if self
+            .type_hierarchy_dynamic_registration
+            .load(Ordering::Relaxed)
+        {
+            if self
+                .client
+                .register_capability(vec![Registration {
+                    id: "m2_ls-type-hierarchy".to_string(),
+                    method: TYPE_HIERARCHY_METHOD.to_string(),
+                    register_options: Some(serde_json::json!({
+                        "documentSelector": [
+                            { "language": "macaulay2" }
+                        ]
+                    })),
+                }])
+                .await
+                .is_ok()
+            {
+                self.client
+                    .log_message(MessageType::INFO, "Macaulay2 type hierarchy registered")
+                    .await;
+            }
+        }
+
         self.client
             .log_message(
                 MessageType::INFO,
@@ -1078,11 +1379,15 @@ impl LanguageServer for Backend {
                 }
             }
 
-            for (_, package_index) in self.active_package_indexes(&text) {
+            for (package, package_index) in self.active_package_indexes(&text) {
                 if let Some(record) =
                     package_index.get_record(&typesystem::InstanceID(node_text.to_string()))
                 {
-                    return Ok(Some(record_hover(&record)));
+                    return Ok(Some(record_hover_with_package(
+                        &record,
+                        Some(&package),
+                        &self.builtins,
+                    )));
                 }
             }
 
@@ -1093,7 +1398,11 @@ impl LanguageServer for Backend {
                 else {
                     return Ok(None);
                 };
-                return Ok(Some(record_hover(&record)));
+                return Ok(Some(record_hover_with_package(
+                    &record,
+                    Some("Core"),
+                    &self.builtins,
+                )));
             }
         }
 
@@ -1153,7 +1462,13 @@ impl LanguageServer for Backend {
         };
 
         let analysis = self.analyses.get(&uri);
-        let tokens = collect_semantic_tokens(&text, analysis.as_deref(), &self.builtins);
+        let augments_syntax_tokens = self.semantic_tokens_augment_syntax.load(Ordering::Relaxed);
+        let tokens = collect_semantic_tokens(
+            &text,
+            analysis.as_deref(),
+            &self.builtins,
+            augments_syntax_tokens,
+        );
 
         Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
             result_id: None,
@@ -1203,13 +1518,133 @@ impl LanguageServer for Backend {
         Ok(Some(references))
     }
 
+    async fn prepare_type_hierarchy(
+        &self,
+        params: TypeHierarchyPrepareParams,
+    ) -> Result<Option<Vec<TypeHierarchyItem>>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        let text = match self.documents.get(&uri) {
+            Some(t) => t.clone(),
+            None => return Ok(None),
+        };
+
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .unwrap();
+        let Some(tree) = parser.parse(&text, None) else {
+            return Ok(None);
+        };
+        let Some(node) = symbol_node_at_position(tree.root_node(), &text, position) else {
+            return Ok(None);
+        };
+        let name = &text[node.start_byte()..node.end_byte()];
+        let range = node_range(&text, node);
+
+        for (package, package_index) in self.active_package_indexes(&text) {
+            if let Some(record) = package_index.get_record(&typesystem::InstanceID::new(name)) {
+                if record.type_info.is_some() {
+                    return Ok(Some(vec![self.type_hierarchy_item(
+                        &package,
+                        &record,
+                        Some(uri.clone()),
+                        Some(range),
+                    )]));
+                }
+            }
+        }
+
+        let Some(record) = self.builtins.get_record(&typesystem::InstanceID::new(name)) else {
+            return Ok(None);
+        };
+        if record.type_info.is_none() {
+            return Ok(None);
+        }
+
+        Ok(Some(vec![self.type_hierarchy_item(
+            "Core",
+            &record,
+            Some(uri.clone()),
+            Some(range),
+        )]))
+    }
+
+    async fn supertypes(
+        &self,
+        params: TypeHierarchySupertypesParams,
+    ) -> Result<Option<Vec<TypeHierarchyItem>>> {
+        let package = Self::type_hierarchy_package(&params.item);
+        let Some((package, index, record)) = self.type_hierarchy_record(package, &params.item.name)
+        else {
+            return Ok(None);
+        };
+
+        let Some(parent_name) = record
+            .type_info
+            .as_ref()
+            .and_then(|type_info| type_info.parent_type.as_ref())
+            .filter(|parent| parent != &&record.name)
+        else {
+            return Ok(Some(Vec::new()));
+        };
+
+        let Some((parent_package, parent_record)) =
+            self.type_hierarchy_related_record(&package, &index, parent_name)
+        else {
+            return Ok(Some(Vec::new()));
+        };
+
+        Ok(Some(vec![self.type_hierarchy_item(
+            &parent_package,
+            &parent_record,
+            None,
+            None,
+        )]))
+    }
+
+    async fn subtypes(
+        &self,
+        params: TypeHierarchySubtypesParams,
+    ) -> Result<Option<Vec<TypeHierarchyItem>>> {
+        let package = Self::type_hierarchy_package(&params.item);
+        let Some((package, index, record)) = self.type_hierarchy_record(package, &params.item.name)
+        else {
+            return Ok(None);
+        };
+
+        let mut items = Vec::new();
+        if let Some(type_info) = &record.type_info {
+            for subtype in &type_info.subtypes {
+                if subtype == &record.name {
+                    continue;
+                }
+                if let Some((subtype_package, subtype_record)) =
+                    self.type_hierarchy_related_record(&package, &index, subtype)
+                {
+                    items.push(self.type_hierarchy_item(
+                        &subtype_package,
+                        &subtype_record,
+                        None,
+                        None,
+                    ));
+                }
+            }
+        }
+
+        Ok(Some(items))
+    }
+
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
         let uri = params.text_document.uri;
         let text = match self.documents.get(&uri) {
             Some(t) => t.clone(),
             None => return Ok(None),
         };
-        let formatted = format_document_text(&text);
+        let formatted = format_document_text_with_options(
+            &text,
+            &FormatOptions::new(params.options.tab_size, params.options.insert_spaces),
+        );
         if formatted == text {
             return Ok(Some(Vec::new()));
         }
@@ -1245,10 +1680,10 @@ impl LanguageServer for Backend {
                 let Some(location) = self.record_location(&record) else {
                     continue;
                 };
-                if seen.insert(format!("{package}:{name}")) {
+                if seen.insert(workspace_symbol_dedupe_key(&package, name)) {
                     symbols.push(SymbolInformation {
                         name: name.to_string(),
-                        kind: record_symbol_kind(&record, &self.builtins),
+                        kind: record_symbol_kind(&record),
                         tags: None,
                         deprecated: None,
                         location,
@@ -1262,6 +1697,9 @@ impl LanguageServer for Backend {
             .builtins
             .matching_names(query, 120usize.saturating_sub(symbols.len()))
         {
+            if !should_include_workspace_symbol("Core", name) {
+                continue;
+            }
             let Some(record) = self
                 .builtins
                 .get_record(&typesystem::InstanceID(name.to_string()))
@@ -1271,10 +1709,10 @@ impl LanguageServer for Backend {
             let Some(location) = self.record_location(&record) else {
                 continue;
             };
-            if seen.insert(format!("Core:{name}")) {
+            if seen.insert(workspace_symbol_dedupe_key("Core", name)) {
                 symbols.push(SymbolInformation {
                     name: name.to_string(),
-                    kind: record_symbol_kind(&record, &self.builtins),
+                    kind: record_symbol_kind(&record),
                     tags: None,
                     deprecated: None,
                     location,
@@ -1370,7 +1808,9 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
     let (service, socket) = LspService::new(Backend::new);
-    Server::new(stdin, stdout, socket).serve(service).await;
+    Server::new(stdin, stdout, socket)
+        .serve(TypeHierarchyCapabilityService::new(service))
+        .await;
 }
 
 #[cfg(test)]
@@ -1387,6 +1827,61 @@ mod tests {
             symbol_prefix_at("😀 ideal", Position::new(0, 7)).as_deref(),
             Some("idea")
         );
+    }
+
+    #[test]
+    fn initialize_result_advertises_static_type_hierarchy() {
+        let response = Response::from_ok(
+            1.into(),
+            json!({
+                "capabilities": {
+                    "hoverProvider": true
+                }
+            }),
+        );
+
+        let response = advertise_type_hierarchy_capability(response);
+        let result = response
+            .result()
+            .expect("response should remain successful");
+
+        assert_eq!(result["capabilities"]["typeHierarchyProvider"], json!(true));
+    }
+
+    #[test]
+    fn type_hierarchy_dynamic_registration_detection_defaults_to_static() {
+        let dynamic = Request::build("initialize")
+            .params(json!({
+                "capabilities": {
+                    "textDocument": {
+                        "typeHierarchy": {
+                            "dynamicRegistration": true
+                        }
+                    }
+                }
+            }))
+            .id(1)
+            .finish();
+        let static_only = Request::build("initialize")
+            .params(json!({
+                "capabilities": {
+                    "textDocument": {
+                        "typeHierarchy": {
+                            "dynamicRegistration": false
+                        }
+                    }
+                }
+            }))
+            .id(2)
+            .finish();
+
+        assert!(request_type_hierarchy_dynamic_registration(
+            dynamic.params()
+        ));
+        assert!(!request_type_hierarchy_dynamic_registration(
+            static_only.params()
+        ));
+        assert!(!request_type_hierarchy_dynamic_registration(None));
     }
 
     #[test]
@@ -1408,15 +1903,6 @@ mod tests {
 
         assert_eq!(utf16_len_for_byte_span(text, 0, start), 3);
         assert_eq!(utf16_len_for_byte_span(text, start, end), 5);
-    }
-
-    #[test]
-    fn formatting_trims_trailing_whitespace_without_reflowing_code() {
-        assert_eq!(
-            format_document_text("x := 1  \n  y = 2\t\n"),
-            "x := 1\n  y = 2\n"
-        );
-        assert_eq!(format_document_text("x := 1  "), "x := 1");
     }
 
     #[test]
@@ -1544,6 +2030,23 @@ mod tests {
     }
 
     #[test]
+    fn package_indexer_searches_crate_script_path() {
+        let crate_script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("scripts/extract_package_index.m2");
+
+        assert!(
+            extractor_script_candidates()
+                .iter()
+                .any(|candidate| candidate == &crate_script),
+            "extractor discovery should include the crate-local script"
+        );
+        assert!(
+            crate_script.exists(),
+            "crate-local package extractor fixture should exist"
+        );
+    }
+
+    #[test]
     fn collect_reference_ranges_finds_same_file_local_symbols() {
         let text = "f := x -> (y := x + x; y)\nf 1";
         let mut parser = Parser::new();
@@ -1576,6 +2079,42 @@ mod tests {
     }
 
     #[test]
+    fn document_symbol_ranges_use_lsp_utf16_columns() {
+        let text = "\"😀\"; f := 1";
+        let builtins = BuiltinData::load_from_split("", "");
+
+        let symbols = collect_document_symbols(text, &builtins);
+
+        assert_eq!(symbols[0].name, "f");
+        assert_eq!(
+            symbols[0].selection_range,
+            Range::new(Position::new(0, 6), Position::new(0, 7))
+        );
+    }
+
+    #[test]
+    fn reference_ranges_use_lsp_utf16_columns() {
+        let text = "f := x -> (\"😀\"; x + x)";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let analysis = Analysis::new(&tree, text);
+
+        let ranges = collect_reference_ranges(text, &analysis, Position::new(0, 17), true);
+
+        assert_eq!(
+            ranges,
+            vec![
+                Range::new(Position::new(0, 5), Position::new(0, 6)),
+                Range::new(Position::new(0, 17), Position::new(0, 18)),
+                Range::new(Position::new(0, 21), Position::new(0, 22)),
+            ]
+        );
+    }
+
+    #[test]
     fn weird_valid_m2_runtime_syntax_documents_current_parser_gaps() {
         let text = include_str!("../tests/fixtures/weird_valid_syntax.m2");
         let mut parser = Parser::new();
@@ -1602,16 +2141,115 @@ mod tests {
         let symbol = SymbolInfo {
             kind: SymbolKind::Parameter,
             range: Range::new(Position::new(0, 5), Position::new(0, 6)),
+            type_name: None,
         };
+        let builtins = BuiltinData::load_from_split("", "");
 
         assert_eq!(
-            local_symbol_semantic_token_type(&symbol, Position::new(0, 5)),
+            local_symbol_semantic_token_type(&symbol, Position::new(0, 5), &builtins),
             M2SemanticTokenType::Parameter
         );
         assert_eq!(
-            local_symbol_semantic_token_type(&symbol, Position::new(0, 10)),
+            local_symbol_semantic_token_type(&symbol, Position::new(0, 10), &builtins),
             M2SemanticTokenType::Parameter
         );
+    }
+
+    #[test]
+    fn local_hover_includes_known_static_type() {
+        let symbol = SymbolInfo {
+            kind: SymbolKind::Variable,
+            range: Range::new(Position::new(2, 4), Position::new(2, 7)),
+            type_name: Some("Package".to_string()),
+        };
+
+        let hover = local_symbol_hover("Doc", &symbol);
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("local hover should use markdown");
+        };
+
+        assert!(
+            markup.value.contains("Type: `Package`"),
+            "local hover should display known static type facts"
+        );
+    }
+
+    #[test]
+    fn record_hover_includes_explicit_package_context() {
+        let builtins = BuiltinData::load_from_split(
+            include_str!("./data/builtins.names"),
+            include_str!("./data/builtins.details.jsonl"),
+        );
+        let record = builtins
+            .get_record(&typesystem::InstanceID::new("clearAll"))
+            .expect("clearAll should have builtin metadata");
+
+        let hover = record_hover_with_package(&record, Some("Core"), &builtins);
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("record hover should use markdown");
+        };
+
+        assert!(
+            markup.value.contains("Package: `Core`"),
+            "record hover should display the package supplied by the LSP context"
+        );
+    }
+
+    #[test]
+    fn record_hover_includes_option_role() {
+        let builtins = BuiltinData::load_from_split(
+            include_str!("./data/builtins.names"),
+            include_str!("./data/builtins.details.jsonl"),
+        );
+        let record = builtins
+            .get_record(&typesystem::InstanceID::new("SyzygyLimit"))
+            .expect("SyzygyLimit should have builtin metadata");
+
+        let hover = record_hover_with_package(&record, Some("Core"), &builtins);
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("record hover should use markdown");
+        };
+
+        assert!(
+            markup.value.contains("Option Role: `key`"),
+            "record hover should identify option keys"
+        );
+        assert!(
+            markup.value.contains("- `gb`") && markup.value.contains("- `syz`"),
+            "record hover should list methods using known option keys"
+        );
+    }
+
+    #[test]
+    fn record_hover_includes_documented_signatures_and_examples() {
+        let builtins = BuiltinData::load_from_split(
+            "kernel\n",
+            "{\"name\":\"kernel\",\"data_type\":\"MethodFunction\",\"description_short\":\"kernel of a map\",\"description_long\":null,\"examples\":[\"R = QQ[a..d];\",\"ker F\"],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"kernel\",\"RingMap\"]}],\"documented_methods\":[{\"signature\":[\"kernel\",\"RingMap\"],\"output_types\":[\"Ideal\"],\"examples\":[\"R = QQ[a..d];\"],\"doc_key\":\"kernel(RingMap)\"}]}}\n",
+        );
+        let record = builtins
+            .get_record(&typesystem::InstanceID::new("kernel"))
+            .expect("kernel should deserialize");
+
+        let hover = record_hover_with_package(&record, Some("Core"), &builtins);
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("record hover should use markdown");
+        };
+
+        assert!(
+            markup.value.contains("`(kernel, RingMap) -> Ideal`"),
+            "record hover should display documented method codomains"
+        );
+        assert!(
+            markup.value.contains("```macaulay2\nR = QQ[a..d];"),
+            "record hover should display saved examples"
+        );
+    }
+
+    #[test]
+    fn workspace_symbols_omit_core_qualified_twins() {
+        assert!(!should_include_workspace_symbol("Core", "Core$name"));
+        assert!(should_include_workspace_symbol("Core", "name"));
+        assert!(should_include_workspace_symbol("SomePackage", "Core$name"));
     }
 
     #[test]
@@ -1625,7 +2263,7 @@ mod tests {
         let analysis = Analysis::new(&tree, text);
         let builtins = BuiltinData::load_from_split("", "");
 
-        let tokens = collect_semantic_tokens(text, Some(&analysis), &builtins);
+        let tokens = collect_semantic_tokens(text, Some(&analysis), &builtins, false);
 
         assert_eq!(
             tokens
@@ -1652,7 +2290,7 @@ mod tests {
         let text = "-- hi\nif x then 42 + 1 else \"no\"\nlocal y";
         let builtins = BuiltinData::load_from_split("", "");
 
-        let tokens = collect_semantic_tokens(text, None, &builtins);
+        let tokens = collect_semantic_tokens(text, None, &builtins, false);
 
         assert_eq!(
             tokens
@@ -1678,7 +2316,7 @@ mod tests {
         let text = "global x\nlocal y\nsymbol z\nthreadLocal w\nthreadVariable q";
         let builtins = BuiltinData::load_from_split("", "");
 
-        let tokens = collect_semantic_tokens(text, None, &builtins);
+        let tokens = collect_semantic_tokens(text, None, &builtins, false);
 
         assert_eq!(
             tokens
@@ -1700,7 +2338,7 @@ mod tests {
         let text = "if true then false else true";
         let builtins = BuiltinData::load_from_split("", "");
 
-        let tokens = collect_semantic_tokens(text, None, &builtins);
+        let tokens = collect_semantic_tokens(text, None, &builtins, false);
 
         assert_eq!(
             tokens
@@ -1720,7 +2358,7 @@ mod tests {
         let text = "match(\"a+\", s)\nreplace(\"a+\", \"b\", s)\nseparate(\"a+\", s)";
         let builtins = BuiltinData::load_from_split("", "");
 
-        let tokens = collect_semantic_tokens(text, None, &builtins);
+        let tokens = collect_semantic_tokens(text, None, &builtins, false);
 
         assert_eq!(
             tokens
@@ -1737,6 +2375,177 @@ mod tests {
                 M2SemanticTokenType::String as u32,
                 M2SemanticTokenType::Regexp as u32,
             ]
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_classify_package_argument_strings_as_namespaces() {
+        let text = concat!(
+            "loadPackage \"Graphs\"\n",
+            "installPackage(\"Normaliz\")\n",
+            "uninstallPackage \"Foo\"\n",
+            "needsPackage \"Core\"\n",
+            "export \"thing\"\n",
+            "endPackage \"Pkg\"\n",
+            "newPackage(\"Pkg\")\n",
+            "importFrom(\"Pkg\")\n",
+            "exportFrom {\"Pkg\"}\n",
+            "print \"ordinary\""
+        );
+        let builtins = BuiltinData::load_from_split("", "");
+
+        let tokens = collect_semantic_tokens(text, None, &builtins, false);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .filter(|token_type| {
+                    *token_type == M2SemanticTokenType::Namespace as u32
+                        || *token_type == M2SemanticTokenType::String as u32
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::String as u32,
+            ]
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_use_static_types_for_user_defined_symbols() {
+        let text = "Doc := Macaulay2Doc\nDocAlias := Doc\nDocAlias#\"raw documentation database\"\nZZAlias := ZZ\nQQAlias := QQ\nZZAlias QQAlias\nn := 1\nn";
+        let builtins = BuiltinData::load_from_split(
+            include_str!("./data/builtins.names"),
+            include_str!("./data/builtins.details.jsonl"),
+        );
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let analysis = Analysis::new_with_builtins(&tree, text, Some(&builtins));
+
+        let tokens = collect_semantic_tokens(text, Some(&analysis), &builtins, true);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .filter(|token_type| *token_type == M2SemanticTokenType::Namespace as u32)
+                .count(),
+            5,
+            "package-typed local aliases and their references should classify as namespace"
+        );
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .filter(|token_type| *token_type == M2SemanticTokenType::Class as u32)
+                .count(),
+            6,
+            "aliases bound to class-valued objects should classify as class, including references"
+        );
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .filter(|token_type| *token_type == M2SemanticTokenType::Variable as u32)
+                .count(),
+            2,
+            "integer-valued locals should remain variables even though their static type is ZZ"
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_classify_commands_as_operators_with_command_modifier() {
+        let text = "saveClearAll := clearAll\nclearAll = new Command from { () -> () }\nprotect symbol clearAll";
+        let builtins = BuiltinData::load_from_split(
+            include_str!("./data/builtins.names"),
+            include_str!("./data/builtins.details.jsonl"),
+        );
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let analysis = Analysis::new_with_builtins(&tree, text, Some(&builtins));
+
+        let tokens = collect_semantic_tokens(text, Some(&analysis), &builtins, true);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .filter(|token| {
+                    token.token_type == M2SemanticTokenType::Operator as u32
+                        && token.token_modifiers_bitset & COMMAND_MODIFIER == COMMAND_MODIFIER
+                })
+                .count(),
+            4,
+            "builtin, aliased, and locally rebound Command values should use operator+command"
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_repaint_builtin_identifiers_when_client_needs_full_colorization() {
+        let text = "drop Ring any";
+        let builtins = BuiltinData::load_from_split(
+            include_str!("./data/builtins.names"),
+            include_str!("./data/builtins.details.jsonl"),
+        );
+
+        let tokens = collect_semantic_tokens(text, None, &builtins, false);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| (token.token_type, token.token_modifiers_bitset))
+                .filter(|(token_type, _)| *token_type != M2SemanticTokenType::Operator as u32)
+                .collect::<Vec<_>>(),
+            vec![
+                (M2SemanticTokenType::Function as u32, 0),
+                (M2SemanticTokenType::Class as u32, 0),
+                (M2SemanticTokenType::Function as u32, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_augmenting_syntax_keeps_high_value_builtins_without_broad_repaint() {
+        let text = "-- hi\nMacaulay2Doc#\"raw documentation database\"\nCore.Dictionary\nQQ\nZZ\nif drop then \"x\" else any\nlocal y\nmatch(\"a+\", s)";
+        let builtins = BuiltinData::load_from_split(
+            include_str!("./data/builtins.names"),
+            include_str!("./data/builtins.details.jsonl"),
+        );
+
+        let tokens = collect_semantic_tokens(text, None, &builtins, true);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .collect::<Vec<_>>(),
+            vec![
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::Class as u32,
+                M2SemanticTokenType::Class as u32,
+                M2SemanticTokenType::Class as u32,
+                M2SemanticTokenType::Function as u32,
+                M2SemanticTokenType::Function as u32,
+                M2SemanticTokenType::Modifier as u32,
+                M2SemanticTokenType::Method as u32,
+                M2SemanticTokenType::Regexp as u32,
+            ],
+            "syntax-augmenting clients should keep high-value package/callable Core tokens without repainting every builtin category"
         );
     }
 
@@ -1798,6 +2607,91 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["z"]
         );
+    }
+
+    #[test]
+    fn document_symbols_include_static_bindings_from_extractor_script_once() {
+        let text = include_str!("../scripts/extract_builtins.m2");
+        let builtins = BuiltinData::load_from_split("", "");
+
+        let symbols = collect_document_symbols(text, &builtins);
+        let args_symbols = symbols
+            .iter()
+            .filter(|symbol| symbol.name == "args")
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            args_symbols.len(),
+            1,
+            "top-level args should be a single static document symbol"
+        );
+        assert_eq!(
+            args_symbols[0].selection_range.start,
+            Position::new(11, 0),
+            "args should point at the first static binding"
+        );
+    }
+
+    #[test]
+    fn document_symbols_cover_static_top_level_extractor_bindings() {
+        fn has_function_ancestor(mut node: tree_sitter::Node) -> bool {
+            while let Some(parent) = node.parent() {
+                if parent.kind() == "function_expression" {
+                    return true;
+                }
+                node = parent;
+            }
+            false
+        }
+
+        fn collect_static_top_level_bindings(
+            node: tree_sitter::Node,
+            text: &str,
+            names: &mut Vec<String>,
+        ) {
+            if node.kind() == "assignment_expression" && !has_function_ancestor(node) {
+                if let (Some(left), Some(right)) = (
+                    node.child_by_field_name("left"),
+                    node.child_by_field_name("right"),
+                ) {
+                    let operator_text = &text[left.end_byte()..right.start_byte()];
+                    if left.kind() == "symbol" && operator_text.contains(['=', ':']) {
+                        let name = text[left.start_byte()..left.end_byte()].to_string();
+                        if !names.contains(&name) {
+                            names.push(name);
+                        }
+                    }
+                }
+            }
+
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                collect_static_top_level_bindings(child, text, names);
+            }
+        }
+
+        let text = include_str!("../scripts/extract_builtins.m2");
+        let builtins = BuiltinData::load_from_split("", "");
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .unwrap();
+        let tree = parser.parse(text, None).expect("extractor should parse");
+        let mut expected = Vec::new();
+        collect_static_top_level_bindings(tree.root_node(), text, &mut expected);
+
+        let symbols = collect_document_symbols(text, &builtins);
+        let actual = symbols
+            .iter()
+            .map(|symbol| symbol.name.as_str())
+            .collect::<Vec<_>>();
+
+        for name in expected {
+            assert!(
+                actual.contains(&name.as_str()),
+                "missing static top-level document symbol `{name}`"
+            );
+        }
     }
 
     #[test]
@@ -1927,7 +2821,7 @@ X + Z := (a,b) -> \"X + Z\"
     }
 
     #[test]
-    fn document_symbols_mark_to_type_functions_as_constructors() {
+    fn document_symbols_keep_to_type_functions_as_functions() {
         let text = "toString := x -> x";
         let builtins = BuiltinData::load_from_split(
             include_str!("./data/builtins.names"),
@@ -1937,10 +2831,7 @@ X + Z := (a,b) -> \"X + Z\"
         let symbols = collect_document_symbols(text, &builtins);
 
         assert_eq!(symbols[0].name, "toString");
-        assert_eq!(
-            symbols[0].kind,
-            tower_lsp::lsp_types::SymbolKind::CONSTRUCTOR
-        );
+        assert_eq!(symbols[0].kind, tower_lsp::lsp_types::SymbolKind::FUNCTION);
     }
 
     #[test]
@@ -1950,6 +2841,7 @@ X + Z := (a,b) -> \"X + Z\"
             is_command: false,
             is_file: false,
             is_manipulator: false,
+            is_constructor: false,
         };
 
         let modifiers = builtin_semantic_token_modifiers(&token);
@@ -1964,6 +2856,7 @@ X + Z := (a,b) -> \"X + Z\"
             is_command: false,
             is_file: false,
             is_manipulator: false,
+            is_constructor: false,
         };
 
         let modifiers = builtin_semantic_token_modifiers(&token);
@@ -1978,6 +2871,7 @@ X + Z := (a,b) -> \"X + Z\"
             is_command: false,
             is_file: false,
             is_manipulator: false,
+            is_constructor: false,
         };
 
         let modifiers = builtin_semantic_token_modifiers(&token);
@@ -1986,7 +2880,7 @@ X + Z := (a,b) -> \"X + Z\"
     }
 
     #[test]
-    fn builtin_method_tokens_do_not_use_default_library_modifier() {
+    fn compiled_builtin_function_tokens_do_not_use_provenance_modifiers() {
         let builtins = BuiltinData::load_from_split(
             include_str!("./data/builtins.names"),
             include_str!("./data/builtins.details.jsonl"),
@@ -1995,13 +2889,34 @@ X + Z := (a,b) -> \"X + Z\"
             .get_semantic_token("drop")
             .expect("drop should have builtin metadata");
 
-        assert_eq!(token.token_type, M2SemanticTokenType::Method);
+        assert_eq!(token.token_type, M2SemanticTokenType::Function);
         assert_eq!(builtin_semantic_token_modifiers(&token), 0);
+    }
+
+    #[test]
+    fn builtin_constructor_tokens_use_official_type_and_custom_modifier() {
+        let builtins = BuiltinData::load_from_split(
+            include_str!("./data/builtins.names"),
+            include_str!("./data/builtins.details.jsonl"),
+        );
+        let token = builtins
+            .get_semantic_token("toString")
+            .expect("toString should have builtin metadata");
+
+        assert_eq!(token.token_type, M2SemanticTokenType::Method);
+        assert_eq!(
+            builtin_semantic_token_modifiers(&token) & CONSTRUCTOR_MODIFIER,
+            CONSTRUCTOR_MODIFIER
+        );
     }
 
     #[test]
     fn option_assignment_symbols_have_context_roles() {
         let text = "f(x, Strategy => LongPolynomial)";
+        let builtins = BuiltinData::load_from_split(
+            include_str!("./data/builtins.names"),
+            include_str!("./data/builtins.details.jsonl"),
+        );
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
@@ -2017,7 +2932,7 @@ X + Z := (a,b) -> \"X + Z\"
             if node.kind() == "symbol" {
                 roles.push((
                     &text[node.start_byte()..node.end_byte()],
-                    option_assignment_role(node),
+                    option_assignment_role(text, node, &builtins),
                 ));
             }
 
@@ -2038,8 +2953,55 @@ X + Z := (a,b) -> \"X + Z\"
             }
         }
 
-        assert!(roles.contains(&("Strategy", Some(M2SemanticTokenType::Property))));
+        assert!(roles.contains(&("Strategy", Some(M2SemanticTokenType::EnumMember))));
         assert!(roles.contains(&("LongPolynomial", Some(M2SemanticTokenType::EnumMember))));
+    }
+
+    #[test]
+    fn option_assignment_roles_require_metadata() {
+        let text = "f(x, notAnOption => notAnOptionValue)";
+        let builtins = BuiltinData::load_from_split(
+            include_str!("./data/builtins.names"),
+            include_str!("./data/builtins.details.jsonl"),
+        );
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let root = tree.root_node();
+
+        let mut roles = Vec::new();
+        let mut cursor = root.walk();
+        let mut reached_root = false;
+        while !reached_root {
+            let node = cursor.node();
+            if node.kind() == "symbol" {
+                roles.push((
+                    &text[node.start_byte()..node.end_byte()],
+                    option_assignment_role(text, node, &builtins),
+                ));
+            }
+
+            if cursor.goto_first_child() {
+                continue;
+            }
+            if cursor.goto_next_sibling() {
+                continue;
+            }
+            loop {
+                if !cursor.goto_parent() {
+                    reached_root = true;
+                    break;
+                }
+                if cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+        }
+
+        assert!(roles.contains(&("notAnOption", None)));
+        assert!(roles.contains(&("notAnOptionValue", None)));
     }
 
     #[test]
@@ -2049,5 +3011,6 @@ X + Z := (a,b) -> \"X + Z\"
         assert_eq!(FILE_MODIFIER, 1 << 2);
         assert_eq!(MANIPULATOR_MODIFIER, 1 << 3);
         assert_eq!(DECLARATION_MODIFIER, 1 << 4);
+        assert_eq!(CONSTRUCTOR_MODIFIER, 1 << 5);
     }
 }

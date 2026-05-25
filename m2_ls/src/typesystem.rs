@@ -39,6 +39,9 @@ pub struct Record {
     pub function_info: Option<FunctionInfo>,
 
     #[serde(default)]
+    pub option_info: Option<OptionInfo>,
+
+    #[serde(default)]
     pub operator_info: Option<OperatorInfo>,
 
     #[serde(default)]
@@ -52,6 +55,21 @@ pub struct Record {
 pub struct FunctionInfo {
     #[serde(default)]
     pub methods: Vec<MethodSignature>,
+    #[serde(default)]
+    pub documented_methods: Vec<DocumentedMethodSignature>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OptionInfo {
+    #[serde(default)]
+    pub options: Vec<MethodOption>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MethodOption {
+    pub name: InstanceID,
+    #[serde(default)]
+    pub default: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,6 +116,18 @@ pub enum DocumentationStatus {
 pub struct MethodSignature {
     #[serde(default)]
     pub signature: Vec<InstanceID>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentedMethodSignature {
+    #[serde(default)]
+    pub signature: Vec<InstanceID>,
+    #[serde(default)]
+    pub output_types: Vec<InstanceID>,
+    #[serde(default)]
+    pub examples: Vec<CodeExample>,
+    #[serde(default)]
+    pub doc_key: Option<InstanceID>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,10 +217,88 @@ impl BuiltinData {
         let (start, end) = *self.detail_ranges.get(index)?;
         serde_json::from_str(&self.details[start..end]).ok()
     }
+
+    pub fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String> {
+        if limit == 0 {
+            return Vec::new();
+        }
+
+        let option_name = option_name
+            .rsplit_once('$')
+            .map_or(option_name, |(_, name)| name);
+        let mut usages = Vec::new();
+        for (index, name) in self.names.iter().enumerate() {
+            let Some((start, end)) = self.detail_ranges.get(index).copied() else {
+                continue;
+            };
+            let Ok(record) = serde_json::from_str::<Record>(&self.details[start..end]) else {
+                continue;
+            };
+            let Some(option_info) = &record.option_info else {
+                continue;
+            };
+            if !option_info
+                .options
+                .iter()
+                .any(|option| option.name.0 == option_name)
+            {
+                continue;
+            }
+
+            let display_name = name
+                .0
+                .rsplit_once('$')
+                .map_or(name.0.as_str(), |(_, name)| name);
+            if !usages.iter().any(|usage| usage == display_name) {
+                usages.push(display_name.to_string());
+            }
+            if usages.len() == limit {
+                break;
+            }
+        }
+
+        usages
+    }
+
+    pub fn is_option_name(&self, name: &str) -> bool {
+        self.get_record(&InstanceID::new(name))
+            .is_some_and(|record| record.option_role() == Some("key"))
+    }
+
+    pub fn is_option_value_name(&self, name: &str) -> bool {
+        self.get_record(&InstanceID::new(name))
+            .is_some_and(|record| record.option_role() == Some("value"))
+    }
+}
+
+impl Record {
+    pub fn option_role(&self) -> Option<&'static str> {
+        if self.has_description("option value")
+            || self.has_description("value of an optional argument")
+        {
+            Some("value")
+        } else if self.has_description("an optional argument") {
+            Some("key")
+        } else {
+            None
+        }
+    }
+
+    fn has_description(&self, needle: &str) -> bool {
+        self.description_short
+            .as_deref()
+            .is_some_and(|description| description.contains(needle))
+            || self
+                .documentation
+                .as_ref()
+                .and_then(|documentation| documentation.upstream_description_short.as_deref())
+                .is_some_and(|description| description.contains(needle))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
+#[allow(dead_code)]
 pub enum M2SemanticTokenType {
     Type = 0,
     Function = 1,
@@ -207,8 +315,7 @@ pub enum M2SemanticTokenType {
     Comment = 12,
     Method = 13,
     Regexp = 14,
-    Constructor = 15,
-    Modifier = 16,
+    Modifier = 15,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -217,6 +324,7 @@ pub struct M2SemanticToken {
     pub is_command: bool,
     pub is_file: bool,
     pub is_manipulator: bool,
+    pub is_constructor: bool,
 }
 
 impl BuiltinData {
@@ -268,11 +376,17 @@ impl BuiltinData {
         let scripted_functor_type = InstanceID::new("ScriptedFunctor");
         let symbol_type = InstanceID::new("Symbol");
         let type_type = InstanceID::new("Type");
+        let compiled_function_type = InstanceID::new("CompiledFunction");
+        let compiled_function_closure_type = InstanceID::new("CompiledFunctionClosure");
 
         let is_command = self.is_subtype(data_type, &command_type);
         let is_file = self.is_subtype(data_type, &file_type);
         let is_manipulator = self.is_subtype(data_type, &manipulator_type);
         let is_scripted_functor = self.is_subtype(data_type, &scripted_functor_type);
+        let is_compiled_function = self.is_subtype(data_type, &compiled_function_type)
+            || self.is_subtype(data_type, &compiled_function_closure_type);
+        let is_constructor =
+            self.is_constructor_name(&record.name.0) && !is_manipulator && !is_command;
 
         // 1. M2 classes are runtime objects whose own class is a subtype of Type.
         // Other values that participate in the type hierarchy keep the generic
@@ -296,6 +410,7 @@ impl BuiltinData {
                     is_command: false,
                     is_file: false,
                     is_manipulator: false,
+                    is_constructor: false,
                 });
             }
         }
@@ -310,23 +425,22 @@ impl BuiltinData {
                 .function_info
                 .as_ref()
                 .is_some_and(|info| !info.methods.is_empty());
-            let token_type =
-                if self.is_constructor_name(&record.name.0) && !is_manipulator && !is_command {
-                    M2SemanticTokenType::Constructor
-                } else if (has_installed_methods || is_scripted_functor)
-                    && !is_manipulator
-                    && !is_command
-                {
-                    M2SemanticTokenType::Method
-                } else {
-                    M2SemanticTokenType::Function
-                };
+            let token_type = if is_command {
+                M2SemanticTokenType::Operator
+            } else if is_compiled_function || is_manipulator {
+                M2SemanticTokenType::Function
+            } else if has_installed_methods || is_scripted_functor {
+                M2SemanticTokenType::Method
+            } else {
+                M2SemanticTokenType::Function
+            };
 
             Some(M2SemanticToken {
                 token_type,
                 is_command,
                 is_file: false,
                 is_manipulator,
+                is_constructor,
             })
         } else if self.is_subtype(data_type, &package_type) {
             Some(M2SemanticToken {
@@ -334,20 +448,85 @@ impl BuiltinData {
                 is_command: false,
                 is_file: false,
                 is_manipulator: false,
+                is_constructor: false,
             })
         } else if (self.is_subtype(data_type, &symbol_type) || is_file)
             && !self.is_subtype(data_type, &keyword_type)
             && !self.is_subtype(data_type, &operator_type)
         {
+            let token_type = if is_file {
+                M2SemanticTokenType::Variable
+            } else {
+                M2SemanticTokenType::EnumMember
+            };
+
             Some(M2SemanticToken {
-                token_type: M2SemanticTokenType::Variable,
+                token_type,
                 is_command: false,
                 is_file,
                 is_manipulator: false,
+                is_constructor: false,
             })
         } else {
             None
         }
+    }
+
+    pub fn get_semantic_token_for_static_type(&self, type_name: &str) -> Option<M2SemanticToken> {
+        let type_id = InstanceID::new(type_name);
+        let function_type = InstanceID::new("Function");
+        let command_type = InstanceID::new("Command");
+        let file_type = InstanceID::new("File");
+        let manipulator_type = InstanceID::new("Manipulator");
+        let package_type = InstanceID::new("Package");
+        let scripted_functor_type = InstanceID::new("ScriptedFunctor");
+        let symbol_type = InstanceID::new("Symbol");
+        let type_type = InstanceID::new("Type");
+        let compiled_function_type = InstanceID::new("CompiledFunction");
+        let compiled_function_closure_type = InstanceID::new("CompiledFunctionClosure");
+
+        let is_command = self.is_subtype(&type_id, &command_type);
+        let is_file = self.is_subtype(&type_id, &file_type);
+        let is_manipulator = self.is_subtype(&type_id, &manipulator_type);
+        let is_compiled_function = self.is_subtype(&type_id, &compiled_function_type)
+            || self.is_subtype(&type_id, &compiled_function_closure_type);
+        let is_type_valued = self.is_subtype(&type_id, &type_type);
+
+        let token_type = if type_name.starts_with("MethodFunction") {
+            M2SemanticTokenType::Method
+        } else if self.is_subtype(&type_id, &package_type) {
+            M2SemanticTokenType::Namespace
+        } else if is_type_valued {
+            M2SemanticTokenType::Class
+        } else if self.is_subtype(&type_id, &function_type)
+            || self.is_subtype(&type_id, &scripted_functor_type)
+            || is_manipulator
+            || is_command
+        {
+            if is_command {
+                M2SemanticTokenType::Operator
+            } else if is_compiled_function || is_manipulator {
+                M2SemanticTokenType::Function
+            } else if self.is_subtype(&type_id, &scripted_functor_type) {
+                M2SemanticTokenType::Method
+            } else {
+                M2SemanticTokenType::Function
+            }
+        } else if is_file {
+            M2SemanticTokenType::Variable
+        } else if self.is_subtype(&type_id, &symbol_type) {
+            M2SemanticTokenType::EnumMember
+        } else {
+            return None;
+        };
+
+        Some(M2SemanticToken {
+            token_type,
+            is_command,
+            is_file,
+            is_manipulator,
+            is_constructor: false,
+        })
     }
 
     pub fn is_constructor_name(&self, name: &str) -> bool {
@@ -536,21 +715,29 @@ mod tests {
             builtins
                 .get_semantic_token("ideal")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Method)
+            Some(M2SemanticTokenType::Method),
+            "M2-defined MethodFunctionSingle values keep the method role"
         );
         assert_eq!(
             builtins
                 .get_semantic_token("drop")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Method),
-            "CompiledFunction is only the future defaultLibrary boundary, not a token-type boundary"
+            Some(M2SemanticTokenType::Function),
+            "CompiledFunction values use the builtin function role"
         );
         assert_eq!(
             builtins
                 .get_semantic_token("apply")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Method),
-            "CompiledFunction values with installed methods still use the method token type"
+            Some(M2SemanticTokenType::Function),
+            "CompiledFunction values with installed methods still use the builtin function role"
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("wedgeProduct")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Function),
+            "MethodFunction is a child of CompiledFunctionClosure, so it uses the builtin function role"
         );
         assert_eq!(
             builtins
@@ -562,13 +749,25 @@ mod tests {
             builtins
                 .get_semantic_token("toString")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Constructor)
+            Some(M2SemanticTokenType::Method)
+        );
+        assert!(
+            builtins
+                .get_semantic_token("toString")
+                .is_some_and(|token| token.is_constructor),
+            "constructor-ness should be carried as a custom modifier, not a custom token type"
         );
         assert_eq!(
             builtins
                 .get_semantic_token("toList")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Constructor)
+            Some(M2SemanticTokenType::Method)
+        );
+        assert!(
+            builtins
+                .get_semantic_token("toList")
+                .is_some_and(|token| token.is_constructor),
+            "constructor-ness should be carried as a custom modifier, not a custom token type"
         );
         assert!(
             !builtins.is_constructor_name("toLower"),
@@ -612,6 +811,45 @@ mod tests {
         );
         assert_eq!(
             builtins
+                .get_semantic_token("Core")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Namespace),
+            "M2 Package values should use the namespace role"
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("Strategy")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::EnumMember),
+            "plain metadata symbols should use enumMember unless context gives a more specific role"
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token("LongPolynomial")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::EnumMember),
+            "plain option-value metadata symbols should use enumMember"
+        );
+        assert!(
+            builtins.is_option_name("SyzygyLimit"),
+            "option keys should be identifiable from generated metadata"
+        );
+        let syzygy_limit_usages = builtins.option_usage_names("SyzygyLimit", 8);
+        assert!(
+            syzygy_limit_usages.contains(&"gb".to_string())
+                && syzygy_limit_usages.contains(&"syz".to_string()),
+            "generated method option metadata should support option hover usage lists"
+        );
+        assert!(
+            builtins.is_option_value_name("Bayer"),
+            "generic option values should be identifiable from generated metadata"
+        );
+        assert!(
+            builtins.is_option_value_name("LongPolynomial"),
+            "package-specific option values should be identifiable from generated metadata"
+        );
+        assert_eq!(
+            builtins
                 .get_semantic_token("endl")
                 .map(|token| token.token_type),
             Some(M2SemanticTokenType::Function),
@@ -627,8 +865,8 @@ mod tests {
             builtins
                 .get_semantic_token("clearAll")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Function),
-            "M2 Command values should use a standard semantic token"
+            Some(M2SemanticTokenType::Operator),
+            "M2 Command values should use the operator token role"
         );
         assert!(
             builtins
