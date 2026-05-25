@@ -462,6 +462,7 @@ fn should_emit_builtin_token_when_augmenting(token: &typesystem::M2SemanticToken
             | M2SemanticTokenType::Method
             | M2SemanticTokenType::Class
             | M2SemanticTokenType::Type
+            | M2SemanticTokenType::Operator
             | M2SemanticTokenType::Namespace
     ) || token.is_command
         || token.is_file
@@ -2466,7 +2467,7 @@ mod tests {
     }
 
     #[test]
-    fn semantic_tokens_classify_commands_as_operators_with_command_modifier() {
+    fn semantic_tokens_classify_commands_as_functions_with_command_modifier() {
         let text = "saveClearAll := clearAll\nclearAll = new Command from { () -> () }\nprotect symbol clearAll";
         let builtins = BuiltinData::load_from_split(
             include_str!("./data/builtins.names"),
@@ -2489,8 +2490,19 @@ mod tests {
                         && token.token_modifiers_bitset & COMMAND_MODIFIER == COMMAND_MODIFIER
                 })
                 .count(),
+            0,
+            "Command values should no longer use operator+command"
+        );
+        assert_eq!(
+            tokens
+                .iter()
+                .filter(|token| {
+                    token.token_type == M2SemanticTokenType::Function as u32
+                        && token.token_modifiers_bitset & COMMAND_MODIFIER == COMMAND_MODIFIER
+                })
+                .count(),
             4,
-            "builtin, aliased, and locally rebound Command values should use operator+command"
+            "builtin, aliased, and locally rebound Command values should use function+command"
         );
     }
 

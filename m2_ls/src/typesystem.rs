@@ -426,10 +426,12 @@ impl BuiltinData {
                 .as_ref()
                 .is_some_and(|info| !info.methods.is_empty());
             let token_type = if is_command {
-                M2SemanticTokenType::Operator
-            } else if is_compiled_function || is_manipulator {
                 M2SemanticTokenType::Function
-            } else if has_installed_methods || is_scripted_functor {
+            } else if is_manipulator || is_scripted_functor {
+                M2SemanticTokenType::Operator
+            } else if is_compiled_function {
+                M2SemanticTokenType::Function
+            } else if has_installed_methods {
                 M2SemanticTokenType::Method
             } else {
                 M2SemanticTokenType::Function
@@ -504,11 +506,11 @@ impl BuiltinData {
             || is_command
         {
             if is_command {
-                M2SemanticTokenType::Operator
-            } else if is_compiled_function || is_manipulator {
                 M2SemanticTokenType::Function
-            } else if self.is_subtype(&type_id, &scripted_functor_type) {
-                M2SemanticTokenType::Method
+            } else if is_manipulator || self.is_subtype(&type_id, &scripted_functor_type) {
+                M2SemanticTokenType::Operator
+            } else if is_compiled_function {
+                M2SemanticTokenType::Function
             } else {
                 M2SemanticTokenType::Function
             }
@@ -807,7 +809,8 @@ mod tests {
             builtins
                 .get_semantic_token("Tor")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Method)
+            Some(M2SemanticTokenType::Operator),
+            "ScriptedFunctor values should use the operator token role"
         );
         assert_eq!(
             builtins
@@ -852,8 +855,8 @@ mod tests {
             builtins
                 .get_semantic_token("endl")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Function),
-            "M2 Manipulator values should still receive a useful semantic token"
+            Some(M2SemanticTokenType::Operator),
+            "M2 Manipulator values should use the operator token role"
         );
         assert!(
             builtins
@@ -865,14 +868,35 @@ mod tests {
             builtins
                 .get_semantic_token("clearAll")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Operator),
-            "M2 Command values should use the operator token role"
+            Some(M2SemanticTokenType::Function),
+            "M2 Command values should use the function token role"
         );
         assert!(
             builtins
                 .get_semantic_token("clearAll")
                 .is_some_and(|token| token.is_command),
             "M2 Command values should retain their runtime-class modifier"
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token_for_static_type("Command")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Function),
+            "Command static types should use the function token role"
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token_for_static_type("ScriptedFunctor")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Operator),
+            "ScriptedFunctor static types should use the operator token role"
+        );
+        assert_eq!(
+            builtins
+                .get_semantic_token_for_static_type("Manipulator")
+                .map(|token| token.token_type),
+            Some(M2SemanticTokenType::Operator),
+            "Manipulator static types should use the operator token role"
         );
         assert_eq!(
             builtins
