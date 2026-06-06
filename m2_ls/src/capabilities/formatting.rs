@@ -1,4 +1,9 @@
+use tower_lsp::lsp_types::{
+    DocumentFormattingOptions, FoldingRange, FoldingRangeProviderCapability, OneOf, TextEdit,
+};
 use tree_sitter::Parser;
+
+use crate::util::full_document_range;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatOptions {
@@ -23,6 +28,46 @@ impl FormatOptions {
 
         Self { indent }
     }
+}
+
+pub(crate) fn document_formatting_provider_capability(
+) -> Option<OneOf<bool, DocumentFormattingOptions>> {
+    Some(OneOf::Left(true))
+}
+
+pub(crate) fn folding_range_provider_capability() -> Option<FoldingRangeProviderCapability> {
+    Some(FoldingRangeProviderCapability::Simple(true))
+}
+
+pub(crate) fn document_formatting_text_edits(
+    text: &str,
+    tab_size: u32,
+    insert_spaces: bool,
+) -> Vec<TextEdit> {
+    let formatted =
+        format_document_text_with_options(text, &FormatOptions::new(tab_size, insert_spaces));
+    if formatted == text {
+        return Vec::new();
+    }
+
+    vec![TextEdit {
+        range: full_document_range(text),
+        new_text: formatted,
+    }]
+}
+
+pub(crate) fn folding_ranges(text: &str) -> Vec<FoldingRange> {
+    folding_ranges_for_text(text)
+        .into_iter()
+        .map(|range| FoldingRange {
+            start_line: range.start_line,
+            start_character: None,
+            end_line: range.end_line,
+            end_character: None,
+            kind: None,
+            collapsed_text: None,
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +98,23 @@ pub fn format_document_text_with_options(text: &str, options: &FormatOptions) ->
     }
 
     formatted
+}
+
+pub fn folding_ranges_for_text(text: &str) -> Vec<FormatFoldRange> {
+    let mut state = IndentState::default();
+    let indented_lines = text
+        .lines()
+        .enumerate()
+        .filter_map(|(line_number, line)| {
+            let indent = line_indent(line, &mut state);
+            (!indent.is_blank).then_some(IndentedLine {
+                line: line_number as u32,
+                depth: indent.depth,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    collect_indent_fold_ranges(&indented_lines)
 }
 
 #[derive(Debug, Default)]
@@ -224,6 +286,114 @@ fn skip_raw_string(bytes: &[u8], start: usize) -> (usize, bool) {
         index += 1;
     }
     (bytes.len(), false)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FormatFoldRange {
+    pub start_line: u32,
+    pub end_line: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct IndentedLine {
+    line: u32,
+    depth: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LineIndent {
+    depth: usize,
+    is_blank: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct OpenFoldRange {
+    start_line: u32,
+    depth: usize,
+}
+
+fn line_indent(line: &str, state: &mut IndentState) -> LineIndent {
+    if state.literal != LiteralState::None {
+        update_literal_state(line, state);
+        return LineIndent {
+            depth: state.depth.saturating_sub(leading_closing_delimiters(line)),
+            is_blank: line.trim().is_empty(),
+        };
+    }
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        state.continuation_indent = false;
+        return LineIndent {
+            depth: state.depth,
+            is_blank: true,
+        };
+    }
+    let leading_closes = leading_closing_delimiters(trimmed);
+    let mut line_depth = state.depth.saturating_sub(leading_closes);
+    if state.continuation_indent && leading_closes == 0 {
+        line_depth += 1;
+    }
+    update_indent_depth(trimmed, state);
+    let code = code_before_line_comment(trimmed).trim_end_matches([' ', '\t']);
+    if state.literal == LiteralState::None {
+        state.continuation_indent =
+            line_final_operator(code).is_some_and(is_spaced_line_final_operator);
+    }
+    LineIndent {
+        depth: line_depth,
+        is_blank: false,
+    }
+}
+
+fn collect_indent_fold_ranges(lines: &[IndentedLine]) -> Vec<FormatFoldRange> {
+    let mut ranges = Vec::new();
+    let mut open_folds: Vec<OpenFoldRange> = Vec::new();
+    let mut previous: Option<IndentedLine> = None;
+
+    for &current in lines {
+        if let Some(prev) = previous {
+            if current.depth > prev.depth {
+                open_folds.push(OpenFoldRange {
+                    start_line: prev.line,
+                    depth: prev.depth,
+                });
+            } else if current.depth < prev.depth {
+                while let Some(open_fold) = open_folds.last() {
+                    if open_fold.depth >= current.depth {
+                        close_fold_range(&mut ranges, *open_fold, previous);
+                        open_folds.pop();
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+        previous = Some(current);
+    }
+
+    while let Some(open_fold) = open_folds.pop() {
+        close_fold_range(&mut ranges, open_fold, previous);
+    }
+
+    ranges
+}
+
+fn close_fold_range(
+    ranges: &mut Vec<FormatFoldRange>,
+    range: OpenFoldRange,
+    previous: Option<IndentedLine>,
+) {
+    let Some(previous) = previous else {
+        return;
+    };
+    if previous.line <= range.start_line {
+        return;
+    }
+
+    ranges.push(FormatFoldRange {
+        start_line: range.start_line,
+        end_line: previous.line,
+    });
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -488,28 +658,38 @@ fn normalize_whitespace(text: &str) -> String {
 }
 
 fn collect_format_edits(node: tree_sitter::Node, text: &str, edits: &mut Vec<FormatEdit>) {
-    if node.is_error() || node.is_missing() {
+    if node.is_missing() {
         return;
     }
 
-    if node.kind() == "," {
-        push_comma_whitespace_edits(text, node, edits);
-    }
+    if !node.is_error() {
+        if node.kind() == "," {
+            push_comma_whitespace_edits(text, node, edits);
+        }
 
-    if node.kind() == ";" {
-        push_semicolon_whitespace_edits(text, node, edits);
-    }
+        if node.kind() == ";" {
+            push_semicolon_whitespace_edits(text, node, edits);
+        }
 
-    if let Some(operator) = node.child_by_field_name("operator") {
-        let operator_text = &text[operator.start_byte()..operator.end_byte()];
-        if is_parenthesized_call(node) {
-            push_call_whitespace_edits(node, text, edits);
-        } else if should_compact_prefix_operator(node.kind(), operator_text) {
-            push_prefix_operator_whitespace_edits(text, operator, edits);
-        } else if should_compact_operator(node.kind(), operator_text) {
-            push_compact_operator_whitespace_edits(text, operator, edits);
-        } else if should_space_operator(node.kind(), operator_text) {
-            push_operator_whitespace_edits(text, operator, edits);
+        if let Some(operator) = node.child_by_field_name("operator") {
+            let operator_text = &text[operator.start_byte()..operator.end_byte()];
+            if is_parenthesized_method_installation(node, text) {
+                push_call_gap_whitespace_edit(node, text, edits, " ");
+            } else if is_parenthesized_call(node) {
+                push_call_whitespace_edits(node, text, edits);
+            } else if should_space_factor_operator_with_adjacency_factor(node, operator_text) {
+                push_operator_whitespace_edits(text, operator, edits);
+            } else if should_compact_prefix_operator(node.kind(), operator_text) {
+                push_prefix_operator_whitespace_edits(text, operator, edits);
+            } else if should_compact_operator(node.kind(), operator_text) {
+                push_compact_operator_whitespace_edits(text, operator, edits);
+            } else if should_space_operator(node.kind(), operator_text) {
+                push_operator_whitespace_edits(text, operator, edits);
+            }
+        }
+
+        if node.kind() == "lambda_expression" {
+            push_lambda_operator_whitespace_edits(node, text, edits);
         }
     }
 
@@ -552,6 +732,11 @@ fn should_space_operator(parent_kind: &str, operator: &str) -> bool {
                 | "\\\\"
                 | "%"
                 | "//"
+                | ":="
+                | "="
+                | "<-"
+                | "=>"
+                | "->"
         ),
         _ => false,
     }
@@ -639,6 +824,9 @@ fn is_spaced_line_final_operator(operator: &str) -> bool {
             | "<-"
             | "\\"
             | "\\\\"
+            | "then"
+            | "else"
+            | "do"
     )
 }
 
@@ -654,7 +842,88 @@ fn is_parenthesized_call(node: tree_sitter::Node) -> bool {
         return false;
     };
 
-    operator.kind() == "space" && right.kind() == "sequence"
+    operator.kind() == "SPACE" && right.kind() == "sequence"
+}
+
+fn is_parenthesized_method_installation(node: tree_sitter::Node, text: &str) -> bool {
+    if node.kind() != "binary_expression" {
+        return false;
+    }
+    let Some(operator) = node.child_by_field_name("operator") else {
+        return false;
+    };
+    let Some(left) = node.child_by_field_name("left") else {
+        return false;
+    };
+    if &text[operator.start_byte()..operator.end_byte()] != ":=" {
+        return false;
+    }
+    left.kind() == "binary_expression" && binary_expression_operator_kind(left) == Some("SPACE")
+}
+
+fn push_call_gap_whitespace_edit(
+    node: tree_sitter::Node,
+    text: &str,
+    edits: &mut Vec<FormatEdit>,
+    replacement: &'static str,
+) {
+    let Some(left) = node.child_by_field_name("left") else {
+        return;
+    };
+    let Some(right) = node.child_by_field_name("right") else {
+        return;
+    };
+    let gap = &text[left.end_byte()..right.start_byte()];
+    if !gap.bytes().all(|byte| matches!(byte, b' ' | b'\t')) {
+        return;
+    }
+    edits.push(FormatEdit {
+        start_byte: left.end_byte(),
+        end_byte: right.start_byte(),
+        replacement,
+    });
+}
+
+fn should_space_factor_operator_with_adjacency_factor(
+    node: tree_sitter::Node,
+    operator_text: &str,
+) -> bool {
+    if !matches!(operator_text, "*" | "/" | "%" | "**" | "//") {
+        return false;
+    }
+    let Some(left) = node.child_by_field_name("left") else {
+        return false;
+    };
+    let Some(right) = node.child_by_field_name("right") else {
+        return false;
+    };
+    !is_adjacent_factor(left) || !is_adjacent_factor(right)
+}
+
+fn binary_expression_operator_kind(node: tree_sitter::Node<'_>) -> Option<&str> {
+    if node.kind() != "binary_expression" {
+        return None;
+    }
+    node.child_by_field_name("operator")
+        .map(|operator| operator.kind())
+}
+
+fn is_adjacent_factor(node: tree_sitter::Node) -> bool {
+    matches!(
+        node.kind(),
+        "symbol"
+            | "integer_literal"
+            | "float_literal"
+            | "string_literal"
+            | "sequence"
+            | "list"
+            | "array"
+            | "angle_bar_list"
+            | "prefix_expression"
+            | "postfix_expression"
+            | "member_prefix_expression"
+            | "binary_expression"
+    )
 }
 
 fn push_call_whitespace_edits(node: tree_sitter::Node, text: &str, edits: &mut Vec<FormatEdit>) {
@@ -674,6 +943,17 @@ fn push_call_whitespace_edits(node: tree_sitter::Node, text: &str, edits: &mut V
         end_byte: right.start_byte(),
         replacement: "",
     });
+}
+
+fn push_lambda_operator_whitespace_edits(
+    node: tree_sitter::Node,
+    text: &str,
+    edits: &mut Vec<FormatEdit>,
+) {
+    let Some(operator) = node.child_by_field_name("operator") else {
+        return;
+    };
+    push_operator_whitespace_edits(text, operator, edits);
 }
 
 fn push_operator_whitespace_edits(
@@ -878,7 +1158,7 @@ fn line_final_operator(line: &str) -> Option<&'static str> {
         "<==>", "<==", "===>", "<===", "===", "=!=", "<=", ">=", "==", "!=", ":=", "<-", "=>",
         "->", "++", "||", "^^", "??", "\\\\", "\\", "+", "-", "=", "<", ">", "|", "&", "or", "xor",
         "and", "^**", "@@?", "@@", "|_", "^<=", "^>=", "_<=", "_>=", "**", "//", "·", "⊠", "⧢",
-        "%", "/", "*", "@", "^<", "^>", "_<", "_>", "^", "_", "#?", "#",
+        "%", "/", "*", "@", "^<", "^>", "_<", "_>", "^", "_", "#?", "#", "then", "else", "do",
     ];
 
     OPERATORS.iter().copied().find(|operator| {
@@ -1120,7 +1400,7 @@ mod tests {
 
     #[test]
     fn formats_example_file_despite_parser_gaps() {
-        let formatted = format_document_text(include_str!("../../example_m2_code/example1.m2"));
+        let formatted = format_document_text(include_str!("../../../example_m2_code/example1.m2"));
 
         assert!(formatted.contains("k := ceiling((-3 + sqrt(9.0 + 8*delta))/2);"));
         assert!(formatted.contains("K = ZZ/101;"));
@@ -1131,7 +1411,7 @@ mod tests {
 
     #[test]
     fn keeps_top_level_symbols_unindented_after_comment_dividers() {
-        let formatted = format_document_text(include_str!("../../example_m2_code/example2.m2"));
+        let formatted = format_document_text(include_str!("../../../example_m2_code/example2.m2"));
 
         assert!(formatted.contains("\nprimitive = (L) -> ("));
         assert!(formatted.contains("\ntoZZ = (L) -> ("));

@@ -306,7 +306,7 @@ fn binary_expression_left_symbol<'a>(text: &'a str, node: tree_sitter::Node) -> 
     }
 
     let operator = node.child_by_field_name("operator")?;
-    if operator.kind() != "space" {
+    if operator.kind() != "SPACE" {
         return None;
     }
 

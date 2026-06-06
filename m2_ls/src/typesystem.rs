@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -18,13 +18,14 @@ impl fmt::Display for InstanceID {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CodeExample(pub String);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Record {
     pub name: InstanceID,
-    pub data_type: InstanceID,
+    #[serde(alias = "data_type")]
+    pub class: InstanceID,
     pub description_short: Option<String>,
     pub description_long: Option<String>,
     pub examples: Vec<CodeExample>,
@@ -57,6 +58,8 @@ pub struct FunctionInfo {
     pub methods: Vec<MethodSignature>,
     #[serde(default)]
     pub documented_methods: Vec<DocumentedMethodSignature>,
+    #[serde(default)]
+    pub general_signature: Option<DocumentedMethodSignature>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -174,6 +177,153 @@ pub struct BuiltinData {
     name_to_index: HashMap<InstanceID, usize>,
     details: String,
     detail_ranges: Vec<(usize, usize)>,
+    type_facts: TypeFacts,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedSignature {
+    pub signature: Vec<InstanceID>,
+    pub output_types: Vec<InstanceID>,
+    pub is_specialized: bool,
+    pub examples: Vec<CodeExample>,
+    pub doc_key: Option<InstanceID>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SignatureUsage {
+    pub pinned: Option<ResolvedSignature>,
+    pub possible: Vec<ResolvedSignature>,
+    pub excluded: Vec<ResolvedSignature>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TypeFacts {
+    signature_codomains: HashMap<(String, Vec<String>), String>,
+    option_value_usages: HashMap<String, Vec<OptionValueUsage>>,
+    option_values_by_slot: HashMap<(String, String), Vec<String>>,
+    option_codomains: Vec<OptionCodomainFact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OptionValueUsage {
+    pub callable: String,
+    pub option: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OptionCodomainFact {
+    callable: String,
+    domain: Vec<String>,
+    key: String,
+    value: String,
+    codomain: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TypeFactRecord {
+    callable: String,
+    #[serde(default)]
+    signatures: Vec<TypeFactSignature>,
+    #[serde(default)]
+    options: Vec<TypeFactOption>,
+    #[serde(default)]
+    option_codomains: Vec<TypeFactOptionCodomain>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TypeFactSignature {
+    #[serde(default)]
+    domain: Vec<String>,
+    codomain: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TypeFactOption {
+    key: String,
+    #[serde(default)]
+    values: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TypeFactOptionCodomain {
+    key: String,
+    value: String,
+    codomain: String,
+    #[serde(default)]
+    domain: Vec<String>,
+}
+
+impl TypeFacts {
+    fn load_jsonl(input: &str) -> Self {
+        let mut facts = TypeFacts::default();
+        for line in input.lines().filter(|line| !line.trim().is_empty()) {
+            let Ok(record) = serde_json::from_str::<TypeFactRecord>(line) else {
+                continue;
+            };
+
+            for signature in record.signatures {
+                facts.signature_codomains.insert(
+                    (record.callable.clone(), signature.domain),
+                    signature.codomain,
+                );
+            }
+
+            for option in record.options {
+                let slot = (record.callable.clone(), option.key.clone());
+                for value in option.values {
+                    facts
+                        .option_values_by_slot
+                        .entry(slot.clone())
+                        .or_default()
+                        .push(value.clone());
+                    facts
+                        .option_value_usages
+                        .entry(value)
+                        .or_default()
+                        .push(OptionValueUsage {
+                            callable: record.callable.clone(),
+                            option: option.key.clone(),
+                        });
+                }
+            }
+
+            for option_codomain in record.option_codomains {
+                facts.option_codomains.push(OptionCodomainFact {
+                    callable: record.callable.clone(),
+                    domain: option_codomain.domain,
+                    key: option_codomain.key,
+                    value: option_codomain.value,
+                    codomain: option_codomain.codomain,
+                });
+            }
+        }
+
+        for usages in facts.option_value_usages.values_mut() {
+            usages.sort_by(|left, right| {
+                (left.callable.as_str(), left.option.as_str())
+                    .cmp(&(right.callable.as_str(), right.option.as_str()))
+            });
+            usages.dedup();
+        }
+        for values in facts.option_values_by_slot.values_mut() {
+            values.sort();
+            values.dedup();
+        }
+
+        facts
+    }
+
+    fn signature_codomain(&self, signature: &[InstanceID]) -> Option<&str> {
+        let callable = signature.first()?.0.as_str();
+        let domain = signature
+            .iter()
+            .skip(1)
+            .map(|part| part.0.clone())
+            .collect::<Vec<_>>();
+        self.signature_codomains
+            .get(&(callable.to_string(), domain))
+            .map(String::as_str)
+    }
 }
 
 impl BuiltinData {
@@ -260,6 +410,24 @@ impl BuiltinData {
         usages
     }
 
+    pub fn option_value_usage_names(&self, value_name: &str, limit: usize) -> Vec<String> {
+        if limit == 0 {
+            return Vec::new();
+        }
+
+        let value_name = value_name
+            .rsplit_once('$')
+            .map_or(value_name, |(_, name)| name);
+        self.type_facts
+            .option_value_usages
+            .get(value_name)
+            .into_iter()
+            .flat_map(|usages| usages.iter())
+            .map(|usage| format!("{}.{}", usage.callable, usage.option))
+            .take(limit)
+            .collect()
+    }
+
     pub fn is_option_name(&self, name: &str) -> bool {
         self.get_record(&InstanceID::new(name))
             .is_some_and(|record| record.option_role() == Some("key"))
@@ -268,7 +436,444 @@ impl BuiltinData {
     pub fn is_option_value_name(&self, name: &str) -> bool {
         self.get_record(&InstanceID::new(name))
             .is_some_and(|record| record.option_role() == Some("value"))
+            || self.type_facts.option_value_usages.contains_key(name)
     }
+
+    pub fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
+        let Some(function_info) = &record.function_info else {
+            return Vec::new();
+        };
+
+        let specialized_by_domain: HashMap<_, _> = function_info
+            .documented_methods
+            .iter()
+            .filter(|method| !method.output_types.is_empty())
+            .filter_map(|method| signature_domain_key(&method.signature).map(|key| (key, method)))
+            .collect();
+        let general_outputs = function_info
+            .general_signature
+            .as_ref()
+            .filter(|method| !method.output_types.is_empty())
+            .map(|method| method.output_types.clone());
+
+        let mut signatures = Vec::new();
+        for method in &function_info.methods {
+            let Some(domain_key) = signature_domain_key(&method.signature) else {
+                continue;
+            };
+            if let Some(documented_method) = specialized_by_domain.get(&domain_key) {
+                signatures.push(ResolvedSignature {
+                    signature: documented_method.signature.clone(),
+                    output_types: documented_method.output_types.clone(),
+                    is_specialized: true,
+                    examples: documented_method.examples.clone(),
+                    doc_key: documented_method.doc_key.clone(),
+                });
+            } else if let Some(codomain) = self.type_facts.signature_codomain(&method.signature) {
+                signatures.push(ResolvedSignature {
+                    signature: method.signature.clone(),
+                    output_types: vec![InstanceID::new(codomain)],
+                    is_specialized: true,
+                    examples: Vec::new(),
+                    doc_key: None,
+                });
+            } else if let Some(output_types) = &general_outputs {
+                let general_signature = function_info.general_signature.as_ref();
+                signatures.push(ResolvedSignature {
+                    signature: method.signature.clone(),
+                    output_types: output_types.clone(),
+                    is_specialized: false,
+                    examples: general_signature
+                        .map(|signature| signature.examples.clone())
+                        .unwrap_or_default(),
+                    doc_key: general_signature.and_then(|signature| signature.doc_key.clone()),
+                });
+            }
+        }
+
+        if signatures.is_empty() {
+            if let Some(general_signature) = &function_info.general_signature {
+                if !general_signature.output_types.is_empty() {
+                    signatures.push(ResolvedSignature {
+                        signature: general_signature.signature.clone(),
+                        output_types: general_signature.output_types.clone(),
+                        is_specialized: false,
+                        examples: general_signature.examples.clone(),
+                        doc_key: general_signature.doc_key.clone(),
+                    });
+                }
+            }
+        }
+
+        signatures
+    }
+
+    pub fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature> {
+        let Some(function_info) = &record.function_info else {
+            return Vec::new();
+        };
+
+        let documented_domains: HashSet<_> = self
+            .documented_signatures(record)
+            .iter()
+            .filter_map(|method| signature_domain_key(&method.signature))
+            .collect();
+
+        function_info
+            .methods
+            .iter()
+            .filter(|method| {
+                signature_domain_key(&method.signature)
+                    .is_none_or(|key| !documented_domains.contains(&key))
+            })
+            .cloned()
+            .collect()
+    }
+
+    pub fn resolve_call_return_type(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+    ) -> Option<String> {
+        self.resolve_call_return_type_with_options(callable, argument_types, &[])
+    }
+
+    pub fn resolve_call_return_type_with_options(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+        literal_options: &[(String, String)],
+    ) -> Option<String> {
+        let option_codomains =
+            self.option_rule_return_types(callable, argument_types, literal_options);
+        if let [codomain] = option_codomains.as_slice() {
+            return Some(codomain.clone());
+        }
+        if option_codomains.len() > 1 {
+            return None;
+        }
+
+        if let Some(signature) = self.resolve_call_signature(callable, argument_types) {
+            if let [output_type] = signature.output_types.as_slice() {
+                return Some(output_type.0.clone());
+            }
+        }
+
+        let record = self.get_record(&InstanceID::new(callable))?;
+        let unknown_domain_candidates = record
+            .function_info
+            .as_ref()
+            .and_then(|info| info.general_signature.as_ref())
+            .and_then(|signature| match signature.output_types.as_slice() {
+                [output_type] => Some(vec![output_type.0.clone()]),
+                _ => None,
+            })
+            .unwrap_or_default();
+
+        let mut candidates = unknown_domain_candidates;
+        candidates.sort();
+        candidates.dedup();
+        if let [output_type] = candidates.as_slice() {
+            Some(output_type.clone())
+        } else {
+            None
+        }
+    }
+
+    fn option_rule_return_types(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+        literal_options: &[(String, String)],
+    ) -> Vec<String> {
+        let option_set = literal_options.iter().cloned().collect::<HashSet<_>>();
+        let mut codomains = self
+            .type_facts
+            .option_codomains
+            .iter()
+            .filter(|fact| fact.callable == callable)
+            .filter(|fact| option_set.contains(&(fact.key.clone(), fact.value.clone())))
+            .filter(|fact| {
+                fact.domain.is_empty()
+                    || (fact.domain.len() == argument_types.len()
+                        && domain_possibly_matches(
+                            self,
+                            &fact
+                                .domain
+                                .iter()
+                                .map(|name| InstanceID::new(name))
+                                .collect::<Vec<_>>(),
+                            argument_types,
+                        ))
+            })
+            .map(|fact| fact.codomain.clone())
+            .collect::<Vec<_>>();
+        codomains.sort();
+        codomains.dedup();
+        codomains
+    }
+
+    pub fn resolve_call_signature(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+    ) -> Option<ResolvedSignature> {
+        let record = self.get_record(&InstanceID::new(callable))?;
+        let mut specialized_candidates = Vec::new();
+        let mut general_candidates = Vec::new();
+        for signature in self.documented_signatures(&record) {
+            if signature.signature.first().map(|name| name.0.as_str()) != Some(callable) {
+                continue;
+            }
+            let domain = signature.signature.get(1..).unwrap_or_default();
+            if domain.is_empty() {
+                continue;
+            }
+            if domain.len() != argument_types.len() {
+                continue;
+            }
+            if !argument_types
+                .iter()
+                .zip(domain)
+                .all(|(argument_type, domain_type)| match argument_type {
+                    Some(argument_type) => {
+                        argument_type == &domain_type.0
+                            || self.is_subtype(&InstanceID::new(argument_type), domain_type)
+                    }
+                    None => false,
+                })
+            {
+                continue;
+            }
+            if let [_output_type] = signature.output_types.as_slice() {
+                if signature.is_specialized {
+                    specialized_candidates.push(signature);
+                } else {
+                    general_candidates.push(signature);
+                }
+            }
+        }
+
+        let mut candidates = if specialized_candidates.is_empty() {
+            general_candidates
+        } else {
+            specialized_candidates
+        };
+        take_nonminimal_signatures(self, &mut candidates);
+        candidates.sort_by(|left, right| {
+            let left_key = (
+                left.signature
+                    .iter()
+                    .map(|id| id.0.as_str())
+                    .collect::<Vec<_>>(),
+                left.output_types
+                    .iter()
+                    .map(|id| id.0.as_str())
+                    .collect::<Vec<_>>(),
+            );
+            let right_key = (
+                right
+                    .signature
+                    .iter()
+                    .map(|id| id.0.as_str())
+                    .collect::<Vec<_>>(),
+                right
+                    .output_types
+                    .iter()
+                    .map(|id| id.0.as_str())
+                    .collect::<Vec<_>>(),
+            );
+            left_key.cmp(&right_key)
+        });
+        candidates.dedup_by(|left, right| {
+            left.signature == right.signature && left.output_types == right.output_types
+        });
+        if let [signature] = candidates.as_slice() {
+            Some(signature.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn resolve_call_signature_usage(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+    ) -> Option<SignatureUsage> {
+        let record = self.get_record(&InstanceID::new(callable))?;
+        let mut possible = Vec::new();
+        let mut excluded = Vec::new();
+
+        for signature in self.all_installed_signatures(&record) {
+            if signature.signature.first().map(|name| name.0.as_str()) != Some(callable) {
+                continue;
+            }
+            let domain = signature.signature.get(1..).unwrap_or_default();
+            if domain.len() != argument_types.len() {
+                continue;
+            }
+
+            if domain_possibly_matches(self, domain, argument_types) {
+                possible.push(signature);
+            } else {
+                excluded.push(signature);
+            }
+        }
+
+        dedup_signatures(&mut possible);
+        dedup_signatures(&mut excluded);
+        excluded.extend(take_nonminimal_signatures(self, &mut possible));
+
+        let all_arguments_known = argument_types.iter().all(Option::is_some);
+        let pinned = if all_arguments_known && possible.len() == 1 {
+            Some(possible.remove(0))
+        } else {
+            None
+        };
+
+        if pinned.is_none() && possible.is_empty() && excluded.is_empty() {
+            None
+        } else {
+            Some(SignatureUsage {
+                pinned,
+                possible,
+                excluded,
+            })
+        }
+    }
+
+    fn all_installed_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
+        let Some(function_info) = &record.function_info else {
+            return Vec::new();
+        };
+
+        let documented_by_domain: HashMap<_, _> = self
+            .documented_signatures(record)
+            .into_iter()
+            .filter_map(|signature| {
+                signature_domain_key(&signature.signature).map(|key| (key, signature))
+            })
+            .collect();
+
+        let mut signatures = Vec::new();
+        for method in &function_info.methods {
+            let Some(domain_key) = signature_domain_key(&method.signature) else {
+                continue;
+            };
+            if let Some(documented_signature) = documented_by_domain.get(&domain_key) {
+                signatures.push(documented_signature.clone());
+            } else {
+                signatures.push(ResolvedSignature {
+                    signature: method.signature.clone(),
+                    output_types: Vec::new(),
+                    is_specialized: false,
+                    examples: Vec::new(),
+                    doc_key: None,
+                });
+            }
+        }
+
+        signatures
+    }
+}
+
+fn take_nonminimal_signatures(
+    builtins: &BuiltinData,
+    signatures: &mut Vec<ResolvedSignature>,
+) -> Vec<ResolvedSignature> {
+    let originals = signatures.clone();
+    let mut dominated = Vec::new();
+    signatures.retain(|candidate| {
+        let is_dominated = originals
+            .iter()
+            .any(|other| signature_strictly_smaller(builtins, other, candidate));
+        if is_dominated {
+            dominated.push(candidate.clone());
+        }
+        !is_dominated
+    });
+    dominated
+}
+
+fn signature_strictly_smaller(
+    builtins: &BuiltinData,
+    smaller: &ResolvedSignature,
+    bigger: &ResolvedSignature,
+) -> bool {
+    if smaller.signature == bigger.signature {
+        return false;
+    }
+
+    let Some(smaller_domain) = smaller.signature.get(1..) else {
+        return false;
+    };
+    let Some(bigger_domain) = bigger.signature.get(1..) else {
+        return false;
+    };
+    if smaller_domain.len() != bigger_domain.len() {
+        return false;
+    }
+
+    let mut strict = false;
+    for (small, big) in smaller_domain.iter().zip(bigger_domain) {
+        if small == big {
+            continue;
+        }
+        if builtins.is_subtype(small, big) {
+            strict = true;
+            continue;
+        }
+        return false;
+    }
+
+    strict
+}
+
+fn domain_possibly_matches(
+    builtins: &BuiltinData,
+    domain: &[InstanceID],
+    argument_types: &[Option<String>],
+) -> bool {
+    domain
+        .iter()
+        .zip(argument_types)
+        .all(|(domain_type, argument_type)| {
+            argument_type.as_ref().is_none_or(|argument_type| {
+                argument_type == &domain_type.0
+                    || builtins.is_subtype(&InstanceID::new(argument_type), domain_type)
+            })
+        })
+}
+
+fn dedup_signatures(signatures: &mut Vec<ResolvedSignature>) {
+    let mut seen = HashSet::new();
+    signatures.retain(|signature| {
+        seen.insert((
+            signature
+                .signature
+                .iter()
+                .map(|id| id.0.clone())
+                .collect::<Vec<_>>(),
+            signature
+                .output_types
+                .iter()
+                .map(|id| id.0.clone())
+                .collect::<Vec<_>>(),
+        ))
+    });
+}
+
+fn signature_domain_key(signature: &[InstanceID]) -> Option<Vec<String>> {
+    if signature.is_empty() {
+        return None;
+    }
+    Some(
+        signature
+            .iter()
+            .skip(1)
+            .map(|item| item.0.clone())
+            .collect(),
+    )
 }
 
 impl Record {
@@ -316,6 +921,7 @@ pub enum M2SemanticTokenType {
     Method = 13,
     Regexp = 14,
     Modifier = 15,
+    TypeParameter = 16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -329,6 +935,10 @@ pub struct M2SemanticToken {
 
 impl BuiltinData {
     pub fn load_from_split(names: &str, details: &str) -> Self {
+        Self::load_from_split_with_type_facts(names, details, "")
+    }
+
+    pub fn load_from_split_with_type_facts(names: &str, details: &str, type_facts: &str) -> Self {
         let names: Vec<_> = names
             .lines()
             .filter(|line| !line.trim().is_empty())
@@ -359,12 +969,13 @@ impl BuiltinData {
             name_to_index,
             details: details.to_string(),
             detail_ranges,
+            type_facts: TypeFacts::load_jsonl(type_facts),
         }
     }
 
     pub fn get_semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
         let record = self.get_record(&InstanceID::new(name))?;
-        let data_type = &record.data_type;
+        let data_type = &record.class;
 
         let function_type = InstanceID::new("Function");
         let command_type = InstanceID::new("Command");
@@ -427,8 +1038,10 @@ impl BuiltinData {
                 .is_some_and(|info| !info.methods.is_empty());
             let token_type = if is_command {
                 M2SemanticTokenType::Function
-            } else if is_manipulator || is_scripted_functor {
+            } else if is_manipulator {
                 M2SemanticTokenType::Operator
+            } else if is_scripted_functor {
+                M2SemanticTokenType::Function
             } else if is_compiled_function {
                 M2SemanticTokenType::Function
             } else if has_installed_methods {
@@ -507,8 +1120,10 @@ impl BuiltinData {
         {
             if is_command {
                 M2SemanticTokenType::Function
-            } else if is_manipulator || self.is_subtype(&type_id, &scripted_functor_type) {
+            } else if is_manipulator {
                 M2SemanticTokenType::Operator
+            } else if self.is_subtype(&type_id, &scripted_functor_type) {
+                M2SemanticTokenType::Function
             } else if is_compiled_function {
                 M2SemanticTokenType::Function
             } else {
@@ -663,6 +1278,48 @@ mod tests {
             "Ring should carry runtime parent-tree children"
         );
 
+        let ring_function = builtins
+            .get_record(&InstanceID::new("ring"))
+            .expect("ring should be present");
+        assert!(
+            ring_function
+                .function_info
+                .as_ref()
+                .and_then(|info| info.general_signature.as_ref())
+                .is_some_and(|signature| signature.output_types == vec![InstanceID::new("Ring")]),
+            "ring should carry the general documentation codomain"
+        );
+        assert!(
+            builtins
+                .documented_signatures(&ring_function)
+                .iter()
+                .any(|method| {
+                    method.signature == vec![InstanceID::new("ring"), InstanceID::new("Ideal")]
+                        && method.output_types == vec![InstanceID::new("Ring")]
+                }),
+            "ring(Ideal) should be a documented signature with known Ring codomain"
+        );
+        assert!(
+            builtins
+                .documented_signatures(&ring_function)
+                .iter()
+                .any(|method| {
+                    method.signature
+                        == vec![InstanceID::new("ring"), InstanceID::new("ChainComplex")]
+                        && method.output_types == vec![InstanceID::new("Ring")]
+                        && !method.is_specialized
+                }),
+            "installed ring domains should inherit the general Ring codomain"
+        );
+        assert!(
+            !builtins
+                .undocumented_installed_methods(&ring_function)
+                .iter()
+                .any(|method| method.signature
+                    == vec![InstanceID::new("ring"), InstanceID::new("Ideal")]),
+            "documented ring(Ideal) should not be repeated as an installed-only method"
+        );
+
         let core_stash_value = builtins
             .get_record(&InstanceID::new("Core$stashValue"))
             .expect("runtime-only Core$stashValue should be present");
@@ -809,8 +1466,8 @@ mod tests {
             builtins
                 .get_semantic_token("Tor")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Operator),
-            "ScriptedFunctor values should use the operator token role"
+            Some(M2SemanticTokenType::Function),
+            "ScriptedFunctor values should use the function token role"
         );
         assert_eq!(
             builtins
@@ -888,8 +1545,8 @@ mod tests {
             builtins
                 .get_semantic_token_for_static_type("ScriptedFunctor")
                 .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Operator),
-            "ScriptedFunctor static types should use the operator token role"
+            Some(M2SemanticTokenType::Function),
+            "ScriptedFunctor static types should use the function token role"
         );
         assert_eq!(
             builtins

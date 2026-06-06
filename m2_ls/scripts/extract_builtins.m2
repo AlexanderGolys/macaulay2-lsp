@@ -121,7 +121,7 @@ methodRecords := fn -> (
 trimString := s -> replace("^[ ]+", "", replace("[ ]+$", "", s))
 takeAtMost := (n, xs) -> if #xs <= n then xs else take(xs, n)
 
-documentedSignatureForKey := key -> (
+functionSignatureForKey := key -> (
     parts := separate("\\(", key);
     if #parts < 2 then null else (
         name := recordNameFromDocKey key;
@@ -129,6 +129,20 @@ documentedSignatureForKey := key -> (
         if match("=>", inside) or match("\\.\\.\\.", inside) then null else
             prepend(name, apply(separate(",", inside), trimString))
     ))
+
+operatorSignatureForKey := key -> (
+    if match("\\(", key) or match("=", key) then null else (
+        parts := separate(" ", key);
+        if #parts < 2 then null else (
+            op := first parts;
+            if not member(op, operatorNames) then null else
+                prepend(op, apply(drop(parts, 1), trimString))
+        )
+    ))
+
+documentedSignatureForKey := key -> (
+    signature := functionSignatureForKey key;
+    if signature =!= null then signature else operatorSignatureForKey key)
 
 outputTypesFromRawDoc := raw -> (
     pos := regex("Outputs =>", raw);
@@ -179,6 +193,17 @@ scan(sort stringList keys db, keyString -> (
 
 documentedMethodRecords := name -> documentedMethodsByName#name ?? {}
 documentedExamplesForName := name -> takeAtMost(12, unique(documentedExamplesByName#name ?? {}))
+generalSignatureForName := name -> (
+    primaryRaw := rawDocSource name;
+    if primaryRaw === null then null else (
+        outputs := outputTypesFromRawDoc primaryRaw;
+        if #outputs == 0 then null else hashTable {
+            "signature" => {name},
+            "output_types" => outputs,
+            "examples" => takeAtMost(3, documentedExamplesForName name),
+            "doc_key" => name
+        }
+    ))
 
 optionEntries := opts -> if opts === null then {} else (
     entries := if instance(opts, OptionTable) then pairs opts else if instance(opts, BasicList) then pairs opts else {};
@@ -288,10 +313,15 @@ recordForSymbol := (name, sym) -> (
     isOperator := operatorAttributes#?sym;
     methodsForValue := if instance(val, Function) or isOperator then methodRecords val else {};
     documentedMethodsForValue := if instance(val, Function) or isOperator then documentedMethodRecords name else {};
-    if instance(val, Function) or isOperator then record#"function_info" = hashTable {
+    if instance(val, Function) or isOperator then (
+        functionInfo := new MutableHashTable from {
         "methods" => methodsForValue,
         "documented_methods" => documentedMethodsForValue
-    };
+        };
+        generalSignature := generalSignatureForName name;
+        if generalSignature =!= null then functionInfo#"general_signature" = generalSignature;
+        record#"function_info" = new HashTable from functionInfo;
+    );
     optionsForValue := if instance(val, Function) or isOperator then methodOptionRecords val else {};
     if #optionsForValue > 0 then record#"option_info" = hashTable {
         "options" => optionsForValue
