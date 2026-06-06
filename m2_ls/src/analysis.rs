@@ -3,12 +3,17 @@ use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range as Ls
 use tree_sitter::{Node, Tree};
 
 use crate::typesystem::{BuiltinData, InstanceID};
+use crate::util::binary_expression_operator_kind;
+
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SymbolKind {
     Function,
     Variable,
     Parameter,
+    Type,
+    Method,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +57,9 @@ pub struct CallStaticFacts {
     pub argument_types: Vec<Option<String>>,
     pub literal_options: Vec<(String, String)>,
 }
+
+
+
 
 impl Analysis {
     pub fn find_definition(&self, name: &str, pos: Position) -> Option<LspRange> {
@@ -724,15 +732,6 @@ fn binary_expression_operator<'a>(node: Node, text: &'a str) -> Option<&'a str> 
 
     node.child_by_field_name("operator")
         .map(|operator| &text[operator.start_byte()..operator.end_byte()])
-}
-
-fn binary_expression_operator_kind(node: Node<'_>) -> Option<&str> {
-    if node.kind() != "binary_expression" {
-        return None;
-    }
-
-    node.child_by_field_name("operator")
-        .map(|operator| operator.kind())
 }
 
 fn is_space_operator_expression(node: Node<'_>) -> bool {

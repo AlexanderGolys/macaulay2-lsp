@@ -3,7 +3,7 @@ use tower_lsp::lsp_types::{
 };
 use tree_sitter::Parser;
 
-use crate::util::full_document_range;
+use crate::util::{binary_expression_operator_kind, full_document_range};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatOptions {
@@ -898,14 +898,6 @@ fn should_space_factor_operator_with_adjacency_factor(
         return false;
     };
     !is_adjacent_factor(left) || !is_adjacent_factor(right)
-}
-
-fn binary_expression_operator_kind(node: tree_sitter::Node<'_>) -> Option<&str> {
-    if node.kind() != "binary_expression" {
-        return None;
-    }
-    node.child_by_field_name("operator")
-        .map(|operator| operator.kind())
 }
 
 fn is_adjacent_factor(node: tree_sitter::Node) -> bool {

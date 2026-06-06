@@ -6,23 +6,23 @@ use crate::typesystem::{BuiltinData, M2SemanticTokenType};
 use crate::util::*;
 
 pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
-    SemanticTokenType::TYPE,           // 0
-    SemanticTokenType::FUNCTION,       // 1
-    SemanticTokenType::VARIABLE,       // 2
+    SemanticTokenType::NAMESPACE,           // 0
+    SemanticTokenType::TYPE,       // 1
+    SemanticTokenType::TYPE_PARAMETER,       // 2
     SemanticTokenType::PARAMETER,      // 3
-    SemanticTokenType::PROPERTY,       // 4
-    SemanticTokenType::NAMESPACE,      // 5
+    SemanticTokenType::VARIABLE,       // 4
+    SemanticTokenType::PROPERTY,      // 5
     SemanticTokenType::ENUM_MEMBER,    // 6
-    SemanticTokenType::CLASS,          // 7
-    SemanticTokenType::KEYWORD,        // 8
-    SemanticTokenType::STRING,         // 9
+    SemanticTokenType::FUNCTION,          // 7
+    SemanticTokenType::METHOD,        // 8
+    SemanticTokenType::KEYWORD,         // 9
     SemanticTokenType::NUMBER,         // 10
-    SemanticTokenType::OPERATOR,       // 11
+    SemanticTokenType::MODIFIER,       // 11
     SemanticTokenType::COMMENT,        // 12
-    SemanticTokenType::METHOD,         // 13
+    SemanticTokenType::STRING,         // 13
     SemanticTokenType::REGEXP,         // 14
-    SemanticTokenType::MODIFIER,       // 15
-    SemanticTokenType::TYPE_PARAMETER, // 16
+    SemanticTokenType::OPERATOR,       // 15
+    SemanticTokenType::DECORATOR, // 16
 ];
 
 pub(crate) const OPTION_MODIFIER: u32 = 1 << 0;
