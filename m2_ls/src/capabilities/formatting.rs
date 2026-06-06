@@ -1081,10 +1081,11 @@ fn collect_line_final_operator_edits(text: &str, edits: &mut Vec<FormatEdit>) {
         line_start += line_with_ending.len();
     }
 
-    if !text.ends_with('\n') && line_start < text.len() {
-        if state.literal == LiteralState::None {
-            push_line_final_operator_edit(text, line_start, text.len(), edits);
-        }
+    if !text.ends_with('\n')
+        && line_start < text.len()
+        && state.literal == LiteralState::None
+    {
+        push_line_final_operator_edit(text, line_start, text.len(), edits);
     }
 }
 

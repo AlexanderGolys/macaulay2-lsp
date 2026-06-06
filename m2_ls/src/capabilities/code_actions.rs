@@ -216,13 +216,13 @@ fn expression_operand_of_not<'tree>(
 fn unwrap_parentheses<'a>(node: tree_sitter::Node<'a>, text: &str) -> tree_sitter::Node<'a> {
     if node.kind() == "parenthesized_expression" || node.child_count() == 3 {
         let mut cursor = node.walk();
-        let children: Vec<_> = node.children(&mut cursor).collect();
-        if children.len() == 3 {
-            if let (Some(first), Some(middle), Some(last)) =
-                (children.get(0), children.get(1), children.get(2))
-            {
-                let first_text = &text[first.start_byte()..first.end_byte()];
-                let last_text = &text[last.start_byte()..last.end_byte()];
+            let children: Vec<_> = node.children(&mut cursor).collect();
+            if children.len() == 3 {
+                if let (Some(first), Some(middle), Some(last)) =
+                    (children.first(), children.get(1), children.get(2))
+                {
+                    let first_text = &text[first.start_byte()..first.end_byte()];
+                    let last_text = &text[last.start_byte()..last.end_byte()];
                 if first_text == "(" && last_text == ")" {
                     return *middle;
                 }

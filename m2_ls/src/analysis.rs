@@ -1,24 +1,23 @@
 use std::collections::{HashMap, HashSet};
-use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range as LspRange};
+use std::hash::{Hash, Hasher};
+use tower_lsp::lsp_types::{
+    Diagnostic, DiagnosticSeverity, Position, Range as LspRange, SymbolKind,
+};
 use tree_sitter::{Node, Tree};
 
 use crate::typesystem::{BuiltinData, InstanceID};
 use crate::util::binary_expression_operator_kind;
 
-
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SymbolKind {
-    Function,
-    Variable,
+pub enum BindingRole {
+    Ordinary,
     Parameter,
-    Type,
-    Method,
 }
 
 #[derive(Debug, Clone)]
 pub struct SymbolInfo {
     pub kind: SymbolKind,
+    pub role: BindingRole,
     pub range: LspRange,
     pub type_name: Option<String>,
 }
@@ -34,28 +33,118 @@ pub struct Scope {
 pub struct Analysis {
     pub scopes: Vec<Scope>,
     pub diagnostics: Vec<Diagnostic>,
-    pub local_methods: HashMap<String, LocalMethodInfo>,
+    pub registry: SemanticRegistry,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LocalMethodSignature {
+pub struct MethodInfo {
     pub domain: Vec<String>,
     pub codomain: Option<String>,
     pub range: LspRange,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LocalMethodInfo {
+pub struct FunctionInfo {
     pub name: String,
     pub range: LspRange,
     pub typical_value: Option<String>,
-    pub signatures: Vec<LocalMethodSignature>,
+    pub methods: Vec<MethodInfo>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallStaticFacts {
     pub argument_types: Vec<Option<String>>,
     pub literal_options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeKey {
+    pub kind: String,
+    pub range: LspRange,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExpressionType {
+    Unknown,
+    Known(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExpressionKind {
+    Literal,
+    Name,
+    Expr,
+    Assign,
+    ScopeExpr,
+    ControlExpr,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BindingInfo {
+    pub name: String,
+    pub kind: SymbolKind,
+    pub role: BindingRole,
+    pub range: LspRange,
+    pub scope_idx: usize,
+    pub type_name: Option<String>,
+    pub value_range: Option<LspRange>,
+    pub node: NodeKey,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopeInfo {
+    pub range: LspRange,
+    pub parent_idx: Option<usize>,
+    pub introducer: Option<NodeKey>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExpressionFact {
+    pub node: NodeKey,
+    pub kind: ExpressionKind,
+    pub input_nodes: Vec<NodeKey>,
+    pub operator: Option<String>,
+    pub result_type: ExpressionType,
+    pub scope_idx: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallInfo {
+    pub node: NodeKey,
+    pub callable_name: Option<String>,
+    pub argument_types: Vec<Option<String>>,
+    pub result_type: ExpressionType,
+    pub candidate_methods: Vec<MethodInfo>,
+}
+
+#[derive(Debug, Default)]
+pub struct SemanticRegistry {
+    pub scopes: Vec<ScopeInfo>,
+    pub bindings: Vec<BindingInfo>,
+    pub bindings_by_name: HashMap<String, Vec<usize>>,
+    pub node_scopes: HashMap<NodeKey, usize>,
+    pub expressions: HashMap<NodeKey, ExpressionFact>,
+    pub calls: HashMap<NodeKey, CallInfo>,
+    pub functions: HashMap<String, FunctionInfo>,
+}
+
+impl NodeKey {
+    fn from_node(text: &str, node: Node) -> Self {
+        Self {
+            kind: node.kind().to_string(),
+            range: to_lsp_range(text, node.range()),
+        }
+    }
+}
+
+impl Hash for NodeKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.kind.hash(state);
+        self.range.start.line.hash(state);
+        self.range.start.character.hash(state);
+        self.range.end.line.hash(state);
+        self.range.end.character.hash(state);
+    }
 }
 
 
@@ -67,21 +156,42 @@ impl Analysis {
     }
 
     pub fn get_symbol_at(&self, name: &str, pos: Position) -> Option<&SymbolInfo> {
+        self.lookup_symbol_at(name, pos)
+    }
+
+    #[cfg(test)]
+    pub fn registry(&self) -> &SemanticRegistry {
+        &self.registry
+    }
+
+    pub fn get_binding_at(&self, name: &str, pos: Position) -> Option<&BindingInfo> {
         let scope_idx = self.find_scope_at(pos)?;
         let mut curr = Some(scope_idx);
         while let Some(idx) = curr {
-            if let Some(symbols) = self.scopes[idx].symbols.get(name) {
-                if let Some(symbol) = symbols
-                    .iter()
-                    .rev()
-                    .find(|symbol| symbol.range.start <= pos)
-                {
-                    return Some(symbol);
-                }
+            let binding = self
+                .registry
+                .bindings_by_name
+                .get(name)
+                .into_iter()
+                .flatten()
+                .filter_map(|binding_idx| self.registry.bindings.get(*binding_idx))
+                .filter(|binding| binding.scope_idx == idx && binding.range.start <= pos)
+                .max_by_key(|binding| (binding.range.start.line, binding.range.start.character));
+            if binding.is_some() {
+                return binding;
             }
             curr = self.scopes[idx].parent_idx;
         }
         None
+    }
+
+    #[cfg(test)]
+    pub fn expression_fact(&self, text: &str, node: Node) -> Option<&ExpressionFact> {
+        self.registry.expressions.get(&NodeKey::from_node(text, node))
+    }
+
+    pub fn function(&self, name: &str) -> Option<&FunctionInfo> {
+        self.registry.functions.get(name)
     }
 
     fn find_scope_at(&self, pos: Position) -> Option<usize> {
@@ -121,10 +231,21 @@ impl Analysis {
                 parent_idx: None,
             }],
             diagnostics: Vec::new(),
-            local_methods: HashMap::new(),
+            registry: SemanticRegistry {
+                scopes: vec![ScopeInfo {
+                    range: LspRange::new(
+                        Position::new(0, 0),
+                        Position::new(u32::MAX, u32::MAX),
+                    ),
+                    parent_idx: None,
+                    introducer: None,
+                }],
+                ..Default::default()
+            },
         };
         analysis.collect_diagnostics(tree.root_node(), text);
         analysis.build_scopes(tree.root_node(), text, 0, builtins);
+        analysis.collect_expression_facts(tree.root_node(), text, builtins);
         analysis
     }
 
@@ -220,15 +341,7 @@ impl Analysis {
 
         match node.kind() {
             "lambda_expression" => {
-                // Create a new scope for the function
-                let range = to_lsp_range(text, node.range());
-                let new_scope = Scope {
-                    range,
-                    symbols: HashMap::new(),
-                    parent_idx: Some(current_scope_idx),
-                };
-                self.scopes.push(new_scope);
-                next_scope_idx = self.scopes.len() - 1;
+                next_scope_idx = self.push_scope(node, text, Some(current_scope_idx));
 
                 // Add parameters to the new scope
                 if let Some(params_node) = node.child_by_field_name("parameters") {
@@ -253,11 +366,11 @@ impl Analysis {
                         self.collect_local_method_installation(left, right, text);
                     }
                     let symbol_kind = match right {
-                        Some(right) if right.kind() == "lambda_expression" => SymbolKind::Function,
+                        Some(right) if right.kind() == "lambda_expression" => SymbolKind::FUNCTION,
                         Some(right) if method_declaration_typical_value(right, text).is_some() => {
-                            SymbolKind::Function
+                            SymbolKind::FUNCTION
                         }
-                        _ => SymbolKind::Variable,
+                        _ => SymbolKind::VARIABLE,
                     };
                     let type_name = right.and_then(|right| {
                         if method_declaration_typical_value(right, text).is_some() {
@@ -278,19 +391,31 @@ impl Analysis {
                     match op_text {
                         ":=" => self.collect_definitions(
                             left,
+                            right,
                             text,
-                            current_scope_idx,
                             DefinitionScope::Local,
-                            symbol_kind,
-                            type_name.as_deref(),
+                            SymbolRegistration {
+                                kind: symbol_kind,
+                                role: BindingRole::Ordinary,
+                                type_name: type_name.as_deref(),
+                                node: left,
+                                value_node: right,
+                                scope_idx: current_scope_idx,
+                            },
                         ),
                         "=" if current_scope_idx == 0 => self.collect_definitions(
                             left,
+                            right,
                             text,
-                            current_scope_idx,
                             DefinitionScope::Global,
-                            symbol_kind,
-                            type_name.as_deref(),
+                            SymbolRegistration {
+                                kind: symbol_kind,
+                                role: BindingRole::Ordinary,
+                                type_name: type_name.as_deref(),
+                                node: left,
+                                value_node: right,
+                                scope_idx: current_scope_idx,
+                            },
                         ),
                         _ => {}
                     }
@@ -323,10 +448,14 @@ impl Analysis {
                 .map(String::as_str);
             self.add_symbol(
                 name,
-                SymbolKind::Parameter,
-                type_name,
-                parameter_node,
-                scope_idx,
+                SymbolRegistration {
+                    kind: SymbolKind::VARIABLE,
+                    role: BindingRole::Parameter,
+                    type_name,
+                    node: parameter_node,
+                    value_node: None,
+                    scope_idx,
+                },
                 text,
             );
         }
@@ -335,22 +464,38 @@ impl Analysis {
     fn collect_definitions(
         &mut self,
         node: Node,
+        value_node: Option<Node>,
         text: &str,
-        scope_idx: usize,
         definition_scope: DefinitionScope,
-        kind: SymbolKind,
-        type_name: Option<&str>,
+        registration: SymbolRegistration<'_>,
     ) {
         match node.kind() {
             "symbol" => {
                 let name = &text[node.start_byte()..node.end_byte()];
                 match definition_scope {
                     DefinitionScope::Local => {
-                        self.add_symbol(name, kind, type_name, node, scope_idx, text)
+                        self.add_symbol(
+                            name,
+                            SymbolRegistration {
+                                node,
+                                value_node,
+                                ..registration
+                            },
+                            text,
+                        )
                     }
                     DefinitionScope::Global => {
-                        if !self.is_defined_in_chain(name, scope_idx) {
-                            self.add_symbol(name, kind, type_name, node, 0, text);
+                        if !self.is_defined_in_chain(name, registration.scope_idx) {
+                            self.add_symbol(
+                                name,
+                                SymbolRegistration {
+                                    node,
+                                    value_node,
+                                    scope_idx: 0,
+                                    ..registration
+                                },
+                                text,
+                            );
                         }
                     }
                 }
@@ -361,11 +506,13 @@ impl Analysis {
                     if child.kind() == "symbol" {
                         self.collect_definitions(
                             child,
+                            value_node,
                             text,
-                            scope_idx,
                             definition_scope,
-                            kind,
-                            None,
+                            SymbolRegistration {
+                                type_name: None,
+                                ..registration
+                            },
                         );
                     }
                 }
@@ -377,14 +524,20 @@ impl Analysis {
     fn add_symbol(
         &mut self,
         name: &str,
-        kind: SymbolKind,
-        type_name: Option<&str>,
-        node: Node,
-        scope_idx: usize,
+        registration: SymbolRegistration<'_>,
         text: &str,
     ) {
+        let SymbolRegistration {
+            kind,
+            role,
+            type_name,
+            node,
+            value_node,
+            scope_idx,
+        } = registration;
         let symbol = SymbolInfo {
             kind,
+            role,
             range: to_lsp_range(text, node.range()),
             type_name: type_name.map(ToString::to_string),
         };
@@ -393,29 +546,42 @@ impl Analysis {
             .entry(name.to_string())
             .or_default()
             .push(symbol);
-    }
-
-    pub fn local_method(&self, name: &str) -> Option<&LocalMethodInfo> {
-        self.local_methods.get(name)
+        let binding = BindingInfo {
+            name: name.to_string(),
+            kind,
+            role,
+            range: to_lsp_range(text, node.range()),
+            scope_idx,
+            type_name: type_name.map(ToString::to_string),
+            value_range: value_node.map(|value| to_lsp_range(text, value.range())),
+            node: NodeKey::from_node(text, node),
+        };
+        let binding_idx = self.registry.bindings.len();
+        self.registry.bindings.push(binding);
+        self.registry
+            .bindings_by_name
+            .entry(name.to_string())
+            .or_default()
+            .push(binding_idx);
     }
 
     pub fn local_method_installation_signature_at<'a>(
         &'a self,
         node: Node,
         text: &str,
-    ) -> Option<(&'a LocalMethodInfo, &'a LocalMethodSignature)> {
+    ) -> Option<(&'a FunctionInfo, &'a MethodInfo)> {
         let installation = method_installation_expression_for_callable_node(node, text)?;
         let (name, domain) = method_installation_signature(installation, text)?;
-        let method = self.local_methods.get(&name)?;
+        let method = self.registry.functions.get(&name)?;
         let installation_range = to_lsp_range(text, installation.range());
         let signature = method
-            .signatures
+            .methods
             .iter()
             .rev()
             .find(|signature| signature.domain == domain && signature.range == installation_range)
             .or_else(|| {
                 method
-                    .signatures
+                    .methods
                     .iter()
                     .rev()
                     .find(|signature| signature.domain == domain)
@@ -453,13 +619,14 @@ impl Analysis {
     ) {
         let range = to_lsp_range(text, node.range());
         let method = self
-            .local_methods
+            .registry
+            .functions
             .entry(name.to_string())
-            .or_insert_with(|| LocalMethodInfo {
+            .or_insert_with(|| FunctionInfo {
                 name: name.to_string(),
                 range,
                 typical_value: None,
-                signatures: Vec::new(),
+                methods: Vec::new(),
             });
         method.range = range;
         method.typical_value = typical_value;
@@ -471,22 +638,153 @@ impl Analysis {
         };
         let range = to_lsp_range(text, node.range());
         let method = self
-            .local_methods
+            .registry
+            .functions
             .entry(name.to_string())
-            .or_insert_with(|| LocalMethodInfo {
+            .or_insert_with(|| FunctionInfo {
                 name: name.to_string(),
                 range,
                 typical_value: None,
-                signatures: Vec::new(),
+                methods: Vec::new(),
             });
         let codomain = right
             .and_then(|right| explicit_method_installation_codomain(right, text))
             .or_else(|| method.typical_value.clone());
-        method.signatures.push(LocalMethodSignature {
-            domain,
-            codomain,
+        method.methods.push(MethodInfo {
+            domain: domain.clone(),
+            codomain: codomain.clone(),
             range,
         });
+    }
+
+    fn push_scope(&mut self, node: Node, text: &str, parent_idx: Option<usize>) -> usize {
+        let range = to_lsp_range(text, node.range());
+        let new_scope = Scope {
+            range,
+            symbols: HashMap::new(),
+            parent_idx,
+        };
+        self.scopes.push(new_scope);
+        let scope_idx = self.scopes.len() - 1;
+        self.registry.scopes.push(ScopeInfo {
+            range,
+            parent_idx,
+            introducer: Some(NodeKey::from_node(text, node)),
+        });
+        self.registry
+            .node_scopes
+            .insert(NodeKey::from_node(text, node), scope_idx);
+        scope_idx
+    }
+
+    fn lookup_symbol_at(&self, name: &str, pos: Position) -> Option<&SymbolInfo> {
+        let binding = self.get_binding_at(name, pos)?;
+        self.scopes[binding.scope_idx]
+            .symbols
+            .get(name)?
+            .iter()
+            .find(|symbol| symbol.range == binding.range)
+    }
+
+    fn collect_expression_facts(&mut self, node: Node, text: &str, builtins: Option<&BuiltinData>) {
+        let position = node_position(text, node);
+        let scope_idx = self.find_scope_at(position).unwrap_or(0);
+        let key = NodeKey::from_node(text, node);
+        self.registry.node_scopes.insert(key.clone(), scope_idx);
+
+        if let Some(kind) = expression_kind(node, text) {
+            let result_type = self
+                .infer_static_type_name(node, text, scope_idx, builtins)
+                .map(ExpressionType::Known)
+                .unwrap_or(ExpressionType::Unknown);
+            let input_nodes = expression_inputs(node).into_iter().map(|child| NodeKey::from_node(text, child)).collect();
+            let operator = expression_operator_text(node, text).map(ToString::to_string);
+            self.registry.expressions.insert(
+                key.clone(),
+                ExpressionFact {
+                    node: key.clone(),
+                    kind,
+                    input_nodes,
+                    operator: operator.clone(),
+                    result_type: result_type.clone(),
+                    scope_idx,
+                },
+            );
+
+            if let Some(call_info) = self.call_info_for_expression(node, text, scope_idx, builtins, &key, result_type) {
+                self.registry.calls.insert(key.clone(), call_info);
+            }
+        }
+
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            self.collect_expression_facts(child, text, builtins);
+        }
+    }
+
+    fn call_info_for_expression(
+        &self,
+        node: Node,
+        text: &str,
+        scope_idx: usize,
+        builtins: Option<&BuiltinData>,
+        key: &NodeKey,
+        result_type: ExpressionType,
+    ) -> Option<CallInfo> {
+        if !matches!(node.kind(), "binary_expression" | "prefix_expression") {
+            return None;
+        }
+
+        if is_assignment_expression(node, text) || is_option_assignment_expression(node, text) {
+            return None;
+        }
+
+        if is_space_operator_expression(node) {
+            let callable = node.child_by_field_name("left")?;
+            let argument = node.child_by_field_name("right")?;
+            let callable_name = symbol_node_text(callable, text).map(ToString::to_string);
+            let facts = self.infer_call_facts(argument, text, scope_idx, builtins);
+            let candidate_methods = callable_name
+                .as_deref()
+                .and_then(|name| self.registry.functions.get(name))
+                .map(|callable| {
+                    callable
+                        .methods
+                        .iter()
+                        .filter(|signature| signature_matches_domain(&signature.domain, &facts.argument_types, builtins))
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default();
+            return Some(CallInfo {
+                node: key.clone(),
+                callable_name,
+                argument_types: facts.argument_types,
+                result_type,
+                candidate_methods,
+            });
+        }
+
+        let operator = expression_operator_text(node, text)?;
+        let left = node.child_by_field_name("left");
+        let right = node.child_by_field_name("right");
+        let operand = node.child_by_field_name("operand");
+        let argument_types = if let Some(operand) = operand {
+            vec![self.infer_static_type_name(operand, text, scope_idx, builtins)]
+        } else {
+            vec![
+                left.and_then(|child| self.infer_static_type_name(child, text, scope_idx, builtins)),
+                right.and_then(|child| self.infer_static_type_name(child, text, scope_idx, builtins)),
+            ]
+        };
+
+        Some(CallInfo {
+            node: key.clone(),
+            callable_name: Some(operator.to_string()),
+            argument_types,
+            result_type,
+            candidate_methods: Vec::new(),
+        })
     }
 
     fn infer_static_type_name(
@@ -520,7 +818,7 @@ impl Analysis {
 
                 builtins
                     .and_then(|builtins| builtins.get_record(&InstanceID::new(name)))
-                    .map(|record| record.class.0)
+                    .map(|record| record.data_type.0)
             }
             _ if is_assignment_expression(node, text) => {
                 let right = node.child_by_field_name("right")?;
@@ -636,9 +934,9 @@ impl Analysis {
         argument_types: &[Option<String>],
         builtins: Option<&BuiltinData>,
     ) -> Option<String> {
-        let method = self.local_methods.get(callable_name)?;
+        let method = self.registry.functions.get(callable_name)?;
         let matching_codomains = method
-            .signatures
+            .methods
             .iter()
             .filter(|signature| signature_matches(signature, argument_types, builtins))
             .filter_map(|signature| {
@@ -694,6 +992,50 @@ impl Analysis {
 enum DefinitionScope {
     Local,
     Global,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SymbolRegistration<'a> {
+    kind: SymbolKind,
+    role: BindingRole,
+    type_name: Option<&'a str>,
+    node: Node<'a>,
+    value_node: Option<Node<'a>>,
+    scope_idx: usize,
+}
+
+fn expression_kind(node: Node<'_>, text: &str) -> Option<ExpressionKind> {
+    match node.kind() {
+        "string_literal" | "integer_literal" | "float_literal" | "boolean_literal" => {
+            Some(ExpressionKind::Literal)
+        }
+        "symbol" | "identifier" | "resolved_symbol" | "builtin_constant" => {
+            Some(ExpressionKind::Name)
+        }
+        "list" | "array" | "angle_bar_list" | "sequence" | "cell" => Some(ExpressionKind::ScopeExpr),
+        "if_statement" | "while_statement" | "when_statement" | "do_statement" | "for_statement"
+        | "new_statement" => Some(ExpressionKind::ControlExpr),
+        "lambda_expression" | "binary_expression" | "prefix_expression" | "parenthesized_expression" => {
+            if is_assignment_expression(node, text) {
+                Some(ExpressionKind::Assign)
+            } else {
+                Some(ExpressionKind::Expr)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn expression_inputs(node: Node<'_>) -> Vec<Node<'_>> {
+    ["left", "right", "operand", "condition", "body", "parameters"]
+        .into_iter()
+        .filter_map(|field| node.child_by_field_name(field))
+        .collect()
+}
+
+fn expression_operator_text<'a>(node: Node<'_>, text: &'a str) -> Option<&'a str> {
+    node.child_by_field_name("operator")
+        .map(|operator| &text[operator.start_byte()..operator.end_byte()])
 }
 
 fn multiple_assignment_targets_are_symbols(node: Node) -> bool {
@@ -938,13 +1280,20 @@ fn find_first_else_symbol<'tree>(node: Node<'tree>, text: &str) -> Option<Node<'
 }
 
 fn signature_matches(
-    signature: &LocalMethodSignature,
+    signature: &MethodInfo,
     argument_types: &[Option<String>],
     builtins: Option<&BuiltinData>,
 ) -> bool {
-    signature.domain.len() == argument_types.len()
-        && signature
-            .domain
+    signature_matches_domain(&signature.domain, argument_types, builtins)
+}
+
+fn signature_matches_domain(
+    expected_domain: &[String],
+    argument_types: &[Option<String>],
+    builtins: Option<&BuiltinData>,
+) -> bool {
+    expected_domain.len() == argument_types.len()
+        && expected_domain
             .iter()
             .zip(argument_types)
             .all(|(expected, actual)| {
@@ -1064,13 +1413,13 @@ mod tests {
             analysis
                 .get_symbol_at("f", Position::new(1, 0))
                 .map(|symbol| symbol.kind),
-            Some(SymbolKind::Function)
+            Some(SymbolKind::FUNCTION)
         );
         assert_eq!(
             analysis
                 .get_symbol_at("x", Position::new(0, 10))
-                .map(|symbol| symbol.kind),
-            Some(SymbolKind::Parameter)
+                .map(|symbol| symbol.role),
+            Some(BindingRole::Parameter)
         );
     }
 
@@ -1209,13 +1558,13 @@ mod tests {
             "p = method(Binary => true, TypicalValue => List)\np(ZZ,ZZ) := p(List,ZZ) := (i,j) -> {i,j}\n",
         );
         let method = analysis
-            .local_method("p")
+            .function("p")
             .expect("method declaration should create local method metadata");
 
         assert_eq!(method.typical_value.as_deref(), Some("List"));
         assert_eq!(
             method
-                .signatures
+                .methods
                 .iter()
                 .map(|signature| signature.domain.clone())
                 .collect::<Vec<_>>(),
@@ -1225,14 +1574,14 @@ mod tests {
             ]
         );
         assert!(method
-            .signatures
+            .methods
             .iter()
             .all(|signature| signature.codomain.as_deref() == Some("List")));
         assert_eq!(
             analysis
                 .get_symbol_at("p", Position::new(1, 0))
                 .map(|symbol| symbol.kind),
-            Some(SymbolKind::Function)
+            Some(SymbolKind::FUNCTION)
         );
     }
 
@@ -1295,10 +1644,10 @@ mod tests {
             analyze_with_builtins("f = method()\nf ZZ := x -> -x\ny := f 1\ny\n", &builtins);
 
         let method = analysis
-            .local_method("f")
+            .function("f")
             .expect("method declaration should be tracked");
         assert_eq!(method.typical_value, None);
-        assert_eq!(method.signatures[0].domain, vec!["ZZ"]);
+        assert_eq!(method.methods[0].domain, vec!["ZZ"]);
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(3, 0))
@@ -1319,10 +1668,10 @@ mod tests {
         );
 
         let method = analysis
-            .local_method("f")
+            .function("f")
             .expect("local method should be tracked");
         assert_eq!(method.typical_value.as_deref(), Some("List"));
-        assert_eq!(method.signatures[0].codomain.as_deref(), Some("Ring"));
+        assert_eq!(method.methods[0].codomain.as_deref(), Some("Ring"));
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(3, 0))
@@ -1433,6 +1782,58 @@ mod tests {
                 .and_then(|symbol| symbol.type_name.as_deref()),
             Some("Sequence")
         );
+    }
+
+    #[test]
+    fn registry_tracks_bindings_and_local_callables() {
+        let analysis = analyze(
+            "f = method(TypicalValue => List)\nf ZZ := Ring => x -> x\ny := f 1\ny\n",
+        );
+
+        let binding = analysis
+            .get_binding_at("y", Position::new(3, 0))
+            .expect("binding should resolve through registry");
+        assert_eq!(binding.scope_idx, 0);
+        assert_eq!(binding.type_name.as_deref(), Some("Ring"));
+
+        let callable = analysis.function("f").expect("callable should be registered");
+        assert_eq!(callable.typical_value.as_deref(), Some("List"));
+        assert_eq!(callable.methods.len(), 1);
+        assert_eq!(callable.methods[0].domain, vec!["ZZ"]);
+        assert_eq!(callable.methods[0].codomain.as_deref(), Some("Ring"));
+    }
+
+    #[test]
+    fn registry_tracks_expression_and_call_facts() {
+        let builtins = BuiltinData::load_from_split(
+            "+\n",
+            "{\"name\":\"+\",\"data_type\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"],\"output_types\":[\"ZZ\"]}]}}\n",
+        );
+        let text = "x := 1\ny := 2\nz := x + y\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let analysis = Analysis::new_with_builtins(&tree, text, Some(&builtins));
+        let assignment = tree
+            .root_node()
+            .descendant_for_byte_range(18, 23)
+            .expect("assignment should exist");
+        let binary = assignment
+            .child_by_field_name("right")
+            .expect("assignment should have right-hand expression");
+        let fact = analysis
+            .expression_fact(text, binary)
+            .expect("expression fact should be registered");
+        assert_eq!(fact.kind, ExpressionKind::Expr);
+        assert_eq!(fact.result_type, ExpressionType::Known("ZZ".to_string()));
+        let call = analysis
+            .registry()
+            .calls
+            .get(&NodeKey::from_node(text, binary))
+            .expect("call info should be registered");
+        assert_eq!(call.callable_name.as_deref(), Some("+"));
     }
 
     #[test]

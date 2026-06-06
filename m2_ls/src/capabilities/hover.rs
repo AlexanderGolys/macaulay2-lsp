@@ -1,6 +1,6 @@
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{LocalMethodInfo, LocalMethodSignature, SymbolInfo, SymbolKind};
+use crate::analysis::{BindingRole, FunctionInfo, MethodInfo, SymbolInfo};
 use crate::document::DocumentSnapshot;
 use crate::typesystem::{BuiltinData, InstanceID};
 use crate::util::*;
@@ -30,7 +30,7 @@ pub(crate) fn hover_response(
             .filter(|(method, _)| method.name == node_text);
         let local_method = local_installation_signature
             .map(|(method, _)| method)
-            .or_else(|| analysis.local_method(node_text));
+            .or_else(|| document.callable_at_position(position));
         let pinned_signature = local_installation_signature.map(|(_, signature)| signature);
         return Some(local_symbol_hover(
             node_text,
@@ -67,8 +67,8 @@ pub(crate) fn hover_response(
 pub(crate) fn local_symbol_hover(
     name: &str,
     symbol: &SymbolInfo,
-    method: Option<&LocalMethodInfo>,
-    pinned_signature: Option<&LocalMethodSignature>,
+    method: Option<&FunctionInfo>,
+    pinned_signature: Option<&MethodInfo>,
 ) -> Hover {
     let title_type = symbol
         .type_name
@@ -82,10 +82,11 @@ pub(crate) fn local_symbol_hover(
         })
         .unwrap_or_default();
     let label = match symbol.kind {
-        SymbolKind::Function if method.is_some() => "User-defined method function",
-        SymbolKind::Function => "User-defined function",
-        SymbolKind::Variable => "User-defined variable",
-        SymbolKind::Parameter => "Function parameter",
+        SymbolKind::FUNCTION if method.is_some() => "User-defined method function",
+        SymbolKind::FUNCTION => "User-defined function",
+        SymbolKind::VARIABLE if symbol.role == BindingRole::Parameter => "Function parameter",
+        SymbolKind::VARIABLE => "User-defined variable",
+        _ => "User-defined symbol",
     };
     let signatures = method
         .map(|method| local_method_signatures_markdown(method, pinned_signature))
@@ -157,8 +158,8 @@ pub(crate) fn hoverable_symbol_or_operator_node(node: tree_sitter::Node) -> bool
 }
 
 fn local_method_signatures_markdown(
-    method: &LocalMethodInfo,
-    pinned_signature: Option<&LocalMethodSignature>,
+    method: &FunctionInfo,
+    pinned_signature: Option<&MethodInfo>,
 ) -> String {
     if let Some(pinned_signature) = pinned_signature {
         let mut lines = vec![
@@ -169,7 +170,7 @@ fn local_method_signatures_markdown(
             ),
         ];
         let excluded = method
-            .signatures
+            .methods
             .iter()
             .filter(|signature| {
                 signature.domain != pinned_signature.domain
@@ -191,7 +192,7 @@ fn local_method_signatures_markdown(
         return lines.join("\n");
     }
 
-    if method.signatures.is_empty() {
+    if method.methods.is_empty() {
         return method
             .typical_value
             .as_ref()
@@ -200,7 +201,7 @@ fn local_method_signatures_markdown(
     }
 
     let mut lines = vec!["\n\n**Local Method Signatures:**".to_string()];
-    for signature in &method.signatures {
+    for signature in &method.methods {
         let domain = signature.domain.join(", ");
         let codomain = signature
             .codomain
@@ -214,8 +215,8 @@ fn local_method_signatures_markdown(
 }
 
 fn local_method_signature_label(
-    method: &LocalMethodInfo,
-    signature: &LocalMethodSignature,
+    method: &FunctionInfo,
+    signature: &MethodInfo,
 ) -> String {
     let domain = signature.domain.join(", ");
     let codomain = signature
@@ -230,17 +231,16 @@ fn local_method_signature_label(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::{
-        Analysis, LocalMethodInfo, LocalMethodSignature, SymbolInfo, SymbolKind,
-    };
+    use crate::analysis::{Analysis, BindingRole, FunctionInfo, MethodInfo, SymbolInfo};
     use crate::typesystem::BuiltinData;
-    use tower_lsp::lsp_types::{HoverContents, Position, Range};
+    use tower_lsp::lsp_types::{HoverContents, Position, Range, SymbolKind};
     use tree_sitter::Parser;
 
     #[test]
     fn local_hover_includes_known_static_type() {
         let symbol = SymbolInfo {
-            kind: SymbolKind::Variable,
+            kind: SymbolKind::VARIABLE,
+            role: BindingRole::Ordinary,
             range: Range::new(Position::new(2, 4), Position::new(2, 7)),
             type_name: Some("Package".to_string()),
         };
@@ -261,15 +261,16 @@ mod tests {
     #[test]
     fn local_hover_includes_method_signatures() {
         let symbol = SymbolInfo {
-            kind: SymbolKind::Function,
+            kind: SymbolKind::FUNCTION,
+            role: BindingRole::Ordinary,
             range: Range::new(Position::new(0, 0), Position::new(0, 1)),
             type_name: Some("MethodFunction".to_string()),
         };
-        let method = LocalMethodInfo {
+        let method = FunctionInfo {
             name: "p".to_string(),
             range: Range::new(Position::new(0, 0), Position::new(0, 1)),
             typical_value: Some("List".to_string()),
-            signatures: vec![LocalMethodSignature {
+            methods: vec![MethodInfo {
                 domain: vec!["ZZ".to_string(), "ZZ".to_string()],
                 codomain: Some("List".to_string()),
                 range: Range::new(Position::new(1, 0), Position::new(1, 8)),

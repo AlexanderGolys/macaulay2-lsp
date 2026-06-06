@@ -1038,9 +1038,7 @@ impl BuiltinData {
                 M2SemanticTokenType::Function
             } else if is_manipulator {
                 M2SemanticTokenType::Operator
-            } else if is_scripted_functor {
-                M2SemanticTokenType::Function
-            } else if is_compiled_function {
+            } else if is_scripted_functor || is_compiled_function {
                 M2SemanticTokenType::Function
             } else if has_installed_methods {
                 M2SemanticTokenType::Method
@@ -1120,10 +1118,6 @@ impl BuiltinData {
                 M2SemanticTokenType::Function
             } else if is_manipulator {
                 M2SemanticTokenType::Operator
-            } else if self.is_subtype(&type_id, &scripted_functor_type) {
-                M2SemanticTokenType::Function
-            } else if is_compiled_function {
-                M2SemanticTokenType::Function
             } else {
                 M2SemanticTokenType::Function
             }

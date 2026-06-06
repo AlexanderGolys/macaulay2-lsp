@@ -1,6 +1,6 @@
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{SymbolInfo, SymbolKind};
+use crate::analysis::{BindingRole, SymbolInfo};
 use crate::document::DocumentSnapshot;
 use crate::typesystem::{BuiltinData, M2SemanticTokenType};
 use crate::util::*;
@@ -104,10 +104,10 @@ pub(crate) fn collect_semantic_tokens(
                             modifiers |= builtin_semantic_token_modifiers(&token);
                         }
                     }
-                    if symbol.kind == SymbolKind::Parameter && position == symbol.range.start {
+                    if symbol.role == BindingRole::Parameter && position == symbol.range.start {
                         modifiers |= DECLARATION_MODIFIER;
                     }
-                    if symbol.kind == SymbolKind::Function && builtins.is_constructor_name(node_text)
+                    if symbol.kind == SymbolKind::FUNCTION && builtins.is_constructor_name(node_text)
                     {
                         modifiers |= CONSTRUCTOR_MODIFIER;
                     }
@@ -217,10 +217,19 @@ pub(crate) fn local_symbol_semantic_token_type(
         }
     }
 
+    if symbol.role == BindingRole::Parameter {
+        return M2SemanticTokenType::Parameter;
+    }
+
     match symbol.kind {
-        SymbolKind::Function => M2SemanticTokenType::Function,
-        SymbolKind::Variable => M2SemanticTokenType::Variable,
-        SymbolKind::Parameter => M2SemanticTokenType::Parameter,
+        SymbolKind::FUNCTION => M2SemanticTokenType::Function,
+        SymbolKind::VARIABLE => M2SemanticTokenType::Variable,
+        SymbolKind::METHOD => M2SemanticTokenType::Method,
+        SymbolKind::CLASS => M2SemanticTokenType::Class,
+        SymbolKind::NAMESPACE => M2SemanticTokenType::Namespace,
+        SymbolKind::PROPERTY => M2SemanticTokenType::Property,
+        SymbolKind::CONSTANT => M2SemanticTokenType::EnumMember,
+        _ => M2SemanticTokenType::Variable,
     }
 }
 
@@ -438,16 +447,16 @@ fn method_installation_type_parameter(
     let parent = node.parent()?;
 
     if is_type_parameter_in_domain(node, parent, text) && is_known_type(builtins, node_text) {
-        return Some(M2SemanticTokenType::TypeParameter);
+        return Some(M2SemanticTokenType::Type);
     }
 
     if is_type_parameter_in_lambda(node, parent, text) && is_known_type(builtins, node_text) {
-        return Some(M2SemanticTokenType::TypeParameter);
+        return Some(M2SemanticTokenType::Type);
     }
 
     if is_type_parameter_in_typical_value(node, parent, text) && is_known_type(builtins, node_text)
     {
-        return Some(M2SemanticTokenType::TypeParameter);
+        return Some(M2SemanticTokenType::Type);
     }
 
     None
@@ -516,9 +525,9 @@ fn is_type_parameter_in_lambda(
     if lambda.kind() != "lambda_expression" {
         return false;
     }
-    if !lambda
+    if lambda
         .child_by_field_name("left")
-        .is_some_and(|param| param.id() == node.id())
+        .is_none_or(|param| param.id() != node.id())
     {
         return false;
     }
@@ -924,7 +933,8 @@ mod tests {
     #[test]
     fn parameter_references_use_parameter_semantic_token_type() {
         let symbol = SymbolInfo {
-            kind: SymbolKind::Parameter,
+            kind: SymbolKind::VARIABLE,
+            role: BindingRole::Parameter,
             range: Range::new(Position::new(0, 5), Position::new(0, 6)),
             type_name: None,
         };
@@ -1121,7 +1131,7 @@ mod tests {
     }
 
     #[test]
-    fn method_installation_domain_emits_type_parameter_for_known_types() {
+    fn method_installation_domain_emits_type_for_known_types() {
         let text = "Ring Element := x -> x";
         let builtins = BuiltinData::load_from_split(
             include_str!("../data/builtins.names"),
@@ -1132,10 +1142,10 @@ mod tests {
         let tokens = collect_semantic_tokens(&document, &builtins, false);
         let token_types: Vec<u32> = tokens.iter().map(|t| t.token_type).collect();
 
-        let type_param = M2SemanticTokenType::TypeParameter as u32;
+        let type_param = M2SemanticTokenType::Type as u32;
         assert!(
             token_types.contains(&type_param),
-            "Ring in method installation should be TypeParameter, got {:?}",
+            "Ring in method installation should be Type, got {:?}",
             token_types
         );
     }

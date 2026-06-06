@@ -1,53 +1,40 @@
-use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use dashmap::DashMap;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tree_sitter::Parser;
 use typesystem::BuiltinData;
 
 mod analysis;
 mod capabilities;
+mod document;
 mod package_index;
 mod record_lsp;
 mod typesystem;
 mod util;
 
-use analysis::Analysis;
-use capabilities::code_actions::{
-    conditional_null_code_action, simplify_if_condition_code_action, simplify_try_code_action,
-};
-use capabilities::diagnostics::analyze_and_publish;
-use capabilities::document_symbols::collect_document_symbols;
+use capabilities::code_actions::available_code_actions;
+use capabilities::diagnostics::publish_diagnostics;
+use capabilities::document_symbols::document_symbol_response;
 use capabilities::formatting::{
     document_formatting_provider_capability, document_formatting_text_edits,
     folding_range_provider_capability, folding_ranges,
 };
-use capabilities::hover::{
-    call_signature_usage_for_hover, hoverable_symbol_or_operator_node, local_symbol_hover,
-};
+use capabilities::hover::hover_response;
 use capabilities::navigation::{
-    collect_reference_ranges, should_include_workspace_symbol, symbol_prefix_at,
-    workspace_symbol_dedupe_key,
+    completion_response, goto_definition_response, references_response, workspace_symbols_response,
 };
-use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
+use capabilities::semantic_tokens::{semantic_tokens_response, LEGEND_TYPES};
 use capabilities::type_hierarchy::{TypeHierarchyCapabilityService, TYPE_HIERARCHY_METHOD};
+use document::DocumentSnapshot;
 #[cfg(test)]
 use package_index::extractor_script_candidates;
-use package_index::{
-    collect_imported_packages, package_source_string, PackageIndexer, SourceResolver,
-};
+use package_index::{collect_imported_packages, PackageIndexer, SourceResolver};
+#[cfg(test)]
+use package_index::package_source_string;
 #[cfg(test)]
 use record_lsp::record_package;
-use record_lsp::{
-    record_hover_with_package, record_hover_with_package_and_usage, record_source_file,
-    record_source_line, record_symbol_kind,
-};
-use util::{
-    enclosing_node_of_kind, node_range, symbol_node_at_position,
-    tree_sitter_point_from_lsp_position,
-};
+use record_lsp::{record_source_file, record_source_line, record_symbol_kind};
 
 #[derive(Debug)]
 struct Backend {
@@ -56,8 +43,7 @@ struct Backend {
     source_resolver: SourceResolver,
     package_indexer: PackageIndexer,
     package_indexes: DashMap<String, BuiltinData>,
-    documents: DashMap<Url, String>,
-    analyses: DashMap<Url, Analysis>,
+    documents: DashMap<Url, DocumentSnapshot>,
     semantic_tokens_augment_syntax: AtomicBool,
     type_hierarchy_dynamic_registration: AtomicBool,
 }
@@ -79,7 +65,6 @@ impl Backend {
             package_indexer: PackageIndexer::from_environment(),
             package_indexes: DashMap::new(),
             documents: DashMap::new(),
-            analyses: DashMap::new(),
             semantic_tokens_augment_syntax: AtomicBool::new(false),
             type_hierarchy_dynamic_registration: AtomicBool::new(false),
         }
@@ -193,18 +178,26 @@ impl Backend {
         }
     }
 
-    async fn on_change(&self, params: TextDocumentItem) {
-        let uri = params.uri.clone();
-        self.documents.insert(uri.clone(), params.text.clone());
-        let _ = self.active_package_indexes(&params.text);
-        analyze_and_publish(
-            &self.client,
-            &self.analyses,
-            &self.builtins,
-            uri,
-            &params.text,
-        )
-        .await;
+    async fn on_open(&self, params: TextDocumentItem) {
+        let Some(document) = DocumentSnapshot::from_text(params.text, &self.builtins) else {
+            return;
+        };
+        let uri = params.uri;
+        let _ = self.active_package_indexes(document.text());
+        self.documents.insert(uri.clone(), document);
+        if let Some(document) = self.documents.get(&uri) {
+            publish_diagnostics(&self.client, uri, document.value()).await;
+        }
+    }
+
+    async fn on_change(&self, uri: Url, changes: Vec<TextDocumentContentChangeEvent>) {
+        if let Some(mut document) = self.documents.get_mut(&uri) {
+            if document.apply_changes(&changes, &self.builtins).is_none() {
+                return;
+            }
+            let _ = self.active_package_indexes(document.text());
+            publish_diagnostics(&self.client, uri, document.value()).await;
+        }
     }
 }
 
@@ -233,7 +226,7 @@ impl LanguageServer for Backend {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    TextDocumentSyncKind::FULL,
+                    TextDocumentSyncKind::INCREMENTAL,
                 )),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 references_provider: Some(OneOf::Left(true)),
@@ -277,8 +270,7 @@ impl LanguageServer for Backend {
         if self
             .type_hierarchy_dynamic_registration
             .load(Ordering::Relaxed)
-        {
-            if self
+            && self
                 .client
                 .register_capability(vec![Registration {
                     id: "m2_ls-type-hierarchy".to_string(),
@@ -291,11 +283,10 @@ impl LanguageServer for Backend {
                 }])
                 .await
                 .is_ok()
-            {
-                self.client
-                    .log_message(MessageType::INFO, "Macaulay2 type hierarchy registered")
-                    .await;
-            }
+        {
+            self.client
+                .log_message(MessageType::INFO, "Macaulay2 type hierarchy registered")
+                .await;
         }
 
         self.client
@@ -314,7 +305,7 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.on_change(TextDocumentItem {
+        self.on_open(TextDocumentItem {
             uri: params.text_document.uri,
             language_id: "macaulay2".to_string(),
             version: params.text_document.version,
@@ -323,102 +314,25 @@ impl LanguageServer for Backend {
         .await;
     }
 
-    async fn did_change(&self, mut params: DidChangeTextDocumentParams) {
-        self.on_change(TextDocumentItem {
-            uri: params.text_document.uri,
-            language_id: "macaulay2".to_string(),
-            version: params.text_document.version,
-            text: std::mem::take(&mut params.content_changes[0].text),
-        })
-        .await;
+    async fn did_change(&self, params: DidChangeTextDocumentParams) {
+        self.on_change(params.text_document.uri, params.content_changes)
+            .await;
     }
 
     async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-
-        let text = match self.documents.get(uri) {
-            Some(t) => t.clone(),
+        let document = match self.documents.get(uri) {
+            Some(document) => document,
             None => return Ok(None),
         };
-
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .unwrap();
-        let tree = parser.parse(&text, None).unwrap();
-        let root_node = tree.root_node();
-
-        let Some(point) = tree_sitter_point_from_lsp_position(&text, position) else {
-            return Ok(None);
-        };
-        let node = match root_node.descendant_for_point_range(point, point) {
-            Some(n) => n,
-            None => return Ok(None),
-        };
-
-        if hoverable_symbol_or_operator_node(node) {
-            let start_byte = node.start_byte();
-            let end_byte = node.end_byte();
-            let node_text = &text[start_byte..end_byte];
-
-            if let Some(analysis) = self.analyses.get(uri) {
-                if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
-                    let local_installation_signature = analysis
-                        .local_method_installation_signature_at(node, &text)
-                        .filter(|(method, _)| method.name == node_text);
-                    let local_method = local_installation_signature
-                        .map(|(method, _)| method)
-                        .or_else(|| analysis.local_method(node_text));
-                    let pinned_signature =
-                        local_installation_signature.map(|(_, signature)| signature);
-                    return Ok(Some(local_symbol_hover(
-                        node_text,
-                        symbol,
-                        local_method,
-                        pinned_signature,
-                    )));
-                }
-            }
-
-            for (package, package_index) in self.active_package_indexes(&text) {
-                if let Some(record) =
-                    package_index.get_record(&typesystem::InstanceID(node_text.to_string()))
-                {
-                    return Ok(Some(record_hover_with_package(
-                        &record,
-                        Some(&package),
-                        &self.builtins,
-                    )));
-                }
-            }
-
-            if self.builtins.contains_name(node_text) {
-                let Some(record) = self
-                    .builtins
-                    .get_record(&typesystem::InstanceID(node_text.to_string()))
-                else {
-                    return Ok(None);
-                };
-                let signature_usage = self.analyses.get(uri).and_then(|analysis| {
-                    call_signature_usage_for_hover(
-                        node,
-                        node_text,
-                        &text,
-                        Some(&*analysis),
-                        &self.builtins,
-                    )
-                });
-                return Ok(Some(record_hover_with_package_and_usage(
-                    &record,
-                    Some("Core"),
-                    &self.builtins,
-                    signature_usage.as_ref(),
-                )));
-            }
-        }
-
-        Ok(None)
+        let active_package_indexes = self.active_package_indexes(document.text());
+        Ok(hover_response(
+            document.value(),
+            position,
+            &self.builtins,
+            &active_package_indexes,
+        ))
     }
 
     async fn completion(
@@ -427,43 +341,17 @@ impl LanguageServer for Backend {
     ) -> tower_lsp::jsonrpc::Result<Option<CompletionResponse>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let text = match self.documents.get(uri) {
-            Some(t) => t.clone(),
+        let document = match self.documents.get(uri) {
+            Some(document) => document,
             None => return Ok(None),
         };
-        let Some(prefix) = symbol_prefix_at(&text, position) else {
-            return Ok(None);
-        };
-
-        let mut seen = HashSet::new();
-        let mut items = Vec::new();
-
-        for (package, package_index) in self.active_package_indexes(&text) {
-            for name in package_index.names_with_prefix(&prefix, 40) {
-                if seen.insert(name.to_string()) {
-                    items.push(CompletionItem {
-                        label: name.to_string(),
-                        kind: Some(CompletionItemKind::FUNCTION),
-                        detail: Some(format!("Package: {package}")),
-                        ..Default::default()
-                    });
-                }
-            }
-        }
-
-        items.extend(
-            self.builtins
-                .names_with_prefix(&prefix, 80usize.saturating_sub(items.len()))
-                .into_iter()
-                .filter(|name| seen.insert((*name).to_string()))
-                .map(|name| CompletionItem {
-                    label: name.to_string(),
-                    kind: Some(CompletionItemKind::FUNCTION),
-                    ..Default::default()
-                }),
-        );
-
-        Ok(Some(CompletionResponse::Array(items)))
+        let active_package_indexes = self.active_package_indexes(document.text());
+        Ok(completion_response(
+            document.text(),
+            position,
+            &self.builtins,
+            &active_package_indexes,
+        ))
     }
 
     async fn semantic_tokens_full(
@@ -471,24 +359,17 @@ impl LanguageServer for Backend {
         params: SemanticTokensParams,
     ) -> tower_lsp::jsonrpc::Result<Option<SemanticTokensResult>> {
         let uri = params.text_document.uri;
-        let text = match self.documents.get(&uri) {
-            Some(t) => t.clone(),
+        let document = match self.documents.get(&uri) {
+            Some(document) => document,
             None => return Ok(None),
         };
 
-        let analysis = self.analyses.get(&uri);
         let augments_syntax_tokens = self.semantic_tokens_augment_syntax.load(Ordering::Relaxed);
-        let tokens = collect_semantic_tokens(
-            &text,
-            analysis.as_deref(),
+        Ok(Some(semantic_tokens_response(
+            document.value(),
             &self.builtins,
             augments_syntax_tokens,
-        );
-
-        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
-            result_id: None,
-            data: tokens,
-        })))
+        )))
     }
 
     async fn document_symbol(
@@ -496,13 +377,11 @@ impl LanguageServer for Backend {
         params: DocumentSymbolParams,
     ) -> tower_lsp::jsonrpc::Result<Option<DocumentSymbolResponse>> {
         let uri = params.text_document.uri;
-        let text = match self.documents.get(&uri) {
-            Some(t) => t.clone(),
+        let document = match self.documents.get(&uri) {
+            Some(document) => document,
             None => return Ok(None),
         };
-
-        let symbols = collect_document_symbols(&text, &self.builtins);
-        Ok(Some(DocumentSymbolResponse::Nested(symbols)))
+        Ok(Some(document_symbol_response(document.value(), &self.builtins)))
     }
 
     async fn code_action(
@@ -510,27 +389,11 @@ impl LanguageServer for Backend {
         params: CodeActionParams,
     ) -> tower_lsp::jsonrpc::Result<Option<CodeActionResponse>> {
         let uri = params.text_document.uri;
-        let text = match self.documents.get(&uri) {
-            Some(t) => t.clone(),
+        let document = match self.documents.get(&uri) {
+            Some(document) => document,
             None => return Ok(None),
         };
-
-        let mut actions = Vec::new();
-        if let Some(action) = conditional_null_code_action(&text, &uri, params.range.start) {
-            actions.push(CodeActionOrCommand::CodeAction(action));
-        }
-        if let Some(action) = simplify_try_code_action(&text, &uri, params.range.start) {
-            actions.push(CodeActionOrCommand::CodeAction(action));
-        }
-        if let Some(action) = simplify_if_condition_code_action(&text, &uri, params.range.start) {
-            actions.push(CodeActionOrCommand::CodeAction(action));
-        }
-
-        if actions.is_empty() {
-            return Ok(None);
-        }
-
-        Ok(Some(actions))
+        Ok(available_code_actions(document.value(), &uri, params.range.start))
     }
 
     async fn references(
@@ -539,29 +402,16 @@ impl LanguageServer for Backend {
     ) -> tower_lsp::jsonrpc::Result<Option<Vec<Location>>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-
-        let text = match self.documents.get(uri) {
-            Some(t) => t.clone(),
+        let document = match self.documents.get(uri) {
+            Some(document) => document,
             None => return Ok(None),
         };
-        let Some(analysis) = self.analyses.get(uri) else {
-            return Ok(None);
-        };
-
-        let references = collect_reference_ranges(
-            &text,
-            &analysis,
+        Ok(Some(references_response(
+            document.value(),
+            uri,
             position,
             params.context.include_declaration,
-        )
-        .into_iter()
-        .map(|range| Location {
-            uri: uri.clone(),
-            range,
-        })
-        .collect();
-
-        Ok(Some(references))
+        )))
     }
 
     async fn prepare_type_hierarchy(
@@ -570,25 +420,17 @@ impl LanguageServer for Backend {
     ) -> tower_lsp::jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let text = match self.documents.get(&uri) {
-            Some(t) => t.clone(),
+        let document = match self.documents.get(&uri) {
+            Some(document) => document,
             None => return Ok(None),
         };
-
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .unwrap();
-        let Some(tree) = parser.parse(&text, None) else {
+        let Some(node) = document.symbol_node_at_position(position) else {
             return Ok(None);
         };
-        let Some(node) = symbol_node_at_position(tree.root_node(), &text, position) else {
-            return Ok(None);
-        };
-        let name = &text[node.start_byte()..node.end_byte()];
-        let range = node_range(&text, node);
+        let name = document.text_for(node);
+        let range = document.range_for(node);
 
-        for (package, package_index) in self.active_package_indexes(&text) {
+        for (package, package_index) in self.active_package_indexes(document.text()) {
             if let Some(record) = package_index.get_record(&typesystem::InstanceID::new(name)) {
                 if record.type_info.is_some() {
                     return Ok(Some(vec![self.type_hierarchy_item(
@@ -686,12 +528,12 @@ impl LanguageServer for Backend {
         params: DocumentFormattingParams,
     ) -> tower_lsp::jsonrpc::Result<Option<Vec<TextEdit>>> {
         let uri = params.text_document.uri;
-        let text = match self.documents.get(&uri) {
-            Some(t) => t.clone(),
+        let document = match self.documents.get(&uri) {
+            Some(document) => document,
             None => return Ok(None),
         };
         Ok(Some(document_formatting_text_edits(
-            &text,
+            document.text(),
             params.options.tab_size,
             params.options.insert_spaces,
         )))
@@ -702,12 +544,12 @@ impl LanguageServer for Backend {
         params: FoldingRangeParams,
     ) -> tower_lsp::jsonrpc::Result<Option<Vec<FoldingRange>>> {
         let uri = params.text_document.uri;
-        let text = match self.documents.get(&uri) {
-            Some(t) => t.clone(),
+        let document = match self.documents.get(&uri) {
+            Some(document) => document,
             None => return Ok(None),
         };
 
-        Ok(Some(folding_ranges(&text)))
+        Ok(Some(folding_ranges(document.text())))
     }
 
     #[allow(deprecated)]
@@ -720,63 +562,17 @@ impl LanguageServer for Backend {
             return Ok(Some(Vec::new()));
         }
 
-        let mut symbols = Vec::new();
-        let mut seen = HashSet::new();
-
-        for package_entry in self.package_indexes.iter() {
-            let package = package_entry.key().clone();
-            for name in package_entry.value().matching_names(query, 80) {
-                let Some(record) = package_entry
-                    .value()
-                    .get_record(&typesystem::InstanceID(name.to_string()))
-                else {
-                    continue;
-                };
-                let Some(location) = self.record_location(&record) else {
-                    continue;
-                };
-                if seen.insert(workspace_symbol_dedupe_key(&package, name)) {
-                    symbols.push(SymbolInformation {
-                        name: name.to_string(),
-                        kind: record_symbol_kind(&record),
-                        tags: None,
-                        deprecated: None,
-                        location,
-                        container_name: Some(package.clone()),
-                    });
-                }
-            }
-        }
-
-        for name in self
-            .builtins
-            .matching_names(query, 120usize.saturating_sub(symbols.len()))
-        {
-            if !should_include_workspace_symbol("Core", name) {
-                continue;
-            }
-            let Some(record) = self
-                .builtins
-                .get_record(&typesystem::InstanceID(name.to_string()))
-            else {
-                continue;
-            };
-            let Some(location) = self.record_location(&record) else {
-                continue;
-            };
-            if seen.insert(workspace_symbol_dedupe_key("Core", name)) {
-                symbols.push(SymbolInformation {
-                    name: name.to_string(),
-                    kind: record_symbol_kind(&record),
-                    tags: None,
-                    deprecated: None,
-                    location,
-                    container_name: Some("Core".to_string()),
-                });
-            }
-        }
-
-        Ok(Some(symbols))
+        let loaded_package_indexes = self
+            .package_indexes
+            .iter()
+            .map(|entry| (entry.key().clone(), entry.value().clone()))
+            .collect::<Vec<_>>();
+        Ok(Some(workspace_symbols_response(
+            query,
+            &loaded_package_indexes,
+            &self.builtins,
+            |record| self.record_location(record),
+        )))
     }
 
     async fn goto_definition(
@@ -786,75 +582,20 @@ impl LanguageServer for Backend {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
 
-        let text = match self.documents.get(uri) {
-            Some(t) => t.clone(),
+        let document = match self.documents.get(uri) {
+            Some(document) => document,
             None => return Ok(None),
         };
-
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .unwrap();
-        let tree = parser.parse(&text, None).unwrap();
-        let root_node = tree.root_node();
-
-        let Some(point) = tree_sitter_point_from_lsp_position(&text, position) else {
-            return Ok(None);
-        };
-        let node = match root_node.descendant_for_point_range(point, point) {
-            Some(n) => n,
-            None => return Ok(None),
-        };
-
-        if let Some(string_node) = enclosing_node_of_kind(node, "string_literal") {
-            if let Some(package_name) = package_source_string(&text, string_node) {
-                if let Some(path) = self.source_resolver.resolve_package_file(package_name) {
-                    if let Ok(uri) = Url::from_file_path(path) {
-                        return Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                            uri,
-                            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
-                        })));
-                    }
-                }
-            }
-        }
-
-        let kind = node.kind();
-        if kind == "symbol" || kind == "identifier" {
-            let start_byte = node.start_byte();
-            let end_byte = node.end_byte();
-            let node_text = &text[start_byte..end_byte];
-
-            if let Some(analysis) = self.analyses.get(uri) {
-                if let Some(range) = analysis.find_definition(node_text, position) {
-                    return Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                        uri: uri.clone(),
-                        range,
-                    })));
-                }
-            }
-
-            for (_, package_index) in self.active_package_indexes(&text) {
-                if let Some(record) =
-                    package_index.get_record(&typesystem::InstanceID(node_text.to_string()))
-                {
-                    if let Some(location) = self.record_location(&record) {
-                        return Ok(Some(GotoDefinitionResponse::Scalar(location)));
-                    }
-                }
-            }
-
-            if let Some(record) = self
-                .builtins
-                .get_record(&typesystem::InstanceID(node_text.to_string()))
-            {
-                if let Some(location) = self.record_location(&record) {
-                    return Ok(Some(GotoDefinitionResponse::Scalar(location)));
-                }
-            }
-        }
-
-        Ok(None)
+        let active_package_indexes = self.active_package_indexes(document.text());
+        Ok(goto_definition_response(
+            document.value(),
+            uri,
+            position,
+            &self.builtins,
+            &active_package_indexes,
+            &self.source_resolver,
+            |record| self.record_location(record),
+        ))
     }
 }
 
@@ -871,7 +612,10 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analysis::Analysis;
+    use crate::record_lsp::{record_hover_with_package, record_hover_with_package_and_usage};
     use crate::typesystem::BuiltinData;
+    use tree_sitter::Parser;
 
     #[test]
     fn source_resolver_finds_package_and_doc_files_from_m2_path_roots() {

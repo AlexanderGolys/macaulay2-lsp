@@ -1,7 +1,9 @@
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
 
-use crate::analysis::Analysis;
+use crate::analysis::{Analysis, BindingInfo, FunctionInfo};
+#[cfg(test)]
+use crate::analysis::ExpressionFact;
 use crate::typesystem::BuiltinData;
 use crate::util::{
     byte_index_from_lsp_position, floor_char_boundary, node_range, tree_sitter_point_from_byte_index,
@@ -54,6 +56,23 @@ impl DocumentSnapshot {
 
     pub(crate) fn analysis(&self) -> &Analysis {
         &self.analysis
+    }
+
+    pub(crate) fn binding_at_position(&self, position: Position) -> Option<&BindingInfo> {
+        let node = self.symbol_node_at_position(position)?;
+        let name = self.text_for(node);
+        self.analysis.get_binding_at(name, position)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn expression_fact_at_position(&self, position: Position) -> Option<&ExpressionFact> {
+        let node = self.node_at_position_minimal(position)?;
+        self.analysis.expression_fact(&self.text, node)
+    }
+
+    pub(crate) fn callable_at_position(&self, position: Position) -> Option<&FunctionInfo> {
+        let binding = self.binding_at_position(position)?;
+        self.analysis.function(&binding.name)
     }
 
     pub(crate) fn root_node(&self) -> Node<'_> {
@@ -228,5 +247,36 @@ mod tests {
             .expect("replacement should parse");
 
         assert_eq!(document.text(), "y := 2");
+    }
+
+    #[test]
+    fn exposes_registry_backed_queries_by_position() {
+        let builtins = builtins();
+        let document = DocumentSnapshot::from_text(
+            "f = method(TypicalValue => List)\nf ZZ := Ring => x -> x\ny := f 1\ny\n"
+                .to_string(),
+            &builtins,
+        )
+        .expect("fixture should parse");
+
+        let binding = document
+            .binding_at_position(Position::new(3, 0))
+            .expect("binding should resolve");
+        assert_eq!(binding.name, "y");
+        assert_eq!(binding.type_name.as_deref(), Some("Ring"));
+
+        let callable = document
+            .callable_at_position(Position::new(1, 0))
+            .expect("callable should resolve");
+        assert_eq!(callable.name, "f");
+        assert_eq!(callable.methods.len(), 1);
+
+        let fact = document
+            .expression_fact_at_position(Position::new(2, 5))
+            .expect("expression fact should resolve");
+        assert!(matches!(
+            fact.result_type,
+            crate::analysis::ExpressionType::Known(_)
+        ));
     }
 }

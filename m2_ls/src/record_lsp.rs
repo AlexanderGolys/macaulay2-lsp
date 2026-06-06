@@ -37,7 +37,7 @@ pub(crate) fn record_symbol_kind(record: &Record) -> SymbolKind {
         return SymbolKind::FUNCTION;
     }
 
-    match record.class.0.as_str() {
+    match record.data_type.0.as_str() {
         "Package" => SymbolKind::NAMESPACE,
         "Type" => SymbolKind::CLASS,
         "Option" => SymbolKind::PROPERTY,
@@ -85,7 +85,7 @@ fn record_hover_markdown(
         .unwrap_or_default();
     let mut markdown = format!(
         "(`{}`) **{}**\t{}\n\n",
-        record.class.0, record.name, title_signature
+        record.data_type.0, record.name, title_signature
     );
 
     if let Some(package) = package.or_else(|| record_package(record)) {
