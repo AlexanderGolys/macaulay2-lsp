@@ -3,43 +3,12 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Copy)]
-pub enum NamespaceID {
-    User,
-    Core,
-    Package(String),
-}
-
-
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Copy)]
-pub struct InstanceID {
-    pub name: String,
-    pub package: NamespaceID,
-}
-
-
-
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct InstanceID(pub String);
 
 impl InstanceID {
-    pub fn new_local(name: &str) -> Self {
-        InstanceID(name.to_string(), NamespaceID::User)
-    }
-
-    pub fn new_core(name: &str) -> Self {
-        InstanceID(name.to_string(), NamespaceID::Core)
-    }
-
-    pub fn new(name: &str, package: &str) -> Self {
-        match package {
-            "Core" => InstanceID(name.to_string(), NamespaceID::Core),
-            "User" => InstanceID(name.to_string(), NamespaceID::User),
-            "" => InstanceID(name.to_string(), NamespaceID::Core),
-            _ => InstanceID(name.to_string(), NamespaceID::Package(package.to_string())),
-        }
-    }
-    pub fn to_string(&self) -> String {
-        format!("{}${}", self.package, self.name)
+    pub fn new(name: &str) -> Self {
+        InstanceID(name.to_string())
     }
 }
 
@@ -55,9 +24,7 @@ pub struct CodeExample(pub String);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Record {
     pub name: InstanceID,
-
-    pub class: InstanceID,
-    
+    pub data_type: InstanceID,
     pub description_short: Option<String>,
     pub description_long: Option<String>,
     pub examples: Vec<CodeExample>,
@@ -953,7 +920,6 @@ pub enum M2SemanticTokenType {
     Method = 13,
     Regexp = 14,
     Modifier = 15,
-    TypeParameter = 16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1007,7 +973,7 @@ impl BuiltinData {
 
     pub fn get_semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
         let record = self.get_record(&InstanceID::new(name))?;
-        let data_type = &record.class;
+        let data_type = &record.data_type;
 
         let function_type = InstanceID::new("Function");
         let command_type = InstanceID::new("Command");
