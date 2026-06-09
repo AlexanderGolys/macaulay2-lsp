@@ -122,6 +122,24 @@ impl WorkspaceIndex {
             })
             .unwrap_or_default()
     }
+
+    /// Whether `name` is defined at top level anywhere in the workspace. Used to
+    /// recognise a global symbol whose definition lives in another file.
+    pub(crate) fn is_defined(&self, name: &str) -> bool {
+        self.by_name.contains_key(name)
+    }
+
+    /// Every `.m2` file under the project roots, as URIs. Walks the filesystem,
+    /// so callers should keep it off the hot path.
+    pub(crate) fn workspace_file_uris(&self) -> Vec<Url> {
+        let mut uris = Vec::new();
+        for root in self.roots() {
+            let mut files = Vec::new();
+            collect_m2_files(&root, &mut files);
+            uris.extend(files.iter().filter_map(|path| Url::from_file_path(path).ok()));
+        }
+        uris
+    }
 }
 
 /// Recursively collect `.m2` files, skipping hidden, build, and vendored dirs.

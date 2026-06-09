@@ -31,8 +31,8 @@ use capabilities::formatting::{
 use capabilities::hover::hover_response;
 use capabilities::inlay_hints::inlay_hint_provider_capability;
 use capabilities::navigation::{
-    completion_response, goto_definition_response, prepare_rename_range, references_response,
-    rename_edits, workspace_symbols_response,
+    completion_response, global_reference_ranges, goto_definition_response, prepare_rename_range,
+    reference_target, references_response, rename_edits, workspace_symbols_response, ReferenceTarget,
 };
 use capabilities::document_symbols::collect_document_symbols;
 use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
@@ -528,16 +528,63 @@ impl LanguageServer for Backend {
     ) -> tower_lsp::jsonrpc::Result<Option<Vec<Location>>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let document = match self.documents.get(uri) {
-            Some(document) => document,
-            None => return Ok(None),
+        let include_declaration = params.context.include_declaration;
+
+        // Resolve the target and the current file's references, then drop the
+        // document guard before scanning other files (avoids holding a DashMap
+        // ref across the cross-file pass).
+        let (name, mut locations) = {
+            let document = match self.documents.get(uri) {
+                Some(document) => document,
+                None => return Ok(None),
+            };
+            match reference_target(document.value(), position, &self.workspace_index) {
+                None | Some(ReferenceTarget::Local) => {
+                    // A local binding's references never leave the document.
+                    return Ok(Some(references_response(
+                        document.value(),
+                        uri,
+                        position,
+                        include_declaration,
+                    )));
+                }
+                Some(ReferenceTarget::Global(name)) => {
+                    let locations = global_reference_ranges(document.value(), &name)
+                        .into_iter()
+                        .map(|range| Location {
+                            uri: uri.clone(),
+                            range,
+                        })
+                        .collect::<Vec<_>>();
+                    (name, locations)
+                }
+            }
         };
-        Ok(Some(references_response(
-            document.value(),
-            uri,
-            position,
-            params.context.include_declaration,
-        )))
+
+        // Global symbol: collect uses from every other workspace file, preferring
+        // a live buffer over the on-disk copy.
+        for file_uri in self.workspace_index.workspace_file_uris() {
+            if &file_uri == uri {
+                continue;
+            }
+            let ranges = if let Some(open) = self.documents.get(&file_uri) {
+                global_reference_ranges(open.value(), &name)
+            } else if let Ok(path) = file_uri.to_file_path() {
+                std::fs::read_to_string(path)
+                    .ok()
+                    .and_then(|text| DocumentSnapshot::from_text(text, &self.builtins))
+                    .map(|snapshot| global_reference_ranges(&snapshot, &name))
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            locations.extend(ranges.into_iter().map(|range| Location {
+                uri: file_uri.clone(),
+                range,
+            }));
+        }
+
+        Ok(Some(locations))
     }
 
     async fn prepare_rename(

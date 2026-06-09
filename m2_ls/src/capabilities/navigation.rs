@@ -3,10 +3,12 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::*;
 
 use crate::document::DocumentSnapshot;
+use crate::node_metadata::M2Node;
 use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
 use crate::typesystem::{BuiltinData, InstanceID, Record};
 use crate::util::*;
+use crate::workspace_index::WorkspaceIndex;
 
 pub(crate) fn completion_response(
     text: &str,
@@ -285,6 +287,77 @@ pub(crate) fn rename_edits(
     })
 }
 
+/// What a references request at `position` targets. A local binding's references
+/// stay in the document; a global (top-level / workspace) symbol's references
+/// span every file.
+pub(crate) enum ReferenceTarget {
+    Local,
+    Global(String),
+}
+
+/// Classify the symbol at `position`: a binding in an inner scope is `Local`; a
+/// top-level binding, or an undefined-here name that is defined at top level
+/// elsewhere in the workspace, is `Global`.
+pub(crate) fn reference_target(
+    document: &DocumentSnapshot,
+    position: Position,
+    workspace_index: &WorkspaceIndex,
+) -> Option<ReferenceTarget> {
+    let node = document.symbol_node_at_position(position)?;
+    let name = document.text_for(node).to_string();
+    match document.analysis().get_binding_at(&name, position) {
+        Some(binding) if binding.scope_idx != 0 => Some(ReferenceTarget::Local),
+        Some(_) => Some(ReferenceTarget::Global(name)),
+        None => workspace_index
+            .is_defined(&name)
+            .then_some(ReferenceTarget::Global(name)),
+    }
+}
+
+/// Every occurrence of `name` in `document` that refers to a global (top-level)
+/// definition — i.e. one not shadowed by a local binding at that point. Used to
+/// gather a workspace-global symbol's references file by file.
+pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<Range> {
+    let text = document.text();
+    let analysis = document.analysis();
+    let root_node = document.root_node();
+    let mut references = Vec::new();
+    let mut cursor = root_node.walk();
+    let mut reached_root = false;
+    while !reached_root {
+        let node = cursor.node();
+        if M2Node::new(node).kind.is_symbol_like()
+            && &text[node.start_byte()..node.end_byte()] == name
+        {
+            let position = document.range_for(node).start;
+            // A use is global unless a local binding shadows the name here.
+            let shadowed = analysis
+                .get_binding_at(name, position)
+                .is_some_and(|binding| binding.scope_idx != 0);
+            if !shadowed {
+                references.push(document.range_for(node));
+            }
+        }
+
+        if cursor.goto_first_child() {
+            continue;
+        }
+        if cursor.goto_next_sibling() {
+            continue;
+        }
+        loop {
+            if !cursor.goto_parent() {
+                reached_root = true;
+                break;
+            }
+            if cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+    references
+}
+
 pub(crate) fn symbol_prefix_at(text: &str, position: Position) -> Option<String> {
     let line = text.lines().nth(position.line as usize)?;
     let cursor = utf16_col_to_byte(line, position.character);
@@ -450,5 +523,38 @@ mod tests {
         assert!(rename_edits(&kw, &uri, Position::new(0, 6), "Z").is_none());
         let brace = document("x = {1, 2}");
         assert!(rename_edits(&brace, &uri, Position::new(0, 4), "Z").is_none());
+    }
+
+    #[test]
+    fn reference_target_classifies_local_versus_global() {
+        let index = crate::workspace_index::WorkspaceIndex::default();
+        // Lambda parameter -> local (references stay in-file).
+        let local = document("f := x -> (x + x)");
+        assert!(matches!(
+            reference_target(&local, Position::new(0, 5), &index),
+            Some(ReferenceTarget::Local)
+        ));
+        // Top-level binding -> global.
+        let global = document("y = 5\nz = y");
+        assert!(matches!(
+            reference_target(&global, Position::new(0, 0), &index),
+            Some(ReferenceTarget::Global(name)) if name == "y"
+        ));
+    }
+
+    #[test]
+    fn global_reference_ranges_skip_local_shadows() {
+        // `g` is a top-level global; `f`'s parameter `g` shadows it inside `f`.
+        let document = document("g = 1\nf := g -> (g + g)\nh = g + g");
+        let ranges = global_reference_ranges(&document, "g");
+        // The global definition and its top-level uses, not the shadowed uses.
+        assert_eq!(
+            ranges,
+            vec![
+                Range::new(Position::new(0, 0), Position::new(0, 1)),
+                Range::new(Position::new(2, 4), Position::new(2, 5)),
+                Range::new(Position::new(2, 8), Position::new(2, 9)),
+            ]
+        );
     }
 }
