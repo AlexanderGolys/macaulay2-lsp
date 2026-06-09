@@ -6,23 +6,24 @@ use crate::typesystem::{BuiltinData, M2SemanticTokenType};
 use crate::util::*;
 
 pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
-    SemanticTokenType::NAMESPACE,           // 0
-    SemanticTokenType::TYPE,       // 1
-    SemanticTokenType::TYPE_PARAMETER,       // 2
+    SemanticTokenType::TYPE,           // 0
+    SemanticTokenType::FUNCTION,       // 1
+    SemanticTokenType::VARIABLE,       // 2
     SemanticTokenType::PARAMETER,      // 3
-    SemanticTokenType::VARIABLE,       // 4
-    SemanticTokenType::PROPERTY,      // 5
+    SemanticTokenType::PROPERTY,       // 4
+    SemanticTokenType::NAMESPACE,      // 5
     SemanticTokenType::ENUM_MEMBER,    // 6
-    SemanticTokenType::FUNCTION,          // 7
-    SemanticTokenType::METHOD,        // 8
-    SemanticTokenType::KEYWORD,         // 9
+    SemanticTokenType::CLASS,          // 7
+    SemanticTokenType::KEYWORD,        // 8
+    SemanticTokenType::STRING,         // 9
     SemanticTokenType::NUMBER,         // 10
-    SemanticTokenType::MODIFIER,       // 11
+    SemanticTokenType::OPERATOR,       // 11
     SemanticTokenType::COMMENT,        // 12
-    SemanticTokenType::STRING,         // 13
+    SemanticTokenType::METHOD,         // 13
     SemanticTokenType::REGEXP,         // 14
-    SemanticTokenType::OPERATOR,       // 15
-    SemanticTokenType::DECORATOR, // 16
+    SemanticTokenType::MODIFIER,       // 15
+    SemanticTokenType::TYPE_PARAMETER, // 16
+    SemanticTokenType::DECORATOR,      // 17
 ];
 
 pub(crate) const OPTION_MODIFIER: u32 = 1 << 0;
@@ -99,17 +100,14 @@ pub(crate) fn collect_semantic_tokens(
                     token_type =
                         Some(local_symbol_semantic_token_type(symbol, position, builtins) as u32);
                     if let Some(type_name) = &symbol.type_name {
-                        if let Some(token) = builtins.get_semantic_token_for_static_type(type_name)
+                        if let Some(token) =
+                            static_type_semantic_token_for_local_symbol(symbol, type_name, builtins)
                         {
                             modifiers |= builtin_semantic_token_modifiers(&token);
                         }
                     }
                     if symbol.role == BindingRole::Parameter && position == symbol.range.start {
                         modifiers |= DECLARATION_MODIFIER;
-                    }
-                    if symbol.kind == SymbolKind::FUNCTION && builtins.is_constructor_name(node_text)
-                    {
-                        modifiers |= CONSTRUCTOR_MODIFIER;
                     }
                 }
             }
@@ -198,9 +196,14 @@ pub(crate) fn option_assignment_role(
     if parent
         .child_by_field_name("right")
         .is_some_and(|right| right.id() == node.id())
-        && builtins.is_option_value_name(node_text)
     {
-        return Some(M2SemanticTokenType::EnumMember);
+        let option_key = parent
+            .child_by_field_name("left")
+            .filter(|left| matches!(left.kind(), "symbol" | "identifier" | "resolved_symbol"))
+            .map(|left| &text[left.start_byte()..left.end_byte()])?;
+        if builtins.is_option_value_for_key(option_key, node_text) {
+            return Some(M2SemanticTokenType::EnumMember);
+        }
     }
 
     None
@@ -211,14 +214,16 @@ pub(crate) fn local_symbol_semantic_token_type(
     _position: Position,
     builtins: &BuiltinData,
 ) -> M2SemanticTokenType {
-    if let Some(type_name) = &symbol.type_name {
-        if let Some(token) = builtins.get_semantic_token_for_static_type(type_name) {
-            return token.token_type;
-        }
-    }
-
     if symbol.role == BindingRole::Parameter {
         return M2SemanticTokenType::Parameter;
+    }
+
+    if let Some(type_name) = &symbol.type_name {
+        if let Some(token) =
+            static_type_semantic_token_for_local_symbol(symbol, type_name, builtins)
+        {
+            return token.token_type;
+        }
     }
 
     match symbol.kind {
@@ -244,10 +249,26 @@ pub(crate) fn builtin_semantic_token_modifiers(token: &crate::typesystem::M2Sema
     if token.is_manipulator {
         modifiers |= MANIPULATOR_MODIFIER;
     }
-    if token.is_constructor {
-        modifiers |= CONSTRUCTOR_MODIFIER;
-    }
     modifiers
+}
+
+fn static_type_semantic_token_for_local_symbol(
+    symbol: &SymbolInfo,
+    type_name: &str,
+    builtins: &BuiltinData,
+) -> Option<crate::typesystem::M2SemanticToken> {
+    let token = builtins.get_semantic_token_for_static_type(type_name)?;
+    match symbol.kind {
+        SymbolKind::VARIABLE
+            if matches!(
+                token.token_type,
+                M2SemanticTokenType::String | M2SemanticTokenType::Number
+            ) =>
+        {
+            None
+        }
+        _ => Some(token),
+    }
 }
 
 fn syntax_semantic_token_type(text: &str, node: tree_sitter::Node) -> Option<M2SemanticTokenType> {
@@ -660,6 +681,38 @@ mod tests {
     }
 
     #[test]
+    fn typed_parameter_references_remain_parameters() {
+        let text = "f ZZ := x -> x";
+        let builtins = BuiltinData::load_from_split(
+            include_str!("../data/builtins.names"),
+            include_str!("../data/builtins.details.jsonl"),
+        );
+        let document = document(text, &builtins);
+
+        let tokens = collect_semantic_tokens(&document, &builtins, false);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .collect::<Vec<_>>(),
+            vec![
+                M2SemanticTokenType::Operator as u32,
+                M2SemanticTokenType::Type as u32,
+                M2SemanticTokenType::Operator as u32,
+                M2SemanticTokenType::Parameter as u32,
+                M2SemanticTokenType::Operator as u32,
+                M2SemanticTokenType::Parameter as u32,
+            ]
+        );
+        assert_eq!(
+            tokens[3].token_modifiers_bitset & DECLARATION_MODIFIER,
+            DECLARATION_MODIFIER
+        );
+        assert_eq!(tokens[5].token_modifiers_bitset & DECLARATION_MODIFIER, 0);
+    }
+
+    #[test]
     fn semantic_tokens_include_recognized_syntax_tokens() {
         let text = "-- hi\nif x then 42 + 1 else \"no\"\nlocal y";
         let builtins = BuiltinData::load_from_split("", "");
@@ -840,6 +893,27 @@ mod tests {
     }
 
     #[test]
+    fn string_valued_locals_remain_variables() {
+        let text = "s := 1\nt := toString s\nt\n";
+        let builtins = BuiltinData::load_from_split(
+            include_str!("../data/builtins.names"),
+            include_str!("../data/builtins.details.jsonl"),
+        );
+        let document = document(text, &builtins);
+
+        let tokens = collect_semantic_tokens(&document, &builtins, true);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .filter(|token| token.token_type == M2SemanticTokenType::String as u32)
+                .count(),
+            0,
+            "ordinary locals should not be recolored as string literals from inferred type"
+        );
+    }
+
+    #[test]
     fn semantic_tokens_classify_commands_as_functions_with_command_modifier() {
         let text = "saveClearAll := clearAll\nclearAll = new Command from { () -> () }\nprotect symbol clearAll";
         let builtins = BuiltinData::load_from_split(
@@ -1010,7 +1084,7 @@ mod tests {
     }
 
     #[test]
-    fn builtin_constructor_tokens_use_official_type_and_custom_modifier() {
+    fn builtin_constructor_like_names_do_not_emit_constructor_modifier() {
         let builtins = BuiltinData::load_from_split(
             include_str!("../data/builtins.names"),
             include_str!("../data/builtins.details.jsonl"),
@@ -1022,16 +1096,17 @@ mod tests {
         assert_eq!(token.token_type, M2SemanticTokenType::Method);
         assert_eq!(
             builtin_semantic_token_modifiers(&token) & CONSTRUCTOR_MODIFIER,
-            CONSTRUCTOR_MODIFIER
+            0
         );
     }
 
     #[test]
     fn option_assignment_symbols_have_context_roles() {
         let text = "f(x, Strategy => LongPolynomial)";
-        let builtins = BuiltinData::load_from_split(
+        let builtins = BuiltinData::load_from_split_with_type_facts(
             include_str!("../data/builtins.names"),
             include_str!("../data/builtins.details.jsonl"),
+            include_str!("../data/type_facts.jsonl"),
         );
         let mut parser = Parser::new();
         parser
@@ -1076,9 +1151,10 @@ mod tests {
     #[test]
     fn option_assignment_roles_require_metadata() {
         let text = "f(x, notAnOption => notAnOptionValue)";
-        let builtins = BuiltinData::load_from_split(
+        let builtins = BuiltinData::load_from_split_with_type_facts(
             include_str!("../data/builtins.names"),
             include_str!("../data/builtins.details.jsonl"),
+            include_str!("../data/type_facts.jsonl"),
         );
         let mut parser = Parser::new();
         parser
@@ -1118,6 +1194,54 @@ mod tests {
 
         assert!(roles.contains(&("notAnOption", None)));
         assert!(roles.contains(&("notAnOptionValue", None)));
+    }
+
+    #[test]
+    fn option_assignment_value_must_match_active_option_key() {
+        let text = "f(x, SyzygyLimit => LongPolynomial)";
+        let builtins = BuiltinData::load_from_split_with_type_facts(
+            include_str!("../data/builtins.names"),
+            include_str!("../data/builtins.details.jsonl"),
+            include_str!("../data/type_facts.jsonl"),
+        );
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let root = tree.root_node();
+
+        let mut roles = Vec::new();
+        let mut cursor = root.walk();
+        let mut reached_root = false;
+        while !reached_root {
+            let node = cursor.node();
+            if node.kind() == "symbol" {
+                roles.push((
+                    &text[node.start_byte()..node.end_byte()],
+                    option_assignment_role(text, node, &builtins),
+                ));
+            }
+
+            if cursor.goto_first_child() {
+                continue;
+            }
+            if cursor.goto_next_sibling() {
+                continue;
+            }
+            loop {
+                if !cursor.goto_parent() {
+                    reached_root = true;
+                    break;
+                }
+                if cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+        }
+
+        assert!(roles.contains(&("SyzygyLimit", Some(M2SemanticTokenType::EnumMember))));
+        assert!(roles.contains(&("LongPolynomial", None)));
     }
 
     #[test]

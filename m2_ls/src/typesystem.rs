@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct InstanceID(pub String);
 
 impl InstanceID {
@@ -24,29 +24,25 @@ pub struct CodeExample(pub String);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Record {
     pub name: InstanceID,
-    pub data_type: InstanceID,
+    pub class: InstanceID,
+    #[serde(default)]
     pub description_short: Option<String>,
+    #[serde(default)]
     pub description_long: Option<String>,
+    #[serde(default)]
     pub examples: Vec<CodeExample>,
-
     #[serde(default)]
     pub extra: HashMap<String, Value>,
-
     #[serde(default)]
     pub documentation: Option<DocumentationInfo>,
-
     #[serde(default)]
     pub function_info: Option<FunctionInfo>,
-
     #[serde(default)]
     pub option_info: Option<OptionInfo>,
-
     #[serde(default)]
     pub operator_info: Option<OperatorInfo>,
-
     #[serde(default)]
     pub type_info: Option<TypeInfo>,
-
     #[serde(default)]
     pub relation_info: Option<RelationInfo>,
 }
@@ -77,8 +73,11 @@ pub struct MethodOption {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentationInfo {
     pub status: DocumentationStatus,
+    #[serde(default)]
     pub doc_key: Option<InstanceID>,
+    #[serde(default)]
     pub source_file: Option<String>,
+    #[serde(default)]
     pub source_line: Option<u64>,
     #[serde(default)]
     pub upstream_eval_status: Option<String>,
@@ -88,7 +87,9 @@ pub struct DocumentationInfo {
     pub upstream_fields: Vec<String>,
     #[serde(default)]
     pub upstream_field_data: HashMap<String, Value>,
+    #[serde(default)]
     pub upstream_description_short: Option<String>,
+    #[serde(default)]
     pub upstream_description_long: Option<String>,
     #[serde(default)]
     pub upstream_inputs: Option<Value>,
@@ -149,6 +150,7 @@ pub struct OperatorInfo {
 pub struct TypeInfo {
     #[serde(default)]
     pub subtypes: Vec<InstanceID>,
+    #[serde(default)]
     pub parent_type: Option<InstanceID>,
     #[serde(default)]
     pub ancestors: Vec<InstanceID>,
@@ -161,6 +163,7 @@ pub struct RelationInfo {
     pub parent: Option<InstanceID>,
     #[serde(default)]
     pub ancestors: Vec<InstanceID>,
+    #[serde(default)]
     pub class: Option<InstanceID>,
     #[serde(default)]
     pub class_ancestors: Vec<InstanceID>,
@@ -170,6 +173,93 @@ pub struct RelationInfo {
     pub instances: Vec<InstanceID>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct TypeLattice {
+    ancestors: HashMap<InstanceID, Vec<InstanceID>>,
+}
+
+impl TypeLattice {
+    pub fn from_builtins(builtins: &BuiltinData) -> Self {
+        let mut ancestors: HashMap<_, Vec<_>> = HashMap::new();
+        let mut children: HashMap<_, Vec<_>> = HashMap::new();
+
+        for name in &builtins.names {
+            let Some(record) = builtins.get_record(name) else {
+                continue;
+            };
+            let Some(type_info) = record.type_info else {
+                continue;
+            };
+            ancestors.insert(name.clone(), {
+                let mut chain = Vec::with_capacity(type_info.ancestors.len() + 1);
+                for ancestor in &type_info.ancestors {
+                    chain.push(ancestor.clone());
+                }
+                chain.sort();
+                chain.dedup();
+                chain
+            });
+            for subtype in &type_info.subtypes {
+                children
+                    .entry(subtype.clone())
+                    .or_default()
+                    .push(name.clone());
+            }
+        }
+
+        TypeLattice { ancestors }
+    }
+
+    pub fn is_subtype(&self, child: &InstanceID, parent: &InstanceID) -> bool {
+        child == parent
+            || self
+                .ancestors
+                .get(child)
+                .is_some_and(|chain| chain.binary_search(parent).is_ok())
+    }
+
+    pub fn least_upper_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
+        if a == b {
+            return Some(a.clone());
+        }
+        let ancestors_a = self.ancestors.get(a)?;
+        let ancestors_b = self.ancestors.get(b)?;
+        if ancestors_b.binary_search(a).is_ok() {
+            return Some(b.clone());
+        }
+        if ancestors_a.binary_search(b).is_ok() {
+            return Some(a.clone());
+        }
+        let common: Vec<_> = ancestors_a
+            .iter()
+            .filter(|ancestor| ancestors_b.binary_search(ancestor).is_ok())
+            .collect();
+        common
+            .into_iter()
+            .min_by_key(|candidate| {
+                ancestors_a
+                    .iter()
+                    .filter(|a| {
+                        self.ancestors
+                            .get(a)
+                            .is_some_and(|chain| chain.contains(candidate))
+                    })
+                    .count()
+            })
+            .cloned()
+    }
+
+    pub fn greatest_lower_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
+        if self.is_subtype(a, b) {
+            return Some(a.clone());
+        }
+        if self.is_subtype(b, a) {
+            return Some(b.clone());
+        }
+        None
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BuiltinData {
     names: Vec<InstanceID>,
@@ -177,6 +267,7 @@ pub struct BuiltinData {
     details: String,
     detail_ranges: Vec<(usize, usize)>,
     type_facts: TypeFacts,
+    type_lattice: TypeLattice,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -436,6 +527,21 @@ impl BuiltinData {
         self.get_record(&InstanceID::new(name))
             .is_some_and(|record| record.option_role() == Some("value"))
             || self.type_facts.option_value_usages.contains_key(name)
+    }
+
+    pub fn is_option_value_for_key(&self, option_key: &str, value_name: &str) -> bool {
+        let option_key = option_key
+            .rsplit_once('$')
+            .map_or(option_key, |(_, name)| name);
+        let value_name = value_name
+            .rsplit_once('$')
+            .map_or(value_name, |(_, name)| name);
+
+        self.type_facts
+            .option_values_by_slot
+            .iter()
+            .filter(|((_, key), _)| key == option_key)
+            .any(|(_, values)| values.iter().any(|value| value == value_name))
     }
 
     pub fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
@@ -962,18 +1068,22 @@ impl BuiltinData {
             detail_ranges.push((start, details.len()));
         }
 
-        BuiltinData {
+        let mut data = BuiltinData {
             names,
             name_to_index,
             details: details.to_string(),
             detail_ranges,
             type_facts: TypeFacts::load_jsonl(type_facts),
-        }
+            type_lattice: TypeLattice::default(),
+        };
+        let lattice = TypeLattice::from_builtins(&data);
+        data.type_lattice = lattice;
+        data
     }
 
     pub fn get_semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
         let record = self.get_record(&InstanceID::new(name))?;
-        let data_type = &record.data_type;
+        let data_type = &record.class;
 
         let function_type = InstanceID::new("Function");
         let command_type = InstanceID::new("Command");
@@ -1168,39 +1278,17 @@ impl BuiltinData {
             .is_some_and(|type_info| type_info.parent_type.is_some())
     }
 
-    /// Check if child is a subtype of parent (inclusive)
+    /// Check if child is a subtype of parent (inclusive), using the precomputed lattice.
     pub fn is_subtype(&self, child: &InstanceID, parent: &InstanceID) -> bool {
-        let mut current = child.clone();
-        let mut visited = std::collections::HashSet::new();
-        visited.insert(current.clone());
+        self.type_lattice.is_subtype(child, parent)
+    }
 
-        loop {
-            if current == *parent {
-                return true;
-            }
-            // We look up 'current', but we don't hold the reference for long
-            let next_parent = if let Some(record) = self.get_record(&current) {
-                if let Some(type_info) = &record.type_info {
-                    type_info.parent_type.clone()
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
+    pub fn least_upper_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
+        self.type_lattice.least_upper_bound(a, b)
+    }
 
-            match next_parent {
-                Some(p) => {
-                    if visited.contains(&p) {
-                        break;
-                    } // Cycle detected
-                    current = p;
-                    visited.insert(current.clone());
-                }
-                None => break,
-            }
-        }
-        false
+    pub fn greatest_lower_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
+        self.type_lattice.greatest_lower_bound(a, b)
     }
 }
 
@@ -1209,9 +1297,10 @@ mod tests {
     use super::*;
 
     fn generated_builtins() -> BuiltinData {
-        BuiltinData::load_from_split(
+        BuiltinData::load_from_split_with_type_facts(
             include_str!("./data/builtins.names"),
             include_str!("./data/builtins.details.jsonl"),
+            include_str!("./data/type_facts.jsonl"),
         )
     }
 
@@ -1499,6 +1588,14 @@ mod tests {
         assert!(
             builtins.is_option_value_name("LongPolynomial"),
             "package-specific option values should be identifiable from generated metadata"
+        );
+        assert!(
+            builtins.is_option_value_for_key("Strategy", "LongPolynomial"),
+            "slot-specific option values should be identifiable from compact type facts"
+        );
+        assert!(
+            !builtins.is_option_value_for_key("SyzygyLimit", "LongPolynomial"),
+            "option values should not be treated as valid for unrelated option keys"
         );
         assert_eq!(
             builtins

@@ -1,3 +1,7 @@
+use std::backtrace::Backtrace;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::panic;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use dashmap::DashMap;
@@ -8,6 +12,7 @@ use typesystem::BuiltinData;
 mod analysis;
 mod capabilities;
 mod document;
+mod node_metadata;
 mod package_index;
 mod record_lsp;
 mod typesystem;
@@ -15,23 +20,25 @@ mod util;
 
 use capabilities::code_actions::available_code_actions;
 use capabilities::diagnostics::publish_diagnostics;
-use capabilities::document_symbols::document_symbol_response;
+use capabilities::document_highlight::{document_highlight_provider_capability, document_highlights};
 use capabilities::formatting::{
     document_formatting_provider_capability, document_formatting_text_edits,
     folding_range_provider_capability, folding_ranges,
 };
 use capabilities::hover::hover_response;
+use capabilities::inlay_hints::inlay_hint_provider_capability;
 use capabilities::navigation::{
     completion_response, goto_definition_response, references_response, workspace_symbols_response,
 };
-use capabilities::semantic_tokens::{semantic_tokens_response, LEGEND_TYPES};
+use capabilities::document_symbols::collect_document_symbols;
+use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
 use capabilities::type_hierarchy::{TypeHierarchyCapabilityService, TYPE_HIERARCHY_METHOD};
 use document::DocumentSnapshot;
 #[cfg(test)]
 use package_index::extractor_script_candidates;
-use package_index::{collect_imported_packages, PackageIndexer, SourceResolver};
 #[cfg(test)]
 use package_index::package_source_string;
+use package_index::{collect_imported_packages, PackageIndexer, SourceResolver};
 #[cfg(test)]
 use record_lsp::record_package;
 use record_lsp::{record_source_file, record_source_line, record_symbol_kind};
@@ -201,6 +208,25 @@ impl Backend {
     }
 }
 
+fn append_debug_log(message: &str) {
+    let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/m2_ls.log")
+    else {
+        return;
+    };
+    let _ = writeln!(file, "{message}");
+}
+
+fn install_panic_logging() {
+    panic::set_hook(Box::new(|panic_info| {
+        let backtrace = Backtrace::force_capture();
+        append_debug_log(&format!("panic: {panic_info}\n{backtrace}"));
+    }));
+    append_debug_log("m2_ls starting");
+}
+
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(
@@ -239,7 +265,9 @@ impl LanguageServer for Backend {
                 }),
                 definition_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                document_highlight_provider: document_highlight_provider_capability(),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+                inlay_hint_provider: inlay_hint_provider_capability(),
                 semantic_tokens_provider: Some(
                     SemanticTokensServerCapabilities::SemanticTokensOptions(
                         SemanticTokensOptions {
@@ -251,7 +279,6 @@ impl LanguageServer for Backend {
                                     SemanticTokenModifier::new("file"),
                                     SemanticTokenModifier::new("manipulator"),
                                     SemanticTokenModifier::DECLARATION,
-                                    SemanticTokenModifier::new("constructor"),
                                 ],
                             },
                             full: Some(SemanticTokensFullOptions::Bool(true)),
@@ -319,6 +346,13 @@ impl LanguageServer for Backend {
             .await;
     }
 
+    async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        self.documents.remove(&params.text_document.uri);
+        if self.documents.is_empty() {
+            self.package_indexes.clear();
+        }
+    }
+
     async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
@@ -363,13 +397,12 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-
         let augments_syntax_tokens = self.semantic_tokens_augment_syntax.load(Ordering::Relaxed);
-        Ok(Some(semantic_tokens_response(
-            document.value(),
-            &self.builtins,
-            augments_syntax_tokens,
-        )))
+        let tokens = collect_semantic_tokens(&document, &self.builtins, augments_syntax_tokens);
+        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+            result_id: None,
+            data: tokens,
+        })))
     }
 
     async fn document_symbol(
@@ -381,19 +414,51 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        Ok(Some(document_symbol_response(document.value(), &self.builtins)))
+        let symbols = collect_document_symbols(&document, &self.builtins);
+        Ok(Some(DocumentSymbolResponse::Nested(symbols)))
     }
 
     async fn code_action(
         &self,
         params: CodeActionParams,
     ) -> tower_lsp::jsonrpc::Result<Option<CodeActionResponse>> {
-        let uri = params.text_document.uri;
-        let document = match self.documents.get(&uri) {
+        let uri = &params.text_document.uri;
+        let document = match self.documents.get(uri) {
             Some(document) => document,
             None => return Ok(None),
         };
-        Ok(available_code_actions(document.value(), &uri, params.range.start))
+        let diagnostics = if params.context.diagnostics.is_empty() {
+            document.diagnostics()
+        } else {
+            &params.context.diagnostics
+        };
+        Ok(available_code_actions(
+            document.value(),
+            uri,
+            params.range.start,
+            diagnostics,
+        ))
+    }
+
+    async fn inlay_hint(
+        &self,
+        params: InlayHintParams,
+    ) -> tower_lsp::jsonrpc::Result<Option<Vec<InlayHint>>> {
+        let _ = params;
+        Ok(None)
+    }
+
+    async fn document_highlight(
+        &self,
+        params: DocumentHighlightParams,
+    ) -> tower_lsp::jsonrpc::Result<Option<Vec<DocumentHighlight>>> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        let document = match self.documents.get(uri) {
+            Some(document) => document,
+            None => return Ok(None),
+        };
+        Ok(document_highlights(document.value(), position))
     }
 
     async fn references(
@@ -601,6 +666,7 @@ impl LanguageServer for Backend {
 
 #[tokio::main]
 async fn main() {
+    install_panic_logging();
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
     let (service, socket) = LspService::new(Backend::new);
@@ -758,6 +824,7 @@ mod tests {
         let diagnostic_lines = analysis
             .diagnostics
             .iter()
+            .filter(|diagnostic| diagnostic.severity == Some(DiagnosticSeverity::ERROR))
             .map(|diagnostic| {
                 text.lines()
                     .nth(diagnostic.range.start.line as usize)
@@ -813,7 +880,6 @@ mod tests {
             "record hover should list methods using known option keys"
         );
     }
-
     #[test]
     fn record_hover_includes_option_value_reverse_usage() {
         let builtins = BuiltinData::load_from_split_with_type_facts(

@@ -2,16 +2,37 @@ use std::collections::HashMap;
 
 use tower_lsp::lsp_types::*;
 
+use crate::capabilities::diagnostics::{
+    ambiguous_float_member_access_rewrite, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE,
+    ORPHAN_ELSE_DIAGNOSTIC_MESSAGE,
+};
+use crate::capabilities::formatting::document_formatting_text_edits;
 use crate::document::DocumentSnapshot;
+use crate::node_metadata::{M2Node, NodeKind};
 use crate::util::*;
 
 pub(crate) fn available_code_actions(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
+    diagnostics: &[Diagnostic],
 ) -> Option<CodeActionResponse> {
     let mut actions = Vec::new();
 
+    if let Some(action) = orphan_else_code_action(document, uri, position, diagnostics) {
+        actions.push(CodeActionOrCommand::CodeAction(action));
+    }
+    if let Some(action) = format_file_code_action(document, uri) {
+        actions.push(CodeActionOrCommand::CodeAction(action));
+    }
+    if let Some(action) =
+        ambiguous_float_member_access_code_action(document, uri, position, diagnostics)
+    {
+        actions.push(CodeActionOrCommand::CodeAction(action));
+    }
+    if let Some(action) = convert_to_raw_string_code_action(document, uri, position) {
+        actions.push(CodeActionOrCommand::CodeAction(action));
+    }
     if let Some(action) = conditional_null_code_action(document, uri, position) {
         actions.push(CodeActionOrCommand::CodeAction(action));
     }
@@ -23,6 +44,130 @@ pub(crate) fn available_code_actions(
     }
 
     (!actions.is_empty()).then_some(actions)
+}
+
+pub(crate) fn format_file_code_action(
+    document: &DocumentSnapshot,
+    uri: &Url,
+) -> Option<CodeAction> {
+    let edits = document_formatting_text_edits(document.text(), 4, true);
+    if edits.is_empty() {
+        return None;
+    }
+
+    Some(CodeAction {
+        title: "Format file".to_string(),
+        kind: Some(CodeActionKind::SOURCE),
+        diagnostics: None,
+        edit: Some(WorkspaceEdit {
+            changes: Some(HashMap::from([(uri.clone(), edits)])),
+            document_changes: None,
+            change_annotations: None,
+        }),
+        command: None,
+        is_preferred: Some(true),
+        disabled: None,
+        data: None,
+    })
+}
+
+pub(crate) fn convert_to_raw_string_code_action(
+    document: &DocumentSnapshot,
+    uri: &Url,
+    position: Position,
+) -> Option<CodeAction> {
+    let string_node = string_literal_at_position(document, position)?;
+    let replacement = raw_string_replacement(document.text(), string_node)?;
+
+    Some(CodeAction {
+        title: "Convert to raw string".to_string(),
+        kind: Some(CodeActionKind::REFACTOR_REWRITE),
+        diagnostics: None,
+        edit: Some(WorkspaceEdit {
+            changes: Some(HashMap::from([(
+                uri.clone(),
+                vec![TextEdit {
+                    range: document.range_for(string_node),
+                    new_text: replacement,
+                }],
+            )])),
+            document_changes: None,
+            change_annotations: None,
+        }),
+        command: None,
+        is_preferred: Some(true),
+        disabled: None,
+        data: None,
+    })
+}
+
+pub(crate) fn ambiguous_float_member_access_code_action(
+    document: &DocumentSnapshot,
+    uri: &Url,
+    position: Position,
+    diagnostics: &[Diagnostic],
+) -> Option<CodeAction> {
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.message == AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE
+                && position_in_range(position, diagnostic.range)
+        })?
+        .clone();
+    let expression = ambiguous_float_member_access_node_at_position(document, position)?;
+    let replacement = ambiguous_float_member_access_rewrite(expression, document.text())?;
+
+    Some(CodeAction {
+        title: "Rewrite as member access".to_string(),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: Some(vec![diagnostic]),
+        edit: Some(WorkspaceEdit {
+            changes: Some(HashMap::from([(
+                uri.clone(),
+                vec![TextEdit {
+                    range: document.range_for(expression),
+                    new_text: replacement,
+                }],
+            )])),
+            document_changes: None,
+            change_annotations: None,
+        }),
+        command: None,
+        is_preferred: Some(true),
+        disabled: None,
+        data: None,
+    })
+}
+
+pub(crate) fn orphan_else_code_action(
+    document: &DocumentSnapshot,
+    uri: &Url,
+    position: Position,
+    diagnostics: &[Diagnostic],
+) -> Option<CodeAction> {
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.message == ORPHAN_ELSE_DIAGNOSTIC_MESSAGE
+                && diagnostic.range.start.line == position.line
+        })?
+        .clone();
+    let edit = fix_orphan_else_edit(document, position)?;
+
+    Some(CodeAction {
+        title: "Move else to previous line".to_string(),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: Some(vec![diagnostic]),
+        edit: Some(WorkspaceEdit {
+            changes: Some(HashMap::from([(uri.clone(), vec![edit])])),
+            document_changes: None,
+            change_annotations: None,
+        }),
+        command: None,
+        is_preferred: Some(true),
+        disabled: None,
+        data: None,
+    })
 }
 
 pub(crate) fn conditional_null_code_action(
@@ -97,8 +242,8 @@ pub(crate) fn simplify_if_condition_code_action(
     let condition = if_node.child_by_field_name("condition")?;
     let simplified = simplify_condition(condition, text)?;
 
-    let then_branch = expression_of_clause(clause_child(if_node, "then_clause")?)?;
-    let else_clause = clause_child(if_node, "else_clause");
+    let then_branch = expression_of_clause(clause_child(if_node, NodeKind::ThenClause)?)?;
+    let else_clause = clause_child(if_node, NodeKind::ElseClause);
 
     let mut replacement = format!(
         "if {} then {}",
@@ -135,7 +280,7 @@ pub(crate) fn simplify_if_condition_code_action(
 fn simplify_condition(node: tree_sitter::Node, text: &str) -> Option<String> {
     let original = &text[node.start_byte()..node.end_byte()];
 
-    if node.kind() == "prefix_expression" {
+    if M2Node::new(node).kind == NodeKind::PrefixExpression {
         if let Some(operator) = node.child_by_field_name("operator") {
             if &text[operator.start_byte()..operator.end_byte()] == "not" {
                 let mut cursor = node.walk();
@@ -191,7 +336,7 @@ fn not_dominated_binary<'tree>(
 }
 
 fn is_prefix_not(node: tree_sitter::Node, text: &str) -> bool {
-    node.kind() == "prefix_expression"
+    M2Node::new(node).kind == NodeKind::PrefixExpression
         && node
             .child_by_field_name("operator")
             .is_some_and(|op| &text[op.start_byte()..op.end_byte()] == "not")
@@ -214,18 +359,16 @@ fn expression_operand_of_not<'tree>(
 }
 
 fn unwrap_parentheses<'a>(node: tree_sitter::Node<'a>, text: &str) -> tree_sitter::Node<'a> {
-    if node.kind() == "parenthesized_expression" || node.child_count() == 3 {
+    if node.child_count() == 3 {
         let mut cursor = node.walk();
-            let children: Vec<_> = node.children(&mut cursor).collect();
-            if children.len() == 3 {
-                if let (Some(first), Some(middle), Some(last)) =
-                    (children.first(), children.get(1), children.get(2))
-                {
-                    let first_text = &text[first.start_byte()..first.end_byte()];
-                    let last_text = &text[last.start_byte()..last.end_byte()];
-                if first_text == "(" && last_text == ")" {
-                    return *middle;
-                }
+        let children: Vec<_> = node.children(&mut cursor).collect();
+        if let (Some(first), Some(middle), Some(last)) =
+            (children.first(), children.get(1), children.get(2))
+        {
+            let first_text = &text[first.start_byte()..first.end_byte()];
+            let last_text = &text[last.start_byte()..last.end_byte()];
+            if first_text == "(" && last_text == ")" {
+                return *middle;
             }
         }
     }
@@ -234,11 +377,11 @@ fn unwrap_parentheses<'a>(node: tree_sitter::Node<'a>, text: &str) -> tree_sitte
 
 fn clause_child<'tree>(
     parent: tree_sitter::Node<'tree>,
-    kind: &str,
+    kind: NodeKind,
 ) -> Option<tree_sitter::Node<'tree>> {
     let mut cursor = parent.walk();
     let mut children = parent.children(&mut cursor);
-    children.find(|child| child.kind() == kind)
+    children.find(|child| M2Node::new(*child).kind == kind)
 }
 
 fn expression_of_clause<'tree>(
@@ -265,12 +408,156 @@ fn try_statement_at_position<'tree>(
     document.enclosing_node_of_kind(node, "try_statement")
 }
 
+fn string_literal_at_position<'tree>(
+    document: &'tree DocumentSnapshot,
+    position: Position,
+) -> Option<tree_sitter::Node<'tree>> {
+    let node = document.node_at_position_minimal(position)?;
+    let string_node = document.enclosing_node_of_kind(node, "string_literal")?;
+    let text = &document.text()[string_node.start_byte()..string_node.end_byte()];
+    (text.starts_with('"') && text.ends_with('"')).then_some(string_node)
+}
+
+fn ambiguous_float_member_access_node_at_position<'tree>(
+    document: &'tree DocumentSnapshot,
+    position: Position,
+) -> Option<tree_sitter::Node<'tree>> {
+    let node = document.node_at_position_minimal(position)?;
+    let binary = document.enclosing_node_of_kind(node, "binary_expression")?;
+    ambiguous_float_member_access_rewrite(binary, document.text()).map(|_| binary)
+}
+
+fn cell_at_position<'tree>(
+    document: &'tree DocumentSnapshot,
+    position: Position,
+) -> Option<tree_sitter::Node<'tree>> {
+    let node = document.node_at_position_minimal(position)?;
+    document.enclosing_node_of_kind(node, "cell")
+}
+
+fn fix_orphan_else_edit(document: &DocumentSnapshot, position: Position) -> Option<TextEdit> {
+    let text = document.text();
+    let cell = cell_at_position(document, position)?;
+    let cell_text = &text[cell.start_byte()..cell.end_byte()];
+    let trimmed = cell_text.trim_start();
+    if !trimmed.starts_with("else") {
+        return None;
+    }
+
+    let after_else = trimmed["else".len()..].trim_start();
+    if after_else.is_empty() {
+        return None;
+    }
+
+    let else_indent_len = cell_text.len().saturating_sub(trimmed.len());
+    let else_indent = &cell_text[..else_indent_len];
+    let nested_indent = format!("{else_indent}    ");
+
+    let previous_line = position.line.checked_sub(1)?;
+    let previous_line_start = line_start_byte(text, previous_line)?;
+    let previous_line_end = line_end_byte(text, previous_line_start);
+    let previous_line_end_char = text[previous_line_start..previous_line_end]
+        .encode_utf16()
+        .count() as u32;
+
+    Some(TextEdit {
+        range: Range::new(
+            Position::new(previous_line, previous_line_end_char),
+            document.range_for(cell).end,
+        ),
+        new_text: format!(" else\n{nested_indent}{after_else}"),
+    })
+}
+
+fn line_start_byte(text: &str, line: u32) -> Option<usize> {
+    if line == 0 {
+        return Some(0);
+    }
+    let mut current_line = 0;
+    for (idx, ch) in text.char_indices() {
+        if ch == '\n' {
+            current_line += 1;
+            if current_line == line {
+                return Some(idx + ch.len_utf8());
+            }
+        }
+    }
+    None
+}
+
+fn line_end_byte(text: &str, start_byte: usize) -> usize {
+    text[start_byte..]
+        .find('\n')
+        .map(|offset| start_byte + offset)
+        .unwrap_or(text.len())
+}
+
+fn raw_string_replacement(text: &str, string_node: tree_sitter::Node<'_>) -> Option<String> {
+    let literal = &text[string_node.start_byte()..string_node.end_byte()];
+    let content = literal.strip_prefix('"')?.strip_suffix('"')?;
+    let escape_count = count_string_escapes(content);
+    if escape_count <= 2 {
+        return None;
+    }
+
+    let unescaped = unescape_string_literal_content(content)?;
+    if unescaped.contains("///") {
+        return None;
+    }
+
+    Some(format!("///{unescaped}///"))
+}
+
+fn count_string_escapes(content: &str) -> usize {
+    let mut chars = content.chars().peekable();
+    let mut count = 0;
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            if chars.peek().is_some() {
+                count += 1;
+                chars.next();
+            }
+        }
+    }
+    count
+}
+
+fn unescape_string_literal_content(content: &str) -> Option<String> {
+    let mut result = String::new();
+    let mut chars = content.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            result.push(ch);
+            continue;
+        }
+
+        let escaped = chars.next()?;
+        match escaped {
+            '\\' => result.push('\\'),
+            '"' => result.push('"'),
+            'n' => result.push('\n'),
+            'r' => result.push('\r'),
+            't' => result.push('\t'),
+            other => result.push(other),
+        }
+    }
+    Some(result)
+}
+
+fn position_in_range(position: Position, range: Range) -> bool {
+    position.line >= range.start.line
+        && position.line <= range.end.line
+        && (position.line != range.start.line || position.character >= range.start.character)
+        && (position.line != range.end.line || position.character < range.end.character)
+}
+
 fn is_null_literal(node: tree_sitter::Node, text: &str) -> bool {
-    matches!(node.kind(), "symbol") && &text[node.start_byte()..node.end_byte()] == "null"
+    M2Node::new(node).kind == NodeKind::Symbol
+        && &text[node.start_byte()..node.end_byte()] == "null"
 }
 
 fn not_condition_needs_parentheses(node: tree_sitter::Node) -> bool {
-    matches!(node.kind(), "binary_expression")
+    M2Node::new(node).kind == NodeKind::BinaryExpression
 }
 
 fn negated_binary_operator(operator: &str) -> Option<&'static str> {
@@ -288,7 +575,7 @@ fn negated_binary_operator(operator: &str) -> Option<&'static str> {
 }
 
 fn negated_condition_text(node: tree_sitter::Node, text: &str) -> String {
-    if node.kind() == "prefix_expression" {
+    if M2Node::new(node).kind == NodeKind::PrefixExpression {
         if let Some(operator) = node.child_by_field_name("operator") {
             if &text[operator.start_byte()..operator.end_byte()] == "not" {
                 let mut cursor = node.walk();
@@ -326,12 +613,12 @@ fn negated_condition_text(node: tree_sitter::Node, text: &str) -> String {
     }
 }
 
-fn refactor_if_null_branch(if_node: tree_sitter::Node, text: &str) -> Option<String> {
+pub(crate) fn refactor_if_null_branch(if_node: tree_sitter::Node, text: &str) -> Option<String> {
     let condition = if_node.child_by_field_name("condition")?;
-    let then_branch = expression_of_clause(clause_child(if_node, "then_clause")?)?;
-    let else_branch = expression_of_clause(clause_child(if_node, "else_clause")?)?;
+    let then_branch = expression_of_clause(clause_child(if_node, NodeKind::ThenClause)?)?;
+    let else_branch = expression_of_clause(clause_child(if_node, NodeKind::ElseClause)?)?;
 
-    if is_null_literal(else_branch, text) && !is_null_literal(then_branch, text) {
+    if is_null_literal(else_branch, text) {
         return Some(format!(
             "if {} then {}",
             &text[condition.start_byte()..condition.end_byte()],
@@ -351,7 +638,7 @@ fn refactor_if_null_branch(if_node: tree_sitter::Node, text: &str) -> Option<Str
 }
 
 fn try_alternative_is_else(try_node: tree_sitter::Node, _text: &str) -> bool {
-    clause_child(try_node, "else_clause").is_some()
+    clause_child(try_node, NodeKind::ElseClause).is_some()
 }
 
 fn try_condition<'tree>(try_node: tree_sitter::Node<'tree>) -> Option<tree_sitter::Node<'tree>> {
@@ -359,16 +646,19 @@ fn try_condition<'tree>(try_node: tree_sitter::Node<'tree>) -> Option<tree_sitte
     let mut children = try_node.named_children(&mut cursor);
     children.find(|child| {
         !matches!(
-            child.kind(),
-            "then_clause" | "else_clause" | "except_clause" | "do_clause"
+            M2Node::new(*child).kind,
+            NodeKind::ThenClause
+                | NodeKind::ElseClause
+                | NodeKind::ExceptClause
+                | NodeKind::DoClause
         )
     })
 }
 
-fn refactor_try_statement(try_node: tree_sitter::Node, text: &str) -> Option<String> {
+pub(crate) fn refactor_try_statement(try_node: tree_sitter::Node, text: &str) -> Option<String> {
     let condition = try_condition(try_node)?;
-    let consequence = clause_child(try_node, "then_clause").and_then(expression_of_clause);
-    let else_clause = clause_child(try_node, "else_clause");
+    let consequence = clause_child(try_node, NodeKind::ThenClause).and_then(expression_of_clause);
+    let else_clause = clause_child(try_node, NodeKind::ElseClause);
 
     let condition_text = &text[condition.start_byte()..condition.end_byte()];
     let consequence_text = consequence.map(|node| &text[node.start_byte()..node.end_byte()]);
@@ -425,6 +715,157 @@ mod tests {
             Range::new(Position::new(0, 0), Position::new(0, 29))
         );
         assert_eq!(change.new_text, "if ready then value");
+    }
+
+    #[test]
+    fn conditional_null_refactor_drops_else_when_both_branches_null() {
+        // Generated placeholders like `... then null else null` should still
+        // offer to drop the redundant `else null`.
+        let text = "if member(\"Flexible\", attrStrings) then null else null";
+        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
+        let document = document(text);
+
+        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4))
+            .expect("conditional null refactor should be available for both-null branches");
+        let change = &action
+            .edit
+            .expect("code action should carry an edit")
+            .changes
+            .expect("edit should use simple changes")[&uri][0];
+
+        assert_eq!(
+            change.new_text,
+            "if member(\"Flexible\", attrStrings) then null"
+        );
+    }
+
+    #[test]
+    fn orphan_else_quickfix_moves_else_to_previous_line() {
+        let text = "if runtimeDict#?name then runtimeDict#name\nelse if isGlobalSmbol name then getGlobalSymbol name\n";
+        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
+        let document = document(text);
+        let diagnostic = Diagnostic {
+            range: Range::new(Position::new(1, 0), Position::new(1, 4)),
+            message: ORPHAN_ELSE_DIAGNOSTIC_MESSAGE.to_string(),
+            ..Default::default()
+        };
+
+        let action = orphan_else_code_action(
+            &document,
+            &uri,
+            Position::new(1, 0),
+            std::slice::from_ref(&diagnostic),
+        )
+        .expect("orphan else quickfix should be available");
+        assert_eq!(action.kind, Some(CodeActionKind::QUICKFIX));
+        assert_eq!(action.diagnostics, Some(vec![diagnostic]));
+
+        let edit = action
+            .edit
+            .expect("code action should carry an edit")
+            .changes
+            .expect("edit should use simple changes");
+        let change = &edit[&uri][0];
+
+        assert_eq!(
+            change.new_text,
+            " else\n    if isGlobalSmbol name then getGlobalSymbol name"
+        );
+    }
+
+    #[test]
+    fn ambiguous_float_member_access_quickfix_rewrites_to_hash_member_access() {
+        let text = "x.3\n";
+        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
+        let document = document(text);
+        let diagnostic = Diagnostic {
+            range: Range::new(Position::new(0, 0), Position::new(0, 3)),
+            message: AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE.to_string(),
+            ..Default::default()
+        };
+
+        let action = ambiguous_float_member_access_code_action(
+            &document,
+            &uri,
+            Position::new(0, 1),
+            std::slice::from_ref(&diagnostic),
+        )
+        .expect("ambiguous member access quickfix should be available");
+        assert_eq!(action.kind, Some(CodeActionKind::QUICKFIX));
+        assert_eq!(action.diagnostics, Some(vec![diagnostic]));
+
+        let edit = action
+            .edit
+            .expect("code action should carry an edit")
+            .changes
+            .expect("edit should use simple changes");
+        let change = &edit[&uri][0];
+
+        assert_eq!(
+            change.range,
+            Range::new(Position::new(0, 0), Position::new(0, 3))
+        );
+        assert_eq!(change.new_text, "x#0");
+    }
+
+    #[test]
+    fn convert_to_raw_string_rewrites_heavily_escaped_strings() {
+        let text = "x := \"a\\nb\\tc\\\"\"\n";
+        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
+        let document = document(text);
+
+        let action = convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7))
+            .expect("raw string conversion should be available");
+        let edit = action
+            .edit
+            .expect("code action should carry an edit")
+            .changes
+            .expect("edit should use simple changes");
+        let change = &edit[&uri][0];
+
+        assert_eq!(change.new_text, "///a\nb\tc\"///");
+    }
+
+    #[test]
+    fn convert_to_raw_string_requires_more_than_two_escapes() {
+        let text = "x := \"a\\nb\"\n";
+        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
+        let document = document(text);
+
+        assert!(convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7)).is_none());
+    }
+
+    #[test]
+    fn convert_to_raw_string_rejects_content_with_raw_delimiter() {
+        let text = "x := \"a\\/\\/\\/b\"\n";
+        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
+        let document = document(text);
+
+        assert!(convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7)).is_none());
+    }
+
+    #[test]
+    fn format_file_code_action_formats_whole_document() {
+        let text = "if ready then value else null\nf := (i=0;j=0;)\n";
+        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
+        let document = document(text);
+
+        let action = format_file_code_action(&document, &uri)
+            .expect("format action should be available for unformatted text");
+        let edit = action
+            .edit
+            .expect("code action should carry an edit")
+            .changes
+            .expect("edit should use simple changes");
+        let changes = &edit[&uri];
+
+        assert_eq!(action.kind, Some(CodeActionKind::SOURCE));
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].range, full_document_range(text));
+        assert_eq!(
+            changes[0].new_text,
+            "if ready then value\nf := (i = 0;\n    j = 0;\n)\n"
+        );
     }
 
     #[test]

@@ -2,6 +2,9 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 
 use tree_sitter::Parser;
 
@@ -44,15 +47,24 @@ impl SourceResolver {
     }
 
     fn runtime_m2_path() -> Option<Vec<PathBuf>> {
-        let output = Command::new("M2")
-            .args(["--silent", "--stop", "-q", "-e", "print stack path; exit 0"])
-            .output()
-            .ok()?;
-        if !output.status.success() {
-            return None;
-        }
+        let (tx, rx) = mpsc::channel();
 
-        let stdout = String::from_utf8(output.stdout).ok()?;
+        thread::spawn(move || {
+            let result = Command::new("M2")
+                .args(["--silent", "--stop", "-q", "-e", "print stack path; exit 0"])
+                .output()
+                .ok()
+                .and_then(|output| {
+                    if output.status.success() {
+                        String::from_utf8(output.stdout).ok()
+                    } else {
+                        None
+                    }
+                });
+            let _ = tx.send(result);
+        });
+
+        let stdout = rx.recv_timeout(Duration::from_secs(5)).ok()??;
         let current_dir = std::env::current_dir().ok();
         let roots = stdout
             .lines()
@@ -133,16 +145,27 @@ impl PackageIndexer {
             ));
         };
 
-        let status = Command::new("M2")
-            .arg("--script")
-            .arg(script)
-            .arg(&self.cache_dir)
-            .arg(package_name)
-            .status()?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(std::io::Error::other("package index extractor failed"))
+        let (tx, rx) = mpsc::channel();
+        let script = script.clone();
+        let cache_dir = self.cache_dir.clone();
+        let package_name = package_name.to_string();
+
+        thread::spawn(move || {
+            let result = Command::new("M2")
+                .arg("--script")
+                .arg(&script)
+                .arg(&cache_dir)
+                .arg(&package_name)
+                .status()
+                .map(|status| status.success());
+            let _ = tx.send(result);
+        });
+
+        match rx.recv_timeout(Duration::from_secs(30)) {
+            Ok(Ok(true)) => Ok(()),
+            Ok(Ok(false)) => Err(std::io::Error::other("package index extractor failed")),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(std::io::Error::other("package index extractor timed out")),
         }
     }
 

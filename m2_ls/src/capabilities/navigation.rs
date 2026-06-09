@@ -143,7 +143,7 @@ pub(crate) fn goto_definition_response(
     }
 
     let kind = node.kind();
-    if kind != "symbol" && kind != "identifier" {
+    if kind != "symbol" {
         return None;
     }
 
@@ -287,10 +287,8 @@ mod tests {
         let text = "f := x -> (y := x + x; y)\nf 1";
         let document = document(text);
 
-        let with_declaration =
-            collect_reference_ranges(&document, Position::new(0, 16), true);
-        let without_declaration =
-            collect_reference_ranges(&document, Position::new(0, 16), false);
+        let with_declaration = collect_reference_ranges(&document, Position::new(0, 16), true);
+        let without_declaration = collect_reference_ranges(&document, Position::new(0, 16), false);
 
         assert_eq!(
             with_declaration,

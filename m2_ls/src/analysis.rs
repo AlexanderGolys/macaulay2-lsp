@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use tower_lsp::lsp_types::{
-    Diagnostic, DiagnosticSeverity, Position, Range as LspRange, SymbolKind,
-};
+use tower_lsp::lsp_types::{Diagnostic, Position, Range as LspRange, SymbolKind};
 use tree_sitter::{Node, Tree};
 
+use crate::capabilities::diagnostics::ORPHAN_ELSE_DIAGNOSTIC_MESSAGE;
+use crate::node_metadata::{M2Node, NodeKind};
 use crate::typesystem::{BuiltinData, InstanceID};
 use crate::util::binary_expression_operator_kind;
 
@@ -13,6 +13,9 @@ pub enum BindingRole {
     Ordinary,
     Parameter,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SymbolId(u32);
 
 #[derive(Debug, Clone)]
 pub struct SymbolInfo {
@@ -45,7 +48,7 @@ pub struct MethodInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionInfo {
-    pub name: String,
+    pub symbol: SymbolId,
     pub range: LspRange,
     pub typical_value: Option<String>,
     pub methods: Vec<MethodInfo>,
@@ -58,8 +61,7 @@ pub struct CallStaticFacts {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NodeKey {
-    pub kind: String,
+pub struct SpanKey {
     pub range: LspRange,
 }
 
@@ -81,28 +83,29 @@ pub enum ExpressionKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingInfo {
-    pub name: String,
+    pub symbol: SymbolId,
     pub kind: SymbolKind,
     pub role: BindingRole,
     pub range: LspRange,
     pub scope_idx: usize,
     pub type_name: Option<String>,
     pub value_range: Option<LspRange>,
-    pub node: NodeKey,
+    pub declaration_range: LspRange,
+    pub span: SpanKey,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopeInfo {
     pub range: LspRange,
     pub parent_idx: Option<usize>,
-    pub introducer: Option<NodeKey>,
+    pub introducer: Option<SpanKey>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionFact {
-    pub node: NodeKey,
+    pub span: SpanKey,
     pub kind: ExpressionKind,
-    pub input_nodes: Vec<NodeKey>,
+    pub input_nodes: Vec<SpanKey>,
     pub operator: Option<String>,
     pub result_type: ExpressionType,
     pub scope_idx: usize,
@@ -110,7 +113,7 @@ pub struct ExpressionFact {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallInfo {
-    pub node: NodeKey,
+    pub span: SpanKey,
     pub callable_name: Option<String>,
     pub argument_types: Vec<Option<String>>,
     pub result_type: ExpressionType,
@@ -119,27 +122,27 @@ pub struct CallInfo {
 
 #[derive(Debug, Default)]
 pub struct SemanticRegistry {
+    pub symbol_names: Vec<String>,
+    pub symbol_ids: HashMap<String, SymbolId>,
     pub scopes: Vec<ScopeInfo>,
     pub bindings: Vec<BindingInfo>,
-    pub bindings_by_name: HashMap<String, Vec<usize>>,
-    pub node_scopes: HashMap<NodeKey, usize>,
-    pub expressions: HashMap<NodeKey, ExpressionFact>,
-    pub calls: HashMap<NodeKey, CallInfo>,
-    pub functions: HashMap<String, FunctionInfo>,
+    pub bindings_by_symbol: HashMap<SymbolId, Vec<usize>>,
+    pub node_scopes: HashMap<SpanKey, usize>,
+    pub expressions: HashMap<SpanKey, ExpressionFact>,
+    pub calls: HashMap<SpanKey, CallInfo>,
+    pub functions: HashMap<SymbolId, FunctionInfo>,
 }
 
-impl NodeKey {
+impl SpanKey {
     fn from_node(text: &str, node: Node) -> Self {
         Self {
-            kind: node.kind().to_string(),
             range: to_lsp_range(text, node.range()),
         }
     }
 }
 
-impl Hash for NodeKey {
+impl Hash for SpanKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.kind.hash(state);
         self.range.start.line.hash(state);
         self.range.start.character.hash(state);
         self.range.end.line.hash(state);
@@ -147,8 +150,25 @@ impl Hash for NodeKey {
     }
 }
 
+impl SemanticRegistry {
+    fn intern_symbol(&mut self, name: &str) -> SymbolId {
+        if let Some(symbol) = self.symbol_ids.get(name) {
+            return *symbol;
+        }
+        let symbol = SymbolId(self.symbol_names.len() as u32);
+        self.symbol_names.push(name.to_string());
+        self.symbol_ids.insert(name.to_string(), symbol);
+        symbol
+    }
 
+    fn resolve_symbol(&self, name: &str) -> Option<SymbolId> {
+        self.symbol_ids.get(name).copied()
+    }
 
+    fn symbol_name(&self, symbol: SymbolId) -> &str {
+        &self.symbol_names[symbol.0 as usize]
+    }
+}
 
 impl Analysis {
     pub fn find_definition(&self, name: &str, pos: Position) -> Option<LspRange> {
@@ -166,12 +186,13 @@ impl Analysis {
 
     pub fn get_binding_at(&self, name: &str, pos: Position) -> Option<&BindingInfo> {
         let scope_idx = self.find_scope_at(pos)?;
+        let symbol = self.registry.resolve_symbol(name)?;
         let mut curr = Some(scope_idx);
         while let Some(idx) = curr {
             let binding = self
                 .registry
-                .bindings_by_name
-                .get(name)
+                .bindings_by_symbol
+                .get(&symbol)
                 .into_iter()
                 .flatten()
                 .filter_map(|binding_idx| self.registry.bindings.get(*binding_idx))
@@ -187,11 +208,51 @@ impl Analysis {
 
     #[cfg(test)]
     pub fn expression_fact(&self, text: &str, node: Node) -> Option<&ExpressionFact> {
-        self.registry.expressions.get(&NodeKey::from_node(text, node))
+        self.registry
+            .expressions
+            .get(&SpanKey::from_node(text, node))
     }
 
+    #[cfg(test)]
     pub fn function(&self, name: &str) -> Option<&FunctionInfo> {
-        self.registry.functions.get(name)
+        let symbol = self.registry.resolve_symbol(name)?;
+        self.registry.functions.get(&symbol)
+    }
+
+    pub fn function_by_symbol(&self, symbol: SymbolId) -> Option<&FunctionInfo> {
+        self.registry.functions.get(&symbol)
+    }
+
+    pub fn symbol_name(&self, symbol: SymbolId) -> &str {
+        self.registry.symbol_name(symbol)
+    }
+
+    #[cfg(test)]
+    pub fn binding_name(&self, binding: &BindingInfo) -> &str {
+        self.symbol_name(binding.symbol)
+    }
+
+    pub fn typed_bindings_in_range(&self, range: LspRange) -> Vec<&BindingInfo> {
+        self.registry
+            .bindings
+            .iter()
+            .filter(|binding| binding.type_name.is_some())
+            .filter(|binding| matches!(binding.kind, SymbolKind::VARIABLE | SymbolKind::FUNCTION))
+            .filter(|binding| {
+                let position = binding.range.end;
+                is_pos_in_range(position, range)
+            })
+            .collect()
+    }
+
+    pub fn typed_expression_facts_in_range(&self, range: LspRange) -> Vec<&ExpressionFact> {
+        self.registry
+            .expressions
+            .values()
+            .filter(|fact| matches!(fact.kind, ExpressionKind::Expr))
+            .filter(|fact| matches!(fact.result_type, ExpressionType::Known(_)))
+            .filter(|fact| is_range_within_range(fact.span.range, range))
+            .collect()
     }
 
     fn find_scope_at(&self, pos: Position) -> Option<usize> {
@@ -223,6 +284,19 @@ impl Analysis {
         Self::new_with_builtins(tree, text, None)
     }
 
+    /// Minimal analysis with no tree walking - used when heavy analysis is disabled
+    pub fn empty() -> Self {
+        Analysis {
+            scopes: vec![Scope {
+                range: LspRange::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+                symbols: HashMap::new(),
+                parent_idx: None,
+            }],
+            diagnostics: Vec::new(),
+            registry: SemanticRegistry::default(),
+        }
+    }
+
     pub fn new_with_builtins(tree: &Tree, text: &str, builtins: Option<&BuiltinData>) -> Self {
         let mut analysis = Analysis {
             scopes: vec![Scope {
@@ -233,10 +307,7 @@ impl Analysis {
             diagnostics: Vec::new(),
             registry: SemanticRegistry {
                 scopes: vec![ScopeInfo {
-                    range: LspRange::new(
-                        Position::new(0, 0),
-                        Position::new(u32::MAX, u32::MAX),
-                    ),
+                    range: LspRange::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
                     parent_idx: None,
                     introducer: None,
                 }],
@@ -246,88 +317,8 @@ impl Analysis {
         analysis.collect_diagnostics(tree.root_node(), text);
         analysis.build_scopes(tree.root_node(), text, 0, builtins);
         analysis.collect_expression_facts(tree.root_node(), text, builtins);
+        analysis.collect_unused_binding_diagnostics(tree.root_node(), text);
         analysis
-    }
-
-    fn collect_diagnostics(&mut self, node: Node, text: &str) {
-        if node.is_error() {
-            self.diagnostics.push(Diagnostic {
-                range: single_line_range(text, node.start_position(), node.start_byte()),
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: "Syntax error".to_string(),
-                ..Default::default()
-            });
-        } else if node.is_missing() {
-            self.diagnostics.push(Diagnostic {
-                range: to_lsp_range(text, node.range()),
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: format!("Missing: {}", node.kind()),
-                ..Default::default()
-            });
-        } else if is_assignment_expression(node, text) {
-            self.validate_assignment_form(node, text);
-        } else if node.kind() == "cell" {
-            self.diagnose_orphan_else(node, text);
-        }
-
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.collect_diagnostics(child, text);
-        }
-    }
-
-    fn diagnose_orphan_else(&mut self, cell: Node, text: &str) {
-        let mut cursor = cell.walk();
-        for child in cell.children(&mut cursor) {
-            let else_symbol = find_first_else_symbol(child, text);
-            if let Some(symbol) = else_symbol {
-                self.diagnostics.push(Diagnostic {
-                    range: to_lsp_range(text, symbol.range()),
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    message: "An else clause must appear on the same line as its if statement"
-                        .to_string(),
-                    ..Default::default()
-                });
-                return;
-            }
-        }
-    }
-
-    fn validate_assignment_form(&mut self, node: Node, text: &str) {
-        let Some(left) = node.child_by_field_name("left") else {
-            return;
-        };
-        let Some(operator) = node.child_by_field_name("operator") else {
-            return;
-        };
-        let op_text = &text[operator.start_byte()..operator.end_byte()];
-
-        let is_method_installation =
-            op_text == ":=" && method_installation_signature(left, text).is_some();
-
-        if matches!(op_text, "=" | ":=")
-            && !is_method_installation
-            && !multiple_assignment_targets_are_symbols(left)
-        {
-            self.diagnostics.push(Diagnostic {
-                range: to_lsp_range(text, left.range()),
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: format!("{op_text} multiple assignment targets must be symbols"),
-                ..Default::default()
-            });
-        }
-
-        if op_text == ":="
-            && left.kind() == "binary_expression"
-            && binary_expression_operator(left, text) == Some("#")
-        {
-            self.diagnostics.push(Diagnostic {
-                range: to_lsp_range(text, left.range()),
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: "`:=` cannot assign to parts; use `=` for part assignment".to_string(),
-                ..Default::default()
-            });
-        }
     }
 
     fn build_scopes(
@@ -338,12 +329,12 @@ impl Analysis {
         builtins: Option<&BuiltinData>,
     ) {
         let mut next_scope_idx = current_scope_idx;
+        let m2_node = M2Node::new(node);
 
-        match node.kind() {
-            "lambda_expression" => {
+        match m2_node.kind {
+            NodeKind::LambdaExpression => {
                 next_scope_idx = self.push_scope(node, text, Some(current_scope_idx));
 
-                // Add parameters to the new scope
                 if let Some(params_node) = node.child_by_field_name("parameters") {
                     let parameter_types =
                         method_installation_parameter_types_for_function(node, text);
@@ -366,7 +357,9 @@ impl Analysis {
                         self.collect_local_method_installation(left, right, text);
                     }
                     let symbol_kind = match right {
-                        Some(right) if right.kind() == "lambda_expression" => SymbolKind::FUNCTION,
+                        Some(right) if M2Node::new(right).kind == NodeKind::LambdaExpression => {
+                            SymbolKind::FUNCTION
+                        }
                         Some(right) if method_declaration_typical_value(right, text).is_some() => {
                             SymbolKind::FUNCTION
                         }
@@ -469,21 +462,20 @@ impl Analysis {
         definition_scope: DefinitionScope,
         registration: SymbolRegistration<'_>,
     ) {
-        match node.kind() {
-            "symbol" => {
+        let m2_node = M2Node::new(node);
+        match m2_node.kind {
+            NodeKind::Symbol => {
                 let name = &text[node.start_byte()..node.end_byte()];
                 match definition_scope {
-                    DefinitionScope::Local => {
-                        self.add_symbol(
-                            name,
-                            SymbolRegistration {
-                                node,
-                                value_node,
-                                ..registration
-                            },
-                            text,
-                        )
-                    }
+                    DefinitionScope::Local => self.add_symbol(
+                        name,
+                        SymbolRegistration {
+                            node,
+                            value_node,
+                            ..registration
+                        },
+                        text,
+                    ),
                     DefinitionScope::Global => {
                         if !self.is_defined_in_chain(name, registration.scope_idx) {
                             self.add_symbol(
@@ -500,10 +492,10 @@ impl Analysis {
                     }
                 }
             }
-            "sequence" | "list" => {
+            NodeKind::Sequence | NodeKind::List => {
                 let mut cursor = node.walk();
                 for child in node.named_children(&mut cursor) {
-                    if child.kind() == "symbol" {
+                    if M2Node::new(child).kind == NodeKind::Symbol {
                         self.collect_definitions(
                             child,
                             value_node,
@@ -521,12 +513,7 @@ impl Analysis {
         }
     }
 
-    fn add_symbol(
-        &mut self,
-        name: &str,
-        registration: SymbolRegistration<'_>,
-        text: &str,
-    ) {
+    fn add_symbol(&mut self, name: &str, registration: SymbolRegistration<'_>, text: &str) {
         let SymbolRegistration {
             kind,
             role,
@@ -541,26 +528,28 @@ impl Analysis {
             range: to_lsp_range(text, node.range()),
             type_name: type_name.map(ToString::to_string),
         };
+        let symbol_id = self.registry.intern_symbol(name);
         self.scopes[scope_idx]
             .symbols
             .entry(name.to_string())
             .or_default()
             .push(symbol);
         let binding = BindingInfo {
-            name: name.to_string(),
+            symbol: symbol_id,
             kind,
             role,
             range: to_lsp_range(text, node.range()),
             scope_idx,
             type_name: type_name.map(ToString::to_string),
             value_range: value_node.map(|value| to_lsp_range(text, value.range())),
-            node: NodeKey::from_node(text, node),
+            declaration_range: enclosing_definition_range(node, text),
+            span: SpanKey::from_node(text, node),
         };
         let binding_idx = self.registry.bindings.len();
         self.registry.bindings.push(binding);
         self.registry
-            .bindings_by_name
-            .entry(name.to_string())
+            .bindings_by_symbol
+            .entry(symbol_id)
             .or_default()
             .push(binding_idx);
     }
@@ -572,7 +561,8 @@ impl Analysis {
     ) -> Option<(&'a FunctionInfo, &'a MethodInfo)> {
         let installation = method_installation_expression_for_callable_node(node, text)?;
         let (name, domain) = method_installation_signature(installation, text)?;
-        let method = self.registry.functions.get(&name)?;
+        let symbol = self.registry.resolve_symbol(&name)?;
+        let method = self.registry.functions.get(&symbol)?;
         let installation_range = to_lsp_range(text, installation.range());
         let signature = method
             .methods
@@ -618,12 +608,13 @@ impl Analysis {
         text: &str,
     ) {
         let range = to_lsp_range(text, node.range());
+        let symbol = self.registry.intern_symbol(name);
         let method = self
             .registry
             .functions
-            .entry(name.to_string())
+            .entry(symbol)
             .or_insert_with(|| FunctionInfo {
-                name: name.to_string(),
+                symbol,
                 range,
                 typical_value: None,
                 methods: Vec::new(),
@@ -637,12 +628,13 @@ impl Analysis {
             return;
         };
         let range = to_lsp_range(text, node.range());
+        let symbol = self.registry.intern_symbol(&name);
         let method = self
             .registry
             .functions
-            .entry(name.to_string())
+            .entry(symbol)
             .or_insert_with(|| FunctionInfo {
-                name: name.to_string(),
+                symbol,
                 range,
                 typical_value: None,
                 methods: Vec::new(),
@@ -669,11 +661,11 @@ impl Analysis {
         self.registry.scopes.push(ScopeInfo {
             range,
             parent_idx,
-            introducer: Some(NodeKey::from_node(text, node)),
+            introducer: Some(SpanKey::from_node(text, node)),
         });
         self.registry
             .node_scopes
-            .insert(NodeKey::from_node(text, node), scope_idx);
+            .insert(SpanKey::from_node(text, node), scope_idx);
         scope_idx
     }
 
@@ -689,7 +681,7 @@ impl Analysis {
     fn collect_expression_facts(&mut self, node: Node, text: &str, builtins: Option<&BuiltinData>) {
         let position = node_position(text, node);
         let scope_idx = self.find_scope_at(position).unwrap_or(0);
-        let key = NodeKey::from_node(text, node);
+        let key = SpanKey::from_node(text, node);
         self.registry.node_scopes.insert(key.clone(), scope_idx);
 
         if let Some(kind) = expression_kind(node, text) {
@@ -697,12 +689,15 @@ impl Analysis {
                 .infer_static_type_name(node, text, scope_idx, builtins)
                 .map(ExpressionType::Known)
                 .unwrap_or(ExpressionType::Unknown);
-            let input_nodes = expression_inputs(node).into_iter().map(|child| NodeKey::from_node(text, child)).collect();
+            let input_nodes = expression_inputs(node)
+                .into_iter()
+                .map(|child| SpanKey::from_node(text, child))
+                .collect();
             let operator = expression_operator_text(node, text).map(ToString::to_string);
             self.registry.expressions.insert(
                 key.clone(),
                 ExpressionFact {
-                    node: key.clone(),
+                    span: key.clone(),
                     kind,
                     input_nodes,
                     operator: operator.clone(),
@@ -711,7 +706,9 @@ impl Analysis {
                 },
             );
 
-            if let Some(call_info) = self.call_info_for_expression(node, text, scope_idx, builtins, &key, result_type) {
+            if let Some(call_info) =
+                self.call_info_for_expression(node, text, scope_idx, builtins, &key, result_type)
+            {
                 self.registry.calls.insert(key.clone(), call_info);
             }
         }
@@ -728,10 +725,13 @@ impl Analysis {
         text: &str,
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
-        key: &NodeKey,
+        key: &SpanKey,
         result_type: ExpressionType,
     ) -> Option<CallInfo> {
-        if !matches!(node.kind(), "binary_expression" | "prefix_expression") {
+        if !matches!(
+            M2Node::new(node).kind,
+            NodeKind::BinaryExpression | NodeKind::PrefixExpression
+        ) {
             return None;
         }
 
@@ -746,18 +746,25 @@ impl Analysis {
             let facts = self.infer_call_facts(argument, text, scope_idx, builtins);
             let candidate_methods = callable_name
                 .as_deref()
-                .and_then(|name| self.registry.functions.get(name))
+                .and_then(|name| self.registry.resolve_symbol(name))
+                .and_then(|symbol| self.registry.functions.get(&symbol))
                 .map(|callable| {
                     callable
                         .methods
                         .iter()
-                        .filter(|signature| signature_matches_domain(&signature.domain, &facts.argument_types, builtins))
+                        .filter(|signature| {
+                            signature_matches_domain(
+                                &signature.domain,
+                                &facts.argument_types,
+                                builtins,
+                            )
+                        })
                         .cloned()
                         .collect()
                 })
                 .unwrap_or_default();
             return Some(CallInfo {
-                node: key.clone(),
+                span: key.clone(),
                 callable_name,
                 argument_types: facts.argument_types,
                 result_type,
@@ -773,13 +780,17 @@ impl Analysis {
             vec![self.infer_static_type_name(operand, text, scope_idx, builtins)]
         } else {
             vec![
-                left.and_then(|child| self.infer_static_type_name(child, text, scope_idx, builtins)),
-                right.and_then(|child| self.infer_static_type_name(child, text, scope_idx, builtins)),
+                left.and_then(|child| {
+                    self.infer_static_type_name(child, text, scope_idx, builtins)
+                }),
+                right.and_then(|child| {
+                    self.infer_static_type_name(child, text, scope_idx, builtins)
+                }),
             ]
         };
 
         Some(CallInfo {
-            node: key.clone(),
+            span: key.clone(),
             callable_name: Some(operator.to_string()),
             argument_types,
             result_type,
@@ -794,19 +805,24 @@ impl Analysis {
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) -> Option<String> {
-        match node.kind() {
-            "lambda_expression" => Some("Function".to_string()),
-            "binary_expression" if method_declaration_typical_value(node, text).is_some() => {
+        let m2_node = M2Node::new(node);
+        match m2_node.kind {
+            NodeKind::LambdaExpression => Some("Function".to_string()),
+            NodeKind::BinaryExpression
+                if method_declaration_typical_value(node, text).is_some() =>
+            {
                 Some("MethodFunction".to_string())
             }
-            "list" => Some("List".to_string()),
-            "array" => Some("Array".to_string()),
-            "angle_bar_list" => Some("AngleBarList".to_string()),
-            "sequence" => self.infer_sequence_static_type_name(node, text, scope_idx, builtins),
-            "string_literal" => Some("String".to_string()),
-            "integer_literal" => Some("ZZ".to_string()),
-            "float_literal" => Some("RR".to_string()),
-            "symbol" | "identifier" | "resolved_symbol" | "builtin_constant" => {
+            NodeKind::List => Some("List".to_string()),
+            NodeKind::Array => Some("Array".to_string()),
+            NodeKind::AngleBarList => Some("AngleBarList".to_string()),
+            NodeKind::Sequence => {
+                self.infer_sequence_static_type_name(node, text, scope_idx, builtins)
+            }
+            NodeKind::StringLiteral => Some("String".to_string()),
+            NodeKind::IntegerLiteral => Some("ZZ".to_string()),
+            NodeKind::FloatLiteral => Some("RR".to_string()),
+            NodeKind::Symbol | NodeKind::ResolvedSymbol => {
                 let name = &text[node.start_byte()..node.end_byte()];
                 if let Some(symbol) =
                     self.lookup_symbol_from_scope(name, scope_idx, node_position(text, node))
@@ -818,20 +834,20 @@ impl Analysis {
 
                 builtins
                     .and_then(|builtins| builtins.get_record(&InstanceID::new(name)))
-                    .map(|record| record.data_type.0)
+                    .map(|record| record.class.0)
             }
             _ if is_assignment_expression(node, text) => {
                 let right = node.child_by_field_name("right")?;
                 self.infer_static_type_name(right, text, scope_idx, builtins)
             }
-            "binary_expression" => {
+            NodeKind::BinaryExpression => {
                 if is_space_operator_expression(node) {
                     let callable = node.child_by_field_name("left")?;
                     let argument = node.child_by_field_name("right")?;
                     let call_facts = self.infer_call_facts(argument, text, scope_idx, builtins);
-                    if let Some(callable_name) = symbol_node_text(callable, text) {
+                    if let Some(callable) = symbol_node_text(callable, text) {
                         if let Some(return_type) = self.resolve_local_call_return_type(
-                            callable_name,
+                            callable,
                             &call_facts.argument_types,
                             builtins,
                         ) {
@@ -839,7 +855,7 @@ impl Analysis {
                         }
                         if let Some(return_type) = builtins.and_then(|builtins| {
                             builtins.resolve_call_return_type_with_options(
-                                callable_name,
+                                callable,
                                 &call_facts.argument_types,
                                 &call_facts.literal_options,
                             )
@@ -870,9 +886,9 @@ impl Analysis {
                     builtins.resolve_call_return_type(operator, &[left_type, right_type])
                 }
             }
-            "new_statement" => node
+            NodeKind::NewStatement => node
                 .child_by_field_name("type")
-                .filter(|type_node| type_node.kind() == "symbol")
+                .filter(|type_node| M2Node::new(*type_node).kind == NodeKind::Symbol)
                 .map(|type_node| text[type_node.start_byte()..type_node.end_byte()].to_string()),
             _ => None,
         }
@@ -885,7 +901,7 @@ impl Analysis {
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) -> CallStaticFacts {
-        if node.kind() == "sequence" {
+        if M2Node::new(node).kind == NodeKind::Sequence {
             let mut facts = CallStaticFacts::default();
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
@@ -930,11 +946,12 @@ impl Analysis {
 
     fn resolve_local_call_return_type(
         &self,
-        callable_name: &str,
+        callable: &str,
         argument_types: &[Option<String>],
         builtins: Option<&BuiltinData>,
     ) -> Option<String> {
-        let method = self.registry.functions.get(callable_name)?;
+        let symbol = self.registry.resolve_symbol(callable)?;
+        let method = self.registry.functions.get(&symbol)?;
         let matching_codomains = method
             .methods
             .iter()
@@ -986,6 +1003,35 @@ impl Analysis {
         }
         false
     }
+
+    pub(crate) fn binding_idx_at(&self, name: &str, pos: Position) -> Option<usize> {
+        let scope_idx = self.find_scope_at(pos)?;
+        let symbol = self.registry.resolve_symbol(name)?;
+        let mut curr = Some(scope_idx);
+        while let Some(idx) = curr {
+            let binding = self
+                .registry
+                .bindings_by_symbol
+                .get(&symbol)
+                .into_iter()
+                .flatten()
+                .filter_map(|binding_idx| {
+                    self.registry
+                        .bindings
+                        .get(*binding_idx)
+                        .map(|binding| (*binding_idx, binding))
+                })
+                .filter(|(_, binding)| binding.scope_idx == idx && binding.range.start <= pos)
+                .max_by_key(|(_, binding)| {
+                    (binding.range.start.line, binding.range.start.character)
+                });
+            if let Some((binding_idx, _)) = binding {
+                return Some(binding_idx);
+            }
+            curr = self.scopes[idx].parent_idx;
+        }
+        None
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1005,17 +1051,22 @@ struct SymbolRegistration<'a> {
 }
 
 fn expression_kind(node: Node<'_>, text: &str) -> Option<ExpressionKind> {
-    match node.kind() {
-        "string_literal" | "integer_literal" | "float_literal" | "boolean_literal" => {
+    let m2_node = M2Node::new(node);
+    match m2_node.kind {
+        NodeKind::StringLiteral | NodeKind::IntegerLiteral | NodeKind::FloatLiteral => {
             Some(ExpressionKind::Literal)
         }
-        "symbol" | "identifier" | "resolved_symbol" | "builtin_constant" => {
-            Some(ExpressionKind::Name)
-        }
-        "list" | "array" | "angle_bar_list" | "sequence" | "cell" => Some(ExpressionKind::ScopeExpr),
-        "if_statement" | "while_statement" | "when_statement" | "do_statement" | "for_statement"
-        | "new_statement" => Some(ExpressionKind::ControlExpr),
-        "lambda_expression" | "binary_expression" | "prefix_expression" | "parenthesized_expression" => {
+        NodeKind::Symbol | NodeKind::ResolvedSymbol => Some(ExpressionKind::Name),
+        NodeKind::List
+        | NodeKind::Array
+        | NodeKind::AngleBarList
+        | NodeKind::Sequence
+        | NodeKind::Cell => Some(ExpressionKind::ScopeExpr),
+        NodeKind::IfStatement
+        | NodeKind::WhileStatement
+        | NodeKind::ForStatement
+        | NodeKind::NewStatement => Some(ExpressionKind::ControlExpr),
+        NodeKind::LambdaExpression | NodeKind::BinaryExpression | NodeKind::PrefixExpression => {
             if is_assignment_expression(node, text) {
                 Some(ExpressionKind::Assign)
             } else {
@@ -1027,10 +1078,17 @@ fn expression_kind(node: Node<'_>, text: &str) -> Option<ExpressionKind> {
 }
 
 fn expression_inputs(node: Node<'_>) -> Vec<Node<'_>> {
-    ["left", "right", "operand", "condition", "body", "parameters"]
-        .into_iter()
-        .filter_map(|field| node.child_by_field_name(field))
-        .collect()
+    [
+        "left",
+        "right",
+        "operand",
+        "condition",
+        "body",
+        "parameters",
+    ]
+    .into_iter()
+    .filter_map(|field| node.child_by_field_name(field))
+    .collect()
 }
 
 fn expression_operator_text<'a>(node: Node<'_>, text: &'a str) -> Option<&'a str> {
@@ -1038,22 +1096,11 @@ fn expression_operator_text<'a>(node: Node<'_>, text: &'a str) -> Option<&'a str
         .map(|operator| &text[operator.start_byte()..operator.end_byte()])
 }
 
-fn multiple_assignment_targets_are_symbols(node: Node) -> bool {
-    if !matches!(node.kind(), "sequence" | "list") {
-        return true;
-    }
-
-    let mut cursor = node.walk();
-    let all_targets_are_symbols = node
-        .named_children(&mut cursor)
-        .all(|child| child.kind() == "symbol");
-    all_targets_are_symbols
-}
-
 fn collect_parameter_nodes<'tree>(node: Node<'tree>, parameters: &mut Vec<Node<'tree>>) {
-    match node.kind() {
-        "symbol" => parameters.push(node),
-        "sequence" | "list" => {
+    let m2_node = M2Node::new(node);
+    match m2_node.kind {
+        NodeKind::Symbol => parameters.push(node),
+        NodeKind::Sequence | NodeKind::List => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 collect_parameter_nodes(child, parameters);
@@ -1064,11 +1111,11 @@ fn collect_parameter_nodes<'tree>(node: Node<'tree>, parameters: &mut Vec<Node<'
 }
 
 fn single_symbol_assignment_target<'a>(node: Node, text: &'a str) -> Option<&'a str> {
-    (node.kind() == "symbol").then(|| &text[node.start_byte()..node.end_byte()])
+    (M2Node::new(node).kind == NodeKind::Symbol).then(|| &text[node.start_byte()..node.end_byte()])
 }
 
-fn binary_expression_operator<'a>(node: Node, text: &'a str) -> Option<&'a str> {
-    if node.kind() != "binary_expression" {
+pub(crate) fn binary_expression_operator<'a>(node: Node, text: &'a str) -> Option<&'a str> {
+    if M2Node::new(node).kind != NodeKind::BinaryExpression {
         return None;
     }
 
@@ -1076,28 +1123,29 @@ fn binary_expression_operator<'a>(node: Node, text: &'a str) -> Option<&'a str> 
         .map(|operator| &text[operator.start_byte()..operator.end_byte()])
 }
 
-fn is_space_operator_expression(node: Node<'_>) -> bool {
-    node.kind() == "binary_expression" && binary_expression_operator_kind(node) == Some("SPACE")
+pub(crate) fn is_space_operator_expression(node: Node<'_>) -> bool {
+    M2Node::new(node).kind == NodeKind::BinaryExpression
+        && binary_expression_operator_kind(node) == Some("SPACE")
 }
 
-fn is_assignment_expression(node: Node<'_>, text: &str) -> bool {
-    node.kind() == "binary_expression"
+pub(crate) fn is_assignment_expression(node: Node<'_>, text: &str) -> bool {
+    M2Node::new(node).kind == NodeKind::BinaryExpression
         && matches!(
             binary_expression_operator(node, text),
             Some("=" | ":=" | "<-")
         )
 }
 
-fn is_option_assignment_expression(node: Node<'_>, text: &str) -> bool {
-    node.kind() == "binary_expression" && binary_expression_operator(node, text) == Some("=>")
+pub(crate) fn is_option_assignment_expression(node: Node<'_>, text: &str) -> bool {
+    M2Node::new(node).kind == NodeKind::BinaryExpression
+        && binary_expression_operator(node, text) == Some("=>")
 }
 
-fn symbol_node_text<'a>(node: Node, text: &'a str) -> Option<&'a str> {
-    matches!(
-        node.kind(),
-        "symbol" | "identifier" | "resolved_symbol" | "builtin_constant"
-    )
-    .then(|| &text[node.start_byte()..node.end_byte()])
+pub(crate) fn symbol_node_text<'a>(node: Node, text: &'a str) -> Option<&'a str> {
+    M2Node::new(node)
+        .kind
+        .is_symbol_like()
+        .then(|| &text[node.start_byte()..node.end_byte()])
 }
 
 fn method_declaration_typical_value(node: Node, text: &str) -> Option<Option<String>> {
@@ -1143,11 +1191,23 @@ fn literal_option_assignment(node: Node, text: &str) -> Option<(String, String)>
     Some((key.to_string(), value.to_string()))
 }
 
+fn enclosing_definition_range(node: Node<'_>, text: &str) -> LspRange {
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if M2Node::new(parent).kind == NodeKind::Cell {
+            return to_lsp_range(text, parent.range());
+        }
+        current = parent;
+    }
+    to_lsp_range(text, node.range())
+}
+
 fn literal_option_value<'a>(node: Node, text: &'a str) -> Option<&'a str> {
-    match node.kind() {
-        "symbol" | "identifier" | "resolved_symbol" | "builtin_constant" | "boolean_literal"
-        | "integer_literal" | "string_literal" => Some(&text[node.start_byte()..node.end_byte()]),
-        _ => None,
+    let m2_node = M2Node::new(node);
+    if m2_node.kind.is_symbol_like() || m2_node.kind.is_literal() {
+        Some(&text[node.start_byte()..node.end_byte()])
+    } else {
+        None
     }
 }
 
@@ -1160,16 +1220,19 @@ fn explicit_method_installation_codomain(node: Node, text: &str) -> Option<Strin
     symbol_node_text(codomain, text).map(ToString::to_string)
 }
 
-fn method_installation_signature(node: Node, text: &str) -> Option<(String, Vec<String>)> {
+pub(crate) fn method_installation_signature(
+    node: Node,
+    text: &str,
+) -> Option<(String, Vec<String>)> {
     if !is_space_operator_expression(node) {
         return None;
     }
 
     let callable = node.child_by_field_name("left")?;
     let arguments = node.child_by_field_name("right")?;
-    let callable_name = symbol_node_text(callable, text)?;
+    let callable = symbol_node_text(callable, text)?;
     let domain = method_installation_domain(arguments, text)?;
-    Some((callable_name.to_string(), domain))
+    Some((callable.to_string(), domain))
 }
 
 fn method_installation_parameter_types_for_function(
@@ -1178,7 +1241,7 @@ fn method_installation_parameter_types_for_function(
 ) -> Option<Vec<String>> {
     let mut current = function_node;
     while let Some(parent) = current.parent() {
-        if parent.kind() == "lambda_expression" {
+        if M2Node::new(parent).kind == NodeKind::LambdaExpression {
             return None;
         }
 
@@ -1226,8 +1289,9 @@ fn method_installation_expression_for_callable_node<'tree>(
     None
 }
 
-fn method_installation_domain(node: Node, text: &str) -> Option<Vec<String>> {
-    if matches!(node.kind(), "sequence" | "list") {
+pub(crate) fn method_installation_domain(node: Node, text: &str) -> Option<Vec<String>> {
+    let m2_node = M2Node::new(node);
+    if matches!(m2_node.kind, NodeKind::Sequence | NodeKind::List) {
         let mut cursor = node.walk();
         let domain = node
             .named_children(&mut cursor)
@@ -1262,23 +1326,6 @@ fn is_colon_equal_assignment_left(node: Node, text: &str) -> bool {
         .is_some_and(|operator| &text[operator.start_byte()..operator.end_byte()] == ":=")
 }
 
-fn find_first_else_symbol<'tree>(node: Node<'tree>, text: &str) -> Option<Node<'tree>> {
-    if node.kind() == "symbol" && &text[node.start_byte()..node.end_byte()] == "else" {
-        return Some(node);
-    }
-    if let Some(left) = node.child_by_field_name("left") {
-        if let Some(result) = find_first_else_symbol(left, text) {
-            return Some(result);
-        }
-    }
-    if let Some(operand) = node.child_by_field_name("operand") {
-        if let Some(result) = find_first_else_symbol(operand, text) {
-            return Some(result);
-        }
-    }
-    None
-}
-
 fn signature_matches(
     signature: &MethodInfo,
     argument_types: &[Option<String>],
@@ -1307,26 +1354,7 @@ fn signature_matches_domain(
             })
 }
 
-fn single_line_range(text: &str, start: tree_sitter::Point, start_byte: usize) -> LspRange {
-    let start_line_byte = start_byte.saturating_sub(start.column);
-    let line_end_byte = text[start_byte..]
-        .find('\n')
-        .map(|i| start_byte + i)
-        .unwrap_or(text.len());
-
-    LspRange::new(
-        Position::new(
-            start.row as u32,
-            utf16_len_for_byte_span(text, start_line_byte, start_byte),
-        ),
-        Position::new(
-            start.row as u32,
-            utf16_len_for_byte_span(text, start_line_byte, line_end_byte),
-        ),
-    )
-}
-
-fn to_lsp_range(text: &str, range: tree_sitter::Range) -> LspRange {
+pub(crate) fn to_lsp_range(text: &str, range: tree_sitter::Range) -> LspRange {
     let start_line_byte = range.start_byte.saturating_sub(range.start_point.column);
     let end_line_byte = range.end_byte.saturating_sub(range.end_point.column);
 
@@ -1342,11 +1370,11 @@ fn to_lsp_range(text: &str, range: tree_sitter::Range) -> LspRange {
     )
 }
 
-fn node_position(text: &str, node: Node) -> Position {
+pub(crate) fn node_position(text: &str, node: Node) -> Position {
     to_lsp_range(text, node.range()).start
 }
 
-fn floor_char_boundary(text: &str, byte_index: usize) -> usize {
+pub(crate) fn floor_char_boundary(text: &str, byte_index: usize) -> usize {
     let mut byte_index = byte_index.min(text.len());
     while byte_index > 0 && !text.is_char_boundary(byte_index) {
         byte_index -= 1;
@@ -1354,7 +1382,7 @@ fn floor_char_boundary(text: &str, byte_index: usize) -> usize {
     byte_index
 }
 
-fn utf16_len_for_byte_span(text: &str, start_byte: usize, end_byte: usize) -> u32 {
+pub(crate) fn utf16_len_for_byte_span(text: &str, start_byte: usize, end_byte: usize) -> u32 {
     let start_byte = floor_char_boundary(text, start_byte);
     let end_byte = floor_char_boundary(text, end_byte.max(start_byte));
     text[start_byte..end_byte].encode_utf16().count() as u32
@@ -1373,6 +1401,14 @@ fn is_pos_in_range(pos: Position, range: LspRange) -> bool {
     true
 }
 
+fn is_range_within_range(inner: LspRange, outer: LspRange) -> bool {
+    let starts_inside = inner.start.line > outer.start.line
+        || (inner.start.line == outer.start.line && inner.start.character >= outer.start.character);
+    let ends_inside = inner.end.line < outer.end.line
+        || (inner.end.line == outer.end.line && inner.end.character <= outer.end.character);
+    starts_inside && ends_inside
+}
+
 fn is_range_smaller(a: LspRange, b: LspRange) -> bool {
     // Very simple check: is a contained in b?
     let starts_inside = a.start.line > b.start.line
@@ -1385,6 +1421,11 @@ fn is_range_smaller(a: LspRange, b: LspRange) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::capabilities::diagnostics::{
+        member_index_for_ambiguous_float_literal, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE,
+        UNUSED_BINDING_DIAGNOSTIC_CODE,
+    };
+    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
     use tree_sitter::Parser;
 
     fn analyze(text: &str) -> Analysis {
@@ -1786,9 +1827,8 @@ mod tests {
 
     #[test]
     fn registry_tracks_bindings_and_local_callables() {
-        let analysis = analyze(
-            "f = method(TypicalValue => List)\nf ZZ := Ring => x -> x\ny := f 1\ny\n",
-        );
+        let analysis =
+            analyze("f = method(TypicalValue => List)\nf ZZ := Ring => x -> x\ny := f 1\ny\n");
 
         let binding = analysis
             .get_binding_at("y", Position::new(3, 0))
@@ -1796,7 +1836,9 @@ mod tests {
         assert_eq!(binding.scope_idx, 0);
         assert_eq!(binding.type_name.as_deref(), Some("Ring"));
 
-        let callable = analysis.function("f").expect("callable should be registered");
+        let callable = analysis
+            .function("f")
+            .expect("callable should be registered");
         assert_eq!(callable.typical_value.as_deref(), Some("List"));
         assert_eq!(callable.methods.len(), 1);
         assert_eq!(callable.methods[0].domain, vec!["ZZ"]);
@@ -1831,7 +1873,7 @@ mod tests {
         let call = analysis
             .registry()
             .calls
-            .get(&NodeKey::from_node(text, binary))
+            .get(&SpanKey::from_node(text, binary))
             .expect("call info should be registered");
         assert_eq!(call.callable_name.as_deref(), Some("+"));
     }
@@ -1846,6 +1888,7 @@ mod tests {
             analysis
                 .diagnostics
                 .iter()
+                .filter(|diagnostic| diagnostic.severity == Some(DiagnosticSeverity::ERROR))
                 .map(|diagnostic| diagnostic.message.as_str())
                 .collect::<Vec<_>>(),
             vec![
@@ -1862,10 +1905,68 @@ mod tests {
         assert_eq!(analysis.diagnostics.len(), 1);
         assert_eq!(
             analysis.diagnostics[0].message,
-            "An else clause must appear on the same line as its if statement"
+            ORPHAN_ELSE_DIAGNOSTIC_MESSAGE
         );
         assert_eq!(analysis.diagnostics[0].range.start, Position::new(1, 4));
         assert_eq!(analysis.diagnostics[0].range.end, Position::new(1, 8));
+    }
+
+    #[test]
+    fn diagnoses_orphan_else_on_new_line_in_example_shape() {
+        let analysis = analyze(
+            "if runtimeDict#?name then runtimeDict#name\nelse if isGlobalSmbol name then getGlobalSymbol name\n",
+        );
+        assert_eq!(analysis.diagnostics.len(), 1);
+        assert_eq!(
+            analysis.diagnostics[0].message,
+            ORPHAN_ELSE_DIAGNOSTIC_MESSAGE
+        );
+        assert_eq!(analysis.diagnostics[0].range.start, Position::new(1, 0));
+    }
+
+    #[test]
+    fn does_not_warn_on_unused_top_level_exports() {
+        let analysis = analyze("f := x -> x\nx = 1\n");
+
+        assert!(
+            analysis.diagnostics.iter().all(|diagnostic| {
+                diagnostic.code
+                    != Some(NumberOrString::String(
+                        UNUSED_BINDING_DIAGNOSTIC_CODE.to_string(),
+                    ))
+            }),
+            "top-level bindings should not be warned as unused exports"
+        );
+    }
+
+    #[test]
+    fn diagnoses_ambiguous_float_member_access() {
+        let analysis = analyze("x.3\n");
+        assert_eq!(analysis.diagnostics.len(), 1);
+        assert_eq!(
+            analysis.diagnostics[0].message,
+            AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE
+        );
+        assert_eq!(
+            analysis.diagnostics[0].severity,
+            Some(DiagnosticSeverity::WARNING)
+        );
+        assert_eq!(analysis.diagnostics[0].range.start, Position::new(0, 0));
+    }
+
+    #[test]
+    fn does_not_diagnose_ambiguous_member_access_with_whitespace() {
+        let analysis = analyze("x .3\n");
+        assert!(analysis.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn ambiguous_member_access_helper_requires_dot_prefixed_float() {
+        assert_eq!(
+            member_index_for_ambiguous_float_literal(".3"),
+            Some("0".to_string())
+        );
+        assert_eq!(member_index_for_ambiguous_float_literal("3.0"), None);
     }
 
     #[test]

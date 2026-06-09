@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use tower_lsp::lsp_types::*;
 
 use crate::document::DocumentSnapshot;
+use crate::node_metadata::{M2Node, NodeKind};
 use crate::typesystem::BuiltinData;
 use crate::util::*;
 
@@ -75,14 +76,11 @@ fn collect_document_symbols_from(
     builtins: &BuiltinData,
     scopes: &mut DocumentSymbolScopes,
 ) -> Vec<DocumentSymbol> {
-    match node.kind() {
-        _ if is_assignment_expression(node, text) => {
-            return collect_assignment_document_symbols(node, text, builtins, scopes)
-        }
-        _ if is_option_assignment_expression(node, text) => {
-            return collect_property_document_symbols(node, text)
-        }
-        _ => {}
+    if is_assignment_expression(node, text) {
+        return collect_assignment_document_symbols(node, text, builtins, scopes);
+    }
+    if is_option_assignment_expression(node, text) {
+        return collect_property_document_symbols(node, text);
     }
 
     let mut symbols = Vec::new();
@@ -128,7 +126,7 @@ fn collect_assignment_document_symbols(
     };
 
     let children = match node.child_by_field_name("right") {
-        Some(right) if right.kind() == "lambda_expression" => {
+        Some(right) if M2Node::new(right).is(NodeKind::LambdaExpression) => {
             collect_function_body_document_symbols(right, text, builtins, scopes)
         }
         _ => None,
@@ -166,10 +164,7 @@ fn collect_assignment_document_symbols(
             .collect();
     }
 
-    let is_method_installation_left = matches!(
-        left.kind(),
-        "binary_expression" | "prefix_expression" | "postfix_expression"
-    );
+    let is_method_installation_left = M2Node::new(left).kind.is_method_installation_target();
 
     match (operator, binary_expression_operator(left, text)) {
         (AssignmentOperator::ColonEqual, _) if is_method_installation_left => {
@@ -199,7 +194,7 @@ fn collect_assignment_document_symbols(
         (AssignmentOperator::Equal, Some(_))
             if node
                 .child_by_field_name("right")
-                .is_some_and(|right| right.kind() == "lambda_expression")
+                .is_some_and(|right| M2Node::new(right).is(NodeKind::LambdaExpression))
                 && is_method_installation_left =>
         {
             vec![DocumentSymbol {
@@ -245,9 +240,9 @@ fn collect_left_symbol_nodes<'tree>(
     node: tree_sitter::Node<'tree>,
     symbols: &mut Vec<tree_sitter::Node<'tree>>,
 ) {
-    match node.kind() {
-        "symbol" => symbols.push(node),
-        "sequence" | "list" => {
+    match M2Node::new(node).kind {
+        NodeKind::Symbol => symbols.push(node),
+        NodeKind::Sequence | NodeKind::List => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 collect_left_symbol_nodes(child, symbols);
@@ -261,12 +256,12 @@ fn collect_binding_target_nodes<'tree>(
     node: tree_sitter::Node<'tree>,
     symbols: &mut Vec<tree_sitter::Node<'tree>>,
 ) {
-    match node.kind() {
-        "symbol" => symbols.push(node),
-        "sequence" | "list" => {
+    match M2Node::new(node).kind {
+        NodeKind::Symbol => symbols.push(node),
+        NodeKind::Sequence | NodeKind::List => {
             let mut cursor = node.walk();
             for child in node.named_children(&mut cursor) {
-                if child.kind() == "symbol" {
+                if M2Node::new(child).is(NodeKind::Symbol) {
                     symbols.push(child);
                 }
             }
@@ -276,9 +271,9 @@ fn collect_binding_target_nodes<'tree>(
 }
 
 fn collect_parameter_names(node: tree_sitter::Node, text: &str, names: &mut Vec<String>) {
-    match node.kind() {
-        "symbol" => names.push(text[node.start_byte()..node.end_byte()].to_string()),
-        "sequence" | "list" => {
+    match M2Node::new(node).kind {
+        NodeKind::Symbol => names.push(text[node.start_byte()..node.end_byte()].to_string()),
+        NodeKind::Sequence | NodeKind::List => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 collect_parameter_names(child, text, names);
@@ -311,19 +306,19 @@ fn assignment_operator(node: tree_sitter::Node, text: &str) -> AssignmentOperato
 fn assignment_symbol_kind(node: tree_sitter::Node, text: &str) -> SymbolKind {
     match node.child_by_field_name("right") {
         Some(right)
-            if right.kind() == "new_statement"
+            if M2Node::new(right).is(NodeKind::NewStatement)
                 && new_statement_type_name(right, text) == Some("Type") =>
         {
             SymbolKind::CLASS
         }
-        Some(right) if right.kind() == "lambda_expression" => SymbolKind::FUNCTION,
+        Some(right) if M2Node::new(right).is(NodeKind::LambdaExpression) => SymbolKind::FUNCTION,
         _ => SymbolKind::VARIABLE,
     }
 }
 
 fn new_statement_type_name<'a>(node: tree_sitter::Node, text: &'a str) -> Option<&'a str> {
     let type_node = node.child_by_field_name("type")?;
-    if type_node.kind() != "symbol" {
+    if !M2Node::new(type_node).is(NodeKind::Symbol) {
         return None;
     }
 
