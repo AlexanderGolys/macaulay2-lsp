@@ -1,3 +1,11 @@
 **/target
-AGENTS.md
 *.py
+
+# Agent-local tooling
+.claude/
+
+# Root-level .md files are agent scratch (AGENTS/BUGS/TODO/TOTEST/...),
+# except the real project docs:
+/*.md
+!/README.md
+!/CONTRIBUTIONS.md
