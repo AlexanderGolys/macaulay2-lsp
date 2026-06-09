@@ -12,6 +12,7 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 use typesystem::BuiltinData;
 
 mod analysis;
+mod builtin_index;
 mod capabilities;
 mod document;
 mod node_metadata;
@@ -51,6 +52,9 @@ use record_lsp::{record_source_file, record_source_line, record_symbol_kind};
 struct Backend {
     client: Client,
     builtins: BuiltinData,
+    // Consumed by the type-propagation stage; not yet read elsewhere.
+    #[allow(dead_code)]
+    builtin_index: builtin_index::BuiltinIndex,
     source_resolver: SourceResolver,
     package_indexer: PackageIndexer,
     package_indexes: DashMap<String, BuiltinData>,
@@ -73,6 +77,7 @@ impl Backend {
         Backend {
             client,
             builtins,
+            builtin_index: builtin_index::BuiltinIndex::load(include_str!("./data/m2-types.jsonl")),
             source_resolver: SourceResolver::from_environment(),
             package_indexer: PackageIndexer::from_environment(),
             package_indexes: DashMap::new(),

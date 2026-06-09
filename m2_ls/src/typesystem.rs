@@ -173,9 +173,14 @@ pub struct RelationInfo {
     pub instances: Vec<InstanceID>,
 }
 
+/// Two-sided type hierarchy: `ancestors` (sorted, for upward `is_subtype`/lub/glb
+/// queries) and `children` (immediate subtypes, for the downward `type_hierarchy`
+/// view). Instance checks only ever walk upward; `children` is read straight, not
+/// recomputed.
 #[derive(Debug, Clone, Default)]
 pub struct TypeLattice {
     ancestors: HashMap<InstanceID, Vec<InstanceID>>,
+    children: HashMap<InstanceID, Vec<InstanceID>>,
 }
 
 impl TypeLattice {
@@ -207,7 +212,41 @@ impl TypeLattice {
             }
         }
 
-        TypeLattice { ancestors }
+        TypeLattice {
+            ancestors,
+            children,
+        }
+    }
+
+    /// Build the lattice from the `m2-types.jsonl` type records: each carries its
+    /// full ancestor chain (sorted here for binary search) and its immediate
+    /// subtypes (the children edge).
+    pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
+        let mut ancestors: HashMap<InstanceID, Vec<InstanceID>> = HashMap::new();
+        let mut children: HashMap<InstanceID, Vec<InstanceID>> = HashMap::new();
+
+        for entry in index.types() {
+            let id = InstanceID::new(&entry.name);
+            let mut chain: Vec<InstanceID> =
+                entry.ancestors.iter().map(|a| InstanceID::new(a)).collect();
+            chain.sort();
+            chain.dedup();
+            ancestors.insert(id.clone(), chain);
+            children.insert(
+                id,
+                entry.subtypes.iter().map(|s| InstanceID::new(s)).collect(),
+            );
+        }
+
+        TypeLattice {
+            ancestors,
+            children,
+        }
+    }
+
+    /// Immediate subtypes of `parent` (the downward edge, for `type_hierarchy`).
+    pub fn children(&self, parent: &InstanceID) -> &[InstanceID] {
+        self.children.get(parent).map_or(&[], Vec::as_slice)
     }
 
     pub fn is_subtype(&self, child: &InstanceID, parent: &InstanceID) -> bool {
@@ -289,6 +328,9 @@ pub struct SignatureUsage {
 #[derive(Debug, Clone, Default)]
 pub struct TypeFacts {
     signature_codomains: HashMap<(String, Vec<String>), String>,
+    /// Installed signatures grouped by method key, for the dispatch lookup —
+    /// each key's domains are scanned once per call, not the whole table.
+    signatures_by_key: HashMap<String, Vec<(Vec<String>, String)>>,
     option_value_usages: HashMap<String, Vec<OptionValueUsage>>,
     option_values_by_slot: HashMap<(String, String), Vec<String>>,
     option_codomains: Vec<OptionCodomainFact>,
@@ -341,6 +383,25 @@ struct TypeFactOptionCodomain {
     codomain: String,
     #[serde(default)]
     domain: Vec<String>,
+}
+
+/// Whether `domain` admits `arguments` componentwise: each argument is the
+/// expected type or a subtype of it.
+fn domain_admits(lattice: &TypeLattice, domain: &[String], arguments: &[&str]) -> bool {
+    domain.len() == arguments.len()
+        && domain.iter().zip(arguments).all(|(expected, actual)| {
+            *actual == expected.as_str()
+                || lattice.is_subtype(&InstanceID::new(actual), &InstanceID::new(expected))
+        })
+}
+
+/// Whether domain `a` is at least as specific as `b` componentwise (each part of
+/// `a` is the matching part of `b` or a subtype of it).
+fn domain_at_least_as_specific(lattice: &TypeLattice, a: &[String], b: &[String]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(x, y)| {
+            x == y || lattice.is_subtype(&InstanceID::new(x), &InstanceID::new(y))
+        })
 }
 
 impl TypeFacts {
@@ -401,6 +462,90 @@ impl TypeFacts {
         }
 
         facts
+    }
+
+    /// Build the typecheck facts from the `m2-types.jsonl` callable records.
+    /// Honours the monotone rule: a method with no codomain (`typicalValue` null)
+    /// contributes no signature — the lookup stays silent rather than guess.
+    pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
+        let mut facts = TypeFacts::default();
+        for callable in index.callables() {
+            for signature in &callable.signatures {
+                let Some(codomain) = signature.codomain.as_ref() else {
+                    continue;
+                };
+                facts.signature_codomains.insert(
+                    (callable.name.clone(), signature.domain.clone()),
+                    codomain.clone(),
+                );
+                facts
+                    .signatures_by_key
+                    .entry(callable.name.clone())
+                    .or_default()
+                    .push((signature.domain.clone(), codomain.clone()));
+            }
+            for option in &callable.options {
+                let slot = (callable.name.clone(), option.key.clone());
+                for value in &option.possible_values {
+                    facts
+                        .option_values_by_slot
+                        .entry(slot.clone())
+                        .or_default()
+                        .push(value.clone());
+                    facts
+                        .option_value_usages
+                        .entry(value.clone())
+                        .or_default()
+                        .push(OptionValueUsage {
+                            callable: callable.name.clone(),
+                            option: option.key.clone(),
+                        });
+                }
+            }
+        }
+        for usages in facts.option_value_usages.values_mut() {
+            usages.sort_by(|left, right| {
+                (left.callable.as_str(), left.option.as_str())
+                    .cmp(&(right.callable.as_str(), right.option.as_str()))
+            });
+            usages.dedup();
+        }
+        for values in facts.option_values_by_slot.values_mut() {
+            values.sort();
+            values.dedup();
+        }
+        facts
+    }
+
+    /// Standard multiple-dispatch lookup: among the methods installed under
+    /// `key`, pick the most-specific one whose domain componentwise admits the
+    /// argument types (each `actual <: expected`), and return its codomain.
+    /// `None` ⇒ nothing applicable (or undocumented) — the checker stays silent.
+    pub fn resolve_codomain(
+        &self,
+        lattice: &TypeLattice,
+        key: &str,
+        arguments: &[&str],
+    ) -> Option<&str> {
+        let mut best: Option<&(Vec<String>, String)> = None;
+        for candidate in self.signatures_by_key.get(key)? {
+            let (domain, _) = candidate;
+            if domain.len() != arguments.len() {
+                continue;
+            }
+            if !domain_admits(lattice, domain, arguments) {
+                continue;
+            }
+            best = match best {
+                None => Some(candidate),
+                // Prefer the more-specific domain; first installed wins on a tie.
+                Some(current) if domain_at_least_as_specific(lattice, domain, &current.0) => {
+                    Some(candidate)
+                }
+                Some(current) => Some(current),
+            };
+        }
+        best.map(|(_, codomain)| codomain.as_str())
     }
 
     fn signature_codomain(&self, signature: &[InstanceID]) -> Option<&str> {
@@ -1295,6 +1440,51 @@ impl BuiltinData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::builtin_index::BuiltinIndex;
+
+    #[test]
+    fn dispatch_walks_the_lattice_to_the_installed_supertype_method() {
+        // dim is installed on Ring; PolynomialRing <: Ring.
+        let jsonl = concat!(
+            r#"{"kind":"type","name":"Thing","aliases":[]}"#,
+            "\n",
+            r#"{"kind":"type","name":"Ring","parent":"Thing","ancestors":["Thing"],"subtypes":["PolynomialRing"],"aliases":[]}"#,
+            "\n",
+            r#"{"kind":"type","name":"PolynomialRing","parent":"Ring","ancestors":["Ring","Thing"],"subtypes":[],"aliases":[]}"#,
+            "\n",
+            r#"{"kind":"function","name":"dim","methods":[{"domain":["Ring"],"typicalValue":"ZZ"}],"aliases":[]}"#,
+            "\n",
+        );
+        let index = BuiltinIndex::load(jsonl);
+        let lattice = TypeLattice::from_type_index(&index);
+        let facts = TypeFacts::from_type_index(&index);
+
+        // Exact match.
+        assert_eq!(facts.resolve_codomain(&lattice, "dim", &["Ring"]), Some("ZZ"));
+        // Subtype dispatch: PolynomialRing has no own method, walks up to Ring's.
+        assert_eq!(
+            facts.resolve_codomain(&lattice, "dim", &["PolynomialRing"]),
+            Some("ZZ")
+        );
+        // No applicable method (Thing is a supertype, not a subtype) ⇒ silent.
+        assert_eq!(facts.resolve_codomain(&lattice, "dim", &["Thing"]), None);
+        // Two-sided lattice exposes the downward edge for type_hierarchy.
+        assert_eq!(
+            lattice.children(&InstanceID::new("Ring")),
+            &[InstanceID::new("PolynomialRing")]
+        );
+    }
+
+    #[test]
+    fn resolves_real_gb_codomain_from_the_type_index() {
+        let index = BuiltinIndex::load(include_str!("./data/m2-types.jsonl"));
+        let lattice = TypeLattice::from_type_index(&index);
+        let facts = TypeFacts::from_type_index(&index);
+        assert_eq!(
+            facts.resolve_codomain(&lattice, "gb", &["Ideal"]),
+            Some("GroebnerBasis")
+        );
+    }
 
     fn generated_builtins() -> BuiltinData {
         BuiltinData::load_from_split_with_type_facts(
