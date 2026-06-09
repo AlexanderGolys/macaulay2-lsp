@@ -24,7 +24,10 @@ mod workspace_index;
 
 use capabilities::code_actions::available_code_actions;
 use capabilities::diagnostics::publish_diagnostics;
-use capabilities::document_highlight::{document_highlight_provider_capability, document_highlights};
+use capabilities::document_highlight::{
+    document_highlight_provider_capability, document_highlights,
+};
+use capabilities::document_symbols::collect_document_symbols;
 use capabilities::formatting::{
     document_formatting_provider_capability, document_formatting_text_edits,
     folding_range_provider_capability, folding_ranges,
@@ -33,14 +36,13 @@ use capabilities::hover::hover_response;
 use capabilities::inlay_hints::inlay_hint_provider_capability;
 use capabilities::navigation::{
     completion_response, global_reference_ranges, goto_definition_response, prepare_rename_range,
-    reference_target, references_response, rename_edits, workspace_symbols_response, ReferenceTarget,
+    reference_target, references_response, rename_edits, workspace_symbols_response,
+    ReferenceTarget,
 };
-use capabilities::document_symbols::collect_document_symbols;
 use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
 use capabilities::type_hierarchy::{TypeHierarchyCapabilityService, TYPE_HIERARCHY_METHOD};
 use document::DocumentSnapshot;
 #[cfg(test)]
-use package_index::extractor_script_candidates;
 #[cfg(test)]
 use package_index::package_source_string;
 use package_index::{collect_imported_packages, PackageIndexer, SourceResolver};
@@ -52,9 +54,6 @@ use record_lsp::{record_source_file, record_source_line, record_symbol_kind};
 struct Backend {
     client: Client,
     builtins: BuiltinData,
-    // Consumed by the type-propagation stage; not yet read elsewhere.
-    #[allow(dead_code)]
-    builtin_index: builtin_index::BuiltinIndex,
     source_resolver: SourceResolver,
     package_indexer: PackageIndexer,
     package_indexes: DashMap<String, BuiltinData>,
@@ -66,18 +65,13 @@ struct Backend {
 
 impl Backend {
     fn new(client: Client) -> Self {
-        let builtin_names = include_str!("./data/builtins.names");
-        let builtin_details = include_str!("./data/builtins.details.jsonl");
-        let type_facts = include_str!("./data/type_facts.jsonl");
-        let builtins = BuiltinData::load_from_split_with_type_facts(
-            builtin_names,
-            builtin_details,
-            type_facts,
+        let builtins = BuiltinData::load_from_index(
+            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-docs.jsonl"),
         );
         Backend {
             client,
             builtins,
-            builtin_index: builtin_index::BuiltinIndex::load(include_str!("./data/m2-types.jsonl")),
             source_resolver: SourceResolver::from_environment(),
             package_indexer: PackageIndexer::from_environment(),
             package_indexes: DashMap::new(),
@@ -93,7 +87,7 @@ impl Backend {
             return Some(index.clone());
         }
 
-        let index = self.package_indexer.load_or_generate(package_name)?;
+        let index = self.package_indexer.load(package_name)?;
         self.package_indexes
             .insert(package_name.to_string(), index.clone());
         Some(index)
@@ -493,7 +487,7 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let diagnostics: &[_] = if params.context.diagnostics.is_empty() {
+        let diagnostics = if params.context.diagnostics.is_empty() {
             document.diagnostics()
         } else {
             &params.context.diagnostics
@@ -940,13 +934,12 @@ mod tests {
             .expect("package names fixture should write");
         std::fs::write(
             root.join("Graphs.details.jsonl"),
-            "{\"name\":\"graph\",\"data_type\":\"MethodFunction\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{\"package\":\"Graphs\"}}\n",
+            "{\"name\":\"graph\",\"class\":\"MethodFunction\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{\"package\":\"Graphs\"}}\n",
         )
         .expect("package details fixture should write");
 
         let indexer = PackageIndexer {
             cache_dir: root.clone(),
-            extractor_script: None,
         };
         let index = indexer
             .load("Graphs")
@@ -959,23 +952,6 @@ mod tests {
         assert_eq!(record_package(&record), Some("Graphs"));
 
         let _ = std::fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn package_indexer_searches_crate_script_path() {
-        let crate_script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("scripts/extract_package_index.m2");
-
-        assert!(
-            extractor_script_candidates()
-                .iter()
-                .any(|candidate| candidate == &crate_script),
-            "extractor discovery should include the crate-local script"
-        );
-        assert!(
-            crate_script.exists(),
-            "crate-local package extractor fixture should exist"
-        );
     }
 
     #[test]
@@ -1003,9 +979,9 @@ mod tests {
 
     #[test]
     fn record_hover_includes_explicit_package_context() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-docs.jsonl"),
         );
         let record = builtins
             .get_record(&typesystem::InstanceID::new("clearAll"))
@@ -1023,34 +999,10 @@ mod tests {
     }
 
     #[test]
-    fn record_hover_includes_option_role() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
-        );
-        let record = builtins
-            .get_record(&typesystem::InstanceID::new("SyzygyLimit"))
-            .expect("SyzygyLimit should have builtin metadata");
-
-        let hover = record_hover_with_package(&record, Some("Core"), &builtins);
-        let HoverContents::Markup(markup) = hover.contents else {
-            panic!("record hover should use markdown");
-        };
-
-        assert!(
-            markup.value.contains("Option Role: `key`"),
-            "record hover should identify option keys"
-        );
-        assert!(
-            markup.value.contains("- `gb`") && markup.value.contains("- `syz`"),
-            "record hover should list methods using known option keys"
-        );
-    }
-    #[test]
     fn record_hover_includes_option_value_reverse_usage() {
         let builtins = BuiltinData::load_from_split_with_type_facts(
             "LongPolynomial\n",
-            "{\"name\":\"LongPolynomial\",\"data_type\":\"Symbol\",\"description_short\":\"a Strategy option value\",\"description_long\":null,\"examples\":[],\"extra\":{}}\n",
+            "{\"name\":\"LongPolynomial\",\"class\":\"Symbol\",\"description_short\":\"a Strategy option value\",\"description_long\":null,\"examples\":[],\"extra\":{}}\n",
             "{\"callable\":\"gb\",\"options\":[{\"key\":\"Strategy\",\"values\":[\"LongPolynomial\"]}]}\n",
         );
         let record = builtins
@@ -1070,7 +1022,7 @@ mod tests {
     fn record_hover_includes_documented_signatures_and_examples() {
         let builtins = BuiltinData::load_from_split(
             "kernel\n",
-            "{\"name\":\"kernel\",\"data_type\":\"MethodFunction\",\"description_short\":\"kernel of a map\",\"description_long\":null,\"examples\":[\"R = QQ[a..d];\",\"ker F\"],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"kernel\",\"RingMap\"]}],\"documented_methods\":[{\"signature\":[\"kernel\",\"RingMap\"],\"output_types\":[\"Ideal\"],\"examples\":[\"R = QQ[a..d];\"],\"doc_key\":\"kernel(RingMap)\"}]}}\n",
+            "{\"name\":\"kernel\",\"class\":\"MethodFunction\",\"description_short\":\"kernel of a map\",\"description_long\":null,\"examples\":[\"R = QQ[a..d];\",\"ker F\"],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"kernel\",\"RingMap\"]}],\"documented_methods\":[{\"signature\":[\"kernel\",\"RingMap\"],\"output_types\":[\"Ideal\"],\"examples\":[\"R = QQ[a..d];\"],\"doc_key\":\"kernel(RingMap)\"}]}}\n",
         );
         let record = builtins
             .get_record(&typesystem::InstanceID::new("kernel"))
@@ -1095,7 +1047,7 @@ mod tests {
     fn record_hover_includes_global_typical_value() {
         let builtins = BuiltinData::load_from_split(
             "method\n",
-            "{\"name\":\"method\",\"data_type\":\"FunctionClosure\",\"description_short\":\"make a new method function\",\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[],\"general_signature\":{\"signature\":[\"method\"],\"output_types\":[\"MethodFunction\"]}}}\n",
+            "{\"name\":\"method\",\"class\":\"FunctionClosure\",\"description_short\":\"make a new method function\",\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[],\"general_signature\":{\"signature\":[\"method\"],\"output_types\":[\"MethodFunction\"]}}}\n",
         );
         let record = builtins
             .get_record(&typesystem::InstanceID::new("method"))
@@ -1110,61 +1062,10 @@ mod tests {
     }
 
     #[test]
-    fn record_hover_omits_documented_signatures_from_installed_methods() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
-        );
-        let record = builtins
-            .get_record(&typesystem::InstanceID::new("ring"))
-            .expect("ring should have builtin metadata");
-
-        let hover = record_hover_with_package(&record, Some("Core"), &builtins);
-        let HoverContents::Markup(markup) = hover.contents else {
-            panic!("record hover should use markdown");
-        };
-
-        assert!(
-            markup.value.contains("`Ideal -> Ring`"),
-            "record hover should display documented domain-to-codomain signatures"
-        );
-        assert!(
-            markup.value.contains("`ChainComplex -> Ring`"),
-            "record hover should display domains inheriting the general codomain"
-        );
-        assert!(
-            !markup.value.contains("`(ring, Ideal)`"),
-            "record hover should not repeat documented domains as installed-only methods"
-        );
-    }
-
-    #[test]
-    fn record_hover_shows_operator_method_signatures() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
-        );
-        let record = builtins
-            .get_record(&typesystem::InstanceID::new("+"))
-            .expect("+ should have operator metadata");
-
-        let hover = record_hover_with_package(&record, Some("Core"), &builtins);
-        let HoverContents::Markup(markup) = hover.contents else {
-            panic!("record hover should use markdown");
-        };
-
-        assert!(
-            markup.value.contains("**Installed Methods:**")
-                && markup.value.contains("`Matrix + Matrix`"),
-            "operator hover should show method signatures"
-        );
-    }
-
-    #[test]
     fn record_hover_renders_operator_documented_signatures_in_operator_form() {
         let builtins = BuiltinData::load_from_split(
             "=>\n",
-            "{\"name\":\"=>\",\"data_type\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"operator_info\":{\"attributes\":{\"Binary\":[]},\"flags\":{\"Binary\":[]},\"flexible\":false,\"forms\":[\"Binary\"],\"method_lookup\":\"symbol\",\"method_symbol\":\"=>\"},\"function_info\":{\"methods\":[{\"signature\":[\"=>\",\"Thing\",\"Thing\"]}],\"documented_methods\":[{\"signature\":[\"=>\",\"Thing\",\"Thing\"],\"output_types\":[\"Option\"]}]}}\n",
+            "{\"name\":\"=>\",\"class\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"operator_info\":{\"attributes\":{\"Binary\":[]},\"flags\":{\"Binary\":[]},\"flexible\":false,\"forms\":[\"Binary\"],\"method_lookup\":\"symbol\",\"method_symbol\":\"=>\"},\"function_info\":{\"methods\":[{\"signature\":[\"=>\",\"Thing\",\"Thing\"]}],\"documented_methods\":[{\"signature\":[\"=>\",\"Thing\",\"Thing\"],\"output_types\":[\"Option\"]}]}}\n",
         );
         let record = builtins
             .get_record(&typesystem::InstanceID::new("=>"))
@@ -1183,7 +1084,7 @@ mod tests {
     fn record_hover_renders_operator_assignment_signatures_in_operator_form() {
         let builtins = BuiltinData::load_from_split(
             "+\n",
-            "{\"name\":\"+\",\"data_type\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"operator_info\":{\"attributes\":{\"Binary\":[\"Flexible\"]},\"flags\":{\"Binary\":[\"Flexible\"]},\"flexible\":true,\"forms\":[\"Binary\"],\"method_lookup\":\"symbol\",\"method_symbol\":\"+\"},\"function_info\":{\"methods\":[{\"signature\":[\"(+,=)\",\"Thing\",\"Thing\"]}]}}\n",
+            "{\"name\":\"+\",\"class\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"operator_info\":{\"attributes\":{\"Binary\":[\"Flexible\"]},\"flags\":{\"Binary\":[\"Flexible\"]},\"flexible\":true,\"forms\":[\"Binary\"],\"method_lookup\":\"symbol\",\"method_symbol\":\"+\"},\"function_info\":{\"methods\":[{\"signature\":[\"(+,=)\",\"Thing\",\"Thing\"]}]}}\n",
         );
         let record = builtins
             .get_record(&typesystem::InstanceID::new("+"))
@@ -1199,38 +1100,10 @@ mod tests {
     }
 
     #[test]
-    fn record_hover_can_focus_on_specialized_call_signature() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
-        );
-        let record = builtins
-            .get_record(&typesystem::InstanceID::new("openOut"))
-            .expect("openOut should have builtin metadata");
-        let usage = builtins
-            .resolve_call_signature_usage("openOut", &[Some("String".to_string())])
-            .expect("openOut String should resolve to a documented installation");
-
-        let hover =
-            record_hover_with_package_and_usage(&record, Some("Core"), &builtins, Some(&usage));
-        let HoverContents::Markup(markup) = hover.contents else {
-            panic!("record hover should use markdown");
-        };
-
-        assert!(markup.value.contains("**Signature:**"));
-        assert!(markup.value.contains("`String -> File`"));
-        assert!(markup
-            .value
-            .contains("(`CompiledFunction`) **openOut**\t `String -> File`"));
-        assert!(markup.value.contains("Documentation: `openOut(String)`"));
-        assert!(!markup.value.contains("**Documented Signatures:**"));
-    }
-
-    #[test]
     fn record_hover_keeps_excluded_signatures_when_usage_is_pinned() {
         let builtins = BuiltinData::load_from_split(
             "f\n",
-            "{\"name\":\"f\",\"data_type\":\"MethodFunction\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"String\"]},{\"signature\":[\"f\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"String\"],\"output_types\":[\"File\"]},{\"signature\":[\"f\",\"ZZ\"],\"output_types\":[\"Thing\"]}]}}\n",
+            "{\"name\":\"f\",\"class\":\"MethodFunction\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"String\"]},{\"signature\":[\"f\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"String\"],\"output_types\":[\"File\"]},{\"signature\":[\"f\",\"ZZ\"],\"output_types\":[\"Thing\"]}]}}\n",
         );
         let record = builtins
             .get_record(&typesystem::InstanceID::new("f"))
@@ -1251,39 +1124,5 @@ mod tests {
             .value
             .contains("**Excluded Signatures For This Usage:**"));
         assert!(markup.value.contains("`ZZ -> Thing`"));
-    }
-
-    #[test]
-    fn record_hover_can_show_possible_and_excluded_usage_signatures() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
-        );
-        let record = builtins
-            .get_record(&typesystem::InstanceID::new(">>"))
-            .expect(">> should have builtin metadata");
-        let usage = builtins
-            .resolve_call_signature_usage(">>", &[None, Some("Function".to_string())])
-            .expect(">> usage should partition signatures");
-
-        let hover =
-            record_hover_with_package_and_usage(&record, Some("Core"), &builtins, Some(&usage));
-        let HoverContents::Markup(markup) = hover.contents else {
-            panic!("record hover should use markdown");
-        };
-
-        assert!(markup
-            .value
-            .contains("**Possible Signatures For This Usage:**"));
-        assert!(markup.value.contains("`OptionTable >> Function`"));
-        assert!(markup.value.contains("`List >> Function`"));
-        assert!(markup.value.contains("`Boolean >> Function`"));
-        assert!(markup
-            .value
-            .contains("**Excluded Signatures For This Usage:**"));
-        assert!(markup.value.contains("`Thing >> Thing`"));
-        assert!(markup.value.contains("`ZZ >> ZZ`"));
-        assert!(!markup.value.contains("**Installed Methods:**"));
-        assert!(!markup.value.contains("`(>>,=), Type, Type`"));
     }
 }

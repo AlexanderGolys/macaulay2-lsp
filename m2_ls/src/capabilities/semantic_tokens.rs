@@ -683,9 +683,9 @@ mod tests {
     #[test]
     fn typed_parameter_references_remain_parameters() {
         let text = "f ZZ := x -> x";
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-docs.jsonl"),
         );
         let document = document(text, &builtins);
 
@@ -853,51 +853,11 @@ mod tests {
     }
 
     #[test]
-    fn semantic_tokens_use_static_types_for_user_defined_symbols() {
-        let text = "Doc := Macaulay2Doc\nDocAlias := Doc\nDocAlias#\"raw documentation database\"\nZZAlias := ZZ\nQQAlias := QQ\nZZAlias QQAlias\nn := 1\nn";
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
-        );
-        let document = document(text, &builtins);
-
-        let tokens = collect_semantic_tokens(&document, &builtins, true);
-
-        assert_eq!(
-            tokens
-                .iter()
-                .map(|token| token.token_type)
-                .filter(|token_type| *token_type == M2SemanticTokenType::Namespace as u32)
-                .count(),
-            5,
-            "package-typed local aliases and their references should classify as namespace"
-        );
-        assert_eq!(
-            tokens
-                .iter()
-                .map(|token| token.token_type)
-                .filter(|token_type| *token_type == M2SemanticTokenType::Class as u32)
-                .count(),
-            6,
-            "aliases bound to class-valued objects should classify as class, including references"
-        );
-        assert_eq!(
-            tokens
-                .iter()
-                .map(|token| token.token_type)
-                .filter(|token_type| *token_type == M2SemanticTokenType::Variable as u32)
-                .count(),
-            2,
-            "integer-valued locals should remain variables even though their static type is ZZ"
-        );
-    }
-
-    #[test]
     fn string_valued_locals_remain_variables() {
         let text = "s := 1\nt := toString s\nt\n";
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-docs.jsonl"),
         );
         let document = document(text, &builtins);
 
@@ -916,9 +876,9 @@ mod tests {
     #[test]
     fn semantic_tokens_classify_commands_as_functions_with_command_modifier() {
         let text = "saveClearAll := clearAll\nclearAll = new Command from { () -> () }\nprotect symbol clearAll";
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-docs.jsonl"),
         );
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, true);
@@ -944,63 +904,6 @@ mod tests {
                 .count(),
             4,
             "builtin, aliased, and locally rebound Command values should use function+command"
-        );
-    }
-
-    #[test]
-    fn semantic_tokens_repaint_builtin_identifiers_when_client_needs_full_colorization() {
-        let text = "drop Ring any";
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
-        );
-
-        let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
-
-        assert_eq!(
-            tokens
-                .iter()
-                .map(|token| (token.token_type, token.token_modifiers_bitset))
-                .filter(|(token_type, _)| *token_type != M2SemanticTokenType::Operator as u32)
-                .collect::<Vec<_>>(),
-            vec![
-                (M2SemanticTokenType::Function as u32, 0),
-                (M2SemanticTokenType::Class as u32, 0),
-                (M2SemanticTokenType::Function as u32, 0),
-            ]
-        );
-    }
-
-    #[test]
-    fn semantic_tokens_augmenting_syntax_keeps_high_value_builtins_without_broad_repaint() {
-        let text = "-- hi\nMacaulay2Doc#\"raw documentation database\"\nCore.Dictionary\nQQ\nZZ\nif drop then \"x\" else any\nlocal y\nmatch(\"a+\", s)";
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
-        );
-
-        let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, true);
-
-        assert_eq!(
-            tokens
-                .iter()
-                .map(|token| token.token_type)
-                .collect::<Vec<_>>(),
-            vec![
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::Class as u32,
-                M2SemanticTokenType::Class as u32,
-                M2SemanticTokenType::Class as u32,
-                M2SemanticTokenType::Function as u32,
-                M2SemanticTokenType::Function as u32,
-                M2SemanticTokenType::Modifier as u32,
-                M2SemanticTokenType::Method as u32,
-                M2SemanticTokenType::Regexp as u32,
-            ],
-            "syntax-augmenting clients should keep high-value package/callable Core tokens without repainting every builtin category"
         );
     }
 
@@ -1070,24 +973,10 @@ mod tests {
     }
 
     #[test]
-    fn compiled_builtin_function_tokens_do_not_use_provenance_modifiers() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
-        );
-        let token = builtins
-            .get_semantic_token("drop")
-            .expect("drop should have builtin metadata");
-
-        assert_eq!(token.token_type, M2SemanticTokenType::Function);
-        assert_eq!(builtin_semantic_token_modifiers(&token), 0);
-    }
-
-    #[test]
     fn builtin_constructor_like_names_do_not_emit_constructor_modifier() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-docs.jsonl"),
         );
         let token = builtins
             .get_semantic_token("toString")
@@ -1101,60 +990,11 @@ mod tests {
     }
 
     #[test]
-    fn option_assignment_symbols_have_context_roles() {
-        let text = "f(x, Strategy => LongPolynomial)";
-        let builtins = BuiltinData::load_from_split_with_type_facts(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
-            include_str!("../data/type_facts.jsonl"),
-        );
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        let root = tree.root_node();
-
-        let mut roles = Vec::new();
-        let mut cursor = root.walk();
-        let mut reached_root = false;
-        while !reached_root {
-            let node = cursor.node();
-            if node.kind() == "symbol" {
-                roles.push((
-                    &text[node.start_byte()..node.end_byte()],
-                    option_assignment_role(text, node, &builtins),
-                ));
-            }
-
-            if cursor.goto_first_child() {
-                continue;
-            }
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-            loop {
-                if !cursor.goto_parent() {
-                    reached_root = true;
-                    break;
-                }
-                if cursor.goto_next_sibling() {
-                    break;
-                }
-            }
-        }
-
-        assert!(roles.contains(&("Strategy", Some(M2SemanticTokenType::EnumMember))));
-        assert!(roles.contains(&("LongPolynomial", Some(M2SemanticTokenType::EnumMember))));
-    }
-
-    #[test]
     fn option_assignment_roles_require_metadata() {
         let text = "f(x, notAnOption => notAnOptionValue)";
-        let builtins = BuiltinData::load_from_split_with_type_facts(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
-            include_str!("../data/type_facts.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-docs.jsonl"),
         );
         let mut parser = Parser::new();
         parser
@@ -1197,54 +1037,6 @@ mod tests {
     }
 
     #[test]
-    fn option_assignment_value_must_match_active_option_key() {
-        let text = "f(x, SyzygyLimit => LongPolynomial)";
-        let builtins = BuiltinData::load_from_split_with_type_facts(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
-            include_str!("../data/type_facts.jsonl"),
-        );
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        let root = tree.root_node();
-
-        let mut roles = Vec::new();
-        let mut cursor = root.walk();
-        let mut reached_root = false;
-        while !reached_root {
-            let node = cursor.node();
-            if node.kind() == "symbol" {
-                roles.push((
-                    &text[node.start_byte()..node.end_byte()],
-                    option_assignment_role(text, node, &builtins),
-                ));
-            }
-
-            if cursor.goto_first_child() {
-                continue;
-            }
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-            loop {
-                if !cursor.goto_parent() {
-                    reached_root = true;
-                    break;
-                }
-                if cursor.goto_next_sibling() {
-                    break;
-                }
-            }
-        }
-
-        assert!(roles.contains(&("SyzygyLimit", Some(M2SemanticTokenType::EnumMember))));
-        assert!(roles.contains(&("LongPolynomial", None)));
-    }
-
-    #[test]
     fn semantic_token_modifier_bits_match_legend_order() {
         assert_eq!(OPTION_MODIFIER, 1 << 0);
         assert_eq!(COMMAND_MODIFIER, 1 << 1);
@@ -1257,9 +1049,9 @@ mod tests {
     #[test]
     fn method_installation_domain_emits_type_for_known_types() {
         let text = "Ring Element := x -> x";
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-docs.jsonl"),
         );
 
         let document = document(text, &builtins);

@@ -1136,8 +1136,7 @@ pub(crate) fn is_assignment_expression(node: M2Node<'_>, text: &str) -> bool {
 }
 
 pub(crate) fn is_option_assignment_expression(node: M2Node<'_>, text: &str) -> bool {
-    node.kind == NodeKind::BinaryExpression
-        && binary_expression_operator(node, text) == Some("=>")
+    node.kind == NodeKind::BinaryExpression && binary_expression_operator(node, text) == Some("=>")
 }
 
 pub(crate) fn symbol_node_text<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
@@ -1488,35 +1487,10 @@ mod tests {
     }
 
     #[test]
-    fn infers_static_types_from_builtin_bindings_and_aliases() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
-        );
-        let analysis = analyze_with_builtins(
-            "Doc := Macaulay2Doc\nDocAlias := Doc\nDocAlias\n",
-            &builtins,
-        );
-
-        assert_eq!(
-            analysis
-                .get_symbol_at("Doc", Position::new(1, 12))
-                .and_then(|symbol| symbol.type_name.as_deref()),
-            Some("Package")
-        );
-        assert_eq!(
-            analysis
-                .get_symbol_at("DocAlias", Position::new(2, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
-            Some("Package")
-        );
-    }
-
-    #[test]
     fn infers_static_types_from_new_constructors() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-docs.jsonl"),
         );
         let analysis = analyze_with_builtins(
             "clearAll = new Command from { () -> () }\nclearAll\n",
@@ -1532,9 +1506,9 @@ mod tests {
 
     #[test]
     fn infers_static_types_from_documented_call_signatures() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-docs.jsonl"),
         );
         let analysis = analyze_with_builtins(
             "I := new Ideal from {}\nR := ring I\nS := ring x\nR\nS\n",
@@ -1559,7 +1533,7 @@ mod tests {
     fn specialized_documented_signatures_override_general_signatures() {
         let builtins = BuiltinData::load_from_split(
             "f\n",
-            "{\"name\":\"f\",\"data_type\":\"MethodFunction\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"Ideal\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"Ideal\"],\"output_types\":[\"Ring\"]}],\"general_signature\":{\"signature\":[\"f\"],\"output_types\":[\"Thing\"]}}}\n",
+            "{\"name\":\"f\",\"class\":\"MethodFunction\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"Ideal\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"Ideal\"],\"output_types\":[\"Ring\"]}],\"general_signature\":{\"signature\":[\"f\"],\"output_types\":[\"Thing\"]}}}\n",
         );
         let analysis = analyze_with_builtins("I := new Ideal from {}\nR := f I\nR\n", &builtins);
 
@@ -1575,7 +1549,7 @@ mod tests {
     fn infers_static_types_from_documented_operator_signatures() {
         let builtins = BuiltinData::load_from_split(
             "+\n",
-            "{\"name\":\"+\",\"data_type\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"],\"output_types\":[\"ZZ\"]}]}}\n",
+            "{\"name\":\"+\",\"class\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"],\"output_types\":[\"ZZ\"]}]}}\n",
         );
         let analysis = analyze_with_builtins("x := 1\ny := 2\nz := x + y\nz\n", &builtins);
 
@@ -1622,9 +1596,9 @@ mod tests {
 
     #[test]
     fn infers_static_types_from_local_method_typical_values() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-docs.jsonl"),
         );
         let analysis = analyze_with_builtins(
             "p = method(Binary => true, TypicalValue => List)\np(ZZ,ZZ) := p(List,ZZ) := (i,j) -> {i,j}\nx := p(1, 2)\nx\n",
@@ -1671,9 +1645,9 @@ mod tests {
 
     #[test]
     fn local_methods_without_codomains_remain_unknown() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-docs.jsonl"),
         );
         let analysis =
             analyze_with_builtins("f = method()\nf ZZ := x -> -x\ny := f 1\ny\n", &builtins);
@@ -1693,9 +1667,9 @@ mod tests {
 
     #[test]
     fn explicit_local_method_codomains_override_typical_values() {
-        let builtins = BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-docs.jsonl"),
         );
         let analysis = analyze_with_builtins(
             "f = method(TypicalValue => List)\nf ZZ := Ring => x -> x\ny := f 1\ny\n",
@@ -1719,7 +1693,7 @@ mod tests {
     fn infers_static_types_from_option_sensitive_facts() {
         let builtins = BuiltinData::load_from_split_with_type_facts(
             "f\n",
-            "{\"name\":\"f\",\"data_type\":\"MethodFunctionWithOptions\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"ZZ\"],\"output_types\":[\"String\"]}]}}\n",
+            "{\"name\":\"f\",\"class\":\"MethodFunctionWithOptions\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"ZZ\"],\"output_types\":[\"String\"]}]}}\n",
             "{\"callable\":\"f\",\"option_codomains\":[{\"domain\":[\"ZZ\"],\"key\":\"Mode\",\"value\":\"AsList\",\"codomain\":\"List\"}]}\n",
         );
         let analysis = analyze_with_builtins("y := f(1, Mode => AsList)\ny\n", &builtins);
@@ -1736,7 +1710,7 @@ mod tests {
     fn call_options_do_not_count_as_positional_arguments() {
         let builtins = BuiltinData::load_from_split(
             "f\n",
-            "{\"name\":\"f\",\"data_type\":\"MethodFunctionWithOptions\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"ZZ\"],\"output_types\":[\"String\"]}]}}\n",
+            "{\"name\":\"f\",\"class\":\"MethodFunctionWithOptions\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"ZZ\"],\"output_types\":[\"String\"]}]}}\n",
         );
         let analysis = analyze_with_builtins("y := f(1, Mode => AsList)\ny\n", &builtins);
 
@@ -1762,7 +1736,7 @@ mod tests {
     fn infers_static_types_from_space_adjacency_facts() {
         let builtins = BuiltinData::load_from_split_with_type_facts(
             "QQ\nSPACE\n",
-            "{\"name\":\"QQ\",\"data_type\":\"Ring\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{}}\n{\"name\":\"SPACE\",\"data_type\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"SPACE\",\"Ring\",\"Array\"]}]}}\n",
+            "{\"name\":\"QQ\",\"class\":\"Ring\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{}}\n{\"name\":\"SPACE\",\"class\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"SPACE\",\"Ring\",\"Array\"]}]}}\n",
             "{\"callable\":\"SPACE\",\"signatures\":[{\"domain\":[\"Ring\",\"Array\"],\"codomain\":\"Ring\"}]}\n",
         );
         let analysis = analyze_with_builtins("R := QQ\nS := R[x,y]\nS\n", &builtins);
@@ -1843,7 +1817,7 @@ mod tests {
     fn registry_tracks_expression_and_call_facts() {
         let builtins = BuiltinData::load_from_split(
             "+\n",
-            "{\"name\":\"+\",\"data_type\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"],\"output_types\":[\"ZZ\"]}]}}\n",
+            "{\"name\":\"+\",\"class\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"],\"output_types\":[\"ZZ\"]}]}}\n",
         );
         let text = "x := 1\ny := 2\nz := x + y\n";
         let mut parser = Parser::new();

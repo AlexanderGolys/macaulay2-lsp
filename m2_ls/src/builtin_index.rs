@@ -19,6 +19,10 @@ use serde::Deserialize;
 #[derive(Debug, Clone)]
 pub struct TypeEntry {
     pub name: String,
+    /// Every alias this entry is also keyed by (`Core$ZZ`, …) — retained so the
+    /// `Record`/docs maps mirror the same keys as the lookup tables, not just
+    /// the primary name.
+    pub aliases: Vec<String>,
     pub package: Option<String>,
     /// Meta-type — the instance-of axis (`ZZ`'s class is `Ring`).
     pub class: Option<String>,
@@ -43,13 +47,29 @@ pub struct Signature {
     pub options: Vec<OptionSpec>,
 }
 
+/// A named runtime value that is neither a type nor a callable — option keys
+/// (`Strategy`, `Algorithm`), constants (`pi`, `true`, `infinity`), etc. Carries
+/// no typecheck facts beyond its `class` (the instance-of axis).
+#[derive(Debug, Clone)]
+pub struct ObjectEntry {
+    pub name: String,
+    pub aliases: Vec<String>,
+    pub package: Option<String>,
+    pub class: Option<String>,
+}
+
 /// A function or operator and the signatures it dispatches on.
 #[derive(Debug, Clone)]
 pub struct CallableEntry {
     pub name: String,
+    /// Every alias this entry is also keyed by (`Core$gb`, `→`, …).
+    pub aliases: Vec<String>,
     pub package: Option<String>,
     pub class: Option<String>,
     pub is_operator: bool,
+    /// Capitalized operator forms (`Binary`/`Prefix`/`Postfix`) collected across
+    /// this callable's methods — drives operator hover label rendering.
+    pub forms: Vec<String>,
     /// General codomain when documented apart from a specific signature.
     pub typical_value: Option<String>,
     pub options: Vec<OptionSpec>,
@@ -78,6 +98,8 @@ pub struct BuiltinIndex {
     type_keys: HashMap<String, usize>,
     callables: Vec<CallableEntry>,
     callable_keys: HashMap<String, usize>,
+    objects: Vec<ObjectEntry>,
+    object_keys: HashMap<String, usize>,
 }
 
 impl BuiltinIndex {
@@ -97,6 +119,7 @@ impl BuiltinIndex {
                     register_keys(&mut index.type_keys, &raw.name, &raw.aliases, id);
                     index.types.push(TypeEntry {
                         name: raw.name,
+                        aliases: raw.aliases,
                         package: raw.package,
                         class: raw.class,
                         parent: raw.parent,
@@ -108,6 +131,7 @@ impl BuiltinIndex {
                 "function" | "operator" => {
                     let id = index.callables.len();
                     register_keys(&mut index.callable_keys, &raw.name, &raw.aliases, id);
+                    let forms = collect_forms(&raw.methods);
                     let signatures = raw
                         .methods
                         .into_iter()
@@ -120,15 +144,27 @@ impl BuiltinIndex {
                         .collect();
                     index.callables.push(CallableEntry {
                         name: raw.name,
+                        aliases: raw.aliases,
                         package: raw.package,
                         class: raw.class,
                         is_operator: raw.kind == "operator",
+                        forms,
                         typical_value: raw.typical_value,
                         options: raw.options,
                         signatures,
                     });
                 }
-                // `object` and `package` records carry no typecheck facts.
+                "object" => {
+                    let id = index.objects.len();
+                    register_keys(&mut index.object_keys, &raw.name, &raw.aliases, id);
+                    index.objects.push(ObjectEntry {
+                        name: raw.name,
+                        aliases: raw.aliases,
+                        package: raw.package,
+                        class: raw.class,
+                    });
+                }
+                // The `package` record carries no per-symbol facts.
                 _ => {}
             }
         }
@@ -152,6 +188,16 @@ impl BuiltinIndex {
     /// The pooled callable records. The `TypeFacts` builder consumes these.
     pub fn callables(&self) -> &[CallableEntry] {
         &self.callables
+    }
+
+    pub fn object(&self, name: &str) -> Option<&ObjectEntry> {
+        self.object_keys.get(name).map(|&id| &self.objects[id])
+    }
+
+    /// The pooled object records (option keys, constants, …). They carry no
+    /// typecheck facts but are surfaced as `Record`s for hover/classification.
+    pub fn objects(&self) -> &[ObjectEntry] {
+        &self.objects
     }
 
     pub fn type_count(&self) -> usize {
@@ -208,6 +254,30 @@ struct RawMethod {
     exact: bool,
     #[serde(default)]
     options: Vec<OptionSpec>,
+    /// `binary` / `prefix` / `postfix` for operator methods; absent otherwise.
+    #[serde(default)]
+    form: Option<String>,
+}
+
+/// The distinct operator forms across a callable's methods, capitalized to the
+/// `OperatorInfo.forms` vocabulary (`Binary`/`Prefix`/`Postfix`).
+fn collect_forms(methods: &[RawMethod]) -> Vec<String> {
+    let mut forms = Vec::new();
+    for method in methods {
+        let Some(form) = method.form.as_deref() else {
+            continue;
+        };
+        let label = match form {
+            "binary" => "Binary",
+            "prefix" => "Prefix",
+            "postfix" => "Postfix",
+            _ => continue,
+        };
+        if !forms.iter().any(|existing| existing == label) {
+            forms.push(label.to_string());
+        }
+    }
+    forms
 }
 
 #[cfg(test)]
@@ -222,7 +292,10 @@ mod tests {
     fn loads_types_and_callables() {
         let index = index();
         assert!(index.type_count() > 100, "type lattice should be populated");
-        assert!(index.callable_count() > 500, "callables should be populated");
+        assert!(
+            index.callable_count() > 500,
+            "callables should be populated"
+        );
     }
 
     #[test]

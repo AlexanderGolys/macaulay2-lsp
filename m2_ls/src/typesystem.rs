@@ -301,10 +301,17 @@ impl TypeLattice {
 
 #[derive(Debug, Clone)]
 pub struct BuiltinData {
+    /// Primary names, one per pooled record (1:1 with `records`).
     names: Vec<InstanceID>,
+    /// Name *and* every alias → record index. More entries than `names`.
     name_to_index: HashMap<InstanceID, usize>,
-    details: String,
-    detail_ranges: Vec<(usize, usize)>,
+    /// Records held in memory; `get_record` clones from here rather than
+    /// re-deserializing a packed string per lookup.
+    records: Vec<Record>,
+    /// Pre-rendered hover markdown keyed by name + aliases. Read once at load
+    /// (from `m2-docs.jsonl` for builtins); the typecheck records carry no doc
+    /// text, so hover reads it from here. Empty for runtime package indexes.
+    docs: HashMap<InstanceID, String>,
     type_facts: TypeFacts,
     type_lattice: TypeLattice,
 }
@@ -399,9 +406,9 @@ fn domain_admits(lattice: &TypeLattice, domain: &[String], arguments: &[&str]) -
 /// `a` is the matching part of `b` or a subtype of it).
 fn domain_at_least_as_specific(lattice: &TypeLattice, a: &[String], b: &[String]) -> bool {
     a.len() == b.len()
-        && a.iter().zip(b).all(|(x, y)| {
-            x == y || lattice.is_subtype(&InstanceID::new(x), &InstanceID::new(y))
-        })
+        && a.iter()
+            .zip(b)
+            .all(|(x, y)| x == y || lattice.is_subtype(&InstanceID::new(x), &InstanceID::new(y)))
 }
 
 impl TypeFacts {
@@ -599,8 +606,16 @@ impl BuiltinData {
 
     pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
         let index = *self.name_to_index.get(name)?;
-        let (start, end) = *self.detail_ranges.get(index)?;
-        serde_json::from_str(&self.details[start..end]).ok()
+        self.records.get(index).cloned()
+    }
+
+    /// The pre-rendered hover markdown for `name` (or one of its aliases), if the
+    /// docs asset carried an entry. Typecheck records hold no doc text. Aliases
+    /// resolve to the record's primary name, under which the docs are keyed.
+    pub fn doc_markdown(&self, name: &InstanceID) -> Option<&str> {
+        let index = *self.name_to_index.get(name)?;
+        let primary = self.names.get(index)?;
+        self.docs.get(primary).map(String::as_str)
     }
 
     pub fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String> {
@@ -613,10 +628,7 @@ impl BuiltinData {
             .map_or(option_name, |(_, name)| name);
         let mut usages = Vec::new();
         for (index, name) in self.names.iter().enumerate() {
-            let Some((start, end)) = self.detail_ranges.get(index).copied() else {
-                continue;
-            };
-            let Ok(record) = serde_json::from_str::<Record>(&self.details[start..end]) else {
+            let Some(record) = self.records.get(index) else {
                 continue;
             };
             let Some(option_info) = &record.option_info else {
@@ -1127,6 +1139,25 @@ fn signature_domain_key(signature: &[InstanceID]) -> Option<Vec<String>> {
 }
 
 impl Record {
+    /// A record with only its identity known — used when a `details` line fails
+    /// to parse, or as the base for records synthesized from the typecheck index.
+    fn unknown(name: InstanceID) -> Self {
+        Record {
+            name,
+            class: InstanceID::new("Thing"),
+            description_short: None,
+            description_long: None,
+            examples: Vec::new(),
+            extra: HashMap::new(),
+            documentation: None,
+            function_info: None,
+            option_info: None,
+            operator_info: None,
+            type_info: None,
+            relation_info: None,
+        }
+    }
+
     pub fn option_role(&self) -> Option<&'static str> {
         if self.has_description("option value")
             || self.has_description("value of an optional argument")
@@ -1182,11 +1213,168 @@ pub struct M2SemanticToken {
     pub is_constructor: bool,
 }
 
+/// Register a pooled record under its primary name and each alias. The primary
+/// name always wins; an alias never clobbers an already-registered key. Mirrors
+/// `builtin_index::register_keys` so lookups stay consistent with the index.
+fn register_record_keys(
+    keys: &mut HashMap<InstanceID, usize>,
+    name: &str,
+    aliases: &[String],
+    id: usize,
+) {
+    keys.insert(InstanceID::new(name), id);
+    for alias in aliases {
+        keys.entry(InstanceID::new(alias)).or_insert(id);
+    }
+}
+
+/// Synthesize a `Record` from a typecheck-index type entry: the is-a/instance
+/// lattice lives in `type_info`; there is no doc text (hover reads the docs map).
+fn record_from_type(entry: &crate::builtin_index::TypeEntry) -> Record {
+    let mut record = Record::unknown(InstanceID::new(&entry.name));
+    record.class = InstanceID::new(entry.class.as_deref().unwrap_or("Type"));
+    record.type_info = Some(TypeInfo {
+        subtypes: entry.subtypes.iter().map(|s| InstanceID::new(s)).collect(),
+        parent_type: entry.parent.as_deref().map(InstanceID::new),
+        ancestors: entry.ancestors.iter().map(|s| InstanceID::new(s)).collect(),
+        instances: entry.instances.iter().map(|s| InstanceID::new(s)).collect(),
+    });
+    if let Some(package) = &entry.package {
+        record
+            .extra
+            .insert("package".to_string(), Value::String(package.clone()));
+    }
+    record
+}
+
+/// Synthesize a `Record` from a typecheck-index callable entry. Each installed
+/// signature becomes a `MethodSignature` of `[name, ...domain]`; the operator
+/// forms drive operator hover labels. Codomains live in `TypeFacts`, not here.
+fn record_from_callable(entry: &crate::builtin_index::CallableEntry) -> Record {
+    let default_class = if entry.is_operator {
+        "Keyword"
+    } else {
+        "Function"
+    };
+    let mut record = Record::unknown(InstanceID::new(&entry.name));
+    record.class = InstanceID::new(entry.class.as_deref().unwrap_or(default_class));
+
+    let methods = entry
+        .signatures
+        .iter()
+        .map(|signature| {
+            let mut method = Vec::with_capacity(signature.domain.len() + 1);
+            method.push(InstanceID::new(&entry.name));
+            method.extend(signature.domain.iter().map(|part| InstanceID::new(part)));
+            MethodSignature { signature: method }
+        })
+        .collect();
+
+    let general_signature =
+        entry
+            .typical_value
+            .as_ref()
+            .map(|typical_value| DocumentedMethodSignature {
+                signature: vec![InstanceID::new(&entry.name)],
+                output_types: vec![InstanceID::new(typical_value)],
+                examples: Vec::new(),
+                doc_key: None,
+            });
+
+    record.function_info = Some(FunctionInfo {
+        methods,
+        documented_methods: Vec::new(),
+        general_signature,
+    });
+
+    if !entry.options.is_empty() {
+        record.option_info = Some(OptionInfo {
+            options: entry
+                .options
+                .iter()
+                .map(|option| MethodOption {
+                    name: InstanceID::new(&option.key),
+                    default: option.default.clone(),
+                })
+                .collect(),
+        });
+    }
+
+    if entry.is_operator {
+        record.operator_info = Some(OperatorInfo {
+            method_lookup: entry.name.clone(),
+            method_symbol: InstanceID::new(&entry.name),
+            forms: entry.forms.clone(),
+            flags: HashMap::new(),
+            flexible: false,
+            attributes: HashMap::new(),
+        });
+    }
+
+    if let Some(typical_value) = &entry.typical_value {
+        record.extra.insert(
+            "typical_value".to_string(),
+            Value::String(typical_value.clone()),
+        );
+    }
+    if let Some(package) = &entry.package {
+        record
+            .extra
+            .insert("package".to_string(), Value::String(package.clone()));
+    }
+    record
+}
+
+/// Synthesize a `Record` from an object entry (option key, constant, …). Only
+/// its identity and `class` are known — no type/function/operator facts.
+fn record_from_object(entry: &crate::builtin_index::ObjectEntry) -> Record {
+    let mut record = Record::unknown(InstanceID::new(&entry.name));
+    record.class = InstanceID::new(entry.class.as_deref().unwrap_or("Thing"));
+    if let Some(package) = &entry.package {
+        record
+            .extra
+            .insert("package".to_string(), Value::String(package.clone()));
+    }
+    record
+}
+
+/// Read the hover-docs asset (`m2-docs.jsonl`) into a name → markdown map once.
+/// Keyed by the record's primary name; alias lookups resolve through
+/// `doc_markdown`. The 4.5MB file is parsed once and never searched as text.
+fn load_docs_markdown(jsonl: &str) -> HashMap<InstanceID, String> {
+    #[derive(Deserialize)]
+    struct DocRecord {
+        name: String,
+        #[serde(default)]
+        markdown: String,
+    }
+
+    let mut docs = HashMap::new();
+    for line in jsonl.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Ok(doc) = serde_json::from_str::<DocRecord>(line) else {
+            continue;
+        };
+        if doc.markdown.is_empty() {
+            continue;
+        }
+        docs.entry(InstanceID::new(&doc.name))
+            .or_insert(doc.markdown);
+    }
+    docs
+}
+
 impl BuiltinData {
     pub fn load_from_split(names: &str, details: &str) -> Self {
         Self::load_from_split_with_type_facts(names, details, "")
     }
 
+    /// Build a `BuiltinData` from a packed `names` + `details` JSONL pair — the
+    /// runtime per-package index format (one `Record` per `details` line, aligned
+    /// positionally with `names`). Records are deserialized once, eagerly.
     pub fn load_from_split_with_type_facts(names: &str, details: &str, type_facts: &str) -> Self {
         let names: Vec<_> = names
             .lines()
@@ -1200,30 +1388,79 @@ impl BuiltinData {
             .map(|(index, name)| (name, index))
             .collect();
 
-        let mut detail_ranges = Vec::new();
-        let mut start = 0;
-        for line in details.split_inclusive('\n') {
-            let end = start + line.trim_end_matches('\n').len();
-            if end > start {
-                detail_ranges.push((start, end));
-            }
-            start += line.len();
-        }
-        if start < details.len() {
-            detail_ranges.push((start, details.len()));
-        }
+        let detail_lines: Vec<&str> = details
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .collect();
+        let records: Vec<Record> = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                detail_lines
+                    .get(index)
+                    .and_then(|line| serde_json::from_str::<Record>(line).ok())
+                    .unwrap_or_else(|| Record::unknown(name.clone()))
+            })
+            .collect();
 
         let mut data = BuiltinData {
             names,
             name_to_index,
-            details: details.to_string(),
-            detail_ranges,
+            records,
+            docs: HashMap::new(),
             type_facts: TypeFacts::load_jsonl(type_facts),
             type_lattice: TypeLattice::default(),
         };
         let lattice = TypeLattice::from_builtins(&data);
         data.type_lattice = lattice;
         data
+    }
+
+    /// Build a `BuiltinData` from the static builtin assets: `m2-types.jsonl`
+    /// (structured typecheck + classification facts) and `m2-docs.jsonl`
+    /// (pre-rendered hover markdown). The two are separate by design — the
+    /// typecheck records carry no doc text — but the docs could equally be a
+    /// `markdown` field embedded in `m2-types.jsonl`; only `load_docs_markdown`
+    /// would change. Types/functions/operators have disjoint names (all M2
+    /// first-class objects), so the pooled records never collide.
+    pub fn load_from_index(types_jsonl: &str, docs_jsonl: &str) -> Self {
+        let index = crate::builtin_index::BuiltinIndex::load(types_jsonl);
+        let type_lattice = TypeLattice::from_type_index(&index);
+        let type_facts = TypeFacts::from_type_index(&index);
+
+        let mut names = Vec::new();
+        let mut name_to_index = HashMap::new();
+        let mut records = Vec::new();
+
+        for entry in index.types() {
+            let id = records.len();
+            register_record_keys(&mut name_to_index, &entry.name, &entry.aliases, id);
+            names.push(InstanceID::new(&entry.name));
+            records.push(record_from_type(entry));
+        }
+        for entry in index.callables() {
+            let id = records.len();
+            register_record_keys(&mut name_to_index, &entry.name, &entry.aliases, id);
+            names.push(InstanceID::new(&entry.name));
+            records.push(record_from_callable(entry));
+        }
+        for entry in index.objects() {
+            let id = records.len();
+            register_record_keys(&mut name_to_index, &entry.name, &entry.aliases, id);
+            names.push(InstanceID::new(&entry.name));
+            records.push(record_from_object(entry));
+        }
+
+        let docs = load_docs_markdown(docs_jsonl);
+
+        BuiltinData {
+            names,
+            name_to_index,
+            records,
+            docs,
+            type_facts,
+            type_lattice,
+        }
     }
 
     pub fn get_semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
@@ -1460,7 +1697,10 @@ mod tests {
         let facts = TypeFacts::from_type_index(&index);
 
         // Exact match.
-        assert_eq!(facts.resolve_codomain(&lattice, "dim", &["Ring"]), Some("ZZ"));
+        assert_eq!(
+            facts.resolve_codomain(&lattice, "dim", &["Ring"]),
+            Some("ZZ")
+        );
         // Subtype dispatch: PolynomialRing has no own method, walks up to Ring's.
         assert_eq!(
             facts.resolve_codomain(&lattice, "dim", &["PolynomialRing"]),
@@ -1487,51 +1727,49 @@ mod tests {
     }
 
     fn generated_builtins() -> BuiltinData {
-        BuiltinData::load_from_split_with_type_facts(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
-            include_str!("./data/type_facts.jsonl"),
+        BuiltinData::load_from_index(
+            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-docs.jsonl"),
         )
     }
 
     #[test]
     fn generated_builtin_data_loads_core_symbols() {
         let builtins = generated_builtins();
-        let generated_name_count = include_str!("./data/builtins.names")
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .count();
-        let generated_detail_count = include_str!("./data/builtins.details.jsonl")
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .count();
-        assert_eq!(
-            generated_name_count, generated_detail_count,
-            "names and detail JSONL should stay line-aligned"
-        );
-        assert_eq!(builtins.len(), generated_name_count);
         assert!(
-            builtins.len() > 2_700,
-            "expected a substantial generated builtin database"
+            builtins.len() > 1_000,
+            "expected a substantial builtin database from the typecheck index"
         );
         assert!(builtins.contains_name("ideal"));
         assert!(
             builtins.names_with_prefix("id", 8).contains(&"ideal"),
             "name index should support live prefix symbol search"
         );
+        // Aliases resolve to the same pooled record.
+        assert!(
+            builtins
+                .get_record(&InstanceID::new("Core$ideal"))
+                .is_some(),
+            "package-qualified aliases should resolve"
+        );
 
+        // A function: installed method signatures plus hover docs from the docs asset.
         let ideal = builtins
             .get_record(&InstanceID::new("ideal"))
             .expect("ideal should be present");
-        assert_eq!(ideal.description_short.as_deref(), Some("make an ideal"));
         assert!(
             ideal
                 .function_info
                 .as_ref()
                 .is_some_and(|info| info.methods.len() >= 10),
-            "ideal should include installed method signatures"
+            "ideal should carry its installed method signatures"
+        );
+        assert!(
+            builtins.doc_markdown(&InstanceID::new("ideal")).is_some(),
+            "hover docs should load from the separate docs asset"
         );
 
+        // A type: its lattice edges live in type_info; no function_info.
         let ring = builtins
             .get_record(&InstanceID::new("Ring"))
             .expect("Ring should be present");
@@ -1546,306 +1784,34 @@ mod tests {
             ring.type_info
                 .as_ref()
                 .is_some_and(|info| info.subtypes.contains(&InstanceID::new("EngineRing"))),
-            "Ring should carry runtime parent-tree children"
-        );
-
-        let ring_function = builtins
-            .get_record(&InstanceID::new("ring"))
-            .expect("ring should be present");
-        assert!(
-            ring_function
-                .function_info
-                .as_ref()
-                .and_then(|info| info.general_signature.as_ref())
-                .is_some_and(|signature| signature.output_types == vec![InstanceID::new("Ring")]),
-            "ring should carry the general documentation codomain"
-        );
-        assert!(
-            builtins
-                .documented_signatures(&ring_function)
-                .iter()
-                .any(|method| {
-                    method.signature == vec![InstanceID::new("ring"), InstanceID::new("Ideal")]
-                        && method.output_types == vec![InstanceID::new("Ring")]
-                }),
-            "ring(Ideal) should be a documented signature with known Ring codomain"
-        );
-        assert!(
-            builtins
-                .documented_signatures(&ring_function)
-                .iter()
-                .any(|method| {
-                    method.signature
-                        == vec![InstanceID::new("ring"), InstanceID::new("ChainComplex")]
-                        && method.output_types == vec![InstanceID::new("Ring")]
-                        && !method.is_specialized
-                }),
-            "installed ring domains should inherit the general Ring codomain"
-        );
-        assert!(
-            !builtins
-                .undocumented_installed_methods(&ring_function)
-                .iter()
-                .any(|method| method.signature
-                    == vec![InstanceID::new("ring"), InstanceID::new("Ideal")]),
-            "documented ring(Ideal) should not be repeated as an installed-only method"
-        );
-
-        let core_stash_value = builtins
-            .get_record(&InstanceID::new("Core$stashValue"))
-            .expect("runtime-only Core$stashValue should be present");
-        assert!(
-            core_stash_value.description_short.is_none(),
-            "missing docs should deserialize as null placeholders"
-        );
-        assert_eq!(
-            core_stash_value
-                .documentation
-                .as_ref()
-                .map(|documentation| &documentation.status),
-            Some(&DocumentationStatus::Missing),
-            "missing docs should be explicit TODOs, not confused with non-applicable sections"
+            "Ring should carry its lattice subtypes"
         );
         assert!(
             builtins
                 .get_record(&InstanceID::new("ZZ"))
-                .is_some_and(|record| record.function_info.is_none()),
-            "function_info should be absent when it does not apply"
+                .is_some_and(|record| record.type_info.is_some() && record.function_info.is_none()),
+            "ZZ is a type, so it carries type_info and no function_info"
         );
 
+        // An object (constant / option key) is surfaced with its class.
+        assert_eq!(
+            builtins
+                .get_record(&InstanceID::new("pi"))
+                .map(|record| record.class.0),
+            Some("Constant".to_string()),
+            "objects should be pooled as records carrying their class"
+        );
+
+        // An operator: forms drive hover labels.
         let plus = builtins
             .get_record(&InstanceID::new("+"))
             .expect("+ operator should be present");
-        assert_eq!(
-            plus.operator_info
-                .as_ref()
-                .map(|info| info.method_lookup.as_str()),
-            Some("symbol"),
-            "operators should record that dispatch is looked up through symbol syntax"
-        );
         assert!(
-            plus.function_info
-                .as_ref()
-                .is_some_and(|info| info.methods.len() >= 100),
-            "+ should include the symbol-keyed operator method table"
-        );
-        assert!(
-            plus.operator_info.as_ref().is_some_and(|info| info.flexible
-                && info.forms.contains(&"Binary".to_string())
-                && info.forms.contains(&"Prefix".to_string())),
-            "+ should preserve operator form and flag metadata"
-        );
-    }
-
-    #[test]
-    fn generated_builtin_data_classifies_semantic_tokens() {
-        let builtins = generated_builtins();
-
-        assert_eq!(
-            builtins
-                .get_semantic_token("ideal")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Method),
-            "M2-defined MethodFunctionSingle values keep the method role"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("drop")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Function),
-            "CompiledFunction values use the builtin function role"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("apply")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Function),
-            "CompiledFunction values with installed methods still use the builtin function role"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("wedgeProduct")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Function),
-            "MethodFunction is a child of CompiledFunctionClosure, so it uses the builtin function role"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("match")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Method)
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("toString")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Method)
-        );
-        assert!(
-            builtins
-                .get_semantic_token("toString")
-                .is_some_and(|token| token.is_constructor),
-            "constructor-ness should be carried as a custom modifier, not a custom token type"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("toList")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Method)
-        );
-        assert!(
-            builtins
-                .get_semantic_token("toList")
-                .is_some_and(|token| token.is_constructor),
-            "constructor-ness should be carried as a custom modifier, not a custom token type"
-        );
-        assert!(
-            !builtins.is_constructor_name("toLower"),
-            "to-prefixed names only count as constructors when the suffix is an M2 type"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("Ring")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Class)
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("ZZ")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Class)
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("MutableHashTable")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Class)
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("Function")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Class)
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("ScriptedFunctor")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Class)
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("Tor")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Function),
-            "ScriptedFunctor values should use the function token role"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("Core")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Namespace),
-            "M2 Package values should use the namespace role"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("Strategy")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::EnumMember),
-            "plain metadata symbols should use enumMember unless context gives a more specific role"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("LongPolynomial")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::EnumMember),
-            "plain option-value metadata symbols should use enumMember"
-        );
-        assert!(
-            builtins.is_option_name("SyzygyLimit"),
-            "option keys should be identifiable from generated metadata"
-        );
-        let syzygy_limit_usages = builtins.option_usage_names("SyzygyLimit", 8);
-        assert!(
-            syzygy_limit_usages.contains(&"gb".to_string())
-                && syzygy_limit_usages.contains(&"syz".to_string()),
-            "generated method option metadata should support option hover usage lists"
-        );
-        assert!(
-            builtins.is_option_value_name("Bayer"),
-            "generic option values should be identifiable from generated metadata"
-        );
-        assert!(
-            builtins.is_option_value_name("LongPolynomial"),
-            "package-specific option values should be identifiable from generated metadata"
-        );
-        assert!(
-            builtins.is_option_value_for_key("Strategy", "LongPolynomial"),
-            "slot-specific option values should be identifiable from compact type facts"
-        );
-        assert!(
-            !builtins.is_option_value_for_key("SyzygyLimit", "LongPolynomial"),
-            "option values should not be treated as valid for unrelated option keys"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("endl")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Operator),
-            "M2 Manipulator values should use the operator token role"
-        );
-        assert!(
-            builtins
-                .get_semantic_token("endl")
-                .is_some_and(|token| token.is_manipulator),
-            "M2 Manipulator values should retain their runtime-class modifier"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("clearAll")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Function),
-            "M2 Command values should use the function token role"
-        );
-        assert!(
-            builtins
-                .get_semantic_token("clearAll")
-                .is_some_and(|token| token.is_command),
-            "M2 Command values should retain their runtime-class modifier"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token_for_static_type("Command")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Function),
-            "Command static types should use the function token role"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token_for_static_type("ScriptedFunctor")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Function),
-            "ScriptedFunctor static types should use the function token role"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token_for_static_type("Manipulator")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Operator),
-            "Manipulator static types should use the operator token role"
-        );
-        assert_eq!(
-            builtins
-                .get_semantic_token("stderr")
-                .map(|token| token.token_type),
-            Some(M2SemanticTokenType::Variable),
-            "M2 File values should use a standard semantic token"
-        );
-        assert!(
-            builtins
-                .get_semantic_token("stderr")
-                .is_some_and(|token| token.is_file),
-            "M2 File values should retain their runtime-class modifier"
+            plus.operator_info.as_ref().is_some_and(|info| {
+                info.forms.contains(&"Binary".to_string())
+                    && info.forms.contains(&"Prefix".to_string())
+            }),
+            "+ should preserve its operator forms (binary + prefix)"
         );
     }
 

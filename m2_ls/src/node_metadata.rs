@@ -250,8 +250,6 @@ impl<'tree> M2Node<'tree> {
     pub fn end_byte(&self) -> usize {
         self.node.end_byte()
     }
-
-
 }
 
 impl<'tree> From<tree_sitter::Node<'tree>> for M2Node<'tree> {

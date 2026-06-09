@@ -1,4 +1,0 @@
-{"callable":"SPACE","signatures":[{"domain":["Ring","Array"],"codomain":"Ring"},{"domain":["Ring","List"],"codomain":"Ring"},{"domain":["Ring","Monoid"],"codomain":"Ring"},{"domain":["InexactFieldFamily","Array"],"codomain":"Ring"},{"domain":["InexactFieldFamily","List"],"codomain":"Ring"},{"domain":["InexactFieldFamily","Monoid"],"codomain":"Ring"}]}
-{"callable":"gb","options":[{"key":"Strategy","values":["LongPolynomial","Sort","UseSyzygies"]},{"key":"Algorithm","values":["Inhomogeneous","Homogeneous","Homogeneous2","Sugarless","Faugere"]}]}
-{"callable":"groebnerBasis","options":[{"key":"Strategy","values":["LongPolynomial","Sort","UseSyzygies"]},{"key":"Algorithm","values":["Inhomogeneous","Homogeneous","Homogeneous2","Sugarless","Faugere"]}]}
-{"callable":"syz","options":[{"key":"Strategy","values":["LongPolynomial","Sort","UseSyzygies"]},{"key":"Algorithm","values":["Inhomogeneous","Homogeneous","Homogeneous2","Sugarless","Faugere"]}]}

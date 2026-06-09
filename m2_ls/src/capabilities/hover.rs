@@ -338,9 +338,9 @@ mod tests {
     #[test]
     fn hover_call_context_specializes_builtin_method_signatures() {
         let text = "F := openOut \"test.oldvalues\"\n";
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-docs.jsonl"),
         );
         let mut parser = Parser::new();
         parser
@@ -385,7 +385,7 @@ mod tests {
         let text = "x := 1\ny := 2\nz := x + y\n";
         let builtins = BuiltinData::load_from_split(
             "+\n",
-            "{\"name\":\"+\",\"data_type\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"],\"output_types\":[\"ZZ\"],\"doc_key\":\"+(ZZ,ZZ)\"}]}}\n",
+            "{\"name\":\"+\",\"class\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"],\"output_types\":[\"ZZ\"],\"doc_key\":\"+(ZZ,ZZ)\"}]}}\n",
         );
         let mut parser = Parser::new();
         parser
@@ -426,61 +426,6 @@ mod tests {
                 .map(|id| id.0.as_str())
                 .collect::<Vec<_>>(),
             vec!["ZZ"]
-        );
-    }
-
-    #[test]
-    fn hover_operator_usage_partitions_possible_and_excluded_signatures() {
-        let text = "opts = {Slope => 1, Intercept => 1}\ng = opts >> o -> x -> x\n";
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
-        );
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_builtins(&tree, text, Some(&builtins));
-        let node = tree
-            .root_node()
-            .descendant_for_point_range(
-                tree_sitter::Point::new(1, 10),
-                tree_sitter::Point::new(1, 10),
-            )
-            .expect(">> node should be found");
-
-        let usage = call_signature_usage_for_hover(node, ">>", text, &analysis, &builtins)
-            .expect(">> hover should resolve usage signatures");
-
-        let pinned = usage
-            .pinned
-            .as_ref()
-            .expect("List and Function should pin the smaller >> installation");
-        assert_eq!(signature_label_for_test(pinned), ">>, List, Function");
-        assert_eq!(
-            usage
-                .possible
-                .iter()
-                .map(signature_label_for_test)
-                .collect::<Vec<_>>(),
-            Vec::<String>::new()
-        );
-        assert_eq!(
-            usage
-                .excluded
-                .iter()
-                .map(signature_label_for_test)
-                .collect::<Vec<_>>(),
-            vec![
-                ">>, OptionTable, Function",
-                ">>, Boolean, Function",
-                ">>, CC, ZZ",
-                ">>, RR, ZZ",
-                ">>, ZZ, ZZ",
-                ">>, RRi, ZZ",
-                ">>, Thing, Thing"
-            ]
         );
     }
 

@@ -416,8 +416,10 @@ mod tests {
     }
 
     #[test]
-    fn document_symbols_include_static_bindings_from_extractor_script_once() {
-        let text = include_str!("../../scripts/extract_builtins.m2");
+    fn document_symbols_emit_repeated_top_level_binding_once() {
+        // A top-level name assigned more than once is a single static symbol,
+        // anchored at its first binding.
+        let text = "x = 1\nargs = {}\nargs = append(args, 1)\n";
         let builtins = BuiltinData::load_from_split("", "");
 
         let document = document(text, &builtins);
@@ -430,12 +432,12 @@ mod tests {
         assert_eq!(
             args_symbols.len(),
             1,
-            "top-level args should be a single static document symbol"
+            "a repeated top-level binding should be a single static document symbol"
         );
         assert_eq!(
             args_symbols[0].selection_range.start,
-            Position::new(11, 0),
-            "args should point at the first static binding"
+            Position::new(1, 0),
+            "args should point at its first static binding"
         );
     }
 
@@ -477,13 +479,13 @@ mod tests {
             }
         }
 
-        let text = include_str!("../../scripts/extract_builtins.m2");
+        let text = include_str!("../../../example_m2_code/example1.m2");
         let builtins = BuiltinData::load_from_split("", "");
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
             .unwrap();
-        let tree = parser.parse(text, None).expect("extractor should parse");
+        let tree = parser.parse(text, None).expect("fixture should parse");
         let mut expected = Vec::new();
         collect_static_top_level_bindings(tree.root_node(), text, &mut expected);
 
@@ -598,9 +600,9 @@ X + Z := (a,b) -> \"X + Z\"
     #[test]
     fn document_symbols_keep_to_type_functions_as_functions() {
         let text = "toString := x -> x";
-        let builtins = BuiltinData::load_from_split(
-            include_str!("../data/builtins.names"),
-            include_str!("../data/builtins.details.jsonl"),
+        let builtins = BuiltinData::load_from_index(
+            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-docs.jsonl"),
         );
 
         let document = document(text, &builtins);

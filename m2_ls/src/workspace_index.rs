@@ -78,10 +78,13 @@ impl WorkspaceIndex {
         }
         let mut names = Vec::with_capacity(definitions.len());
         for (name, range) in definitions {
-            self.by_name.entry(name.clone()).or_default().push(DefLocation {
-                uri: uri.clone(),
-                range,
-            });
+            self.by_name
+                .entry(name.clone())
+                .or_default()
+                .push(DefLocation {
+                    uri: uri.clone(),
+                    range,
+                });
             names.push(name);
         }
         self.by_file.insert(uri.clone(), names);
@@ -136,7 +139,11 @@ impl WorkspaceIndex {
         for root in self.roots() {
             let mut files = Vec::new();
             collect_m2_files(&root, &mut files);
-            uris.extend(files.iter().filter_map(|path| Url::from_file_path(path).ok()));
+            uris.extend(
+                files
+                    .iter()
+                    .filter_map(|path| Url::from_file_path(path).ok()),
+            );
         }
         uris
     }

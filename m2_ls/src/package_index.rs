@@ -103,10 +103,12 @@ impl SourceResolver {
     }
 }
 
+/// Loads pre-extracted package index files from a cache dir. Per the static-asset
+/// decision the LSP never *generates* these — extraction is an external,
+/// build-time pipeline — so this only ever reads cache files that already exist.
 #[derive(Debug, Clone)]
 pub(crate) struct PackageIndexer {
     pub(crate) cache_dir: PathBuf,
-    pub(crate) extractor_script: Option<PathBuf>,
 }
 
 impl PackageIndexer {
@@ -114,20 +116,8 @@ impl PackageIndexer {
         let cache_dir = std::env::var_os("M2_LSP_PACKAGE_INDEX_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(default_package_index_dir);
-        let extractor_script = find_extractor_script();
 
-        PackageIndexer {
-            cache_dir,
-            extractor_script,
-        }
-    }
-
-    pub(crate) fn load_or_generate(&self, package_name: &str) -> Option<BuiltinData> {
-        if let Some(index) = self.load(package_name) {
-            return Some(index);
-        }
-        self.generate(package_name).ok()?;
-        self.load(package_name)
+        PackageIndexer { cache_dir }
     }
 
     pub(crate) fn load(&self, package_name: &str) -> Option<BuiltinData> {
@@ -136,88 +126,12 @@ impl PackageIndexer {
         Some(BuiltinData::load_from_split(&names, &details))
     }
 
-    fn generate(&self, package_name: &str) -> std::io::Result<()> {
-        fs::create_dir_all(&self.cache_dir)?;
-        let Some(script) = &self.extractor_script else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "package index extractor script not found",
-            ));
-        };
-
-        let (tx, rx) = mpsc::channel();
-        let script = script.clone();
-        let cache_dir = self.cache_dir.clone();
-        let package_name = package_name.to_string();
-
-        thread::spawn(move || {
-            let result = Command::new("M2")
-                .arg("--script")
-                .arg(&script)
-                .arg(&cache_dir)
-                .arg(&package_name)
-                .status()
-                .map(|status| status.success());
-            let _ = tx.send(result);
-        });
-
-        match rx.recv_timeout(Duration::from_secs(30)) {
-            Ok(Ok(true)) => Ok(()),
-            Ok(Ok(false)) => Err(std::io::Error::other("package index extractor failed")),
-            Ok(Err(e)) => Err(e),
-            Err(_) => Err(std::io::Error::other("package index extractor timed out")),
-        }
-    }
-
     fn names_path(&self, package_name: &str) -> PathBuf {
         self.cache_dir.join(format!("{package_name}.names"))
     }
 
     fn details_path(&self, package_name: &str) -> PathBuf {
         self.cache_dir.join(format!("{package_name}.details.jsonl"))
-    }
-}
-
-fn find_extractor_script() -> Option<PathBuf> {
-    std::env::var_os("M2_LSP_EXTRACT_PACKAGE_INDEX")
-        .map(PathBuf::from)
-        .or_else(|| {
-            extractor_script_candidates()
-                .into_iter()
-                .find(|candidate| candidate.exists())
-        })
-}
-
-pub(crate) fn extractor_script_candidates() -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
-    push_extractor_candidates(&mut candidates, Path::new("."));
-
-    if let Ok(current_dir) = std::env::current_dir() {
-        push_extractor_candidates(&mut candidates, &current_dir);
-    }
-
-    push_extractor_candidates(&mut candidates, Path::new(env!("CARGO_MANIFEST_DIR")));
-
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(exe_dir) = exe.parent() {
-            for ancestor in exe_dir.ancestors() {
-                push_extractor_candidates(&mut candidates, ancestor);
-            }
-        }
-    }
-
-    candidates
-}
-
-fn push_extractor_candidates(candidates: &mut Vec<PathBuf>, root: &Path) {
-    let local = root.join("scripts/extract_package_index.m2");
-    if !candidates.iter().any(|candidate| candidate == &local) {
-        candidates.push(local);
-    }
-
-    let workspace = root.join("m2_ls/scripts/extract_package_index.m2");
-    if !candidates.iter().any(|candidate| candidate == &workspace) {
-        candidates.push(workspace);
     }
 }
 

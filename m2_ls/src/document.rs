@@ -1,6 +1,6 @@
+use crate::node_metadata::{M2Node, NodeKind};
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
-use crate::node_metadata::{M2Node, NodeKind};
 
 #[cfg(test)]
 use crate::analysis::ExpressionFact;
@@ -90,8 +90,6 @@ impl DocumentSnapshot {
     pub(crate) fn range_for(&self, node: Node<'_>) -> Range {
         node_range(&self.text, node)
     }
-
-
 
     pub(crate) fn point_for_position(&self, position: Position) -> Option<Point> {
         tree_sitter_point_from_lsp_position(&self.text, position)
@@ -217,9 +215,9 @@ mod tests {
     use super::*;
 
     fn builtins() -> BuiltinData {
-        BuiltinData::load_from_split(
-            include_str!("./data/builtins.names"),
-            include_str!("./data/builtins.details.jsonl"),
+        BuiltinData::load_from_index(
+            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-docs.jsonl"),
         )
     }
 

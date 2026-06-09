@@ -120,7 +120,9 @@ fn simplify_redundant_branches(text: &str) -> String {
 
 fn simplify_redundant_branches_once(text: &str) -> Option<String> {
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_macaulay2::language()).ok()?;
+    parser
+        .set_language(&tree_sitter_macaulay2::language())
+        .ok()?;
     let tree = parser.parse(text, None)?;
     let root = tree.root_node();
 
@@ -184,7 +186,9 @@ fn reflow_standalone_ifs(text: &str) -> String {
 
 fn reflow_standalone_ifs_once(text: &str) -> Option<String> {
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_macaulay2::language()).ok()?;
+    parser
+        .set_language(&tree_sitter_macaulay2::language())
+        .ok()?;
     let tree = parser.parse(text, None)?;
     let root = tree.root_node();
 
@@ -221,7 +225,9 @@ fn reflow_standalone_ifs_once(text: &str) -> Option<String> {
 /// or a body that is a single atom that reads fine inline).
 fn reflowed_statement(node: Node<'_>, text: &str) -> Option<String> {
     match node.kind() {
-        "if_statement" if is_standalone_statement(node, text) && if_chain_has_block_body(node, text) => {
+        "if_statement"
+            if is_standalone_statement(node, text) && if_chain_has_block_body(node, text) =>
+        {
             canonical_if(node, text)
         }
         "for_statement" | "while_statement" if is_standalone_statement(node, text) => {
@@ -324,7 +330,9 @@ fn canonical_if(node: Node<'_>, text: &str) -> Option<String> {
     let then_inner = if_body_inner(then_body, text);
     if else_clause_expr.kind() == "if_statement" {
         let tail = canonical_if(else_clause_expr, text)?;
-        Some(format!("if {condition_text} then (\n{then_inner}\n) else {tail}"))
+        Some(format!(
+            "if {condition_text} then (\n{then_inner}\n) else {tail}"
+        ))
     } else {
         Some(format!(
             "if {condition_text} then (\n{then_inner}\n) else{}",
@@ -561,7 +569,11 @@ fn update_indent_state(line: &str, state: &mut IndentState) {
     // length unchanged, so keying off `len > line_start_stack_len` would miss
     // the freshly opened delimiter. Grouping every ungrouped opener under one id
     // keeps multiple trailing openers on a line at a single indent level.
-    if state.delimiters.iter().any(|delimiter| delimiter.group_id.is_none()) {
+    if state
+        .delimiters
+        .iter()
+        .any(|delimiter| delimiter.group_id.is_none())
+    {
         let group_id = DelimiterGroupId(state.next_group_id);
         state.next_group_id += 1;
         for delimiter in &mut state.delimiters {
@@ -708,7 +720,8 @@ fn line_indent(line: &str, state: &mut IndentState) -> LineIndent {
     if state.literal != LiteralState::None {
         update_literal_state(line, state);
         return LineIndent {
-            depth: active_group_count(state).saturating_sub(leading_group_closing_count(line, state)),
+            depth: active_group_count(state)
+                .saturating_sub(leading_group_closing_count(line, state)),
             is_blank: line.trim().is_empty(),
         };
     }
@@ -973,9 +986,16 @@ fn push_multiline_closer_edit(
     });
 }
 
-fn trailing_delimiter_group(text: &str, line_start: usize, opener_start: usize) -> Option<DelimiterGroupId> {
+fn trailing_delimiter_group(
+    text: &str,
+    line_start: usize,
+    opener_start: usize,
+) -> Option<DelimiterGroupId> {
     let line = &text[line_start..];
-    let line_end = line.find('\n').map(|offset| line_start + offset).unwrap_or(text.len());
+    let line_end = line
+        .find('\n')
+        .map(|offset| line_start + offset)
+        .unwrap_or(text.len());
     let line_text = &text[line_start..line_end];
     let trailing = trailing_open_delimiter_starts(line_text);
     if trailing.contains(&(opener_start - line_start)) {
@@ -983,7 +1003,9 @@ fn trailing_delimiter_group(text: &str, line_start: usize, opener_start: usize) 
     }
 
     let code = code_before_line_comment(line_text).trim_end_matches([' ', '\t']);
-    let suffix = code.get((opener_start - line_start + 1)..)?.trim_end_matches([' ', '\t']);
+    let suffix = code
+        .get((opener_start - line_start + 1)..)?
+        .trim_end_matches([' ', '\t']);
     if suffix.ends_with(',') || suffix.ends_with(';') {
         return Some(DelimiterGroupId(line_start as u32));
     }
@@ -1875,7 +1897,10 @@ mod tests {
 
     #[test]
     fn leaves_single_word_if_bodies_inline() {
-        assert_eq!(format_document_text("if a then b else c\n"), "if a then b else c\n");
+        assert_eq!(
+            format_document_text("if a then b else c\n"),
+            "if a then b else c\n"
+        );
         assert_eq!(format_document_text("if a then b\n"), "if a then b\n");
     }
 
@@ -1897,7 +1922,10 @@ mod tests {
             format_document_text("for i in L list f(i)\n"),
             "for i in L list\n    f(i)\n"
         );
-        assert_eq!(format_document_text("for i in L do x\n"), "for i in L do x\n");
+        assert_eq!(
+            format_document_text("for i in L do x\n"),
+            "for i in L do x\n"
+        );
     }
 
     #[test]
@@ -1908,7 +1936,11 @@ mod tests {
             "if cond then (a;b) else (c;d)\n",
         ] {
             let once = format_document_text(source);
-            assert_eq!(format_document_text(&once), once, "not idempotent: {source:?}");
+            assert_eq!(
+                format_document_text(&once),
+                once,
+                "not idempotent: {source:?}"
+            );
         }
     }
 
@@ -1942,7 +1974,8 @@ mod tests {
         // Every continuation line of the broken `if` expression sits one level in,
         // not just the first broken body.
         assert!(formatted.contains("\n    extractFunc(name, db)\n"));
-        assert!(formatted.contains("\n    else if kind === \"operator\" then extractOperator(name, db)\n"));
+        assert!(formatted
+            .contains("\n    else if kind === \"operator\" then extractOperator(name, db)\n"));
         assert!(formatted.contains("\n    else extractObject(name, db);\n"));
         // The result is stable under re-formatting.
         assert_eq!(format_document_text(&formatted), formatted);

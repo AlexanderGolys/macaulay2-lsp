@@ -221,6 +221,16 @@ fn record_hover_markdown(
         markdown.push_str("```\n");
     }
 
+    // Builtin records carry no doc text (the typecheck index is compressed); the
+    // rendered docs live in a separate map read once at startup. Append them
+    // below the structured header. Package records keep their own docs and have
+    // no entry here, so this is a no-op for them.
+    if let Some(doc) = builtins.doc_markdown(&record.name) {
+        markdown.push_str("\n---\n\n");
+        markdown.push_str(doc);
+        markdown.push('\n');
+    }
+
     markdown
 }
 
