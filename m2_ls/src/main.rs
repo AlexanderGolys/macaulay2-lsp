@@ -493,7 +493,7 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let diagnostics = if params.context.diagnostics.is_empty() {
+        let diagnostics: &[_] = if params.context.diagnostics.is_empty() {
             document.diagnostics()
         } else {
             &params.context.diagnostics
