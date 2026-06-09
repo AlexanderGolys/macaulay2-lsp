@@ -103,14 +103,35 @@ impl DocumentSnapshot {
     }
 
     pub(crate) fn symbol_node_at_position(&self, position: Position) -> Option<Node<'_>> {
-        let mut node = self.node_at_position_minimal(position)?;
-
-        loop {
-            if matches!(node.kind(), "symbol" | "identifier" | "resolved_symbol") {
-                return Some(node);
+        let Some(point) = self.point_for_position(position) else {
+            return None;
+        };
+        let root = self.root_node();
+        // When the cursor sits on the boundary between the anonymous SPACE
+        // application operator (which the grammar emits zero-width) and an
+        // adjacent symbol — e.g. the trailing `M` in an application `(f x) M`,
+        // where SPACE sits exactly at `M`'s start column — a zero-width lookup
+        // lands on the operator. Widening the lookup to the character under the
+        // cursor lands on the symbol; the exact-point lookup is tried first so
+        // ordinary mid-token positions are unaffected.
+        let next = Point::new(point.row, point.column + 1);
+        let starts = [
+            root.descendant_for_point_range(point, point),
+            root.descendant_for_point_range(point, next),
+        ];
+        for start in starts.into_iter().flatten() {
+            let mut node = start;
+            loop {
+                if M2Node::new(node).kind.is_symbol_like() {
+                    return Some(node);
+                }
+                match node.parent() {
+                    Some(parent) => node = parent,
+                    None => break,
+                }
             }
-            node = node.parent()?;
         }
+        None
     }
 
     pub(crate) fn text_for<'a>(&'a self, node: Node<'_>) -> &'a str {
@@ -200,6 +221,22 @@ mod tests {
             include_str!("./data/builtins.names"),
             include_str!("./data/builtins.details.jsonl"),
         )
+    }
+
+    #[test]
+    fn resolves_symbol_at_application_operand_boundary() {
+        // The trailing `M` is the right operand of an application `(...) M`,
+        // where the zero-width SPACE operator sits exactly at `M`'s start column.
+        // A naive zero-width lookup lands on the operator; the symbol must still
+        // resolve (regression: rename of such an operand returned nothing).
+        let builtins = builtins();
+        let text = "h Module := M -> (\n    (m(class, ring)) M;\n)\n";
+        let doc = DocumentSnapshot::from_text(text.to_string(), &builtins).expect("parse");
+        let trailing_m = text.lines().nth(1).unwrap().find(") M").unwrap() + 2;
+        let node = doc
+            .symbol_node_at_position(Position::new(1, trailing_m as u32))
+            .expect("trailing application operand should resolve to its symbol");
+        assert_eq!(doc.text_for(node), "M");
     }
 
     #[test]

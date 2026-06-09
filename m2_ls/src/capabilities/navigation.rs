@@ -419,4 +419,36 @@ mod tests {
         let uri = Url::parse("file:///t.m2").expect("uri");
         assert!(rename_edits(&document, &uri, Position::new(0, 5), "  ").is_none());
     }
+
+    #[test]
+    fn rename_includes_quoted_symbol_reference() {
+        // `symbol M` names the identifier `M` (as a ResolvedSymbol); renaming the
+        // user-defined `M` must rewrite that occurrence too.
+        let text = "f := M -> (symbol M; M + 1)";
+        let document = document(text);
+        let uri = Url::parse("file:///t.m2").expect("uri");
+        let edits = rename_edits(&document, &uri, Position::new(0, 5), "N")
+            .expect("user symbol should be renameable")
+            .changes
+            .expect("simple changes")[&uri]
+            .iter()
+            .map(|edit| edit.range.start.character)
+            .collect::<Vec<_>>();
+        // parameter `M`, the `M` in `symbol M`, and the `M` in `M + 1`.
+        assert_eq!(edits, vec![5, 18, 21]);
+    }
+
+    #[test]
+    fn rename_rejects_symbols_not_defined_by_the_user() {
+        let uri = Url::parse("file:///t.m2").expect("uri");
+        // `Algorithm` is a global reserved option key, not a user definition.
+        let opt = document("g := gens gb(I, Algorithm => Homogeneous)");
+        assert!(rename_edits(&opt, &uri, Position::new(0, 16), "Z").is_none());
+        assert!(prepare_rename_range(&opt, Position::new(0, 16)).is_none());
+        // Keywords and punctuation that the grammar resolves into symbols.
+        let kw = document("z = a and b");
+        assert!(rename_edits(&kw, &uri, Position::new(0, 6), "Z").is_none());
+        let brace = document("x = {1, 2}");
+        assert!(rename_edits(&brace, &uri, Position::new(0, 4), "Z").is_none());
+    }
 }
