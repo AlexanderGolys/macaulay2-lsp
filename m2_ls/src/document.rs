@@ -75,7 +75,7 @@ impl DocumentSnapshot {
         position: Position,
     ) -> Option<&ExpressionFact> {
         let node = self.node_at_position_minimal(position)?;
-        self.analysis.expression_fact(&self.text, node)
+        self.analysis.expression_fact(&self.text, M2Node::new(node))
     }
 
     pub(crate) fn callable_at_position(&self, position: Position) -> Option<&FunctionInfo> {

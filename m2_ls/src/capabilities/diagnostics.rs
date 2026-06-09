@@ -61,7 +61,7 @@ impl Analysis {
                 message: AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE.to_string(),
                 ..Default::default()
             });
-        } else if is_assignment_expression(node, text) {
+        } else if is_assignment_expression(m2_node, text) {
             self.validate_assignment_form(node, text);
         } else if m2_node.kind == NodeKind::Cell {
             self.diagnose_leading_else(node, text);
@@ -100,7 +100,7 @@ impl Analysis {
         let op_text = &text[operator.start_byte()..operator.end_byte()];
 
         let is_method_installation =
-            op_text == ":=" && method_installation_signature(left, text).is_some();
+            op_text == ":=" && method_installation_signature(M2Node::new(left), text).is_some();
 
         if matches!(op_text, "=" | ":=")
             && !is_method_installation
@@ -116,7 +116,7 @@ impl Analysis {
 
         if op_text == ":="
             && M2Node::new(left).is(NodeKind::BinaryExpression)
-            && binary_expression_operator(left, text) == Some("#")
+            && binary_expression_operator(M2Node::new(left), text) == Some("#")
         {
             self.diagnostics.push(Diagnostic {
                 range: to_lsp_range(text, left.range()),
@@ -135,7 +135,7 @@ impl Analysis {
             let node = cursor.node();
             if M2Node::new(node).kind.is_symbol_like() {
                 let name = &text[node.start_byte()..node.end_byte()];
-                let position = node_position(text, node);
+                let position = node_position(text, M2Node::new(node));
                 if let Some(binding_idx) = self.binding_idx_at(name, position) {
                     if let Some(binding) = self.registry.bindings.get(binding_idx) {
                         let node_range = to_lsp_range(text, node.range());
@@ -247,13 +247,13 @@ fn find_first_else_symbol<'tree>(node: Node<'tree>, text: &str) -> Option<Node<'
 }
 
 pub(crate) fn ambiguous_float_member_access_rewrite(node: Node<'_>, text: &str) -> Option<String> {
-    if !is_space_operator_expression(node) {
+    if !is_space_operator_expression(M2Node::new(node)) {
         return None;
     }
 
     let left = node.child_by_field_name("left")?;
     let right = node.child_by_field_name("right")?;
-    if symbol_node_text(left, text).is_none()
+    if symbol_node_text(M2Node::new(left), text).is_none()
         || M2Node::new(right).kind != NodeKind::FloatLiteral
         || left.end_byte() != right.start_byte()
     {

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use tower_lsp::lsp_types::{Diagnostic, Position, Range as LspRange, SymbolKind};
-use tree_sitter::{Node, Tree};
+use tree_sitter::Tree;
 
 use crate::capabilities::diagnostics::ORPHAN_ELSE_DIAGNOSTIC_MESSAGE;
 use crate::node_metadata::{M2Node, NodeKind};
@@ -134,7 +134,7 @@ pub struct SemanticRegistry {
 }
 
 impl SpanKey {
-    fn from_node(text: &str, node: Node) -> Self {
+    fn from_node(text: &str, node: M2Node) -> Self {
         Self {
             range: to_lsp_range(text, node.range()),
         }
@@ -207,7 +207,7 @@ impl Analysis {
     }
 
     #[cfg(test)]
-    pub fn expression_fact(&self, text: &str, node: Node) -> Option<&ExpressionFact> {
+    pub fn expression_fact(&self, text: &str, node: M2Node) -> Option<&ExpressionFact> {
         self.registry
             .expressions
             .get(&SpanKey::from_node(text, node))
@@ -315,23 +315,22 @@ impl Analysis {
             },
         };
         analysis.collect_diagnostics(tree.root_node(), text);
-        analysis.build_scopes(tree.root_node(), text, 0, builtins);
-        analysis.collect_expression_facts(tree.root_node(), text, builtins);
+        analysis.build_scopes(M2Node::new(tree.root_node()), text, 0, builtins);
+        analysis.collect_expression_facts(M2Node::new(tree.root_node()), text, builtins);
         analysis.collect_unused_binding_diagnostics(tree.root_node(), text);
         analysis
     }
 
     fn build_scopes(
         &mut self,
-        node: Node,
+        node: M2Node,
         text: &str,
         current_scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) {
         let mut next_scope_idx = current_scope_idx;
-        let m2_node = M2Node::new(node);
 
-        match m2_node.kind {
+        match node.kind {
             NodeKind::LambdaExpression => {
                 next_scope_idx = self.push_scope(node, text, Some(current_scope_idx));
 
@@ -357,7 +356,7 @@ impl Analysis {
                         self.collect_local_method_installation(left, right, text);
                     }
                     let symbol_kind = match right {
-                        Some(right) if M2Node::new(right).kind == NodeKind::LambdaExpression => {
+                        Some(right) if right.kind == NodeKind::LambdaExpression => {
                             SymbolKind::FUNCTION
                         }
                         Some(right) if method_declaration_typical_value(right, text).is_some() => {
@@ -418,15 +417,14 @@ impl Analysis {
         }
 
         // Recurse into children
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
+        for child in node.children() {
             self.build_scopes(child, text, next_scope_idx, builtins);
         }
     }
 
     fn collect_parameters(
         &mut self,
-        node: Node,
+        node: M2Node,
         text: &str,
         scope_idx: usize,
         parameter_types: Option<&[String]>,
@@ -456,14 +454,13 @@ impl Analysis {
 
     fn collect_definitions(
         &mut self,
-        node: Node,
-        value_node: Option<Node>,
+        node: M2Node,
+        value_node: Option<M2Node>,
         text: &str,
         definition_scope: DefinitionScope,
         registration: SymbolRegistration<'_>,
     ) {
-        let m2_node = M2Node::new(node);
-        match m2_node.kind {
+        match node.kind {
             NodeKind::Symbol => {
                 let name = &text[node.start_byte()..node.end_byte()];
                 match definition_scope {
@@ -493,9 +490,8 @@ impl Analysis {
                 }
             }
             NodeKind::Sequence | NodeKind::List => {
-                let mut cursor = node.walk();
-                for child in node.named_children(&mut cursor) {
-                    if M2Node::new(child).kind == NodeKind::Symbol {
+                for child in node.named_children() {
+                    if child.kind == NodeKind::Symbol {
                         self.collect_definitions(
                             child,
                             value_node,
@@ -556,7 +552,7 @@ impl Analysis {
 
     pub fn local_method_installation_signature_at<'a>(
         &'a self,
-        node: Node,
+        node: M2Node,
         text: &str,
     ) -> Option<(&'a FunctionInfo, &'a MethodInfo)> {
         let installation = method_installation_expression_for_callable_node(node, text)?;
@@ -582,7 +578,7 @@ impl Analysis {
 
     pub fn infer_call_static_facts(
         &self,
-        node: Node,
+        node: M2Node,
         text: &str,
         builtins: Option<&BuiltinData>,
     ) -> CallStaticFacts {
@@ -592,7 +588,7 @@ impl Analysis {
 
     pub fn infer_expression_static_type_name(
         &self,
-        node: Node,
+        node: M2Node,
         text: &str,
         builtins: Option<&BuiltinData>,
     ) -> Option<String> {
@@ -604,7 +600,7 @@ impl Analysis {
         &mut self,
         name: &str,
         typical_value: Option<String>,
-        node: Node,
+        node: M2Node,
         text: &str,
     ) {
         let range = to_lsp_range(text, node.range());
@@ -623,7 +619,12 @@ impl Analysis {
         method.typical_value = typical_value;
     }
 
-    fn collect_local_method_installation(&mut self, node: Node, right: Option<Node>, text: &str) {
+    fn collect_local_method_installation(
+        &mut self,
+        node: M2Node,
+        right: Option<M2Node>,
+        text: &str,
+    ) {
         let Some((name, domain)) = method_installation_signature(node, text) else {
             return;
         };
@@ -649,7 +650,7 @@ impl Analysis {
         });
     }
 
-    fn push_scope(&mut self, node: Node, text: &str, parent_idx: Option<usize>) -> usize {
+    fn push_scope(&mut self, node: M2Node, text: &str, parent_idx: Option<usize>) -> usize {
         let range = to_lsp_range(text, node.range());
         let new_scope = Scope {
             range,
@@ -678,7 +679,12 @@ impl Analysis {
             .find(|symbol| symbol.range == binding.range)
     }
 
-    fn collect_expression_facts(&mut self, node: Node, text: &str, builtins: Option<&BuiltinData>) {
+    fn collect_expression_facts(
+        &mut self,
+        node: M2Node,
+        text: &str,
+        builtins: Option<&BuiltinData>,
+    ) {
         let position = node_position(text, node);
         let scope_idx = self.find_scope_at(position).unwrap_or(0);
         let key = SpanKey::from_node(text, node);
@@ -713,15 +719,14 @@ impl Analysis {
             }
         }
 
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
+        for child in node.children() {
             self.collect_expression_facts(child, text, builtins);
         }
     }
 
     fn call_info_for_expression(
         &self,
-        node: Node,
+        node: M2Node,
         text: &str,
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
@@ -729,7 +734,7 @@ impl Analysis {
         result_type: ExpressionType,
     ) -> Option<CallInfo> {
         if !matches!(
-            M2Node::new(node).kind,
+            node.kind,
             NodeKind::BinaryExpression | NodeKind::PrefixExpression
         ) {
             return None;
@@ -800,13 +805,12 @@ impl Analysis {
 
     fn infer_static_type_name(
         &self,
-        node: Node,
+        node: M2Node,
         text: &str,
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) -> Option<String> {
-        let m2_node = M2Node::new(node);
-        match m2_node.kind {
+        match node.kind {
             NodeKind::LambdaExpression => Some("Function".to_string()),
             NodeKind::BinaryExpression
                 if method_declaration_typical_value(node, text).is_some() =>
@@ -888,7 +892,7 @@ impl Analysis {
             }
             NodeKind::NewStatement => node
                 .child_by_field_name("type")
-                .filter(|type_node| M2Node::new(*type_node).kind == NodeKind::Symbol)
+                .filter(|type_node| type_node.kind == NodeKind::Symbol)
                 .map(|type_node| text[type_node.start_byte()..type_node.end_byte()].to_string()),
             _ => None,
         }
@@ -896,15 +900,14 @@ impl Analysis {
 
     fn infer_call_facts(
         &self,
-        node: Node,
+        node: M2Node,
         text: &str,
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) -> CallStaticFacts {
-        if M2Node::new(node).kind == NodeKind::Sequence {
+        if node.kind == NodeKind::Sequence {
             let mut facts = CallStaticFacts::default();
-            let mut cursor = node.walk();
-            for child in node.named_children(&mut cursor) {
+            for child in node.named_children() {
                 if let Some(option) = literal_option_assignment(child, text) {
                     facts.literal_options.push(option);
                 } else {
@@ -931,13 +934,12 @@ impl Analysis {
 
     fn infer_sequence_static_type_name(
         &self,
-        node: Node,
+        node: M2Node,
         text: &str,
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) -> Option<String> {
-        let mut cursor = node.walk();
-        let children = node.named_children(&mut cursor).collect::<Vec<_>>();
+        let children = node.named_children().collect::<Vec<_>>();
         match children.as_slice() {
             [child] => self.infer_static_type_name(*child, text, scope_idx, builtins),
             _ => Some("Sequence".to_string()),
@@ -1045,14 +1047,13 @@ struct SymbolRegistration<'a> {
     kind: SymbolKind,
     role: BindingRole,
     type_name: Option<&'a str>,
-    node: Node<'a>,
-    value_node: Option<Node<'a>>,
+    node: M2Node<'a>,
+    value_node: Option<M2Node<'a>>,
     scope_idx: usize,
 }
 
-fn expression_kind(node: Node<'_>, text: &str) -> Option<ExpressionKind> {
-    let m2_node = M2Node::new(node);
-    match m2_node.kind {
+fn expression_kind(node: M2Node<'_>, text: &str) -> Option<ExpressionKind> {
+    match node.kind {
         NodeKind::StringLiteral | NodeKind::IntegerLiteral | NodeKind::FloatLiteral => {
             Some(ExpressionKind::Literal)
         }
@@ -1077,7 +1078,7 @@ fn expression_kind(node: Node<'_>, text: &str) -> Option<ExpressionKind> {
     }
 }
 
-fn expression_inputs(node: Node<'_>) -> Vec<Node<'_>> {
+fn expression_inputs(node: M2Node<'_>) -> Vec<M2Node<'_>> {
     [
         "left",
         "right",
@@ -1091,18 +1092,16 @@ fn expression_inputs(node: Node<'_>) -> Vec<Node<'_>> {
     .collect()
 }
 
-fn expression_operator_text<'a>(node: Node<'_>, text: &'a str) -> Option<&'a str> {
+fn expression_operator_text<'a>(node: M2Node<'_>, text: &'a str) -> Option<&'a str> {
     node.child_by_field_name("operator")
         .map(|operator| &text[operator.start_byte()..operator.end_byte()])
 }
 
-fn collect_parameter_nodes<'tree>(node: Node<'tree>, parameters: &mut Vec<Node<'tree>>) {
-    let m2_node = M2Node::new(node);
-    match m2_node.kind {
+fn collect_parameter_nodes<'tree>(node: M2Node<'tree>, parameters: &mut Vec<M2Node<'tree>>) {
+    match node.kind {
         NodeKind::Symbol => parameters.push(node),
         NodeKind::Sequence | NodeKind::List => {
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
+            for child in node.children() {
                 collect_parameter_nodes(child, parameters);
             }
         }
@@ -1110,12 +1109,12 @@ fn collect_parameter_nodes<'tree>(node: Node<'tree>, parameters: &mut Vec<Node<'
     }
 }
 
-fn single_symbol_assignment_target<'a>(node: Node, text: &'a str) -> Option<&'a str> {
-    (M2Node::new(node).kind == NodeKind::Symbol).then(|| &text[node.start_byte()..node.end_byte()])
+fn single_symbol_assignment_target<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
+    (node.kind == NodeKind::Symbol).then(|| &text[node.start_byte()..node.end_byte()])
 }
 
-pub(crate) fn binary_expression_operator<'a>(node: Node, text: &'a str) -> Option<&'a str> {
-    if M2Node::new(node).kind != NodeKind::BinaryExpression {
+pub(crate) fn binary_expression_operator<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
+    if node.kind != NodeKind::BinaryExpression {
         return None;
     }
 
@@ -1123,32 +1122,31 @@ pub(crate) fn binary_expression_operator<'a>(node: Node, text: &'a str) -> Optio
         .map(|operator| &text[operator.start_byte()..operator.end_byte()])
 }
 
-pub(crate) fn is_space_operator_expression(node: Node<'_>) -> bool {
-    M2Node::new(node).kind == NodeKind::BinaryExpression
-        && binary_expression_operator_kind(node) == Some("SPACE")
+pub(crate) fn is_space_operator_expression(node: M2Node<'_>) -> bool {
+    node.kind == NodeKind::BinaryExpression
+        && binary_expression_operator_kind(node.inner()) == Some("SPACE")
 }
 
-pub(crate) fn is_assignment_expression(node: Node<'_>, text: &str) -> bool {
-    M2Node::new(node).kind == NodeKind::BinaryExpression
+pub(crate) fn is_assignment_expression(node: M2Node<'_>, text: &str) -> bool {
+    node.kind == NodeKind::BinaryExpression
         && matches!(
             binary_expression_operator(node, text),
             Some("=" | ":=" | "<-")
         )
 }
 
-pub(crate) fn is_option_assignment_expression(node: Node<'_>, text: &str) -> bool {
-    M2Node::new(node).kind == NodeKind::BinaryExpression
+pub(crate) fn is_option_assignment_expression(node: M2Node<'_>, text: &str) -> bool {
+    node.kind == NodeKind::BinaryExpression
         && binary_expression_operator(node, text) == Some("=>")
 }
 
-pub(crate) fn symbol_node_text<'a>(node: Node, text: &'a str) -> Option<&'a str> {
-    M2Node::new(node)
-        .kind
+pub(crate) fn symbol_node_text<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
+    node.kind
         .is_symbol_like()
         .then(|| &text[node.start_byte()..node.end_byte()])
 }
 
-fn method_declaration_typical_value(node: Node, text: &str) -> Option<Option<String>> {
+fn method_declaration_typical_value(node: M2Node, text: &str) -> Option<Option<String>> {
     if !is_space_operator_expression(node) {
         return None;
     }
@@ -1161,7 +1159,7 @@ fn method_declaration_typical_value(node: Node, text: &str) -> Option<Option<Str
     Some(find_option_value(node, text, "TypicalValue"))
 }
 
-fn find_option_value(node: Node, text: &str, option_name: &str) -> Option<String> {
+fn find_option_value(node: M2Node, text: &str, option_name: &str) -> Option<String> {
     if is_option_assignment_expression(node, text) {
         let left = node.child_by_field_name("left")?;
         let right = node.child_by_field_name("right")?;
@@ -1170,8 +1168,7 @@ fn find_option_value(node: Node, text: &str, option_name: &str) -> Option<String
         }
     }
 
-    let mut cursor = node.walk();
-    for child in node.named_children(&mut cursor) {
+    for child in node.named_children() {
         if let Some(value) = find_option_value(child, text, option_name) {
             return Some(value);
         }
@@ -1179,7 +1176,7 @@ fn find_option_value(node: Node, text: &str, option_name: &str) -> Option<String
     None
 }
 
-fn literal_option_assignment(node: Node, text: &str) -> Option<(String, String)> {
+fn literal_option_assignment(node: M2Node, text: &str) -> Option<(String, String)> {
     if !is_option_assignment_expression(node, text) {
         return None;
     }
@@ -1191,10 +1188,10 @@ fn literal_option_assignment(node: Node, text: &str) -> Option<(String, String)>
     Some((key.to_string(), value.to_string()))
 }
 
-fn enclosing_definition_range(node: Node<'_>, text: &str) -> LspRange {
+fn enclosing_definition_range(node: M2Node<'_>, text: &str) -> LspRange {
     let mut current = node;
     while let Some(parent) = current.parent() {
-        if M2Node::new(parent).kind == NodeKind::Cell {
+        if parent.kind == NodeKind::Cell {
             return to_lsp_range(text, parent.range());
         }
         current = parent;
@@ -1202,16 +1199,15 @@ fn enclosing_definition_range(node: Node<'_>, text: &str) -> LspRange {
     to_lsp_range(text, node.range())
 }
 
-fn literal_option_value<'a>(node: Node, text: &'a str) -> Option<&'a str> {
-    let m2_node = M2Node::new(node);
-    if m2_node.kind.is_symbol_like() || m2_node.kind.is_literal() {
+fn literal_option_value<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
+    if node.kind.is_symbol_like() || node.kind.is_literal() {
         Some(&text[node.start_byte()..node.end_byte()])
     } else {
         None
     }
 }
 
-fn explicit_method_installation_codomain(node: Node, text: &str) -> Option<String> {
+fn explicit_method_installation_codomain(node: M2Node, text: &str) -> Option<String> {
     if !is_option_assignment_expression(node, text) {
         return None;
     }
@@ -1221,7 +1217,7 @@ fn explicit_method_installation_codomain(node: Node, text: &str) -> Option<Strin
 }
 
 pub(crate) fn method_installation_signature(
-    node: Node,
+    node: M2Node,
     text: &str,
 ) -> Option<(String, Vec<String>)> {
     if !is_space_operator_expression(node) {
@@ -1236,12 +1232,12 @@ pub(crate) fn method_installation_signature(
 }
 
 fn method_installation_parameter_types_for_function(
-    function_node: Node,
+    function_node: M2Node,
     text: &str,
 ) -> Option<Vec<String>> {
     let mut current = function_node;
     while let Some(parent) = current.parent() {
-        if M2Node::new(parent).kind == NodeKind::LambdaExpression {
+        if parent.kind == NodeKind::LambdaExpression {
             return None;
         }
 
@@ -1265,9 +1261,9 @@ fn method_installation_parameter_types_for_function(
 }
 
 fn method_installation_expression_for_callable_node<'tree>(
-    node: Node<'tree>,
+    node: M2Node<'tree>,
     text: &str,
-) -> Option<Node<'tree>> {
+) -> Option<M2Node<'tree>> {
     let mut current = node;
     while let Some(parent) = current.parent() {
         current = parent;
@@ -1289,12 +1285,10 @@ fn method_installation_expression_for_callable_node<'tree>(
     None
 }
 
-pub(crate) fn method_installation_domain(node: Node, text: &str) -> Option<Vec<String>> {
-    let m2_node = M2Node::new(node);
-    if matches!(m2_node.kind, NodeKind::Sequence | NodeKind::List) {
-        let mut cursor = node.walk();
+pub(crate) fn method_installation_domain(node: M2Node, text: &str) -> Option<Vec<String>> {
+    if matches!(node.kind, NodeKind::Sequence | NodeKind::List) {
         let domain = node
-            .named_children(&mut cursor)
+            .named_children()
             .filter_map(|child| symbol_node_text(child, text).map(ToString::to_string))
             .collect::<Vec<_>>();
         return (!domain.is_empty()).then_some(domain);
@@ -1303,11 +1297,11 @@ pub(crate) fn method_installation_domain(node: Node, text: &str) -> Option<Vec<S
     symbol_node_text(node, text).map(|name| vec![name.to_string()])
 }
 
-fn node_is_within(ancestor: Node, node: Node) -> bool {
+fn node_is_within(ancestor: M2Node, node: M2Node) -> bool {
     ancestor.start_byte() <= node.start_byte() && node.end_byte() <= ancestor.end_byte()
 }
 
-fn is_colon_equal_assignment_left(node: Node, text: &str) -> bool {
+fn is_colon_equal_assignment_left(node: M2Node, text: &str) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
@@ -1370,7 +1364,7 @@ pub(crate) fn to_lsp_range(text: &str, range: tree_sitter::Range) -> LspRange {
     )
 }
 
-pub(crate) fn node_position(text: &str, node: Node) -> Position {
+pub(crate) fn node_position(text: &str, node: M2Node) -> Position {
     to_lsp_range(text, node.range()).start
 }
 
@@ -1862,9 +1856,11 @@ mod tests {
             .root_node()
             .descendant_for_byte_range(18, 23)
             .expect("assignment should exist");
-        let binary = assignment
-            .child_by_field_name("right")
-            .expect("assignment should have right-hand expression");
+        let binary = M2Node::new(
+            assignment
+                .child_by_field_name("right")
+                .expect("assignment should have right-hand expression"),
+        );
         let fact = analysis
             .expression_fact(text, binary)
             .expect("expression fact should be registered");
