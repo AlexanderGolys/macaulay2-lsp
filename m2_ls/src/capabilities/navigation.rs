@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use tower_lsp::lsp_types::*;
 
 use crate::document::DocumentSnapshot;
@@ -238,6 +240,51 @@ pub(crate) fn collect_reference_ranges(
     references
 }
 
+/// The range of the symbol that would be renamed at `position`, or `None` if the
+/// position is not on a renameable symbol. Only user symbols with a resolvable
+/// binding qualify — builtins and package symbols are excluded, since renaming
+/// them in this file alone would silently break the calls they stand for.
+pub(crate) fn prepare_rename_range(
+    document: &DocumentSnapshot,
+    position: Position,
+) -> Option<Range> {
+    let node = document.symbol_node_at_position(position)?;
+    let name = document.text_for(node);
+    document.analysis().get_symbol_at(name, position)?;
+    Some(document.range_for(node))
+}
+
+/// A workspace edit renaming every in-file reference of the symbol at `position`
+/// (including its declaration) to `new_name`, or `None` if there is nothing to
+/// rename. References are resolved scope-aware via [`collect_reference_ranges`],
+/// so shadowed names in other scopes are left untouched.
+pub(crate) fn rename_edits(
+    document: &DocumentSnapshot,
+    uri: &Url,
+    position: Position,
+    new_name: &str,
+) -> Option<WorkspaceEdit> {
+    if new_name.trim().is_empty() {
+        return None;
+    }
+    let ranges = collect_reference_ranges(document, position, true);
+    if ranges.is_empty() {
+        return None;
+    }
+    let edits = ranges
+        .into_iter()
+        .map(|range| TextEdit {
+            range,
+            new_text: new_name.to_string(),
+        })
+        .collect();
+    Some(WorkspaceEdit {
+        changes: Some(HashMap::from([(uri.clone(), edits)])),
+        document_changes: None,
+        change_annotations: None,
+    })
+}
+
 pub(crate) fn symbol_prefix_at(text: &str, position: Position) -> Option<String> {
     let line = text.lines().nth(position.line as usize)?;
     let cursor = utf16_col_to_byte(line, position.character);
@@ -337,5 +384,39 @@ mod tests {
         assert!(!should_include_workspace_symbol("Core", "Core$name"));
         assert!(should_include_workspace_symbol("Core", "name"));
         assert!(should_include_workspace_symbol("SomePackage", "Core$name"));
+    }
+
+    #[test]
+    fn rename_edits_replace_every_in_scope_reference() {
+        let text = "f := x -> (y := x + x; y)\nf 1";
+        let document = document(text);
+        let uri = Url::parse("file:///test.m2").expect("uri");
+
+        // Cursor on a use of `x`; rename to `z`.
+        let edit = rename_edits(&document, &uri, Position::new(0, 16), "z")
+            .expect("local symbol should be renameable");
+        let edits = &edit.changes.expect("simple changes")[&uri];
+
+        // Declaration + both uses, all rewritten to the new name.
+        assert_eq!(
+            edits.iter().map(|e| e.range).collect::<Vec<_>>(),
+            vec![
+                Range::new(Position::new(0, 5), Position::new(0, 6)),
+                Range::new(Position::new(0, 16), Position::new(0, 17)),
+                Range::new(Position::new(0, 20), Position::new(0, 21)),
+            ]
+        );
+        assert!(edits.iter().all(|e| e.new_text == "z"));
+    }
+
+    #[test]
+    fn prepare_rename_accepts_user_symbols_and_rejects_others() {
+        let text = "f := x -> (x + x)";
+        let document = document(text);
+        // On the parameter `x`.
+        assert!(prepare_rename_range(&document, Position::new(0, 5)).is_some());
+        // Empty new name is refused.
+        let uri = Url::parse("file:///t.m2").expect("uri");
+        assert!(rename_edits(&document, &uri, Position::new(0, 5), "  ").is_none());
     }
 }

@@ -31,7 +31,8 @@ use capabilities::formatting::{
 use capabilities::hover::hover_response;
 use capabilities::inlay_hints::inlay_hint_provider_capability;
 use capabilities::navigation::{
-    completion_response, goto_definition_response, references_response, workspace_symbols_response,
+    completion_response, goto_definition_response, prepare_rename_range, references_response,
+    rename_edits, workspace_symbols_response,
 };
 use capabilities::document_symbols::collect_document_symbols;
 use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
@@ -280,6 +281,10 @@ impl LanguageServer for Backend {
                 )),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 references_provider: Some(OneOf::Left(true)),
+                rename_provider: Some(OneOf::Right(RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: WorkDoneProgressOptions::default(),
+                })),
                 document_formatting_provider: document_formatting_provider_capability(),
                 folding_range_provider: folding_range_provider_capability(),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
@@ -533,6 +538,37 @@ impl LanguageServer for Backend {
             position,
             params.context.include_declaration,
         )))
+    }
+
+    async fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> tower_lsp::jsonrpc::Result<Option<PrepareRenameResponse>> {
+        let uri = &params.text_document.uri;
+        let position = params.position;
+        let document = match self.documents.get(uri) {
+            Some(document) => document,
+            None => return Ok(None),
+        };
+        Ok(prepare_rename_range(document.value(), position).map(PrepareRenameResponse::Range))
+    }
+
+    async fn rename(
+        &self,
+        params: RenameParams,
+    ) -> tower_lsp::jsonrpc::Result<Option<WorkspaceEdit>> {
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let document = match self.documents.get(uri) {
+            Some(document) => document,
+            None => return Ok(None),
+        };
+        Ok(rename_edits(
+            document.value(),
+            uri,
+            position,
+            &params.new_name,
+        ))
     }
 
     async fn prepare_type_hierarchy(
