@@ -123,6 +123,7 @@ pub(crate) fn goto_definition_response(
     builtins: &BuiltinData,
     active_package_indexes: &[(String, BuiltinData)],
     source_resolver: &SourceResolver,
+    workspace_index: &crate::workspace_index::WorkspaceIndex,
     record_location: impl Fn(&Record) -> Option<Location>,
 ) -> Option<GotoDefinitionResponse> {
     let text = document.text();
@@ -154,6 +155,13 @@ pub(crate) fn goto_definition_response(
             uri: uri.clone(),
             range,
         }));
+    }
+
+    // Cross-file: a top-level definition of this name in another workspace file.
+    // User code outranks installed packages and builtins.
+    let workspace_locations = workspace_index.lookup(node_text, uri);
+    if !workspace_locations.is_empty() {
+        return Some(GotoDefinitionResponse::Array(workspace_locations));
     }
 
     for (_, package_index) in active_package_indexes {

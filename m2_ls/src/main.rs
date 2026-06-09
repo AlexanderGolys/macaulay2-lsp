@@ -2,7 +2,9 @@ use std::backtrace::Backtrace;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::panic;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use dashmap::DashMap;
 use tower_lsp::lsp_types::*;
@@ -17,6 +19,7 @@ mod package_index;
 mod record_lsp;
 mod typesystem;
 mod util;
+mod workspace_index;
 
 use capabilities::code_actions::available_code_actions;
 use capabilities::diagnostics::publish_diagnostics;
@@ -51,6 +54,7 @@ struct Backend {
     package_indexer: PackageIndexer,
     package_indexes: DashMap<String, BuiltinData>,
     documents: DashMap<Url, DocumentSnapshot>,
+    workspace_index: Arc<workspace_index::WorkspaceIndex>,
     semantic_tokens_augment_syntax: AtomicBool,
     type_hierarchy_dynamic_registration: AtomicBool,
 }
@@ -72,6 +76,7 @@ impl Backend {
             package_indexer: PackageIndexer::from_environment(),
             package_indexes: DashMap::new(),
             documents: DashMap::new(),
+            workspace_index: Arc::new(workspace_index::WorkspaceIndex::default()),
             semantic_tokens_augment_syntax: AtomicBool::new(false),
             type_hierarchy_dynamic_registration: AtomicBool::new(false),
         }
@@ -96,6 +101,16 @@ impl Backend {
                 Some((package, index))
             })
             .collect()
+    }
+
+    fn reindex_from_disk(&self, uri: &Url) {
+        let Ok(path) = uri.to_file_path() else {
+            return;
+        };
+        match std::fs::read_to_string(&path) {
+            Ok(text) => self.workspace_index.index_file(uri, &text, &self.builtins),
+            Err(_) => self.workspace_index.remove_file(uri),
+        }
     }
 
     fn record_location(&self, record: &typesystem::Record) -> Option<Location> {
@@ -191,6 +206,8 @@ impl Backend {
         };
         let uri = params.uri;
         let _ = self.active_package_indexes(document.text());
+        self.workspace_index
+            .index_file(&uri, document.text(), &self.builtins);
         self.documents.insert(uri.clone(), document);
         if let Some(document) = self.documents.get(&uri) {
             publish_diagnostics(&self.client, uri, document.value()).await;
@@ -203,6 +220,8 @@ impl Backend {
                 return;
             }
             let _ = self.active_package_indexes(document.text());
+            self.workspace_index
+                .index_file(&uri, document.text(), &self.builtins);
             publish_diagnostics(&self.client, uri, document.value()).await;
         }
     }
@@ -233,6 +252,11 @@ impl LanguageServer for Backend {
         &self,
         params: InitializeParams,
     ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
+        self.workspace_index.set_roots(workspace_roots(&params));
+        // Index every `.m2` file under the project roots off the request path.
+        let index = Arc::clone(&self.workspace_index);
+        let builtins = self.builtins.clone();
+        tokio::task::spawn_blocking(move || index.scan(&builtins));
         let text_document_capabilities = params.capabilities.text_document;
         let augments_syntax_tokens = text_document_capabilities
             .as_ref()
@@ -316,6 +340,19 @@ impl LanguageServer for Backend {
                 .await;
         }
 
+        // Watch the workspace for `.m2` changes made outside the editor so the
+        // cross-file definition index stays fresh.
+        let _ = self
+            .client
+            .register_capability(vec![Registration {
+                id: "m2_ls-watch-m2-files".to_string(),
+                method: "workspace/didChangeWatchedFiles".to_string(),
+                register_options: Some(serde_json::json!({
+                    "watchers": [{ "globPattern": "**/*.m2" }]
+                })),
+            }])
+            .await;
+
         self.client
             .log_message(
                 MessageType::INFO,
@@ -347,9 +384,28 @@ impl LanguageServer for Backend {
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        self.documents.remove(&params.text_document.uri);
+        let uri = params.text_document.uri;
+        self.documents.remove(&uri);
+        // Re-index from disk so the workspace index reflects the saved file
+        // rather than the last in-editor edit.
+        self.reindex_from_disk(&uri);
         if self.documents.is_empty() {
             self.package_indexes.clear();
+        }
+    }
+
+    async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        for change in params.changes {
+            // Open documents are indexed from their live buffer; ignore disk
+            // events for them to avoid clobbering unsaved edits.
+            if self.documents.contains_key(&change.uri) {
+                continue;
+            }
+            if change.typ == FileChangeType::DELETED {
+                self.workspace_index.remove_file(&change.uri);
+            } else {
+                self.reindex_from_disk(&change.uri);
+            }
         }
     }
 
@@ -659,9 +715,31 @@ impl LanguageServer for Backend {
             &self.builtins,
             &active_package_indexes,
             &self.source_resolver,
+            &self.workspace_index,
             |record| self.record_location(record),
         ))
     }
+}
+
+/// The project roots to index, preferring `workspaceFolders` and falling back
+/// to the (deprecated) `rootUri` single-folder field that older clients send.
+fn workspace_roots(params: &InitializeParams) -> Vec<PathBuf> {
+    if let Some(folders) = &params.workspace_folders {
+        let roots: Vec<PathBuf> = folders
+            .iter()
+            .filter_map(|folder| folder.uri.to_file_path().ok())
+            .collect();
+        if !roots.is_empty() {
+            return roots;
+        }
+    }
+    #[allow(deprecated)]
+    params
+        .root_uri
+        .as_ref()
+        .and_then(|uri| uri.to_file_path().ok())
+        .into_iter()
+        .collect()
 }
 
 #[tokio::main]
