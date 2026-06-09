@@ -115,62 +115,6 @@ impl NodeKind {
         )
     }
 
-    pub fn is_collection(self) -> bool {
-        matches!(
-            self,
-            Self::Sequence | Self::List | Self::Array | Self::AngleBarList
-        )
-    }
-
-    pub fn is_statement(self) -> bool {
-        matches!(
-            self,
-            Self::IfStatement
-                | Self::ForStatement
-                | Self::WhileStatement
-                | Self::NewStatement
-                | Self::TryStatement
-                | Self::StepStatement
-        )
-    }
-
-    pub fn is_loop_clause(self) -> bool {
-        matches!(
-            self,
-            Self::FromClause
-                | Self::ToClause
-                | Self::OfClause
-                | Self::InClause
-                | Self::WhenClause
-                | Self::ListClause
-                | Self::DoClause
-        )
-    }
-
-    pub fn is_cobinding(self) -> bool {
-        matches!(
-            self,
-            Self::Cobinding | Self::LocalCobinding | Self::GlobalCobinding | Self::ThreadCobinding
-        )
-    }
-
-    pub fn is_debug_statement(self) -> bool {
-        matches!(
-            self,
-            Self::BreakStatement
-                | Self::ContinueStatement
-                | Self::ReturnStatement
-                | Self::CatchStatement
-                | Self::ThrowStatement
-                | Self::TrapStatement
-                | Self::DebugClause
-        )
-    }
-
-    pub fn is_comment(self) -> bool {
-        matches!(self, Self::LineComment | Self::BlockComment)
-    }
-
     pub fn is_method_installation_target(self) -> bool {
         matches!(
             self,
@@ -201,10 +145,6 @@ impl<'tree> M2Node<'tree> {
         self.kind == kind
     }
 
-    pub fn is_anonymous(&self) -> bool {
-        self.node.is_named() == false
-    }
-
     pub fn child_by_field_name(&self, name: &str) -> Option<M2Node<'tree>> {
         self.node.child_by_field_name(name).map(M2Node::new)
     }
@@ -224,10 +164,6 @@ impl<'tree> M2Node<'tree> {
 
     pub fn child(&self, index: u32) -> Option<M2Node<'tree>> {
         self.node.child(index).map(M2Node::new)
-    }
-
-    pub fn is_named(&self) -> bool {
-        self.node.is_named()
     }
 
     pub fn named_children(&self) -> impl Iterator<Item = M2Node<'tree>> + '_ {

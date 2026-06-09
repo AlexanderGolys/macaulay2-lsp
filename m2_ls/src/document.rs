@@ -1,4 +1,4 @@
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::M2Node;
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
 

@@ -7,13 +7,6 @@ use crate::node_metadata::{M2Node, NodeKind};
 use crate::typesystem::BuiltinData;
 use crate::util::*;
 
-pub(crate) fn document_symbol_response(
-    document: &DocumentSnapshot,
-    builtins: &BuiltinData,
-) -> DocumentSymbolResponse {
-    DocumentSymbolResponse::Nested(collect_document_symbols(document, builtins))
-}
-
 pub(crate) fn collect_document_symbols(
     document: &DocumentSnapshot,
     builtins: &BuiltinData,

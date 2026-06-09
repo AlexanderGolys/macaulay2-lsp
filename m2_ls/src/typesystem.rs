@@ -180,6 +180,7 @@ pub struct RelationInfo {
 #[derive(Debug, Clone, Default)]
 pub struct TypeLattice {
     ancestors: HashMap<InstanceID, Vec<InstanceID>>,
+    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
     children: HashMap<InstanceID, Vec<InstanceID>>,
 }
 
@@ -245,6 +246,7 @@ impl TypeLattice {
     }
 
     /// Immediate subtypes of `parent` (the downward edge, for `type_hierarchy`).
+    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
     pub fn children(&self, parent: &InstanceID) -> &[InstanceID] {
         self.children.get(parent).map_or(&[], Vec::as_slice)
     }
@@ -257,6 +259,7 @@ impl TypeLattice {
                 .is_some_and(|chain| chain.binary_search(parent).is_ok())
     }
 
+    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
     pub fn least_upper_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
         if a == b {
             return Some(a.clone());
@@ -288,6 +291,7 @@ impl TypeLattice {
             .cloned()
     }
 
+    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
     pub fn greatest_lower_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
         if self.is_subtype(a, b) {
             return Some(a.clone());
@@ -394,6 +398,7 @@ struct TypeFactOptionCodomain {
 
 /// Whether `domain` admits `arguments` componentwise: each argument is the
 /// expected type or a subtype of it.
+#[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
 fn domain_admits(lattice: &TypeLattice, domain: &[String], arguments: &[&str]) -> bool {
     domain.len() == arguments.len()
         && domain.iter().zip(arguments).all(|(expected, actual)| {
@@ -404,6 +409,7 @@ fn domain_admits(lattice: &TypeLattice, domain: &[String], arguments: &[&str]) -
 
 /// Whether domain `a` is at least as specific as `b` componentwise (each part of
 /// `a` is the matching part of `b` or a subtype of it).
+#[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
 fn domain_at_least_as_specific(lattice: &TypeLattice, a: &[String], b: &[String]) -> bool {
     a.len() == b.len()
         && a.iter()
@@ -528,6 +534,7 @@ impl TypeFacts {
     /// `key`, pick the most-specific one whose domain componentwise admits the
     /// argument types (each `actual <: expected`), and return its codomain.
     /// `None` ⇒ nothing applicable (or undocumented) — the checker stays silent.
+    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
     pub fn resolve_codomain(
         &self,
         lattice: &TypeLattice,
@@ -680,6 +687,7 @@ impl BuiltinData {
             .is_some_and(|record| record.option_role() == Some("key"))
     }
 
+    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
     pub fn is_option_value_name(&self, name: &str) -> bool {
         self.get_record(&InstanceID::new(name))
             .is_some_and(|record| record.option_role() == Some("value"))
@@ -1665,10 +1673,12 @@ impl BuiltinData {
         self.type_lattice.is_subtype(child, parent)
     }
 
+    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
     pub fn least_upper_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
         self.type_lattice.least_upper_bound(a, b)
     }
 
+    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
     pub fn greatest_lower_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
         self.type_lattice.greatest_lower_bound(a, b)
     }

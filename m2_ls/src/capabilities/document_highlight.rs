@@ -1,10 +1,8 @@
+use crate::document::DocumentSnapshot;
+use crate::node_metadata::{M2Node, NodeKind};
 use tower_lsp::lsp_types::{
     DocumentHighlight, DocumentHighlightKind, DocumentHighlightOptions, OneOf, Position,
 };
-use tree_sitter::Node;
-
-use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind};
 
 pub(crate) fn document_highlight_provider_capability(
 ) -> Option<OneOf<bool, DocumentHighlightOptions>> {
@@ -104,13 +102,6 @@ fn statement_keyword_tokens(statement: M2Node<'_>) -> Vec<M2Node<'_>> {
         return statement_keyword_tokens(st);
     }
     Vec::new()
-}
-
-/// Every statement/clause rule is `seq('<keyword>', …)`, so the keyword token is
-/// the first child and is anonymous (unnamed).
-fn leading_keyword_token(node: M2Node<'_>) -> Option<M2Node<'_>> {
-    let first = node.child(0)?;
-    (!first.is_named()).then_some(first)
 }
 
 fn node_contains(outer: M2Node<'_>, inner: M2Node<'_>) -> bool {

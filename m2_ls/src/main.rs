@@ -33,7 +33,7 @@ use capabilities::formatting::{
     folding_range_provider_capability, folding_ranges,
 };
 use capabilities::hover::hover_response;
-use capabilities::inlay_hints::inlay_hint_provider_capability;
+use capabilities::inlay_hints::{inlay_hint_provider_capability, inlay_hints_response};
 use capabilities::navigation::{
     completion_response, global_reference_ranges, goto_definition_response, prepare_rename_range,
     reference_target, references_response, rename_edits, workspace_symbols_response,
@@ -504,8 +504,12 @@ impl LanguageServer for Backend {
         &self,
         params: InlayHintParams,
     ) -> tower_lsp::jsonrpc::Result<Option<Vec<InlayHint>>> {
-        let _ = params;
-        Ok(None)
+        let uri = &params.text_document.uri;
+        let document = match self.documents.get(uri) {
+            Some(document) => document,
+            None => return Ok(None),
+        };
+        Ok(Some(inlay_hints_response(document.value(), params.range)))
     }
 
     async fn document_highlight(

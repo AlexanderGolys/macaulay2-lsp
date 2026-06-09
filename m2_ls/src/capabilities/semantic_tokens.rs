@@ -31,18 +31,9 @@ pub(crate) const COMMAND_MODIFIER: u32 = 1 << 1;
 pub(crate) const FILE_MODIFIER: u32 = 1 << 2;
 pub(crate) const MANIPULATOR_MODIFIER: u32 = 1 << 3;
 pub(crate) const DECLARATION_MODIFIER: u32 = 1 << 4;
+// Referenced only by tests today; the modifier scheme is slated for a rewrite.
+#[allow(dead_code)]
 pub(crate) const CONSTRUCTOR_MODIFIER: u32 = 1 << 5;
-
-pub(crate) fn semantic_tokens_response(
-    document: &DocumentSnapshot,
-    builtins: &BuiltinData,
-    augments_syntax_tokens: bool,
-) -> SemanticTokensResult {
-    SemanticTokensResult::Tokens(SemanticTokens {
-        result_id: None,
-        data: collect_semantic_tokens(document, builtins, augments_syntax_tokens),
-    })
-}
 
 pub(crate) fn collect_semantic_tokens(
     document: &DocumentSnapshot,

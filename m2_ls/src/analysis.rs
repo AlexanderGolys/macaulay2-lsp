@@ -3,6 +3,7 @@ use std::hash::{Hash, Hasher};
 use tower_lsp::lsp_types::{Diagnostic, Position, Range as LspRange, SymbolKind};
 use tree_sitter::Tree;
 
+#[cfg(test)]
 use crate::capabilities::diagnostics::ORPHAN_ELSE_DIAGNOSTIC_MESSAGE;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::typesystem::{BuiltinData, InstanceID};
@@ -282,19 +283,6 @@ impl Analysis {
     #[cfg(test)]
     pub fn new(tree: &Tree, text: &str) -> Self {
         Self::new_with_builtins(tree, text, None)
-    }
-
-    /// Minimal analysis with no tree walking - used when heavy analysis is disabled
-    pub fn empty() -> Self {
-        Analysis {
-            scopes: vec![Scope {
-                range: LspRange::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
-                symbols: HashMap::new(),
-                parent_idx: None,
-            }],
-            diagnostics: Vec::new(),
-            registry: SemanticRegistry::default(),
-        }
     }
 
     pub fn new_with_builtins(tree: &Tree, text: &str, builtins: Option<&BuiltinData>) -> Self {
