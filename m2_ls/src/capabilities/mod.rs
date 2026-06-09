@@ -1,0 +1,10 @@
+pub(crate) mod code_actions;
+pub(crate) mod diagnostics;
+pub(crate) mod document_highlight;
+pub(crate) mod document_symbols;
+pub(crate) mod formatting;
+pub(crate) mod hover;
+pub(crate) mod inlay_hints;
+pub(crate) mod navigation;
+pub(crate) mod semantic_tokens;
+pub(crate) mod type_hierarchy;

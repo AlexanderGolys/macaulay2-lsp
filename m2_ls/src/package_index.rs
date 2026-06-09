@@ -2,6 +2,9 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 
 use tree_sitter::Parser;
 
@@ -44,15 +47,24 @@ impl SourceResolver {
     }
 
     fn runtime_m2_path() -> Option<Vec<PathBuf>> {
-        let output = Command::new("M2")
-            .args(["--silent", "--stop", "-q", "-e", "print stack path; exit 0"])
-            .output()
-            .ok()?;
-        if !output.status.success() {
-            return None;
-        }
+        let (tx, rx) = mpsc::channel();
 
-        let stdout = String::from_utf8(output.stdout).ok()?;
+        thread::spawn(move || {
+            let result = Command::new("M2")
+                .args(["--silent", "--stop", "-q", "-e", "print stack path; exit 0"])
+                .output()
+                .ok()
+                .and_then(|output| {
+                    if output.status.success() {
+                        String::from_utf8(output.stdout).ok()
+                    } else {
+                        None
+                    }
+                });
+            let _ = tx.send(result);
+        });
+
+        let stdout = rx.recv_timeout(Duration::from_secs(5)).ok()??;
         let current_dir = std::env::current_dir().ok();
         let roots = stdout
             .lines()
@@ -102,18 +114,7 @@ impl PackageIndexer {
         let cache_dir = std::env::var_os("M2_LSP_PACKAGE_INDEX_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(default_package_index_dir);
-        let extractor_script = std::env::var_os("M2_LSP_EXTRACT_PACKAGE_INDEX")
-            .map(PathBuf::from)
-            .or_else(|| {
-                let local = PathBuf::from("scripts/extract_package_index.m2");
-                local.exists().then_some(local)
-            })
-            .or_else(|| {
-                std::env::current_exe().ok().and_then(|exe| {
-                    let script = exe.parent()?.join("scripts/extract_package_index.m2");
-                    script.exists().then_some(script)
-                })
-            });
+        let extractor_script = find_extractor_script();
 
         PackageIndexer {
             cache_dir,
@@ -144,16 +145,27 @@ impl PackageIndexer {
             ));
         };
 
-        let status = Command::new("M2")
-            .arg("--script")
-            .arg(script)
-            .arg(&self.cache_dir)
-            .arg(package_name)
-            .status()?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(std::io::Error::other("package index extractor failed"))
+        let (tx, rx) = mpsc::channel();
+        let script = script.clone();
+        let cache_dir = self.cache_dir.clone();
+        let package_name = package_name.to_string();
+
+        thread::spawn(move || {
+            let result = Command::new("M2")
+                .arg("--script")
+                .arg(&script)
+                .arg(&cache_dir)
+                .arg(&package_name)
+                .status()
+                .map(|status| status.success());
+            let _ = tx.send(result);
+        });
+
+        match rx.recv_timeout(Duration::from_secs(30)) {
+            Ok(Ok(true)) => Ok(()),
+            Ok(Ok(false)) => Err(std::io::Error::other("package index extractor failed")),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(std::io::Error::other("package index extractor timed out")),
         }
     }
 
@@ -163,6 +175,49 @@ impl PackageIndexer {
 
     fn details_path(&self, package_name: &str) -> PathBuf {
         self.cache_dir.join(format!("{package_name}.details.jsonl"))
+    }
+}
+
+fn find_extractor_script() -> Option<PathBuf> {
+    std::env::var_os("M2_LSP_EXTRACT_PACKAGE_INDEX")
+        .map(PathBuf::from)
+        .or_else(|| {
+            extractor_script_candidates()
+                .into_iter()
+                .find(|candidate| candidate.exists())
+        })
+}
+
+pub(crate) fn extractor_script_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    push_extractor_candidates(&mut candidates, Path::new("."));
+
+    if let Ok(current_dir) = std::env::current_dir() {
+        push_extractor_candidates(&mut candidates, &current_dir);
+    }
+
+    push_extractor_candidates(&mut candidates, Path::new(env!("CARGO_MANIFEST_DIR")));
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            for ancestor in exe_dir.ancestors() {
+                push_extractor_candidates(&mut candidates, ancestor);
+            }
+        }
+    }
+
+    candidates
+}
+
+fn push_extractor_candidates(candidates: &mut Vec<PathBuf>, root: &Path) {
+    let local = root.join("scripts/extract_package_index.m2");
+    if !candidates.iter().any(|candidate| candidate == &local) {
+        candidates.push(local);
+    }
+
+    let workspace = root.join("m2_ls/scripts/extract_package_index.m2");
+    if !candidates.iter().any(|candidate| candidate == &workspace) {
+        candidates.push(workspace);
     }
 }
 
@@ -274,7 +329,7 @@ fn binary_expression_left_symbol<'a>(text: &'a str, node: tree_sitter::Node) -> 
     }
 
     let operator = node.child_by_field_name("operator")?;
-    if operator.kind() != "space" {
+    if operator.kind() != "SPACE" {
         return None;
     }
 

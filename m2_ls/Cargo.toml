@@ -5,10 +5,11 @@ edition = "2021"
 
 [dependencies]
 tower-lsp = "0.20"
+tower = { version = "0.4", default-features = false }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dashmap = "5"
-tree-sitter = { git = "https://github.com/tree-sitter/tree-sitter", tag = "v0.25.1" }
-tree-sitter-macaulay2 = { git = "https://github.com/AlexanderGolys/tree-sitter-macaulay2", rev = "29113eeaa2538eac0ea36067b6a1e587b8749c77" }
+tree-sitter = "0.26.9"
+tree-sitter-macaulay2 = "2.3.2"
 ropey = "1.6.1"

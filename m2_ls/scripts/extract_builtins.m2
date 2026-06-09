@@ -118,6 +118,113 @@ methodRecords := fn -> (
         "signature" => signatureItems(ms#i)
     }))
 
+trimString := s -> replace("^[ ]+", "", replace("[ ]+$", "", s))
+takeAtMost := (n, xs) -> if #xs <= n then xs else take(xs, n)
+
+functionSignatureForKey := key -> (
+    parts := separate("\\(", key);
+    if #parts < 2 then null else (
+        name := recordNameFromDocKey key;
+        inside := replace("\\)$", "", last parts);
+        if match("=>", inside) or match("\\.\\.\\.", inside) then null else
+            prepend(name, apply(separate(",", inside), trimString))
+    ))
+
+operatorSignatureForKey := key -> (
+    if match("\\(", key) or match("=", key) then null else (
+        parts := separate(" ", key);
+        if #parts < 2 then null else (
+            op := first parts;
+            if not member(op, operatorNames) then null else
+                prepend(op, apply(drop(parts, 1), trimString))
+        )
+    ))
+
+documentedSignatureForKey := key -> (
+    signature := functionSignatureForKey key;
+    if signature =!= null then signature else operatorSignatureForKey key)
+
+outputTypesFromRawDoc := raw -> (
+    pos := regex("Outputs =>", raw);
+    if pos === null then {} else (
+        start := first first pos;
+        section := substring(start, min(800, #raw - start), raw);
+        m := regex("DocumentTag from \\{\\\"([^\\\"]+)", section);
+        if m === null then {} else (
+            cap := last m;
+            {substring(first cap, last cap, section)}
+        )
+    ))
+
+examplesFromRawDoc := raw -> (
+    examples := {};
+    offset := 0;
+    while offset < #raw do (
+        rest := substring(offset, #raw - offset, raw);
+        m := regex("ExampleItem\\{\\\"([^\\\"]+)", rest);
+        if m === null then offset = #raw else (
+            full := first m;
+            cap := last m;
+            examples = append(examples, substring(offset + first cap, last cap, raw));
+            offset = offset + first full + last full;
+        )
+    );
+    unique examples)
+
+documentedMethodsByName := new MutableHashTable;
+documentedExamplesByName := new MutableHashTable;
+scan(sort stringList keys db, keyString -> (
+    name := recordNameFromDocKey keyString;
+    raw := db#keyString;
+    examples := examplesFromRawDoc raw;
+    if #examples > 0 then documentedExamplesByName#name = join(documentedExamplesByName#name ?? {}, examples);
+
+    signature := documentedSignatureForKey keyString;
+    if signature =!= null then (
+        outputs := outputTypesFromRawDoc raw;
+        documentedMethodsByName#name = append(documentedMethodsByName#name ?? {}, hashTable {
+            "signature" => signature,
+            "output_types" => outputs,
+            "examples" => takeAtMost(3, examples),
+            "doc_key" => keyString
+        });
+    );
+));
+
+documentedMethodRecords := name -> documentedMethodsByName#name ?? {}
+documentedExamplesForName := name -> takeAtMost(12, unique(documentedExamplesByName#name ?? {}))
+generalSignatureForName := name -> (
+    primaryRaw := rawDocSource name;
+    if primaryRaw === null then null else (
+        outputs := outputTypesFromRawDoc primaryRaw;
+        if #outputs == 0 then null else hashTable {
+            "signature" => {name},
+            "output_types" => outputs,
+            "examples" => takeAtMost(3, documentedExamplesForName name),
+            "doc_key" => name
+        }
+    ))
+
+optionEntries := opts -> if opts === null then {} else (
+    entries := if instance(opts, OptionTable) then pairs opts else if instance(opts, BasicList) then pairs opts else {};
+    apply(entries, entry -> (
+        option := if instance(entry, Sequence) then last entry else entry;
+        if instance(option, Option) then hashTable {
+            "name" => safeString first option,
+            "default" => safeString last option
+        } else if instance(option, Sequence) then hashTable {
+            "name" => safeString first option,
+            "default" => safeString last option
+        } else if instance(entry, Sequence) then hashTable {
+            "name" => safeString first entry,
+            "default" => safeString last entry
+        } else null)))
+
+methodOptionRecords := fn -> (
+    optionTable := try methodOptions fn else null;
+    opts := if optionTable =!= null and optionTable#?Options then optionTable#Options else null;
+    select(optionEntries opts, option -> option =!= null and option#"name" =!= null))
+
 symbolForName := name -> if runtimeDictionary#?name then runtimeDictionary#name else if isGlobalSymbol name then getGlobalSymbol name else null
 
 operatorInfoForSymbol := sym -> if operatorAttributes#?sym then (
@@ -199,14 +306,25 @@ recordForSymbol := (name, sym) -> (
         "description_short" => if status === "upstream" then headline else null,
         "description_long" => if status === "upstream" then usage else null,
         "documentation" => documentation,
-        "examples" => {},
+        "examples" => documentedExamplesForName name,
         "extra" => extra,
         "relation_info" => relationInfo name
     };
     isOperator := operatorAttributes#?sym;
     methodsForValue := if instance(val, Function) or isOperator then methodRecords val else {};
-    if instance(val, Function) or isOperator then record#"function_info" = hashTable {
-        "methods" => methodsForValue
+    documentedMethodsForValue := if instance(val, Function) or isOperator then documentedMethodRecords name else {};
+    if instance(val, Function) or isOperator then (
+        functionInfo := new MutableHashTable from {
+        "methods" => methodsForValue,
+        "documented_methods" => documentedMethodsForValue
+        };
+        generalSignature := generalSignatureForName name;
+        if generalSignature =!= null then functionInfo#"general_signature" = generalSignature;
+        record#"function_info" = new HashTable from functionInfo;
+    );
+    optionsForValue := if instance(val, Function) or isOperator then methodOptionRecords val else {};
+    if #optionsForValue > 0 then record#"option_info" = hashTable {
+        "options" => optionsForValue
     };
     ti := typeInfoForName(name, val);
     if ti =!= null then record#"type_info" = ti;
