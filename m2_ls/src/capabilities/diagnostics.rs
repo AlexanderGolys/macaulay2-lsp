@@ -30,6 +30,7 @@ pub const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
         - `x...2` => `x .. .2`
         - `symbol.....2` => `symbol.. .. .2`";
 pub const UNUSED_BINDING_DIAGNOSTIC_CODE: &str = "unused-binding";
+pub const OPTION_KEY_CONVENTION_DIAGNOSTIC_CODE: &str = "option-key-convention";
 
 pub(crate) async fn publish_diagnostics(client: &Client, uri: Url, document: &DocumentSnapshot) {
     let diagnostics = document.diagnostics().to_vec();
@@ -67,10 +68,53 @@ impl Analysis {
             self.diagnose_leading_else(node, text);
         }
 
+        // Runs independently of the chain above: any node may be an option pair,
+        // and an option `=>` is never an error/missing/assignment node.
+        self.diagnose_option_key_convention(node, text);
+
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             self.collect_diagnostics(child, text);
         }
+    }
+
+    /// Macaulay2 convention capitalizes option names (`Strategy`, `DegreeLimit`).
+    /// Flag a lowercase-initial key on an `=>` pair with a gentle Hint — but only
+    /// when the pair is a function option, not a hashtable entry (see the context
+    /// predicate, where lowercase keys are legitimate).
+    fn diagnose_option_key_convention(&mut self, node: Node, text: &str) {
+        let m2_node = M2Node::new(node);
+        if binary_expression_operator(m2_node, text) != Some("=>") {
+            return;
+        }
+        let Some(key) = m2_node.child_by_field_name("left") else {
+            return;
+        };
+        if key.kind != NodeKind::Symbol {
+            return;
+        }
+        let key_text = &text[key.inner().start_byte()..key.inner().end_byte()];
+        let starts_lowercase = key_text
+            .chars()
+            .next()
+            .is_some_and(|first| first.is_ascii_lowercase());
+        if !starts_lowercase {
+            return;
+        }
+        if !is_function_option_context(node) {
+            return;
+        }
+        self.diagnostics.push(Diagnostic {
+            range: to_lsp_range(text, key.inner().range()),
+            severity: Some(DiagnosticSeverity::HINT),
+            code: Some(NumberOrString::String(
+                OPTION_KEY_CONVENTION_DIAGNOSTIC_CODE.to_string(),
+            )),
+            message: format!(
+                "Option key `{key_text}` should be capitalized by Macaulay2 convention"
+            ),
+            ..Default::default()
+        });
     }
 
     fn diagnose_leading_else(&mut self, cell: Node, text: &str) {
@@ -215,6 +259,24 @@ fn single_line_range(text: &str, start: tree_sitter::Point, start_byte: usize) -
             utf16_len_for_byte_span(text, start_line_byte, line_end_byte),
         ),
     )
+}
+
+/// Decide whether an `=>` pair is a *function/method option* (convention applies)
+/// versus a *hashtable / dictionary entry* (lowercase keys are legitimate).
+fn is_function_option_context(option: Node<'_>) -> bool {
+    // PENDING (parked — resume as a learn-by-doing): return true only when this
+    // `=>` pair is a function option, and false when it is a hashtable/list entry.
+    //
+    // `option` is the `binary_expression` whose operator is `=>`. Walk its
+    // ancestors via `M2Node::new(option).parent()` and inspect `.kind`:
+    //   - call arguments / option lists live in a `NodeKind::Sequence` (the `(...)`
+    //     after a function), e.g. `gb(I, Strategy => 4)`
+    //   - hashtable & list literals are `NodeKind::List` (`{...}`) or
+    //     `NodeKind::Array` (`[...]`), e.g. `hashTable {a => 1, b => 2}`
+    // Decide which enclosing collection the pair belongs to. Returning `false`
+    // here (the current default) makes the hint fire on nothing — safe but inert.
+    let _ = option;
+    false
 }
 
 fn multiple_assignment_targets_are_symbols(node: Node) -> bool {
