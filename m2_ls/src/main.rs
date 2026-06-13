@@ -609,16 +609,62 @@ impl LanguageServer for Backend {
     ) -> tower_lsp::jsonrpc::Result<Option<WorkspaceEdit>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let document = match self.documents.get(uri) {
-            Some(document) => document,
-            None => return Ok(None),
+        let new_name = params.new_name.trim();
+        if new_name.is_empty() {
+            return Ok(None);
+        }
+
+        // Resolve the target and the current file's edits first, then drop the
+        // document guard before scanning other files (mirrors `references`).
+        let (name, mut changes) = {
+            let document = match self.documents.get(uri) {
+                Some(document) => document,
+                None => return Ok(None),
+            };
+            match reference_target(document.value(), position, &self.workspace_index) {
+                None => return Ok(None),
+                Some(ReferenceTarget::Local) => {
+                    // A local binding renames only within its own document.
+                    return Ok(rename_edits(document.value(), uri, position, new_name));
+                }
+                Some(ReferenceTarget::Global(name)) => {
+                    let edits = global_reference_ranges(document.value(), &name)
+                        .into_iter()
+                        .map(|range| TextEdit {
+                            range,
+                            new_text: new_name.to_string(),
+                        })
+                        .collect::<Vec<_>>();
+                    (
+                        name,
+                        std::collections::HashMap::from([(uri.clone(), edits)]),
+                    )
+                }
+            }
         };
-        Ok(rename_edits(
-            document.value(),
-            uri,
-            position,
-            &params.new_name,
-        ))
+
+        // Global symbol: rename its uses in every other workspace file too, so a
+        // top-level rename never leaves stale references behind in the files that
+        // import it.
+        for file_uri in self.workspace_index.workspace_file_uris() {
+            if &file_uri == uri {
+                continue;
+            }
+            // TODO(human): collect this file's global references to `name`,
+            // preferring an open buffer (`self.documents.get(&file_uri)`) over the
+            // on-disk copy (`DocumentSnapshot::from_text(text, &self.builtins)`) —
+            // the exact buffer-vs-disk branch the `references` handler uses a few
+            // lines up. Map each range to `TextEdit { range, new_text: ... }` and
+            // insert the vec into `changes` under `file_uri`. Skip files with no
+            // matches so the edit stays minimal.
+            let _ = (&file_uri, &name); // remove once the body above is written
+        }
+
+        Ok(Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }))
     }
 
     async fn prepare_type_hierarchy(
