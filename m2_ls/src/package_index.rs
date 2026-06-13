@@ -1,10 +1,6 @@
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::mpsc;
-use std::thread;
-use std::time::Duration;
 
 use tree_sitter::Parser;
 
@@ -16,13 +12,14 @@ pub(crate) struct SourceResolver {
 }
 
 impl SourceResolver {
+    /// Source roots are configuration-driven only: the LSP never invokes M2 to
+    /// discover them (no runtime dependency on M2 existing, nor on how it is
+    /// launched). Sourced from `M2_LSP_SOURCE_PATH`; package-source jumps simply
+    /// degrade to nothing when it is unset.
     pub(crate) fn from_environment() -> Self {
         let mut roots = Vec::new();
         if let Some(paths) = std::env::var_os("M2_LSP_SOURCE_PATH") {
             roots.extend(std::env::split_paths(&paths));
-        }
-        if let Some(paths) = Self::runtime_m2_path() {
-            roots.extend(paths);
         }
         Self::new(roots)
     }
@@ -44,45 +41,6 @@ impl SourceResolver {
         if !roots.iter().any(|existing| existing == &root) {
             roots.push(root);
         }
-    }
-
-    fn runtime_m2_path() -> Option<Vec<PathBuf>> {
-        let (tx, rx) = mpsc::channel();
-
-        thread::spawn(move || {
-            let result = Command::new("M2")
-                .args(["--silent", "--stop", "-q", "-e", "print stack path; exit 0"])
-                .output()
-                .ok()
-                .and_then(|output| {
-                    if output.status.success() {
-                        String::from_utf8(output.stdout).ok()
-                    } else {
-                        None
-                    }
-                });
-            let _ = tx.send(result);
-        });
-
-        let stdout = rx.recv_timeout(Duration::from_secs(5)).ok()??;
-        let current_dir = std::env::current_dir().ok();
-        let roots = stdout
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty())
-            .map(PathBuf::from)
-            .map(|path| {
-                if path.is_absolute() {
-                    path
-                } else if let Some(current_dir) = &current_dir {
-                    current_dir.join(path)
-                } else {
-                    path
-                }
-            })
-            .collect::<Vec<_>>();
-
-        (!roots.is_empty()).then_some(roots)
     }
 
     pub(crate) fn resolve_source_file(&self, source_file: &str) -> Option<PathBuf> {
