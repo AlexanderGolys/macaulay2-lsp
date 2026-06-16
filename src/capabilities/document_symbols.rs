@@ -19,13 +19,21 @@ pub(crate) fn collect_document_symbols(
 #[derive(Debug)]
 struct DocumentSymbolScopes {
     names: Vec<HashSet<String>>,
+    options: HashSet<String>,
 }
 
 impl DocumentSymbolScopes {
     fn new() -> Self {
         Self {
             names: vec![HashSet::new()],
+            options: HashSet::new(),
         }
+    }
+
+    /// Record an option key on its first appearance anywhere in the document.
+    /// Returns `true` only the first time, so repeated keys are listed once.
+    fn introduce_option(&mut self, name: &str) -> bool {
+        self.options.insert(name.to_string())
     }
 
     fn push(&mut self) {
@@ -73,7 +81,7 @@ fn collect_document_symbols_from(
         return collect_assignment_document_symbols(node, text, builtins, scopes);
     }
     if is_option_assignment_expression(node, text) {
-        return collect_property_document_symbols(node, text);
+        return collect_property_document_symbols(node, text, builtins, scopes);
     }
 
     let mut symbols = Vec::new();
@@ -84,7 +92,16 @@ fn collect_document_symbols_from(
     symbols
 }
 
-fn collect_property_document_symbols(node: tree_sitter::Node, text: &str) -> Vec<DocumentSymbol> {
+/// Emit document symbols for option keys (left of `=>`), but only where a key is
+/// actually introduced: a key already indexed in some package is defined there,
+/// not here, and a repeated key is listed once. Keys passed to a function call
+/// are therefore skipped — they are package symbols or repeats.
+fn collect_property_document_symbols(
+    node: tree_sitter::Node,
+    text: &str,
+    builtins: &BuiltinData,
+    scopes: &mut DocumentSymbolScopes,
+) -> Vec<DocumentSymbol> {
     let Some(left) = node.child_by_field_name("left") else {
         return Vec::new();
     };
@@ -94,16 +111,22 @@ fn collect_property_document_symbols(node: tree_sitter::Node, text: &str) -> Vec
 
     left_symbols
         .into_iter()
-        .map(|symbol| DocumentSymbol {
-            name: text[symbol.start_byte()..symbol.end_byte()].to_string(),
-            detail: Some("option".to_string()),
-            kind: SymbolKind::PROPERTY,
-            tags: None,
-            #[allow(deprecated)]
-            deprecated: None,
-            range: node_range(text, node),
-            selection_range: node_range(text, symbol),
-            children: None,
+        .filter_map(|symbol| {
+            let name = &text[symbol.start_byte()..symbol.end_byte()];
+            if builtins.contains_name(name) || !scopes.introduce_option(name) {
+                return None;
+            }
+            Some(DocumentSymbol {
+                name: name.to_string(),
+                detail: Some("option".to_string()),
+                kind: SymbolKind::PROPERTY,
+                tags: None,
+                #[allow(deprecated)]
+                deprecated: None,
+                range: node_range(text, node),
+                selection_range: node_range(text, symbol),
+                children: None,
+            })
         })
         .collect()
 }
@@ -344,6 +367,41 @@ mod tests {
             symbols[0].selection_range,
             Range::new(Position::new(0, 6), Position::new(0, 7))
         );
+    }
+
+    #[test]
+    fn document_symbols_exclude_package_indexed_option_keys() {
+        // Option keys passed to a call that are indexed in a package (here the
+        // newPackage keys) are defined in that package, not here.
+        let text = "newPackage(\"P\", Version => \"0.1\", DebuggingMode => false)\n";
+        let builtins = BuiltinData::load_from_index(
+            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-docs.jsonl"),
+        );
+        let document = document(text, &builtins);
+        let symbols = collect_document_symbols(&document, &builtins);
+
+        assert!(
+            symbols
+                .iter()
+                .all(|symbol| symbol.name != "Version" && symbol.name != "DebuggingMode"),
+            "package option keys must not be document symbols: {:?}",
+            symbols.iter().map(|symbol| &symbol.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn document_symbols_list_custom_option_key_once() {
+        // A key not indexed in any package is listed at its first occurrence and
+        // not repeated when it is reused.
+        let text = "f = method(Options => {MyOpt => 1})\ng(MyOpt => 2)\n";
+        let builtins = BuiltinData::load_from_split("", "");
+        let document = document(text, &builtins);
+        let symbols = collect_document_symbols(&document, &builtins);
+
+        let my_opt: Vec<_> = symbols.iter().filter(|symbol| symbol.name == "MyOpt").collect();
+        assert_eq!(my_opt.len(), 1, "custom option key listed exactly once");
+        assert_eq!(my_opt[0].kind, SymbolKind::PROPERTY);
     }
 
     #[test]
