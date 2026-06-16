@@ -382,14 +382,20 @@ fn is_namespace_string_argument(text: &str, node: tree_sitter::Node) -> bool {
         return false;
     }
 
-    call_like_left_symbol_for_argument(text, node, true).is_some_and(|name| {
+    // Only the first positional argument of these calls names a package (a real
+    // namespace): `loadPackage "Pkg"`, `importFrom("Pkg", {syms})`, and so on.
+    // Passing `false` for `allow_list_argument` means a string buried in a list
+    // argument never resolves to its callee, so the symbol names in
+    // `export {"foo"}` or the imported names in `importFrom("Pkg", {"foo"})` stay
+    // plain strings. `export`/`exportMutable` are absent entirely: their arguments
+    // name symbols defined in this package, not modules.
+    call_like_left_symbol_for_argument(text, node, false).is_some_and(|name| {
         matches!(
             name,
             "loadPackage"
                 | "installPackage"
                 | "uninstallPackage"
                 | "needsPackage"
-                | "export"
                 | "endPackage"
                 | "newPackage"
                 | "importFrom"
@@ -829,16 +835,54 @@ mod tests {
                 })
                 .collect::<Vec<_>>(),
             vec![
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::Namespace as u32,
-                M2SemanticTokenType::String as u32,
+                M2SemanticTokenType::Namespace as u32, // loadPackage "Graphs"
+                M2SemanticTokenType::Namespace as u32, // installPackage("Normaliz")
+                M2SemanticTokenType::Namespace as u32, // uninstallPackage "Foo"
+                M2SemanticTokenType::Namespace as u32, // needsPackage "Core"
+                M2SemanticTokenType::String as u32,    // export "thing" — a symbol name
+                M2SemanticTokenType::Namespace as u32, // endPackage "Pkg"
+                M2SemanticTokenType::Namespace as u32, // newPackage("Pkg")
+                M2SemanticTokenType::Namespace as u32, // importFrom("Pkg") — first arg
+                M2SemanticTokenType::String as u32,    // exportFrom {"Pkg"} — list element
+                M2SemanticTokenType::String as u32,    // print "ordinary"
+            ]
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_keep_exported_symbol_names_as_strings() {
+        // `export`/`exportMutable` arguments name symbols defined in this package,
+        // not modules. For `importFrom`/`exportFrom` only the first argument (the
+        // package) is a namespace; the imported/exported symbol names are not.
+        let text = concat!(
+            "export {\"installMacro\", \"expandSource\"}\n",
+            "exportMutable {\"state\"}\n",
+            "importFrom(\"Core\", {\"first\", \"second\"})\n",
+            "exportFrom(\"Pkg\", \"only\")\n",
+        );
+        let builtins = BuiltinData::load_from_split("", "");
+
+        let document = document(text, &builtins);
+        let tokens = collect_semantic_tokens(&document, &builtins, false);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .filter(|token_type| {
+                    *token_type == M2SemanticTokenType::Namespace as u32
+                        || *token_type == M2SemanticTokenType::String as u32
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                M2SemanticTokenType::String as u32,    // "installMacro"
+                M2SemanticTokenType::String as u32,    // "expandSource"
+                M2SemanticTokenType::String as u32,    // "state"
+                M2SemanticTokenType::Namespace as u32, // importFrom "Core" — the package
+                M2SemanticTokenType::String as u32,    // "first" — imported symbol
+                M2SemanticTokenType::String as u32,    // "second" — imported symbol
+                M2SemanticTokenType::Namespace as u32, // exportFrom "Pkg" — the package
+                M2SemanticTokenType::String as u32,    // "only" — exported symbol
             ]
         );
     }
