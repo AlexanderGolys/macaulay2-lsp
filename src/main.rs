@@ -253,10 +253,7 @@ fn install_panic_logging() {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(
-        &self,
-        params: InitializeParams,
-    ) -> Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
         self.workspace_index.set_roots(workspace_roots(&params));
         // Index every `.m2` file under the project roots off the request path.
         let index = Arc::clone(&self.workspace_index);
@@ -434,10 +431,7 @@ impl LanguageServer for Backend {
         ))
     }
 
-    async fn completion(
-        &self,
-        params: CompletionParams,
-    ) -> Result<Option<CompletionResponse>> {
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let document = match self.documents.get(uri) {
@@ -483,10 +477,7 @@ impl LanguageServer for Backend {
         Ok(Some(DocumentSymbolResponse::Nested(symbols)))
     }
 
-    async fn code_action(
-        &self,
-        params: CodeActionParams,
-    ) -> Result<Option<CodeActionResponse>> {
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         let uri = &params.text_document.uri;
         let document = match self.documents.get(uri) {
             Some(document) => document,
@@ -505,10 +496,7 @@ impl LanguageServer for Backend {
         ))
     }
 
-    async fn inlay_hint(
-        &self,
-        params: InlayHintParams,
-    ) -> Result<Option<Vec<InlayHint>>> {
+    async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
         let uri = &params.text_document.uri;
         let document = match self.documents.get(uri) {
             Some(document) => document,
@@ -530,10 +518,7 @@ impl LanguageServer for Backend {
         Ok(document_highlights(document.value(), position))
     }
 
-    async fn references(
-        &self,
-        params: ReferenceParams,
-    ) -> Result<Option<Vec<Location>>> {
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let include_declaration = params.context.include_declaration;
@@ -608,10 +593,7 @@ impl LanguageServer for Backend {
         Ok(prepare_rename_range(document.value(), position).map(PrepareRenameResponse::Range))
     }
 
-    async fn rename(
-        &self,
-        params: RenameParams,
-    ) -> Result<Option<WorkspaceEdit>> {
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let new_name = params.new_name.trim();
@@ -640,10 +622,7 @@ impl LanguageServer for Backend {
                             new_text: new_name.to_string(),
                         })
                         .collect::<Vec<_>>();
-                    (
-                        name,
-                        HashMap::from([(uri.clone(), edits)]),
-                    )
+                    (name, HashMap::from([(uri.clone(), edits)]))
                 }
             }
         };
@@ -781,10 +760,7 @@ impl LanguageServer for Backend {
         Ok(Some(items))
     }
 
-    async fn formatting(
-        &self,
-        params: DocumentFormattingParams,
-    ) -> Result<Option<Vec<TextEdit>>> {
+    async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
         let uri = params.text_document.uri;
         let document = match self.documents.get(&uri) {
             Some(document) => document,
@@ -797,10 +773,7 @@ impl LanguageServer for Backend {
         )))
     }
 
-    async fn folding_range(
-        &self,
-        params: FoldingRangeParams,
-    ) -> Result<Option<Vec<FoldingRange>>> {
+    async fn folding_range(&self, params: FoldingRangeParams) -> Result<Option<Vec<FoldingRange>>> {
         let uri = params.text_document.uri;
         let document = match self.documents.get(&uri) {
             Some(document) => document,
@@ -902,8 +875,7 @@ mod tests {
 
     #[test]
     fn source_resolver_finds_package_and_doc_files_from_m2_path_roots() {
-        let root =
-            env::temp_dir().join(format!("m2-lsp-source-resolver-{}", std::process::id()));
+        let root = env::temp_dir().join(format!("m2-lsp-source-resolver-{}", std::process::id()));
         let packages = root.join("Macaulay2").join("packages");
         let docs = packages.join("Macaulay2Doc");
         let core = root.join("Macaulay2").join("m2");
@@ -984,8 +956,7 @@ mod tests {
 
     #[test]
     fn package_indexer_loads_cached_line_aligned_package_records() {
-        let root =
-            env::temp_dir().join(format!("m2-lsp-package-index-{}", std::process::id()));
+        let root = env::temp_dir().join(format!("m2-lsp-package-index-{}", std::process::id()));
         fs::create_dir_all(&root).expect("test package cache dir should be created");
         fs::write(root.join("Graphs.names"), "graph\n")
             .expect("package names fixture should write");

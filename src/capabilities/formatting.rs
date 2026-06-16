@@ -429,6 +429,9 @@ struct IndentState {
     in_block_comment: bool,
     continuation_indent: bool,
     literal: LiteralState,
+    /// Depth of the most recent block `if` (one that begins its own line), so its
+    /// `else` branches align with it instead of with the indented branch bodies.
+    pending_if_depth: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -449,6 +452,53 @@ enum TrackedDelimiterKind {
     AngleBarList,
 }
 
+/// Whether a trimmed `line` begins with `keyword` as a whole word (so `else`
+/// matches `else` and `else if`, but not `elsewhere`).
+fn line_starts_with_keyword(line: &str, keyword: &str) -> bool {
+    line.strip_prefix(keyword).is_some_and(|rest| {
+        rest.bytes()
+            .next()
+            .is_none_or(|byte| !byte.is_ascii_alphanumeric() && byte != b'_')
+    })
+}
+
+/// Resolve the indent depth of an already-trimmed `line`, aligning `else` with
+/// its matching block `if`, and update if/else branch tracking. Must run before
+/// `update_indent_state`, which mutates the delimiter stack.
+fn resolve_line_depth(line: &str, state: &mut IndentState) -> usize {
+    let leading_group_closes = leading_group_closing_count(line, state);
+    let mut depth = active_group_count(state).saturating_sub(leading_group_closes);
+    let is_continuation = state.continuation_indent || starts_with_continuation_keyword(line);
+
+    if leading_group_closes == 0 {
+        if line_starts_with_keyword(line, "else") {
+            // Align `else` with its block `if`; fall back to a plain continuation
+            // when the `if` was not on its own line (e.g. a ternary `x := if …`).
+            depth = state.pending_if_depth.unwrap_or(depth + 1);
+        } else if is_continuation {
+            depth += 1;
+        }
+    }
+
+    // A fresh statement back at or above the `if` level ends the construct; an
+    // `if` that begins its own line owns the `else` branches that follow it.
+    let starts_closer = leading_group_closes > 0;
+    if !line_starts_with_keyword(line, "else")
+        && !starts_closer
+        && !is_continuation
+        && state
+            .pending_if_depth
+            .is_some_and(|if_depth| depth <= if_depth)
+    {
+        state.pending_if_depth = None;
+    }
+    if line_starts_with_keyword(line, "if") {
+        state.pending_if_depth = Some(depth);
+    }
+
+    depth
+}
+
 fn indent_line(line: &str, state: &mut IndentState, options: &FormatOptions) -> String {
     if state.literal != LiteralState::None {
         update_literal_state(line, state);
@@ -461,12 +511,7 @@ fn indent_line(line: &str, state: &mut IndentState, options: &FormatOptions) -> 
         return String::new();
     }
 
-    let leading_group_closes = leading_group_closing_count(line, state);
-    let mut line_depth = active_group_count(state).saturating_sub(leading_group_closes);
-    let is_continuation = state.continuation_indent || starts_with_continuation_keyword(line);
-    if is_continuation && leading_group_closes == 0 {
-        line_depth += 1;
-    }
+    let line_depth = resolve_line_depth(line, state);
     let mut indented = options.indent.repeat(line_depth);
     indented.push_str(line);
     update_indent_state(line, state);
@@ -765,12 +810,7 @@ fn line_indent(line: &str, state: &mut IndentState) -> LineIndent {
             is_blank: true,
         };
     }
-    let leading_group_closes = leading_group_closing_count(trimmed, state);
-    let mut line_depth = active_group_count(state).saturating_sub(leading_group_closes);
-    let is_continuation = state.continuation_indent || starts_with_continuation_keyword(trimmed);
-    if is_continuation && leading_group_closes == 0 {
-        line_depth += 1;
-    }
+    let line_depth = resolve_line_depth(trimmed, state);
     update_indent_state(trimmed, state);
     let code = code_before_line_comment(trimmed).trim_end_matches([' ', '\t']);
     if state.literal == LiteralState::None {
@@ -1930,10 +1970,11 @@ mod tests {
     #[test]
     fn reflows_if_in_local_scope_without_protective_parens() {
         // Inside a function body (parens) a newline before `else` is legal, so the
-        // then-body is not wrapped in protective parens.
+        // then-body is not wrapped in protective parens, and `else` aligns with
+        // its `if` rather than with the indented branch body.
         assert_eq!(
             format_document_text("f = () -> (\nif a then f(x) else c\n)\n"),
-            "f = () -> (\n    if a then\n        f(x)\n        else\n        c\n)\n"
+            "f = () -> (\n    if a then\n        f(x)\n    else\n        c\n)\n"
         );
         assert!(
             !format_document_text("f = () -> (\nif a then f(x) else c\n)\n").contains("then ("),
@@ -1944,10 +1985,11 @@ mod tests {
     #[test]
     fn keeps_protective_parens_for_nested_global_then_block() {
         // The outer `if` is global (parens required); the inner `if` lives inside
-        // the outer then-block parens, so it is local (no protective parens).
+        // the outer then-block parens, so it is local (no protective parens) and
+        // its `else` aligns with the inner `if`.
         let formatted = format_document_text("if a then (\nif x then p(1) else q(2)\n) else w\n");
         assert!(formatted.starts_with("if a then (\n"));
-        assert!(formatted.contains("    if x then\n        p(1)\n        else\n        q(2)\n"));
+        assert!(formatted.contains("    if x then\n        p(1)\n    else\n        q(2)\n"));
     }
 
     #[test]
@@ -1958,7 +2000,11 @@ mod tests {
             "if a then (\nif x then p(1) else q(2)\n) else w\n",
         ] {
             let once = format_document_text(source);
-            assert_eq!(format_document_text(&once), once, "not idempotent: {source:?}");
+            assert_eq!(
+                format_document_text(&once),
+                once,
+                "not idempotent: {source:?}"
+            );
         }
     }
 
@@ -2067,4 +2113,3 @@ mod tests {
         assert!(!formatted.contains("\n     toZZ = (L) -> ("));
     }
 }
-

@@ -386,7 +386,10 @@ mod tests {
                 .iter()
                 .all(|symbol| symbol.name != "Version" && symbol.name != "DebuggingMode"),
             "package option keys must not be document symbols: {:?}",
-            symbols.iter().map(|symbol| &symbol.name).collect::<Vec<_>>()
+            symbols
+                .iter()
+                .map(|symbol| &symbol.name)
+                .collect::<Vec<_>>()
         );
     }
 
@@ -399,7 +402,10 @@ mod tests {
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);
 
-        let my_opt: Vec<_> = symbols.iter().filter(|symbol| symbol.name == "MyOpt").collect();
+        let my_opt: Vec<_> = symbols
+            .iter()
+            .filter(|symbol| symbol.name == "MyOpt")
+            .collect();
         assert_eq!(my_opt.len(), 1, "custom option key listed exactly once");
         assert_eq!(my_opt[0].kind, SymbolKind::PROPERTY);
     }

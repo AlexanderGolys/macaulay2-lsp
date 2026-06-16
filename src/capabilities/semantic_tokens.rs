@@ -287,9 +287,7 @@ fn syntax_semantic_token_type(text: &str, node: tree_sitter::Node) -> Option<M2S
         "string_literal" if is_namespace_string_argument(text, node) => {
             Some(M2SemanticTokenType::Namespace)
         }
-        "string_literal" if is_hash_key_string(text, node) => {
-            Some(M2SemanticTokenType::Property)
-        }
+        "string_literal" if is_hash_key_string(text, node) => Some(M2SemanticTokenType::Property),
         "string_literal" => Some(M2SemanticTokenType::String),
         "line_comment" | "block_comment" => Some(M2SemanticTokenType::Comment),
         kind if !node.is_named() && is_modifier_node_kind(kind) => {
