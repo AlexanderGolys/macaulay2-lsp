@@ -71,11 +71,19 @@ pub(crate) fn collect_semantic_tokens(
 
             let mut token_type: Option<u32> = None;
             let mut modifiers: u32 = 0;
-            let option_role = option_assignment_role(text, node, builtins);
 
-            if let Some(role) = option_role {
-                token_type = Some(role as u32);
-                modifiers |= OPTION_MODIFIER;
+            // A symbol read as a quoted global key (`R.name`, `R.?name`) is a
+            // property access and outranks every other classification it might
+            // otherwise receive (local variable, builtin function, ...).
+            if is_quoted_global_key_access(text, node) {
+                token_type = Some(M2SemanticTokenType::Property as u32);
+            }
+
+            if token_type.is_none() {
+                if let Some(role) = option_assignment_role(text, node, builtins) {
+                    token_type = Some(role as u32);
+                    modifiers |= OPTION_MODIFIER;
+                }
             }
 
             if token_type.is_none() {
@@ -279,6 +287,9 @@ fn syntax_semantic_token_type(text: &str, node: tree_sitter::Node) -> Option<M2S
         "string_literal" if is_namespace_string_argument(text, node) => {
             Some(M2SemanticTokenType::Namespace)
         }
+        "string_literal" if is_hash_key_string(text, node) => {
+            Some(M2SemanticTokenType::Property)
+        }
         "string_literal" => Some(M2SemanticTokenType::String),
         "line_comment" | "block_comment" => Some(M2SemanticTokenType::Comment),
         kind if !node.is_named() && is_modifier_node_kind(kind) => {
@@ -401,6 +412,43 @@ fn is_namespace_string_argument(text: &str, node: tree_sitter::Node) -> bool {
                 | "importFrom"
                 | "exportFrom"
         )
+    })
+}
+
+/// A string literal used as a hash-table key: the left operand of `=>`
+/// (`"Quote" => "symbol"`), or the right operand of the `#` / `#?` lookup
+/// operators (`h#"key"`, `h#?"key"`). The value on the right of `=>` keeps its
+/// own classification, and symbol keys to `#` stay value references (they are
+/// evaluated, not quoted).
+fn is_hash_key_string(text: &str, node: tree_sitter::Node) -> bool {
+    if node.kind() != "string_literal" {
+        return false;
+    }
+    node.parent().is_some_and(|parent| {
+        let is_assignment_key = is_option_assignment_expression(parent, text)
+            && parent
+                .child_by_field_name("left")
+                .is_some_and(|left| left.id() == node.id());
+        let is_lookup_key = matches!(binary_expression_operator(parent, text), Some("#" | "#?"))
+            && parent
+                .child_by_field_name("right")
+                .is_some_and(|right| right.id() == node.id());
+        is_assignment_key || is_lookup_key
+    })
+}
+
+/// A symbol read as a quoted global key: the right operand of the `.` or `.?`
+/// member operator (`R.name`, `R.?name`). M2 quotes the right side as a global
+/// symbol used as a hash key, so it is a property rather than a value reference.
+fn is_quoted_global_key_access(text: &str, node: tree_sitter::Node) -> bool {
+    if !matches!(node.kind(), "symbol" | "identifier" | "resolved_symbol") {
+        return false;
+    }
+    node.parent().is_some_and(|parent| {
+        matches!(binary_expression_operator(parent, text), Some("." | ".?"))
+            && parent
+                .child_by_field_name("right")
+                .is_some_and(|right| right.id() == node.id())
     })
 }
 
@@ -885,6 +933,81 @@ mod tests {
                 M2SemanticTokenType::String as u32,    // "only" — exported symbol
             ]
         );
+    }
+
+    #[test]
+    fn semantic_tokens_classify_string_hash_keys_as_properties() {
+        // The string on the left of `=>` is a hash key (property); the value on
+        // the right stays an ordinary string.
+        let text = concat!(
+            "h = new HashTable from {\n",
+            "    \"Quote\" => \"symbol\",\n",
+            "    \"GlobalQuote\" => \"global\"\n",
+            "}\n",
+        );
+        let builtins = BuiltinData::load_from_split("", "");
+        let document = document(text, &builtins);
+        let tokens = collect_semantic_tokens(&document, &builtins, false);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .filter(|token_type| {
+                    *token_type == M2SemanticTokenType::Property as u32
+                        || *token_type == M2SemanticTokenType::String as u32
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                M2SemanticTokenType::Property as u32, // "Quote"
+                M2SemanticTokenType::String as u32,   // "symbol"
+                M2SemanticTokenType::Property as u32, // "GlobalQuote"
+                M2SemanticTokenType::String as u32,   // "global"
+            ]
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_classify_lookup_string_keys_as_properties() {
+        // A string on the right of `#` / `#?` is a literal key (property). A
+        // symbol key (`h#k`) is evaluated, so it stays an ordinary reference.
+        let text = "a = h#\"first\"\nb = h#?\"second\"\nc = \"plain\"\n";
+        let builtins = BuiltinData::load_from_split("", "");
+        let document = document(text, &builtins);
+        let tokens = collect_semantic_tokens(&document, &builtins, false);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .filter(|token_type| {
+                    *token_type == M2SemanticTokenType::Property as u32
+                        || *token_type == M2SemanticTokenType::String as u32
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                M2SemanticTokenType::Property as u32, // h#"first"
+                M2SemanticTokenType::Property as u32, // h#?"second"
+                M2SemanticTokenType::String as u32,   // "plain"
+            ]
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_classify_dot_access_keys_as_properties() {
+        // `name` is also a global variable, yet the quoted global key in `R.name`
+        // and `R.?name` must still win as a property over any other role.
+        let text = "name = 5\nx = R.name\ny = R.?name\n";
+        let builtins = BuiltinData::load_from_split("", "");
+        let document = document(text, &builtins);
+        let tokens = collect_semantic_tokens(&document, &builtins, false);
+
+        let property_count = tokens
+            .iter()
+            .filter(|token| token.token_type == M2SemanticTokenType::Property as u32)
+            .count();
+        // Exactly the two dot-access keys, not the `name = 5` binding on line 1.
+        assert_eq!(property_count, 2);
     }
 
     #[test]
