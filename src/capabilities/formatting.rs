@@ -327,6 +327,23 @@ fn canonical_if(node: Node<'_>, text: &str) -> Option<String> {
         ));
     };
 
+    // The protective parens around the then-body exist only to keep `else` off
+    // the start of a line, which is a syntax error at global scope. Inside any
+    // bracketing (parens/braces/brackets) a newline before `else` is legal, so
+    // there we break after `then` and let `else` begin its own line unwrapped.
+    if !is_at_global_scope(node) {
+        let then_part = broken_body(then_body, text);
+        return if else_clause_expr.kind() == "if_statement" {
+            let tail = canonical_if(else_clause_expr, text)?;
+            Some(format!("if {condition_text} then{then_part}\nelse {tail}"))
+        } else {
+            Some(format!(
+                "if {condition_text} then{then_part}\nelse{}",
+                broken_body(else_clause_expr, text)
+            ))
+        };
+    }
+
     let then_inner = if_body_inner(then_body, text);
     if else_clause_expr.kind() == "if_statement" {
         let tail = canonical_if(else_clause_expr, text)?;
@@ -339,6 +356,21 @@ fn canonical_if(node: Node<'_>, text: &str) -> Option<String> {
             broken_body(else_clause_expr, text)
         ))
     }
+}
+
+/// Whether an `if` statement sits at global (top-level) scope, where a newline
+/// before `else` is a syntax error. Only true bracketing — parentheses
+/// (`sequence`), braces (`list`), or brackets (`array`) — introduces a local
+/// scope; clause bodies and loop bodies do not.
+fn is_at_global_scope(node: Node<'_>) -> bool {
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if matches!(parent.kind(), "sequence" | "list" | "array") {
+            return false;
+        }
+        current = parent;
+    }
+    true
 }
 
 /// Render a body that follows a clause keyword with no trailing `else` to
@@ -1896,6 +1928,41 @@ mod tests {
     }
 
     #[test]
+    fn reflows_if_in_local_scope_without_protective_parens() {
+        // Inside a function body (parens) a newline before `else` is legal, so the
+        // then-body is not wrapped in protective parens.
+        assert_eq!(
+            format_document_text("f = () -> (\nif a then f(x) else c\n)\n"),
+            "f = () -> (\n    if a then\n        f(x)\n        else\n        c\n)\n"
+        );
+        assert!(
+            !format_document_text("f = () -> (\nif a then f(x) else c\n)\n").contains("then ("),
+            "local-scope if must not introduce protective parens"
+        );
+    }
+
+    #[test]
+    fn keeps_protective_parens_for_nested_global_then_block() {
+        // The outer `if` is global (parens required); the inner `if` lives inside
+        // the outer then-block parens, so it is local (no protective parens).
+        let formatted = format_document_text("if a then (\nif x then p(1) else q(2)\n) else w\n");
+        assert!(formatted.starts_with("if a then (\n"));
+        assert!(formatted.contains("    if x then\n        p(1)\n        else\n        q(2)\n"));
+    }
+
+    #[test]
+    fn local_scope_if_reflow_is_idempotent() {
+        for source in [
+            "f = () -> (\nif a then f(x) else c\n)\n",
+            "f = () -> (\nif a then f(x) else if d then g(y) else h(z)\n)\n",
+            "if a then (\nif x then p(1) else q(2)\n) else w\n",
+        ] {
+            let once = format_document_text(source);
+            assert_eq!(format_document_text(&once), once, "not idempotent: {source:?}");
+        }
+    }
+
+    #[test]
     fn leaves_single_word_if_bodies_inline() {
         assert_eq!(
             format_document_text("if a then b else c\n"),
@@ -2000,3 +2067,4 @@ mod tests {
         assert!(!formatted.contains("\n     toZZ = (L) -> ("));
     }
 }
+
