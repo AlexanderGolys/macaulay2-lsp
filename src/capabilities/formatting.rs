@@ -1954,7 +1954,7 @@ mod tests {
 
     #[test]
     fn formats_example_file_despite_parser_gaps() {
-        let formatted = format_document_text(include_str!("../../../example_m2_code/example1.m2"));
+        let formatted = format_document_text(include_str!("../../example_m2_code/example1.m2"));
 
         assert!(formatted.contains("k := ceiling((-3 + sqrt(9.0 + 8*delta))/2);"));
         assert!(formatted.contains("K = ZZ/101;"));
@@ -1993,7 +1993,7 @@ mod tests {
 
     #[test]
     fn keeps_top_level_symbols_unindented_after_comment_dividers() {
-        let formatted = format_document_text(include_str!("../../../example_m2_code/example2.m2"));
+        let formatted = format_document_text(include_str!("../../example_m2_code/example2.m2"));
 
         assert!(formatted.contains("\nprimitive = (L) -> ("));
         assert!(formatted.contains("\ntoZZ = (L) -> ("));

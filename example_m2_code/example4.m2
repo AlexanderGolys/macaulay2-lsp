@@ -15,7 +15,22 @@ w = new Cu from {1, -2}
 expression Cu := z -> (expression z#0 + expression z#1*expression "i");
 toString Qu := z -> toString expression z;
 
-R = ring ideal(2_ZZ)
+R = ring ideal 2_ZZ
 
 h = x -> [x, x]
 a = h(5)
+
+Thing Thing := (a, b) -> "call(" | toString a | ", " | toString b | ")";
+Thing .. Thing := (a, b) -> "[" | toString a | " .. " | toString b | "]";
+Thing _ Thing := (a, b) -> "(" | toString a | ")_(" | toString b | "]";
+
+keyStr := t -> k -> (toString k | "=>" | (toString (t#k)))
+p := t -> keyStr(t) \ keys t
+f := (t) -> toString p t
+toString Tally := f
+-- e2 := e
+-- new AtomicInt from 2
+[e_0..e_5]
+e2 = tally {e2}
+e_2 = tally {e2}
+a = 2

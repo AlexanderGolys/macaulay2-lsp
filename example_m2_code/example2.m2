@@ -245,3 +245,13 @@ polarCone(Matrix, Matrix) := (Z, H) -> (
 polarCone(Matrix) := (Z) -> (
     polarCone(Z, map(ZZ^(rank target Z), ZZ^0, 0))
 );
+
+opt = {Algorithm => 1}
+f = {Algorithm => 1} >> x -> x;
+g = {Algo => 1} >> x -> x;
+h = opt >> x -> x;
+i = opt >> x -> x;
+f(1, Algorithm => 2);
+g(1, Algo => 2);
+h(1, Algorithm => 2);
+i(1, Algorithm => 2);

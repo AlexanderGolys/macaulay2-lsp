@@ -472,7 +472,7 @@ mod tests {
             }
         }
 
-        let text = include_str!("../../../example_m2_code/example1.m2");
+        let text = include_str!("../../example_m2_code/example1.m2");
         let builtins = BuiltinData::load_from_split("", "");
         let mut parser = Parser::new();
         parser

@@ -1,5 +1,6 @@
 use std::backtrace::Backtrace;
-use std::fs::OpenOptions;
+use std::collections::HashMap;
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::panic;
 use std::path::PathBuf;
@@ -7,6 +8,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use dashmap::DashMap;
+use tokio::{io, task};
+use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use typesystem::BuiltinData;
@@ -43,12 +46,14 @@ use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
 use capabilities::type_hierarchy::{TypeHierarchyCapabilityService, TYPE_HIERARCHY_METHOD};
 use document::DocumentSnapshot;
 #[cfg(test)]
-#[cfg(test)]
 use package_index::package_source_string;
 use package_index::{collect_imported_packages, PackageIndexer, SourceResolver};
 #[cfg(test)]
 use record_lsp::record_package;
 use record_lsp::{record_source_file, record_source_line, record_symbol_kind};
+
+use crate::typesystem::{InstanceID, Record};
+use crate::workspace_index::WorkspaceIndex;
 
 #[derive(Debug)]
 struct Backend {
@@ -58,7 +63,7 @@ struct Backend {
     package_indexer: PackageIndexer,
     package_indexes: DashMap<String, BuiltinData>,
     documents: DashMap<Url, DocumentSnapshot>,
-    workspace_index: Arc<workspace_index::WorkspaceIndex>,
+    workspace_index: Arc<WorkspaceIndex>,
     semantic_tokens_augment_syntax: AtomicBool,
     type_hierarchy_dynamic_registration: AtomicBool,
 }
@@ -76,7 +81,7 @@ impl Backend {
             package_indexer: PackageIndexer::from_environment(),
             package_indexes: DashMap::new(),
             documents: DashMap::new(),
-            workspace_index: Arc::new(workspace_index::WorkspaceIndex::default()),
+            workspace_index: Arc::new(WorkspaceIndex::default()),
             semantic_tokens_augment_syntax: AtomicBool::new(false),
             type_hierarchy_dynamic_registration: AtomicBool::new(false),
         }
@@ -107,13 +112,13 @@ impl Backend {
         let Ok(path) = uri.to_file_path() else {
             return;
         };
-        match std::fs::read_to_string(&path) {
+        match fs::read_to_string(&path) {
             Ok(text) => self.workspace_index.index_file(uri, &text, &self.builtins),
             Err(_) => self.workspace_index.remove_file(uri),
         }
     }
 
-    fn record_location(&self, record: &typesystem::Record) -> Option<Location> {
+    fn record_location(&self, record: &Record) -> Option<Location> {
         let source_file = record_source_file(record)?;
         let path = self.source_resolver.resolve_source_file(source_file)?;
         let uri = Url::from_file_path(path).ok()?;
@@ -142,9 +147,9 @@ impl Backend {
         &self,
         package: Option<&str>,
         name: &str,
-    ) -> Option<(String, BuiltinData, typesystem::Record)> {
+    ) -> Option<(String, BuiltinData, Record)> {
         let index = self.type_hierarchy_index(package)?;
-        let record = index.get_record(&typesystem::InstanceID::new(name))?;
+        let record = index.get_record(&InstanceID::new(name))?;
         record.type_info.as_ref()?;
         Some((package.unwrap_or("Core").to_string(), index, record))
     }
@@ -153,8 +158,8 @@ impl Backend {
         &self,
         package: &str,
         index: &BuiltinData,
-        name: &typesystem::InstanceID,
-    ) -> Option<(String, typesystem::Record)> {
+        name: &InstanceID,
+    ) -> Option<(String, Record)> {
         if let Some(record) = index.get_record(name) {
             return Some((package.to_string(), record));
         }
@@ -167,7 +172,7 @@ impl Backend {
     fn type_hierarchy_item(
         &self,
         package: &str,
-        record: &typesystem::Record,
+        record: &Record,
         occurrence_uri: Option<Url>,
         occurrence_range: Option<Range>,
     ) -> TypeHierarchyItem {
@@ -251,12 +256,12 @@ impl LanguageServer for Backend {
     async fn initialize(
         &self,
         params: InitializeParams,
-    ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
+    ) -> Result<InitializeResult> {
         self.workspace_index.set_roots(workspace_roots(&params));
         // Index every `.m2` file under the project roots off the request path.
         let index = Arc::clone(&self.workspace_index);
         let builtins = self.builtins.clone();
-        tokio::task::spawn_blocking(move || index.scan(&builtins));
+        task::spawn_blocking(move || index.scan(&builtins));
         let text_document_capabilities = params.capabilities.text_document;
         let augments_syntax_tokens = text_document_capabilities
             .as_ref()
@@ -368,7 +373,7 @@ impl LanguageServer for Backend {
             .await;
     }
 
-    async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
+    async fn shutdown(&self) -> Result<()> {
         Ok(())
     }
 
@@ -413,7 +418,7 @@ impl LanguageServer for Backend {
         }
     }
 
-    async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let document = match self.documents.get(uri) {
@@ -432,7 +437,7 @@ impl LanguageServer for Backend {
     async fn completion(
         &self,
         params: CompletionParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<CompletionResponse>> {
+    ) -> Result<Option<CompletionResponse>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let document = match self.documents.get(uri) {
@@ -451,7 +456,7 @@ impl LanguageServer for Backend {
     async fn semantic_tokens_full(
         &self,
         params: SemanticTokensParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<SemanticTokensResult>> {
+    ) -> Result<Option<SemanticTokensResult>> {
         let uri = params.text_document.uri;
         let document = match self.documents.get(&uri) {
             Some(document) => document,
@@ -468,7 +473,7 @@ impl LanguageServer for Backend {
     async fn document_symbol(
         &self,
         params: DocumentSymbolParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<DocumentSymbolResponse>> {
+    ) -> Result<Option<DocumentSymbolResponse>> {
         let uri = params.text_document.uri;
         let document = match self.documents.get(&uri) {
             Some(document) => document,
@@ -481,7 +486,7 @@ impl LanguageServer for Backend {
     async fn code_action(
         &self,
         params: CodeActionParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<CodeActionResponse>> {
+    ) -> Result<Option<CodeActionResponse>> {
         let uri = &params.text_document.uri;
         let document = match self.documents.get(uri) {
             Some(document) => document,
@@ -503,7 +508,7 @@ impl LanguageServer for Backend {
     async fn inlay_hint(
         &self,
         params: InlayHintParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<Vec<InlayHint>>> {
+    ) -> Result<Option<Vec<InlayHint>>> {
         let uri = &params.text_document.uri;
         let document = match self.documents.get(uri) {
             Some(document) => document,
@@ -515,7 +520,7 @@ impl LanguageServer for Backend {
     async fn document_highlight(
         &self,
         params: DocumentHighlightParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<Vec<DocumentHighlight>>> {
+    ) -> Result<Option<Vec<DocumentHighlight>>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let document = match self.documents.get(uri) {
@@ -528,7 +533,7 @@ impl LanguageServer for Backend {
     async fn references(
         &self,
         params: ReferenceParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<Vec<Location>>> {
+    ) -> Result<Option<Vec<Location>>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let include_declaration = params.context.include_declaration;
@@ -573,7 +578,7 @@ impl LanguageServer for Backend {
             let ranges = if let Some(open) = self.documents.get(&file_uri) {
                 global_reference_ranges(open.value(), &name)
             } else if let Ok(path) = file_uri.to_file_path() {
-                std::fs::read_to_string(path)
+                fs::read_to_string(path)
                     .ok()
                     .and_then(|text| DocumentSnapshot::from_text(text, &self.builtins))
                     .map(|snapshot| global_reference_ranges(&snapshot, &name))
@@ -593,7 +598,7 @@ impl LanguageServer for Backend {
     async fn prepare_rename(
         &self,
         params: TextDocumentPositionParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<PrepareRenameResponse>> {
+    ) -> Result<Option<PrepareRenameResponse>> {
         let uri = &params.text_document.uri;
         let position = params.position;
         let document = match self.documents.get(uri) {
@@ -606,7 +611,7 @@ impl LanguageServer for Backend {
     async fn rename(
         &self,
         params: RenameParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<WorkspaceEdit>> {
+    ) -> Result<Option<WorkspaceEdit>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let new_name = params.new_name.trim();
@@ -637,7 +642,7 @@ impl LanguageServer for Backend {
                         .collect::<Vec<_>>();
                     (
                         name,
-                        std::collections::HashMap::from([(uri.clone(), edits)]),
+                        HashMap::from([(uri.clone(), edits)]),
                     )
                 }
             }
@@ -670,7 +675,7 @@ impl LanguageServer for Backend {
     async fn prepare_type_hierarchy(
         &self,
         params: TypeHierarchyPrepareParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
+    ) -> Result<Option<Vec<TypeHierarchyItem>>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let document = match self.documents.get(&uri) {
@@ -684,7 +689,7 @@ impl LanguageServer for Backend {
         let range = document.range_for(node);
 
         for (package, package_index) in self.active_package_indexes(document.text()) {
-            if let Some(record) = package_index.get_record(&typesystem::InstanceID::new(name)) {
+            if let Some(record) = package_index.get_record(&InstanceID::new(name)) {
                 if record.type_info.is_some() {
                     return Ok(Some(vec![self.type_hierarchy_item(
                         &package,
@@ -696,7 +701,7 @@ impl LanguageServer for Backend {
             }
         }
 
-        let Some(record) = self.builtins.get_record(&typesystem::InstanceID::new(name)) else {
+        let Some(record) = self.builtins.get_record(&InstanceID::new(name)) else {
             return Ok(None);
         };
         if record.type_info.is_none() {
@@ -714,7 +719,7 @@ impl LanguageServer for Backend {
     async fn supertypes(
         &self,
         params: TypeHierarchySupertypesParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
+    ) -> Result<Option<Vec<TypeHierarchyItem>>> {
         let package = Self::type_hierarchy_package(&params.item);
         let Some((package, index, record)) = self.type_hierarchy_record(package, &params.item.name)
         else {
@@ -747,7 +752,7 @@ impl LanguageServer for Backend {
     async fn subtypes(
         &self,
         params: TypeHierarchySubtypesParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<Vec<TypeHierarchyItem>>> {
+    ) -> Result<Option<Vec<TypeHierarchyItem>>> {
         let package = Self::type_hierarchy_package(&params.item);
         let Some((package, index, record)) = self.type_hierarchy_record(package, &params.item.name)
         else {
@@ -779,7 +784,7 @@ impl LanguageServer for Backend {
     async fn formatting(
         &self,
         params: DocumentFormattingParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<Vec<TextEdit>>> {
+    ) -> Result<Option<Vec<TextEdit>>> {
         let uri = params.text_document.uri;
         let document = match self.documents.get(&uri) {
             Some(document) => document,
@@ -795,7 +800,7 @@ impl LanguageServer for Backend {
     async fn folding_range(
         &self,
         params: FoldingRangeParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<Vec<FoldingRange>>> {
+    ) -> Result<Option<Vec<FoldingRange>>> {
         let uri = params.text_document.uri;
         let document = match self.documents.get(&uri) {
             Some(document) => document,
@@ -809,7 +814,7 @@ impl LanguageServer for Backend {
     async fn symbol(
         &self,
         params: WorkspaceSymbolParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<Vec<SymbolInformation>>> {
+    ) -> Result<Option<Vec<SymbolInformation>>> {
         let query = params.query.trim();
         if query.is_empty() {
             return Ok(Some(Vec::new()));
@@ -831,7 +836,7 @@ impl LanguageServer for Backend {
     async fn goto_definition(
         &self,
         params: GotoDefinitionParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
+    ) -> Result<Option<GotoDefinitionResponse>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
 
@@ -877,8 +882,8 @@ fn workspace_roots(params: &InitializeParams) -> Vec<PathBuf> {
 #[tokio::main]
 async fn main() {
     install_panic_logging();
-    let stdin = tokio::io::stdin();
-    let stdout = tokio::io::stdout();
+    let stdin = io::stdin();
+    let stdout = io::stdout();
     let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket)
         .serve(TypeHierarchyCapabilityService::new(service))
@@ -887,6 +892,8 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
+    use std::{env, fs};
+
     use super::*;
     use crate::analysis::Analysis;
     use crate::record_lsp::{record_hover_with_package, record_hover_with_package_and_usage};
@@ -896,15 +903,15 @@ mod tests {
     #[test]
     fn source_resolver_finds_package_and_doc_files_from_m2_path_roots() {
         let root =
-            std::env::temp_dir().join(format!("m2-lsp-source-resolver-{}", std::process::id()));
+            env::temp_dir().join(format!("m2-lsp-source-resolver-{}", std::process::id()));
         let packages = root.join("Macaulay2").join("packages");
         let docs = packages.join("Macaulay2Doc");
         let core = root.join("Macaulay2").join("m2");
-        std::fs::create_dir_all(&docs).expect("test docs dir should be created");
-        std::fs::create_dir_all(&core).expect("test core dir should be created");
-        std::fs::write(packages.join("Graphs.m2"), "").expect("package fixture should write");
-        std::fs::write(docs.join("operators.m2"), "").expect("doc fixture should write");
-        std::fs::write(core.join("option.m2"), "").expect("core fixture should write");
+        fs::create_dir_all(&docs).expect("test docs dir should be created");
+        fs::create_dir_all(&core).expect("test core dir should be created");
+        fs::write(packages.join("Graphs.m2"), "").expect("package fixture should write");
+        fs::write(docs.join("operators.m2"), "").expect("doc fixture should write");
+        fs::write(core.join("option.m2"), "").expect("core fixture should write");
 
         let resolver = SourceResolver::new(vec![packages.clone()]);
 
@@ -921,7 +928,7 @@ mod tests {
             Some(core.join("option.m2"))
         );
 
-        let _ = std::fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
@@ -978,11 +985,11 @@ mod tests {
     #[test]
     fn package_indexer_loads_cached_line_aligned_package_records() {
         let root =
-            std::env::temp_dir().join(format!("m2-lsp-package-index-{}", std::process::id()));
-        std::fs::create_dir_all(&root).expect("test package cache dir should be created");
-        std::fs::write(root.join("Graphs.names"), "graph\n")
+            env::temp_dir().join(format!("m2-lsp-package-index-{}", std::process::id()));
+        fs::create_dir_all(&root).expect("test package cache dir should be created");
+        fs::write(root.join("Graphs.names"), "graph\n")
             .expect("package names fixture should write");
-        std::fs::write(
+        fs::write(
             root.join("Graphs.details.jsonl"),
             "{\"name\":\"graph\",\"class\":\"MethodFunction\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{\"package\":\"Graphs\"}}\n",
         )
@@ -1001,7 +1008,7 @@ mod tests {
         assert_eq!(record.name.0, "graph");
         assert_eq!(record_package(&record), Some("Graphs"));
 
-        let _ = std::fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

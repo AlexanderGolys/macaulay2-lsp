@@ -370,7 +370,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "m2_ls"
+name = "m2-ls"
 version = "0.1.0"
 dependencies = [
  "dashmap",

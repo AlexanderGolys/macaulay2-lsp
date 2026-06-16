@@ -15,19 +15,16 @@ The project is intentionally small right now: one active Rust crate, one generat
 ## Repository Layout
 
 ```text
-m2_ls/
-  Cargo.toml
-  scripts/extract_builtins.m2
-  src/
-    main.rs
-    analysis.rs
-    typesystem.rs
-    data/
-      builtins.names
-      builtins.details.jsonl
+Cargo.toml
+src/
+  main.rs
+  analysis.rs
+  typesystem.rs
+  capabilities/
+  data/
+    m2-types.jsonl
+    m2-docs.jsonl
 ```
-
-`m2_ls/src/problems.md` is not this project’s issue tracker. It is a scratchpad for upstream Macaulay2 bugs or surprising behavior found while extracting metadata.
 
 ## Requirements
 
@@ -39,7 +36,7 @@ m2_ls/
 
 ## Development
 
-Run commands from `m2_ls/`.
+Run commands from the repository root.
 
 ```sh
 cargo check
@@ -52,7 +49,7 @@ cargo clippy
 Use `cargo run` to start the language server on stdio. Editor configs should point at the built binary, for example:
 
 ```text
-/home/flux/m2/macaulay2-lsp/m2_ls/target/debug/m2_ls
+/home/flux/m2/macaulay2-lsp/target/debug/m2-ls
 ```
 
 ## Builtin Metadata

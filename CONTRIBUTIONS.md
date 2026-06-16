@@ -1,21 +1,20 @@
 # Contributing
 
-This repository contains an experimental Rust language server for Macaulay2. Keep changes focused on the active `m2_ls/` crate unless a task explicitly touches repository docs or metadata.
+This repository contains an experimental Rust language server for Macaulay2. The crate (`m2-ls`) lives at the repository root. Keep changes focused on the crate unless a task explicitly touches repository docs or metadata.
 
 ## Project Structure
 
-- `m2_ls/src/main.rs`: LSP server setup, request handlers, semantic tokens, hover, completion, and go-to-definition wiring.
-- `m2_ls/src/analysis.rs`: syntax and scope analysis over Tree-sitter parse trees.
-- `m2_ls/src/typesystem.rs`: builtin metadata loading, type hierarchy helpers, and token classification.
-- `m2_ls/src/data/builtins.names`: compact builtin symbol list for live lookup.
-- `m2_ls/src/data/builtins.details.jsonl`: line-aligned builtin records used for hover and classification.
-- `m2_ls/scripts/extract_builtins.m2`: Macaulay2 runtime/doc extractor for regenerating builtin data.
+- `src/main.rs`: LSP server setup, request handlers, semantic tokens, hover, completion, and go-to-definition wiring.
+- `src/analysis.rs`: syntax and scope analysis over Tree-sitter parse trees.
+- `src/typesystem.rs`: builtin metadata loading, type hierarchy helpers, and token classification.
+- `src/capabilities/`: per-feature LSP handlers (hover, formatting, navigation, diagnostics, …).
+- `src/data/m2-types.jsonl`, `src/data/m2-docs.jsonl`: line-aligned builtin records used for hover and classification.
 
 Treat every `target/` directory as build output.
 
 ## Development Commands
 
-Run Rust commands from `m2_ls/`.
+Run Rust commands from the repository root.
 
 ```sh
 cargo check
@@ -25,7 +24,7 @@ cargo build
 cargo clippy
 ```
 
-`cargo run` starts the LSP server on stdio. Editor integrations should normally point at `m2_ls/target/debug/m2_ls` after `cargo build`.
+`cargo run` starts the LSP server on stdio. Editor integrations should normally point at `target/debug/m2-ls` after `cargo build`.
 
 ## Validation
 
@@ -39,7 +38,7 @@ For LSP behavior changes, also test through an editor client when practical. Non
 
 ## Builtin Metadata
 
-Regenerate the checked-in builtin database from `m2_ls/`:
+Regenerate the checked-in builtin database from the repository root:
 
 ```sh
 M2 --script scripts/extract_builtins.m2 src/data/builtins.details.jsonl
@@ -56,6 +55,6 @@ M2 --script scripts/extract_builtins.m2 --rich /tmp/builtins-rich.details.jsonl 
 
 ## Documentation Notes
 
-`m2_ls/src/problems.md` records upstream Macaulay2 bugs or surprising behavior. It is not this repository's issue tracker.
+`src/problems.md` records upstream Macaulay2 bugs or surprising behavior. It is not this repository's issue tracker.
 
 Keep `README.md` user-facing and concise. Keep this file contributor-facing and actionable.
