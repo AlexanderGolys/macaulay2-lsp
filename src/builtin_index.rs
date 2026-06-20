@@ -148,7 +148,7 @@ impl BuiltinIndex {
                         .into_iter()
                         .map(|method| Signature {
                             domain: method.domain.iter().map(|d| deref_ref(d)).collect(),
-                            codomain: method.typical_value.as_deref().map(deref_ref),
+                            codomain: concrete_codomain(method.typical_value.as_deref()),
                             exact: method.exact,
                             options: method.options,
                         })
@@ -160,7 +160,7 @@ impl BuiltinIndex {
                         class: raw.class.as_deref().map(deref_ref),
                         is_operator: raw.kind == "operator",
                         forms,
-                        typical_value: raw.typical_value.as_deref().map(deref_ref),
+                        typical_value: concrete_codomain(raw.typical_value.as_deref()),
                         options: raw.options,
                         signatures,
                     });
@@ -230,6 +230,19 @@ fn deref_ref(key: &str) -> String {
         .and_then(|rest| rest.split_once('$'))
         .map(|(_package, name)| name.to_string())
         .unwrap_or_else(|| key.to_string())
+}
+
+/// Dereference a corpus codomain key and enforce the monotone index invariant:
+/// `Thing` and `Any` sit at the top of the M2 type lattice and carry no
+/// typecheck information — returning them as a positive fact would pollute
+/// inference. This maps them to `None` ("unknown"), preserving the
+/// known-facts-only contract.
+fn concrete_codomain(raw_key: Option<&str>) -> Option<String> {
+    let name = raw_key.map(deref_ref)?;
+    match name.as_str() {
+        "Thing" | "Any" => None,
+        _ => Some(name),
+    }
 }
 
 /// Register a pooled entry under its name and each alias. The name wins on a
@@ -383,5 +396,51 @@ mod tests {
         assert_eq!(deref_ref("$Core$Core"), "Core"); // package/class refs too
         assert_eq!(deref_ref("ComplexMap"), "ComplexMap"); // unresolved, no prefix
         assert_eq!(deref_ref("RingElement"), "RingElement"); // already bare
+    }
+
+    /// Monotone index invariant: `Thing` and `Any` are the top of the M2 type
+    /// lattice and carry no information — storing them as a positive codomain
+    /// fact would pollute inference and hover. The loader must drop them to `None`.
+    #[test]
+    fn no_callable_carries_thing_or_any_codomain() {
+        let index = index();
+
+        // Global invariant: no signature codomain and no callable typical_value
+        // may be Some("Thing") or Some("Any").
+        for callable in index.callables() {
+            for sig in &callable.signatures {
+                assert!(
+                    !matches!(sig.codomain.as_deref(), Some("Thing") | Some("Any")),
+                    "callable '{}' has a Thing/Any signature codomain (domain={:?})",
+                    callable.name,
+                    sig.domain,
+                );
+            }
+            assert!(
+                !matches!(
+                    callable.typical_value.as_deref(),
+                    Some("Thing") | Some("Any")
+                ),
+                "callable '{}' has a Thing/Any typical_value",
+                callable.name,
+            );
+        }
+
+        // Spot-check: `next` over domain `["Iterator"]` — raw corpus has
+        // `$Core$Thing` — must be dropped to None after load.
+        let next = index.callable("next").expect("next callable present");
+        let next_iter_sig = next
+            .signatures
+            .iter()
+            .find(|s| s.domain == ["Iterator"])
+            .expect("next(Iterator) signature present");
+        assert_eq!(
+            next_iter_sig.codomain, None,
+            "next(Iterator) codomain must be None, not Thing"
+        );
+        assert_eq!(
+            next.typical_value, None,
+            "next typical_value must be None, not Thing"
+        );
     }
 }
