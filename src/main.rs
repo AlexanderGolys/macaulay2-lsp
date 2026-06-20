@@ -71,7 +71,7 @@ struct Backend {
 impl Backend {
     fn new(client: Client) -> Self {
         let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-types.jsonc"),
             include_str!("./data/m2-docs.jsonl"),
         );
         Backend {
@@ -1022,7 +1022,7 @@ mod tests {
     #[test]
     fn record_hover_includes_explicit_package_context() {
         let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-types.jsonc"),
             include_str!("./data/m2-docs.jsonl"),
         );
         let record = builtins

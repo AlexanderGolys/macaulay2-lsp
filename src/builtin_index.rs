@@ -1,4 +1,4 @@
-//! The static builtin index parsed from `data/m2-types.jsonl` — the typecheck
+//! The static builtin index parsed from `data/m2-types.jsonc` — the typecheck
 //! source of truth (replacing the old runtime-scraped `Record`/`BuiltinData`).
 //!
 //! Two tables: a **type lattice** (`parent`/`ancestors`/`class`/`subtypes`) for
@@ -103,68 +103,79 @@ pub struct BuiltinIndex {
 }
 
 impl BuiltinIndex {
-    pub fn load(jsonl: &str) -> Self {
+    pub fn load(corpus: &str) -> Self {
         let mut index = BuiltinIndex::default();
-        for line in jsonl.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let Ok(raw) = serde_json::from_str::<RawRecord>(line) else {
-                continue;
-            };
+        // JSONC: strip the `//` header lines, then parse the single JSON array.
+        let body: String = corpus
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let Ok(records) = serde_json::from_str::<Vec<RawRecord>>(&body) else {
+            return index;
+        };
+
+        for raw in records {
+            // name + aliases + extra_keys all resolve to this record.
+            let mut keys = raw.aliases.clone();
+            keys.extend(raw.extra_keys.iter().cloned());
+
             match raw.kind.as_str() {
                 "type" => {
                     let id = index.types.len();
-                    register_keys(&mut index.type_keys, &raw.name, &raw.aliases, id);
+                    register_keys(&mut index.type_keys, &raw.name, &keys, id);
                     index.types.push(TypeEntry {
                         name: raw.name,
-                        aliases: raw.aliases,
-                        package: raw.package,
-                        class: raw.class,
-                        parent: raw.parent,
-                        ancestors: raw.ancestors,
-                        subtypes: raw.subtypes,
-                        instances: raw.instances,
+                        aliases: keys,
+                        package: raw.package.as_deref().map(deref_ref),
+                        class: raw.class.as_deref().map(deref_ref),
+                        parent: raw.parent.as_deref().map(deref_ref),
+                        ancestors: raw.ancestors.iter().map(|a| deref_ref(a)).collect(),
+                        subtypes: raw.subtypes.iter().map(|s| deref_ref(s)).collect(),
+                        instances: raw.instances.iter().map(|i| deref_ref(i)).collect(),
                     });
                 }
-                "function" | "operator" => {
+                "function" | "methodFunction" | "operator" => {
                     let id = index.callables.len();
-                    register_keys(&mut index.callable_keys, &raw.name, &raw.aliases, id);
-                    let forms = collect_forms(&raw.methods);
+                    register_keys(&mut index.callable_keys, &raw.name, &keys, id);
+                    let forms = raw
+                        .operator
+                        .as_ref()
+                        .map(|op| op.forms.iter().map(|f| capitalize_form(f)).collect())
+                        .unwrap_or_default();
                     let signatures = raw
                         .methods
                         .into_iter()
                         .map(|method| Signature {
-                            domain: method.domain,
-                            codomain: method.typical_value,
+                            domain: method.domain.iter().map(|d| deref_ref(d)).collect(),
+                            codomain: concrete_codomain(method.typical_value.as_deref()),
                             exact: method.exact,
                             options: method.options,
                         })
                         .collect();
                     index.callables.push(CallableEntry {
                         name: raw.name,
-                        aliases: raw.aliases,
-                        package: raw.package,
-                        class: raw.class,
+                        aliases: keys,
+                        package: raw.package.as_deref().map(deref_ref),
+                        class: raw.class.as_deref().map(deref_ref),
                         is_operator: raw.kind == "operator",
                         forms,
-                        typical_value: raw.typical_value,
+                        typical_value: concrete_codomain(raw.typical_value.as_deref()),
                         options: raw.options,
                         signatures,
                     });
                 }
-                "object" => {
+                "symbol" | "object" | "table" => {
                     let id = index.objects.len();
-                    register_keys(&mut index.object_keys, &raw.name, &raw.aliases, id);
+                    register_keys(&mut index.object_keys, &raw.name, &keys, id);
                     index.objects.push(ObjectEntry {
                         name: raw.name,
-                        aliases: raw.aliases,
-                        package: raw.package,
-                        class: raw.class,
+                        aliases: keys,
+                        package: raw.package.as_deref().map(deref_ref),
+                        class: raw.class.as_deref().map(deref_ref),
                     });
                 }
-                // The `package` record carries no per-symbol facts.
+                // `package` and any future `meta` record carry no per-symbol facts.
                 _ => {}
             }
         }
@@ -209,6 +220,31 @@ impl BuiltinIndex {
     }
 }
 
+/// Dereference a `$Package$Name` corpus reference key to the bare name the type
+/// system keys on (`$Core$ZZ` → `ZZ`). A key with no `$` prefix is an
+/// unresolved/cross-package target and passes through unchanged. Normalized
+/// names are package-free, so splitting on the first `$` after the leading one
+/// is unambiguous.
+fn deref_ref(key: &str) -> String {
+    key.strip_prefix('$')
+        .and_then(|rest| rest.split_once('$'))
+        .map(|(_package, name)| name.to_string())
+        .unwrap_or_else(|| key.to_string())
+}
+
+/// Dereference a corpus codomain key and enforce the monotone index invariant:
+/// `Thing` and `Any` sit at the top of the M2 type lattice and carry no
+/// typecheck information — returning them as a positive fact would pollute
+/// inference. This maps them to `None` ("unknown"), preserving the
+/// known-facts-only contract.
+fn concrete_codomain(raw_key: Option<&str>) -> Option<String> {
+    let name = raw_key.map(deref_ref)?;
+    match name.as_str() {
+        "Thing" | "Any" => None,
+        _ => Some(name),
+    }
+}
+
 /// Register a pooled entry under its name and each alias. The name wins on a
 /// collision; an alias never clobbers an already-registered key.
 fn register_keys(keys: &mut HashMap<String, usize>, name: &str, aliases: &[String], id: usize) {
@@ -224,6 +260,8 @@ struct RawRecord {
     name: String,
     #[serde(default)]
     aliases: Vec<String>,
+    #[serde(default)]
+    extra_keys: Vec<String>,
     #[serde(default)]
     package: Option<String>,
     #[serde(default)]
@@ -242,6 +280,8 @@ struct RawRecord {
     options: Vec<OptionSpec>,
     #[serde(default)]
     methods: Vec<RawMethod>,
+    #[serde(default)]
+    operator: Option<RawOperator>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -254,30 +294,25 @@ struct RawMethod {
     exact: bool,
     #[serde(default)]
     options: Vec<OptionSpec>,
-    /// `binary` / `prefix` / `postfix` for operator methods; absent otherwise.
-    #[serde(default)]
-    form: Option<String>,
 }
 
-/// The distinct operator forms across a callable's methods, capitalized to the
-/// `OperatorInfo.forms` vocabulary (`Binary`/`Prefix`/`Postfix`).
-fn collect_forms(methods: &[RawMethod]) -> Vec<String> {
-    let mut forms = Vec::new();
-    for method in methods {
-        let Some(form) = method.form.as_deref() else {
-            continue;
-        };
-        let label = match form {
-            "binary" => "Binary",
-            "prefix" => "Prefix",
-            "postfix" => "Postfix",
-            _ => continue,
-        };
-        if !forms.iter().any(|existing| existing == label) {
-            forms.push(label.to_string());
-        }
+/// Operator syntactic metadata: forms are lowercase in the corpus
+/// (`binary`/`prefix`/`postfix`/`assignment`); the LSP keeps the capitalized
+/// vocabulary (`Binary`/…) used by `record_lsp.rs` and `typesystem.rs`.
+#[derive(Debug, Deserialize)]
+struct RawOperator {
+    #[serde(default)]
+    forms: Vec<String>,
+}
+
+/// `binary` → `Binary`, etc. The corpus uses lowercase operator forms; the LSP
+/// keeps the capitalized vocabulary its operator-hover code matches on.
+fn capitalize_form(form: &str) -> String {
+    let mut chars = form.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
     }
-    forms
 }
 
 #[cfg(test)]
@@ -285,7 +320,30 @@ mod tests {
     use super::*;
 
     fn index() -> BuiltinIndex {
-        BuiltinIndex::load(include_str!("./data/m2-types.jsonl"))
+        BuiltinIndex::load(include_str!("./data/m2-types.jsonc"))
+    }
+
+    #[test]
+    fn load_parses_new_format_corpus() {
+        let index = BuiltinIndex::load(include_str!("./data/m2-types.jsonc"));
+
+        // type record: parent/ancestors deref'd to bare names
+        let zz = index.type_entry("ZZ").expect("ZZ type present");
+        assert_eq!(zz.package.as_deref(), Some("Core")); // $Core$Core -> Core
+        assert!(zz.ancestors.iter().all(|a| !a.starts_with('$')));
+
+        // methodFunction record -> callable, with a deref'd codomain
+        let beta = index.callable("Beta").expect("Beta callable present");
+        assert!(beta
+            .signatures
+            .iter()
+            .any(|s| s.codomain.as_deref() == Some("RR"))); // $Core$RR -> RR
+
+        // operator record -> callable + capitalized forms from the `operator` object
+        let minus = index.callable("-").expect("- operator present");
+        assert!(minus.is_operator);
+        assert!(minus.forms.contains(&"Binary".to_string()));
+        assert!(minus.forms.contains(&"Prefix".to_string()));
     }
 
     #[test]
@@ -329,5 +387,60 @@ mod tests {
         if let Some(zz) = index.type_entry("ZZ") {
             assert!(!zz.ancestors.is_empty());
         }
+    }
+
+    #[test]
+    fn deref_ref_strips_package_qualifier_and_passes_bare_names_through() {
+        assert_eq!(deref_ref("$Core$ZZ"), "ZZ");
+        assert_eq!(deref_ref("$Core$RingElement"), "RingElement");
+        assert_eq!(deref_ref("$Core$Core"), "Core"); // package/class refs too
+        assert_eq!(deref_ref("ComplexMap"), "ComplexMap"); // unresolved, no prefix
+        assert_eq!(deref_ref("RingElement"), "RingElement"); // already bare
+    }
+
+    /// Monotone index invariant: `Thing` and `Any` are the top of the M2 type
+    /// lattice and carry no information — storing them as a positive codomain
+    /// fact would pollute inference and hover. The loader must drop them to `None`.
+    #[test]
+    fn no_callable_carries_thing_or_any_codomain() {
+        let index = index();
+
+        // Global invariant: no signature codomain and no callable typical_value
+        // may be Some("Thing") or Some("Any").
+        for callable in index.callables() {
+            for sig in &callable.signatures {
+                assert!(
+                    !matches!(sig.codomain.as_deref(), Some("Thing") | Some("Any")),
+                    "callable '{}' has a Thing/Any signature codomain (domain={:?})",
+                    callable.name,
+                    sig.domain,
+                );
+            }
+            assert!(
+                !matches!(
+                    callable.typical_value.as_deref(),
+                    Some("Thing") | Some("Any")
+                ),
+                "callable '{}' has a Thing/Any typical_value",
+                callable.name,
+            );
+        }
+
+        // Spot-check: `next` over domain `["Iterator"]` — raw corpus has
+        // `$Core$Thing` — must be dropped to None after load.
+        let next = index.callable("next").expect("next callable present");
+        let next_iter_sig = next
+            .signatures
+            .iter()
+            .find(|s| s.domain == ["Iterator"])
+            .expect("next(Iterator) signature present");
+        assert_eq!(
+            next_iter_sig.codomain, None,
+            "next(Iterator) codomain must be None, not Thing"
+        );
+        assert_eq!(
+            next.typical_value, None,
+            "next typical_value must be None, not Thing"
+        );
     }
 }
