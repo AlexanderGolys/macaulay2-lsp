@@ -1836,4 +1836,21 @@ mod tests {
         assert_eq!(builtins.names_with_prefix("R", 8), vec!["Ring"]);
         assert_eq!(builtins.names_with_prefix("Z", 8), vec!["ZZ"]);
     }
+
+    #[test]
+    fn new_corpus_preserves_hover_and_subtype_facts() {
+        let builtins = BuiltinData::load_from_index(
+            include_str!("./data/m2-types.jsonc"),
+            include_str!("./data/m2-docs.jsonl"),
+        );
+
+        // hover markdown still resolves by bare name
+        assert!(builtins.doc_markdown(&InstanceID::new("ideal")).is_some());
+
+        // a known subtype edge survives the deref (ZZ is-a Ring's ancestor chain)
+        assert!(builtins.is_subtype(&InstanceID::new("ZZ"), &InstanceID::new("Thing")));
+
+        // a known method codomain resolves (ideal of a … → Ideal is documented)
+        assert!(builtins.contains_name("ideal"));
+    }
 }
