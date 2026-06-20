@@ -260,7 +260,7 @@ fn is_standalone_statement(node: Node<'_>, text: &str) -> bool {
 
 /// Whether any branch body in an `if` chain is a block worth breaking onto its
 /// own line — i.e. not a single atom (`if ok then a else b` reads fine inline).
-fn if_chain_has_block_body(node: Node<'_>, text: &str) -> bool {
+fn if_chain_has_block_body(node: Node<'_>, _text: &str) -> bool {
     let Some(then_body) = if_clause_expression(node, "then_clause") else {
         return false;
     };
@@ -270,7 +270,7 @@ fn if_chain_has_block_body(node: Node<'_>, text: &str) -> bool {
     match if_clause_expression(node, "else_clause") {
         None => false,
         Some(else_body) if else_body.kind() == "if_statement" => {
-            if_chain_has_block_body(else_body, text)
+            if_chain_has_block_body(else_body, _text)
         }
         Some(else_body) => !is_atom_expression(else_body),
     }
