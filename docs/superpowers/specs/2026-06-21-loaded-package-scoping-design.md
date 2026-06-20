@@ -176,7 +176,11 @@ data dir) split. Because partitioning is already in-memory, that is a pure
 
 - Fully-qualified `InstanceID` everywhere (rejected: too invasive; partition +
   scoped resolution covers it).
-- Following `load`/`input` edges for transitive package loading — only
-  `needsPackage`/`loadPackage`/`debug` (what `collect_imported_packages` already
-  detects).
+- Following `needs`/`load`/`input` edges — those load `.m2` **files**, not
+  packages. The package-import triggers are the string-named-package calls:
+  `needsPackage`, `loadPackage`, `debug` (already detected) **plus `importFrom`**
+  (string-first-arg form — a one-line addition to `package_source_string`'s match
+  set; the existing first-arg guard already excludes the symbol-name strings).
+  `use`/`importFrom(Package, …)` take an already-loaded Package object and add
+  nothing to the set; `installPackage` is a rare build action — both skipped.
 - Versioned / multiple-installed-version package handling.
