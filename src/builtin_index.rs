@@ -209,6 +209,18 @@ impl BuiltinIndex {
     }
 }
 
+/// Dereference a `$Package$Name` corpus reference key to the bare name the type
+/// system keys on (`$Core$ZZ` → `ZZ`). A key with no `$` prefix is an
+/// unresolved/cross-package target and passes through unchanged. Normalized
+/// names are package-free, so splitting on the first `$` after the leading one
+/// is unambiguous.
+fn deref_ref(key: &str) -> String {
+    key.strip_prefix('$')
+        .and_then(|rest| rest.split_once('$'))
+        .map(|(_package, name)| name.to_string())
+        .unwrap_or_else(|| key.to_string())
+}
+
 /// Register a pooled entry under its name and each alias. The name wins on a
 /// collision; an alias never clobbers an already-registered key.
 fn register_keys(keys: &mut HashMap<String, usize>, name: &str, aliases: &[String], id: usize) {
@@ -329,5 +341,14 @@ mod tests {
         if let Some(zz) = index.type_entry("ZZ") {
             assert!(!zz.ancestors.is_empty());
         }
+    }
+
+    #[test]
+    fn deref_ref_strips_package_qualifier_and_passes_bare_names_through() {
+        assert_eq!(deref_ref("$Core$ZZ"), "ZZ");
+        assert_eq!(deref_ref("$Core$RingElement"), "RingElement");
+        assert_eq!(deref_ref("$Core$Core"), "Core"); // package/class refs too
+        assert_eq!(deref_ref("ComplexMap"), "ComplexMap"); // unresolved, no prefix
+        assert_eq!(deref_ref("RingElement"), "RingElement"); // already bare
     }
 }
