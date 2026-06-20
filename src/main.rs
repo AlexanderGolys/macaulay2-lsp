@@ -634,14 +634,28 @@ impl LanguageServer for Backend {
             if &file_uri == uri {
                 continue;
             }
-            // TODO(human): collect this file's global references to `name`,
-            // preferring an open buffer (`self.documents.get(&file_uri)`) over the
-            // on-disk copy (`DocumentSnapshot::from_text(text, &self.builtins)`) —
-            // the exact buffer-vs-disk branch the `references` handler uses a few
-            // lines up. Map each range to `TextEdit { range, new_text: ... }` and
-            // insert the vec into `changes` under `file_uri`. Skip files with no
-            // matches so the edit stays minimal.
-            let _ = (&file_uri, &name); // remove once the body above is written
+            let ranges = if let Some(open) = self.documents.get(&file_uri) {
+                global_reference_ranges(open.value(), &name)
+            } else if let Ok(path) = file_uri.to_file_path() {
+                fs::read_to_string(path)
+                    .ok()
+                    .and_then(|text| DocumentSnapshot::from_text(text, &self.builtins))
+                    .map(|snapshot| global_reference_ranges(&snapshot, &name))
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            if ranges.is_empty() {
+                continue;
+            }
+            let edits = ranges
+                .into_iter()
+                .map(|range| TextEdit {
+                    range,
+                    new_text: new_name.to_string(),
+                })
+                .collect::<Vec<_>>();
+            changes.insert(file_uri, edits);
         }
 
         Ok(Some(WorkspaceEdit {
