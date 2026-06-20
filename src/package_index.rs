@@ -128,12 +128,22 @@ pub(crate) fn package_source_string<'a>(
         return parent
             .parent()
             .and_then(|call| binary_expression_left_symbol(text, call))
-            .filter(|name| matches!(*name, "needsPackage" | "loadPackage" | "debug"))
+            .filter(|name| {
+                matches!(
+                    *name,
+                    "needsPackage" | "loadPackage" | "debug" | "importFrom"
+                )
+            })
             .map(|_| package_name);
     }
 
     binary_expression_left_symbol(text, parent)
-        .filter(|name| matches!(*name, "needsPackage" | "loadPackage" | "debug"))
+        .filter(|name| {
+            matches!(
+                *name,
+                "needsPackage" | "loadPackage" | "debug" | "importFrom"
+            )
+        })
         .map(|_| package_name)
 }
 
@@ -206,4 +216,42 @@ fn binary_expression_left_symbol<'a>(text: &'a str, node: tree_sitter::Node) -> 
     }
 
     Some(&text[left.start_byte()..left.end_byte()])
+}
+
+#[cfg(test)]
+mod import_trigger_tests {
+    use super::collect_imported_packages;
+
+    #[test]
+    fn import_from_string_form_adds_the_package() {
+        let pkgs = collect_imported_packages(r#"importFrom("FooPkg", {"barSym", "bazSym"})"#);
+        assert_eq!(pkgs, vec!["FooPkg".to_string()]);
+    }
+
+    #[test]
+    fn import_from_does_not_capture_symbol_name_strings() {
+        // The second-argument symbol strings must NOT be treated as packages.
+        let pkgs = collect_imported_packages(r#"importFrom("FooPkg", "barSym")"#);
+        assert_eq!(pkgs, vec!["FooPkg".to_string()]);
+    }
+
+    #[test]
+    fn import_from_package_object_form_adds_nothing() {
+        // `importFrom_Core {...}` / `importFrom(Core, ...)` take a Package object,
+        // not a string — no package name to detect.
+        let pkgs = collect_imported_packages("importFrom_Core {\"raw\"}");
+        assert!(
+            pkgs.is_empty(),
+            "Package-object form must add nothing, got {pkgs:?}"
+        );
+    }
+
+    #[test]
+    fn existing_triggers_still_detected() {
+        let pkgs = collect_imported_packages("needsPackage \"A\"\nloadPackage \"B\"\ndebug \"C\"");
+        assert_eq!(
+            pkgs,
+            vec!["A".to_string(), "B".to_string(), "C".to_string()]
+        );
+    }
 }
