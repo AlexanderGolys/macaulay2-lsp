@@ -375,7 +375,7 @@ mod tests {
         // newPackage keys) are defined in that package, not here.
         let text = "newPackage(\"P\", Version => \"0.1\", DebuggingMode => false)\n";
         let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-types.jsonc"),
             include_str!("../data/m2-docs.jsonl"),
         );
         let document = document(text, &builtins);
@@ -658,7 +658,7 @@ X + Z := (a,b) -> \"X + Z\"
     fn document_symbols_keep_to_type_functions_as_functions() {
         let text = "toString := x -> x";
         let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-types.jsonc"),
             include_str!("../data/m2-docs.jsonl"),
         );
 

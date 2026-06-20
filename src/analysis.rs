@@ -1477,7 +1477,7 @@ mod tests {
     #[test]
     fn infers_static_types_from_new_constructors() {
         let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-types.jsonc"),
             include_str!("./data/m2-docs.jsonl"),
         );
         let analysis = analyze_with_builtins(
@@ -1495,7 +1495,7 @@ mod tests {
     #[test]
     fn infers_static_types_from_documented_call_signatures() {
         let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-types.jsonc"),
             include_str!("./data/m2-docs.jsonl"),
         );
         let analysis = analyze_with_builtins(
@@ -1585,7 +1585,7 @@ mod tests {
     #[test]
     fn infers_static_types_from_local_method_typical_values() {
         let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-types.jsonc"),
             include_str!("./data/m2-docs.jsonl"),
         );
         let analysis = analyze_with_builtins(
@@ -1634,7 +1634,7 @@ mod tests {
     #[test]
     fn local_methods_without_codomains_remain_unknown() {
         let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-types.jsonc"),
             include_str!("./data/m2-docs.jsonl"),
         );
         let analysis =
@@ -1656,7 +1656,7 @@ mod tests {
     #[test]
     fn explicit_local_method_codomains_override_typical_values() {
         let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-types.jsonc"),
             include_str!("./data/m2-docs.jsonl"),
         );
         let analysis = analyze_with_builtins(

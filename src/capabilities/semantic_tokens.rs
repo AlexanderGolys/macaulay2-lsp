@@ -727,7 +727,7 @@ mod tests {
     fn typed_parameter_references_remain_parameters() {
         let text = "f ZZ := x -> x";
         let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-types.jsonc"),
             include_str!("../data/m2-docs.jsonl"),
         );
         let document = document(text, &builtins);
@@ -1012,7 +1012,7 @@ mod tests {
     fn string_valued_locals_remain_variables() {
         let text = "s := 1\nt := toString s\nt\n";
         let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-types.jsonc"),
             include_str!("../data/m2-docs.jsonl"),
         );
         let document = document(text, &builtins);
@@ -1033,7 +1033,7 @@ mod tests {
     fn semantic_tokens_classify_commands_as_functions_with_command_modifier() {
         let text = "saveClearAll := clearAll\nclearAll = new Command from { () -> () }\nprotect symbol clearAll";
         let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-types.jsonc"),
             include_str!("../data/m2-docs.jsonl"),
         );
         let document = document(text, &builtins);
@@ -1131,7 +1131,7 @@ mod tests {
     #[test]
     fn builtin_constructor_like_names_do_not_emit_constructor_modifier() {
         let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-types.jsonc"),
             include_str!("../data/m2-docs.jsonl"),
         );
         let token = builtins
@@ -1149,7 +1149,7 @@ mod tests {
     fn option_assignment_roles_require_metadata() {
         let text = "f(x, notAnOption => notAnOptionValue)";
         let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-types.jsonc"),
             include_str!("../data/m2-docs.jsonl"),
         );
         let mut parser = Parser::new();
@@ -1206,7 +1206,7 @@ mod tests {
     fn method_installation_domain_emits_type_for_known_types() {
         let text = "Ring Element := x -> x";
         let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonl"),
+            include_str!("../data/m2-types.jsonc"),
             include_str!("../data/m2-docs.jsonl"),
         );
 

@@ -219,7 +219,7 @@ impl TypeLattice {
         }
     }
 
-    /// Build the lattice from the `m2-types.jsonl` type records: each carries its
+    /// Build the lattice from the `m2-types.jsonc` type records: each carries its
     /// full ancestor chain (sorted here for binary search) and its immediate
     /// subtypes (the children edge).
     pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
@@ -477,7 +477,7 @@ impl TypeFacts {
         facts
     }
 
-    /// Build the typecheck facts from the `m2-types.jsonl` callable records.
+    /// Build the typecheck facts from the `m2-types.jsonc` callable records.
     /// Honours the monotone rule: a method with no codomain (`typicalValue` null)
     /// contributes no signature — the lookup stays silent rather than guess.
     pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
@@ -1424,11 +1424,11 @@ impl BuiltinData {
         data
     }
 
-    /// Build a `BuiltinData` from the static builtin assets: `m2-types.jsonl`
+    /// Build a `BuiltinData` from the static builtin assets: `m2-types.jsonc`
     /// (structured typecheck + classification facts) and `m2-docs.jsonl`
     /// (pre-rendered hover markdown). The two are separate by design — the
     /// typecheck records carry no doc text — but the docs could equally be a
-    /// `markdown` field embedded in `m2-types.jsonl`; only `load_docs_markdown`
+    /// `markdown` field embedded in `m2-types.jsonc`; only `load_docs_markdown`
     /// would change. Types/functions/operators have disjoint names (all M2
     /// first-class objects), so the pooled records never collide.
     pub fn load_from_index(types_jsonl: &str, docs_jsonl: &str) -> Self {
@@ -1692,17 +1692,18 @@ mod tests {
     #[test]
     fn dispatch_walks_the_lattice_to_the_installed_supertype_method() {
         // dim is installed on Ring; PolynomialRing <: Ring.
-        let jsonl = concat!(
-            r#"{"kind":"type","name":"Thing","aliases":[]}"#,
-            "\n",
-            r#"{"kind":"type","name":"Ring","parent":"Thing","ancestors":["Thing"],"subtypes":["PolynomialRing"],"aliases":[]}"#,
-            "\n",
-            r#"{"kind":"type","name":"PolynomialRing","parent":"Ring","ancestors":["Ring","Thing"],"subtypes":[],"aliases":[]}"#,
-            "\n",
-            r#"{"kind":"function","name":"dim","methods":[{"domain":["Ring"],"typicalValue":"ZZ"}],"aliases":[]}"#,
-            "\n",
+        let corpus = concat!(
+            "[",
+            r#"{"kind":"type","name":"Thing","aliases":[],"extra_keys":[]}"#,
+            ",",
+            r#"{"kind":"type","name":"Ring","parent":"Thing","ancestors":["Thing"],"subtypes":["PolynomialRing"],"aliases":[],"extra_keys":[]}"#,
+            ",",
+            r#"{"kind":"type","name":"PolynomialRing","parent":"Ring","ancestors":["Ring","Thing"],"subtypes":[],"aliases":[],"extra_keys":[]}"#,
+            ",",
+            r#"{"kind":"function","name":"dim","methods":[{"domain":["Ring"],"typicalValue":"ZZ"}],"aliases":[],"extra_keys":[]}"#,
+            "]",
         );
-        let index = BuiltinIndex::load(jsonl);
+        let index = BuiltinIndex::load(corpus);
         let lattice = TypeLattice::from_type_index(&index);
         let facts = TypeFacts::from_type_index(&index);
 
@@ -1727,7 +1728,7 @@ mod tests {
 
     #[test]
     fn resolves_real_gb_codomain_from_the_type_index() {
-        let index = BuiltinIndex::load(include_str!("./data/m2-types.jsonl"));
+        let index = BuiltinIndex::load(include_str!("./data/m2-types.jsonc"));
         let lattice = TypeLattice::from_type_index(&index);
         let facts = TypeFacts::from_type_index(&index);
         assert_eq!(
@@ -1738,7 +1739,7 @@ mod tests {
 
     fn generated_builtins() -> BuiltinData {
         BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonl"),
+            include_str!("./data/m2-types.jsonc"),
             include_str!("./data/m2-docs.jsonl"),
         )
     }
