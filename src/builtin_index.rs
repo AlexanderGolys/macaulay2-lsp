@@ -230,6 +230,37 @@ impl BuiltinIndex {
     pub fn callable_count(&self) -> usize {
         self.callables.len()
     }
+
+    /// Partition this index into one self-contained `BuiltinIndex` per home
+    /// package. Each sub-index owns its records and freshly-built key maps, so
+    /// lookups within a partition behave exactly like a single-package load.
+    /// Entries with no package bucket under `"Core"` (the loaded-set floor).
+    /// `default_loaded` is corpus-global and is not propagated to sub-indexes.
+    pub fn partition_by_package(&self) -> HashMap<String, BuiltinIndex> {
+        let mut partitions: HashMap<String, BuiltinIndex> = HashMap::new();
+        let bucket =
+            |package: &Option<String>| package.clone().unwrap_or_else(|| "Core".to_string());
+
+        for entry in &self.types {
+            let part = partitions.entry(bucket(&entry.package)).or_default();
+            let id = part.types.len();
+            register_keys(&mut part.type_keys, &entry.name, &entry.aliases, id);
+            part.types.push(entry.clone());
+        }
+        for entry in &self.callables {
+            let part = partitions.entry(bucket(&entry.package)).or_default();
+            let id = part.callables.len();
+            register_keys(&mut part.callable_keys, &entry.name, &entry.aliases, id);
+            part.callables.push(entry.clone());
+        }
+        for entry in &self.objects {
+            let part = partitions.entry(bucket(&entry.package)).or_default();
+            let id = part.objects.len();
+            register_keys(&mut part.object_keys, &entry.name, &entry.aliases, id);
+            part.objects.push(entry.clone());
+        }
+        partitions
+    }
 }
 
 /// Dereference a `$Package$Name` corpus reference key to the bare name the type
@@ -478,5 +509,38 @@ mod tests {
         let corpus = r#"[{"kind":"type","name":"ZZ","package":"$Core$Core"}]"#;
         let index = BuiltinIndex::load(corpus);
         assert!(index.default_loaded().is_empty());
+    }
+
+    #[test]
+    fn partition_routes_records_to_their_home_package() {
+        let corpus = r#"[
+            {"kind":"type","name":"ZZ","package":"$Core$Core","ancestors":["$Core$Thing"]},
+            {"kind":"type","name":"FooType","package":"$FooPkg$FooPkg","parent":"$Core$ZZ"},
+            {"kind":"function","name":"fooFn","package":"$FooPkg$FooPkg"}
+        ]"#;
+        let index = BuiltinIndex::load(corpus);
+        let parts = index.partition_by_package();
+
+        let core = parts.get("Core").expect("Core partition present");
+        assert!(core.type_entry("ZZ").is_some());
+        assert!(
+            core.type_entry("FooType").is_none(),
+            "FooType is not in Core"
+        );
+
+        let foo = parts.get("FooPkg").expect("FooPkg partition present");
+        assert!(foo.type_entry("FooType").is_some());
+        assert!(foo.callable("fooFn").is_some());
+        assert!(foo.type_entry("ZZ").is_none(), "ZZ is not in FooPkg");
+    }
+
+    #[test]
+    fn partition_of_real_corpus_yields_core() {
+        let index = BuiltinIndex::load(include_str!("./data/m2-types.jsonc"));
+        let parts = index.partition_by_package();
+        let core = parts.get("Core").expect("Core partition present");
+        // The whole Core corpus lands in the single Core partition.
+        assert_eq!(core.type_count(), index.type_count());
+        assert_eq!(core.callable_count(), index.callable_count());
     }
 }
