@@ -81,6 +81,24 @@ M2's loaded-package name resolution.
 **Name-collision rule:** if two loaded packages define the same bare name,
 baseline/Core-first then import-order wins. Documented; rare for types.
 
+### 4. Import lifecycle (add / remove)
+`LoadedPackages` is a **pure function of the document text**, never a mutated
+list — so adding or removing an import needs no dedicated event handling:
+
+- **On change**, re-derive `LoadedPackages` from the current text
+  (`default_loaded ∪ collect_imported_packages`). An added `needsPackage` shows
+  up in the set; a removed one drops out. Reuse the snapshot's existing parse
+  tree — `collect_imported_packages` currently spins up its own parser, which
+  this work should fix.
+- **No load/unload I/O:** all shipped packages' partitions are resident (one
+  embedded file), so importing = include that partition in the scoped view,
+  removing = exclude it. Toggling scope, not loading data.
+- **Import absent from the corpus:** the set holds a name with no partition ⇒ no
+  data, symbols don't resolve (monotone, no error); removing it is a no-op.
+- **Caching:** memoize `LoadedPackages` / `ScopedIndex` per document **version**;
+  recompute only when the version changes. (Strict improvement over today, which
+  recomputes `active_package_indexes(text)` per request.)
+
 ## File & loading shape (fundocs output)
 
 **Partitioning is an in-memory concern, not a file-layout one.** Every record
