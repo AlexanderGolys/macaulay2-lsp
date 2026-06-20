@@ -100,6 +100,7 @@ pub struct BuiltinIndex {
     callable_keys: HashMap<String, usize>,
     objects: Vec<ObjectEntry>,
     object_keys: HashMap<String, usize>,
+    default_loaded: Vec<String>,
 }
 
 impl BuiltinIndex {
@@ -175,7 +176,11 @@ impl BuiltinIndex {
                         class: raw.class.as_deref().map(deref_ref),
                     });
                 }
-                // `package` and any future `meta` record carry no per-symbol facts.
+                "meta" => {
+                    // Baseline of fresh-start loaded packages; bare package names.
+                    index.default_loaded = raw.default_loaded;
+                }
+                // `package` records carry no per-symbol typecheck facts.
                 _ => {}
             }
         }
@@ -209,6 +214,13 @@ impl BuiltinIndex {
     /// typecheck facts but are surfaced as `Record`s for hover/classification.
     pub fn objects(&self) -> &[ObjectEntry] {
         &self.objects
+    }
+
+    /// Packages M2 loads at a fresh start (`loadedPackages`), read from the
+    /// corpus's leading `meta` record. Empty when the corpus carries no `meta`
+    /// record (today's Core-only file) — callers supply the fallback baseline.
+    pub fn default_loaded(&self) -> &[String] {
+        &self.default_loaded
     }
 
     pub fn type_count(&self) -> usize {
@@ -257,6 +269,7 @@ fn register_keys(keys: &mut HashMap<String, usize>, name: &str, aliases: &[Strin
 #[derive(Debug, Deserialize)]
 struct RawRecord {
     kind: String,
+    #[serde(default)]
     name: String,
     #[serde(default)]
     aliases: Vec<String>,
@@ -282,6 +295,8 @@ struct RawRecord {
     methods: Vec<RawMethod>,
     #[serde(default)]
     operator: Option<RawOperator>,
+    #[serde(default)]
+    default_loaded: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -442,5 +457,26 @@ mod tests {
             next.typical_value, None,
             "next typical_value must be None, not Thing"
         );
+    }
+
+    #[test]
+    fn captures_default_loaded_from_meta_record() {
+        let corpus = r#"[
+            {"kind":"meta","default_loaded":["Core","Classic","Polyhedra"]},
+            {"kind":"type","name":"ZZ","package":"$Core$Core"}
+        ]"#;
+        let index = BuiltinIndex::load(corpus);
+        assert_eq!(index.default_loaded(), &["Core", "Classic", "Polyhedra"]);
+        assert!(
+            index.type_entry("ZZ").is_some(),
+            "non-meta records still load"
+        );
+    }
+
+    #[test]
+    fn default_loaded_is_empty_without_meta_record() {
+        let corpus = r#"[{"kind":"type","name":"ZZ","package":"$Core$Core"}]"#;
+        let index = BuiltinIndex::load(corpus);
+        assert!(index.default_loaded().is_empty());
     }
 }
