@@ -89,14 +89,26 @@ pub fn format_document_text_with_options(text: &str, options: &FormatOptions) ->
     // (`normalize_whitespace`) or rebuilds a line's leading indentation
     // (`reindent_from_tree`). Neither rewrites token text, so string and comment
     // contents are never modified. No reflow/line-breaking, no byte-scanning.
+    let newline = detect_line_ending(text);
     let formatted = normalize_whitespace(text);
-    let mut formatted = reindent_from_tree(&formatted, options);
+    let mut formatted = reindent_from_tree(&formatted, options, newline);
 
     if text.ends_with('\n') {
-        formatted.push('\n');
+        formatted.push_str(newline);
     }
 
     formatted
+}
+
+/// The line terminator the document already uses, so re-indentation preserves it
+/// instead of silently rewriting every CRLF line ending to LF (the trap behind
+/// `str::lines()` + `join("\n")`). A document with any `\r\n` is treated as CRLF.
+fn detect_line_ending(text: &str) -> &'static str {
+    if text.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    }
 }
 
 /// Re-indent every line of already-normalized `text` from a fresh parse: parse #2
@@ -104,7 +116,7 @@ pub fn format_document_text_with_options(text: &str, options: &FormatOptions) ->
 /// leading whitespace is rebuilt as `options.indent.repeat(depth)` from the
 /// tree-derived depth; lines inside a multiline string/raw-string are emitted
 /// verbatim so their interior spacing is preserved.
-fn reindent_from_tree(text: &str, options: &FormatOptions) -> String {
+fn reindent_from_tree(text: &str, options: &FormatOptions, newline: &str) -> String {
     let layout = TreeIndentLayout::build(text);
     text.lines()
         .enumerate()
@@ -121,7 +133,7 @@ fn reindent_from_tree(text: &str, options: &FormatOptions) -> String {
             indented
         })
         .collect::<Vec<_>>()
-        .join("\n")
+        .join(newline)
 }
 
 pub fn folding_ranges_for_text(text: &str) -> Vec<FormatFoldRange> {
@@ -1198,6 +1210,18 @@ mod tests {
         assert_eq!(
             format_document_text("x=\"first\n  keep spaces  \nlast\"\ny=1\n"),
             "x = \"first\n  keep spaces  \nlast\"\ny = 1\n"
+        );
+    }
+
+    #[test]
+    fn preserves_crlf_line_endings() {
+        // A CRLF document must keep CRLF: the formatter must not silently rewrite
+        // every line ending to LF (which would churn the whole file on save).
+        assert_eq!(format_document_text("x=1\r\ny=2\r\n"), "x = 1\r\ny = 2\r\n");
+        // Verbatim multiline-string content keeps its CRLF too.
+        assert_eq!(
+            format_document_text("x=///\r\n  keep  \r\n///\r\n"),
+            "x = ///\r\n  keep  \r\n///\r\n"
         );
     }
 
