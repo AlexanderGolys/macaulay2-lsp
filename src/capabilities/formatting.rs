@@ -213,7 +213,9 @@ fn collect_bracket_groups(root: M2Node<'_>, line_count: usize) -> Vec<BracketGro
     let mut groups = Vec::new();
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
-        if node.kind.is_collection_expression() {
+        // A multiline parenthesized block `(\n …\n)` indents its body like a
+        // collection, though it is not a collection value.
+        if node.kind.is_collection_expression() || node.kind == NodeKind::ParenthesizedExpression {
             let open_row = node.start_position().row;
             let close_position = node.end_position();
             if open_row < close_position.row {
@@ -755,7 +757,13 @@ fn is_parenthesized_call(node: M2Node<'_>) -> bool {
         return false;
     };
 
-    operator.is(NodeKind::Space) && right.is(NodeKind::Sequence)
+    // A call's argument list is a `sequence` (`f(a, b)`, `f()`) or, for a single
+    // parenthesized argument, a `parenthesized_expression` (`f(x)`).
+    operator.is(NodeKind::Space)
+        && matches!(
+            right.kind,
+            NodeKind::Sequence | NodeKind::ParenthesizedExpression
+        )
 }
 
 fn is_parenthesized_method_installation(node: M2Node<'_>, text: &str) -> bool {
@@ -821,6 +829,7 @@ fn is_adjacent_factor(node: M2Node<'_>) -> bool {
             | NodeKind::FloatLiteral
             | NodeKind::StringLiteral
             | NodeKind::Sequence
+            | NodeKind::ParenthesizedExpression
             | NodeKind::List
             | NodeKind::Array
             | NodeKind::AngleBarList

@@ -55,9 +55,7 @@ pub(crate) fn collect_semantic_tokens(
         let node = M2Node::new(cursor.node());
 
         let mut emitted_token = false;
-        if matches!(node.kind, NodeKind::Symbol | NodeKind::ResolvedSymbol)
-            || syntax_semantic_token_type(text, node).is_some()
-        {
+        if node.kind.is_symbol_like() || syntax_semantic_token_type(text, node).is_some() {
             let start_byte = node.start_byte();
             let end_byte = node.end_byte();
             let node_text = &text[start_byte..end_byte];
@@ -195,7 +193,7 @@ pub(crate) fn option_assignment_role(
     {
         let option_key = parent
             .child_by_field_name("left")
-            .filter(|left| matches!(left.kind, NodeKind::Symbol | NodeKind::ResolvedSymbol))
+            .filter(|left| left.kind.is_symbol_like())
             .map(|left| &text[left.start_byte()..left.end_byte()])?;
         if builtins.is_option_value_for_key(option_key, node_text) {
             return Some(M2SemanticTokenType::EnumMember);
@@ -443,7 +441,7 @@ fn is_hash_key_string(text: &str, node: M2Node<'_>) -> bool {
 /// member operator (`R.name`, `R.?name`). M2 quotes the right side as a global
 /// symbol used as a hash key, so it is a property rather than a value reference.
 fn is_quoted_global_key_access(text: &str, node: M2Node<'_>) -> bool {
-    if !matches!(node.kind, NodeKind::Symbol | NodeKind::ResolvedSymbol) {
+    if !node.kind.is_symbol_like() {
         return false;
     }
     node.parent().is_some_and(|parent| {
@@ -475,7 +473,13 @@ fn call_like_left_symbol_for_argument<'a>(
             return None;
         }
 
-        if !matches!(parent.kind, NodeKind::Sequence | NodeKind::List) {
+        // A single parenthesized argument `f("x")` is a `parenthesized_expression`,
+        // a multi-argument call a `sequence`; both wrap an argument before the
+        // `callee ARG` application.
+        if !matches!(
+            parent.kind,
+            NodeKind::Sequence | NodeKind::List | NodeKind::ParenthesizedExpression
+        ) {
             return None;
         }
 
@@ -537,7 +541,12 @@ fn is_known_type(builtins: &BuiltinData, name: &str) -> bool {
 }
 
 fn is_type_parameter_in_domain(node: M2Node<'_>, mut ancestor: M2Node<'_>, text: &str) -> bool {
-    while matches!(ancestor.kind, NodeKind::Sequence | NodeKind::List) {
+    // A domain type sits inside `(T1, T2)` (sequence) or, for a single-type domain
+    // `f(T) := …`, a `parenthesized_expression`; climb through either.
+    while matches!(
+        ancestor.kind,
+        NodeKind::Sequence | NodeKind::List | NodeKind::ParenthesizedExpression
+    ) {
         ancestor = match ancestor.parent() {
             Some(p) => p,
             None => return false,

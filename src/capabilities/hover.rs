@@ -144,7 +144,7 @@ pub(crate) fn call_signature_usage_for_hover(
 pub(crate) fn hoverable_symbol_or_operator_node(node: tree_sitter::Node) -> bool {
     if matches!(
         node.kind(),
-        "symbol" | "identifier" | "resolved_symbol" | "operator"
+        "symbol" | "identifier" | "keyword" | "operator"
     ) {
         return true;
     }

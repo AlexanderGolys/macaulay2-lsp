@@ -144,8 +144,17 @@ pub enum Dispatch {
 fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
     let parameters = lambda.child_by_field_name("parameters")?;
     Some(match parameters.kind {
-        NodeKind::Sequence => Dispatch::Fixed(parameters.named_children().count()),
-        NodeKind::Symbol => Dispatch::Variadic,
+        // A single parenthesized parameter `(x)` is one fixed argument. (Empty `()`
+        // is a `sequence`, handled below as a 0-element collection.)
+        NodeKind::ParenthesizedExpression => Dispatch::Fixed(1),
+        // Any collection delimiter fixes the arity at its element count: `(x,y)`,
+        // `{x,y}`, `[x,y]`, `<|x,y|>` all define the same n-ary function. M2 does
+        // not remember which collection was used, so neither do we.
+        kind if kind.is_collection_expression() => {
+            Dispatch::Fixed(parameters.named_children().count())
+        }
+        // A single bare parameter binds the whole argument sequence — variadic.
+        kind if kind.is_symbol_like() => Dispatch::Variadic,
         _ => return None,
     })
 }
@@ -608,6 +617,17 @@ impl Analysis {
         text: &str,
         builtins: Option<&BuiltinData>,
     ) -> Option<(MethodHead, Vec<TypeRef>)> {
+        // A parenthesized expression is identified with its inner value, so
+        // `(T op S) := f` installs exactly like `T op S := f`. The value is the
+        // final expression; a trailing `;` (only silenced expressions) makes the
+        // value null, which is not an installation target.
+        if node.kind == NodeKind::ParenthesizedExpression {
+            let inner = node.named_children().last()?;
+            if inner.kind == NodeKind::SilencedExpression {
+                return None;
+            }
+            return self.installation_shape(inner, text, builtins);
+        }
         match node.kind {
             NodeKind::BinaryExpression => {
                 let left = node.child_by_field_name("left")?;
@@ -1135,10 +1155,16 @@ impl Analysis {
             NodeKind::Sequence => {
                 self.infer_sequence_static_type_name(node, text, scope_idx, builtins)
             }
+            // A parenthesized expression is its inner value: `(1)` is `ZZ`, `(a+b)`
+            // is the type of `a+b`. A trailing-`;` paren denotes null (unknown).
+            NodeKind::ParenthesizedExpression => {
+                let inner = parenthesized_value(node)?;
+                self.infer_static_type_name(inner, text, scope_idx, builtins)
+            }
             NodeKind::StringLiteral => Some("String".to_string()),
             NodeKind::IntegerLiteral => Some("ZZ".to_string()),
             NodeKind::FloatLiteral => Some("RR".to_string()),
-            NodeKind::Symbol | NodeKind::ResolvedSymbol => {
+            NodeKind::Symbol => {
                 let name = &text[node.start_byte()..node.end_byte()];
                 if let Some(symbol) =
                     self.lookup_symbol_from_scope(name, scope_idx, node_position(text, node))
@@ -1217,6 +1243,9 @@ impl Analysis {
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) -> CallStaticFacts {
+        // A single parenthesized argument `f(x)` / `f(opt => v)` denotes its inner
+        // value; peel it so the argument is classified like a bare argument.
+        let node = parenthesized_value(node).unwrap_or(node);
         if node.kind == NodeKind::Sequence {
             let mut facts = CallStaticFacts::default();
             for child in node.named_children() {
@@ -1369,12 +1398,17 @@ fn expression_kind(node: M2Node<'_>, text: &str) -> Option<ExpressionKind> {
         NodeKind::StringLiteral | NodeKind::IntegerLiteral | NodeKind::FloatLiteral => {
             Some(ExpressionKind::Literal)
         }
-        NodeKind::Symbol | NodeKind::ResolvedSymbol => Some(ExpressionKind::Name),
+        NodeKind::Symbol => Some(ExpressionKind::Name),
         NodeKind::List
         | NodeKind::Array
         | NodeKind::AngleBarList
         | NodeKind::Sequence
         | NodeKind::Cell => Some(ExpressionKind::ScopeExpr),
+        // A parenthesized expression is its inner value, so it takes the inner
+        // value's kind (`(a+b)` is an `Expr`, `(x)` a `Name`); a null `(a;)` skips.
+        NodeKind::ParenthesizedExpression => {
+            parenthesized_value(node).and_then(|inner| expression_kind(inner, text))
+        }
         NodeKind::IfStatement
         | NodeKind::WhileStatement
         | NodeKind::ForStatement
@@ -1412,7 +1446,9 @@ fn expression_operator_text<'a>(node: M2Node<'_>, text: &'a str) -> Option<&'a s
 fn collect_parameter_nodes<'tree>(node: M2Node<'tree>, parameters: &mut Vec<M2Node<'tree>>) {
     match node.kind {
         NodeKind::Symbol => parameters.push(node),
-        NodeKind::Sequence | NodeKind::List => {
+        // `(x,y)` is a `sequence`; a single `(x)` is a `parenthesized_expression`.
+        // Both group parameters, so recurse into either.
+        NodeKind::Sequence | NodeKind::List | NodeKind::ParenthesizedExpression => {
             for child in node.children() {
                 collect_parameter_nodes(child, parameters);
             }
@@ -1612,7 +1648,24 @@ fn method_installation_expression_for_callable_node<'tree>(
     None
 }
 
+/// The value a node denotes, peeling parenthesized grouping: `(a)` → `a`,
+/// `((a))` → `a`. A trailing-`;` parenthesized expression (`(a;)`) denotes null,
+/// so it has no value node — returns `None`. A non-parenthesized node is its own
+/// value. `()` and `(a, b)` are `Sequence` nodes (real values), left untouched.
+fn parenthesized_value(node: M2Node) -> Option<M2Node> {
+    let mut current = node;
+    while current.kind == NodeKind::ParenthesizedExpression {
+        let inner = current.named_children().last()?;
+        if inner.kind == NodeKind::SilencedExpression {
+            return None;
+        }
+        current = inner;
+    }
+    Some(current)
+}
+
 pub(crate) fn method_installation_domain(node: M2Node, text: &str) -> Option<Vec<String>> {
+    let node = parenthesized_value(node)?;
     if matches!(node.kind, NodeKind::Sequence | NodeKind::List) {
         let domain = node
             .named_children()

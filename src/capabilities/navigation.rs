@@ -160,7 +160,10 @@ pub(crate) fn collect_reference_ranges(
     let mut reached_root = false;
     while !reached_root {
         let node = cursor.node();
-        if matches!(node.kind(), "symbol" | "identifier" | "resolved_symbol") {
+        if matches!(
+            node.kind(),
+            "symbol" | "identifier" | "keyword" | "operator" | "punctuation"
+        ) {
             let node_text = &text[node.start_byte()..node.end_byte()];
             if node_text == target_name {
                 let position = document.range_for(node).start;
@@ -445,7 +448,7 @@ mod tests {
 
     #[test]
     fn rename_includes_quoted_symbol_reference() {
-        // `symbol M` names the identifier `M` (as a ResolvedSymbol); renaming the
+        // `symbol M` names the identifier `M` (a plain `symbol` node); renaming the
         // user-defined `M` must rewrite that occurrence too.
         let text = "f := M -> (symbol M; M + 1)";
         let document = document(text);

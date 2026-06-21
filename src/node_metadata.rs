@@ -5,7 +5,12 @@ pub enum NodeKind {
     SourceFile,
     Cell,
     Symbol,
-    ResolvedSymbol,
+    // The `symbol`-field aliases a cobinding names (`symbol +`, `symbol and`): an
+    // operator/keyword/punctuation token standing in for an identifier. Treated as
+    // symbol-like so cobinding names resolve and highlight like plain symbols.
+    CobindingKeyword,
+    CobindingOperator,
+    CobindingPunctuation,
     IntegerLiteral,
     FloatLiteral,
     StringLiteral,
@@ -13,6 +18,9 @@ pub enum NodeKind {
     RawStringEscape,
     Array,
     Sequence,
+    // A parenthesized single expression `(x)` — its own node since grammar 2.5.0,
+    // distinct from a `sequence` (`()`, `(a, b)`). Identified with its inner value.
+    ParenthesizedExpression,
     List,
     AngleBarList,
     BinaryExpression,
@@ -74,7 +82,9 @@ impl NodeKind {
             "source_file" => Self::SourceFile,
             "cell" => Self::Cell,
             "symbol" => Self::Symbol,
-            "resolved_symbol" => Self::ResolvedSymbol,
+            "keyword" => Self::CobindingKeyword,
+            "operator" => Self::CobindingOperator,
+            "punctuation" => Self::CobindingPunctuation,
             "integer_literal" => Self::IntegerLiteral,
             "float_literal" => Self::FloatLiteral,
             "string_literal" => Self::StringLiteral,
@@ -82,6 +92,7 @@ impl NodeKind {
             "raw_string_escape" => Self::RawStringEscape,
             "array" => Self::Array,
             "sequence" => Self::Sequence,
+            "parenthesized_expression" => Self::ParenthesizedExpression,
             "list" => Self::List,
             "angle_bar_list" => Self::AngleBarList,
             "binary_expression" => Self::BinaryExpression,
@@ -134,7 +145,13 @@ impl NodeKind {
     }
 
     pub fn is_symbol_like(self) -> bool {
-        matches!(self, Self::Symbol | Self::ResolvedSymbol)
+        matches!(
+            self,
+            Self::Symbol
+                | Self::CobindingKeyword
+                | Self::CobindingOperator
+                | Self::CobindingPunctuation
+        )
     }
 
     pub fn is_literal(self) -> bool {

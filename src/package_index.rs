@@ -76,8 +76,11 @@ pub(crate) fn package_source_string<'a>(
     let package_name = unquoted_string_literal(text, node)?;
     let parent = node.parent()?;
 
-    if parent.kind() == "sequence" {
-        if !is_first_named_child(parent, node) {
+    // A single parenthesized argument `loadPackage("Pkg")` is a
+    // `parenthesized_expression`; a multi-argument call wraps them in a
+    // `sequence`. Both sit between the string and the `callee ARG` application.
+    if parent.kind() == "sequence" || parent.kind() == "parenthesized_expression" {
+        if parent.kind() == "sequence" && !is_first_named_child(parent, node) {
             return None;
         }
 
