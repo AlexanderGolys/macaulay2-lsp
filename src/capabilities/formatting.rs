@@ -1,11 +1,11 @@
 use tower_lsp::lsp_types::{
     DocumentFormattingOptions, FoldingRange, FoldingRangeProviderCapability, OneOf, TextEdit,
 };
-use tree_sitter::{Node, Parser};
+use tree_sitter::Parser;
 
 use crate::capabilities::code_actions::{refactor_if_null_branch, refactor_try_statement};
 use crate::node_metadata::{M2Node, NodeKind};
-use crate::util::{binary_expression_operator_kind, full_document_range};
+use crate::util::{full_document_range, is_space_operator_expression};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatOptions {
@@ -126,8 +126,7 @@ fn simplify_redundant_branches_once(text: &str) -> Option<String> {
     let tree = parser.parse(text, None)?;
     let root = tree.root_node();
 
-    let mut cursor = root.walk();
-    let mut stack = vec![root];
+    let mut stack = vec![M2Node::new(root)];
     let mut best_rewrite: Option<(usize, usize, String)> = None;
 
     while let Some(node) = stack.pop() {
@@ -146,7 +145,7 @@ fn simplify_redundant_branches_once(text: &str) -> Option<String> {
             }
         }
 
-        stack.extend(node.children(&mut cursor));
+        stack.extend(node.children());
     }
 
     let (start, end, replacement) = best_rewrite?;
@@ -157,10 +156,10 @@ fn simplify_redundant_branches_once(text: &str) -> Option<String> {
     Some(rewritten)
 }
 
-fn branch_simplification(node: Node<'_>, text: &str) -> Option<String> {
-    match node.kind() {
-        "if_statement" => refactor_if_null_branch(node, text),
-        "try_statement" => refactor_try_statement(node, text),
+fn branch_simplification(node: M2Node<'_>, text: &str) -> Option<String> {
+    match node.kind {
+        NodeKind::IfStatement => refactor_if_null_branch(node.inner(), text),
+        NodeKind::TryStatement => refactor_try_statement(node.inner(), text),
         _ => None,
     }
 }
@@ -194,8 +193,7 @@ fn reflow_standalone_ifs_once(text: &str) -> Option<String> {
 
     // Outermost-first: a chain's `else if` inner statements are reflowed as part
     // of their parent, so we rewrite the if with the smallest start byte first.
-    let mut cursor = root.walk();
-    let mut stack = vec![root];
+    let mut stack = vec![M2Node::new(root)];
     let mut best: Option<(usize, usize, String)> = None;
     while let Some(node) = stack.pop() {
         if let Some(canonical) = reflowed_statement(node, text) {
@@ -209,7 +207,7 @@ fn reflow_standalone_ifs_once(text: &str) -> Option<String> {
                 }
             }
         }
-        stack.extend(node.children(&mut cursor));
+        stack.extend(node.children());
     }
 
     let (start, end, replacement) = best?;
@@ -223,14 +221,16 @@ fn reflow_standalone_ifs_once(text: &str) -> Option<String> {
 /// Reflow a standalone control statement (`if`/`for`/`while`) to its canonical
 /// multi-line form, or `None` if it is not a candidate (a value sub-expression,
 /// or a body that is a single atom that reads fine inline).
-fn reflowed_statement(node: Node<'_>, text: &str) -> Option<String> {
-    match node.kind() {
-        "if_statement"
+fn reflowed_statement(node: M2Node<'_>, text: &str) -> Option<String> {
+    match node.kind {
+        NodeKind::IfStatement
             if is_standalone_statement(node, text) && if_chain_has_block_body(node, text) =>
         {
             canonical_if(node, text)
         }
-        "for_statement" | "while_statement" if is_standalone_statement(node, text) => {
+        NodeKind::ForStatement | NodeKind::WhileStatement
+            if is_standalone_statement(node, text) =>
+        {
             canonical_loop(node, text)
         }
         _ => None,
@@ -240,7 +240,7 @@ fn reflowed_statement(node: Node<'_>, text: &str) -> Option<String> {
 /// A standalone control statement begins its own line (only whitespace before
 /// it) and is a statement, not a value sub-expression. The line-start test also
 /// excludes the `else if` members of a chain (their line begins with `else`).
-fn is_standalone_statement(node: Node<'_>, text: &str) -> bool {
+fn is_standalone_statement(node: M2Node<'_>, text: &str) -> bool {
     let start = node.start_byte();
     let line_start = text[..start].rfind('\n').map_or(0, |index| index + 1);
     if !text[line_start..start].trim().is_empty() {
@@ -248,28 +248,30 @@ fn is_standalone_statement(node: Node<'_>, text: &str) -> bool {
     }
     // A ternary `if` (or loop used as a value) is an operand of an expression
     // (assignment RHS, operator argument), reached through expression parents.
+    // Assignments and options are `binary_expression` in this grammar.
     !matches!(
-        node.parent().map(|parent| parent.kind()),
-        Some("binary_expression")
-            | Some("assignment_expression")
-            | Some("prefix_expression")
-            | Some("postfix_expression")
-            | Some("lambda_expression")
+        node.parent().map(|parent| parent.kind),
+        Some(
+            NodeKind::BinaryExpression
+                | NodeKind::PrefixExpression
+                | NodeKind::PostfixExpression
+                | NodeKind::LambdaExpression
+        )
     )
 }
 
 /// Whether any branch body in an `if` chain is a block worth breaking onto its
 /// own line — i.e. not a single atom (`if ok then a else b` reads fine inline).
-fn if_chain_has_block_body(node: Node<'_>, _text: &str) -> bool {
-    let Some(then_body) = if_clause_expression(node, "then_clause") else {
+fn if_chain_has_block_body(node: M2Node<'_>, _text: &str) -> bool {
+    let Some(then_body) = if_clause_expression(node, NodeKind::ThenClause) else {
         return false;
     };
     if !is_atom_expression(then_body) {
         return true;
     }
-    match if_clause_expression(node, "else_clause") {
+    match if_clause_expression(node, NodeKind::ElseClause) {
         None => false,
-        Some(else_body) if else_body.kind() == "if_statement" => {
+        Some(else_body) if else_body.is(NodeKind::IfStatement) => {
             if_chain_has_block_body(else_body, _text)
         }
         Some(else_body) => !is_atom_expression(else_body),
@@ -278,17 +280,21 @@ fn if_chain_has_block_body(node: Node<'_>, _text: &str) -> bool {
 
 /// A single-token body: an identifier or literal, with no call/operator/group
 /// structure. These read fine on the same line as `then`/`do`.
-fn is_atom_expression(node: Node<'_>) -> bool {
+fn is_atom_expression(node: M2Node<'_>) -> bool {
     matches!(
-        node.kind(),
-        "symbol" | "resolved_symbol" | "integer_literal" | "float_literal" | "string_literal"
+        node.kind,
+        NodeKind::Symbol
+            | NodeKind::ResolvedSymbol
+            | NodeKind::IntegerLiteral
+            | NodeKind::FloatLiteral
+            | NodeKind::StringLiteral
     )
 }
 
 /// Reflow a standalone `for`/`while` loop: break after its body keyword
 /// (`do`, or `list` when there is no `do`). No `else` follows the body, so no
 /// wrapping parentheses are needed. Single-atom bodies are left inline.
-fn canonical_loop(node: Node<'_>, text: &str) -> Option<String> {
+fn canonical_loop(node: M2Node<'_>, text: &str) -> Option<String> {
     let body_clause = loop_body_clause(node)?;
     let body = body_clause.named_child(0)?;
     if is_atom_expression(body) {
@@ -301,23 +307,22 @@ fn canonical_loop(node: Node<'_>, text: &str) -> Option<String> {
 
 /// The clause carrying a loop's body: the `do` clause, or the `list` clause when
 /// the loop has no `do`.
-fn loop_body_clause<'tree>(node: Node<'tree>) -> Option<Node<'tree>> {
-    let mut cursor = node.walk();
-    let clauses: Vec<Node<'tree>> = node.children(&mut cursor).collect();
+fn loop_body_clause<'tree>(node: M2Node<'tree>) -> Option<M2Node<'tree>> {
+    let clauses: Vec<M2Node<'tree>> = node.children().collect();
     clauses
         .iter()
-        .find(|child| child.kind() == "do_clause")
-        .or_else(|| clauses.iter().find(|child| child.kind() == "list_clause"))
+        .find(|child| child.is(NodeKind::DoClause))
+        .or_else(|| clauses.iter().find(|child| child.is(NodeKind::ListClause)))
         .copied()
 }
 
 /// Build the flat canonical multi-line form of an `if` chain.
-fn canonical_if(node: Node<'_>, text: &str) -> Option<String> {
+fn canonical_if(node: M2Node<'_>, text: &str) -> Option<String> {
     let condition = node.child_by_field_name("condition")?;
     let condition_text = text[condition.start_byte()..condition.end_byte()].trim();
-    let then_body = if_clause_expression(node, "then_clause")?;
+    let then_body = if_clause_expression(node, NodeKind::ThenClause)?;
 
-    let Some(else_clause_expr) = if_clause_expression(node, "else_clause") else {
+    let Some(else_clause_expr) = if_clause_expression(node, NodeKind::ElseClause) else {
         // No else: breaking after `then` is always legal, no parens needed. A
         // block body keeps its own parens; a plain body just moves to the next
         // line.
@@ -333,7 +338,7 @@ fn canonical_if(node: Node<'_>, text: &str) -> Option<String> {
     // there we break after `then` and let `else` begin its own line unwrapped.
     if !is_at_global_scope(node) {
         let then_part = broken_body(then_body, text);
-        return if else_clause_expr.kind() == "if_statement" {
+        return if else_clause_expr.is(NodeKind::IfStatement) {
             let tail = canonical_if(else_clause_expr, text)?;
             Some(format!("if {condition_text} then{then_part}\nelse {tail}"))
         } else {
@@ -345,7 +350,7 @@ fn canonical_if(node: Node<'_>, text: &str) -> Option<String> {
     }
 
     let then_inner = if_body_inner(then_body, text);
-    if else_clause_expr.kind() == "if_statement" {
+    if else_clause_expr.is(NodeKind::IfStatement) {
         let tail = canonical_if(else_clause_expr, text)?;
         Some(format!(
             "if {condition_text} then (\n{then_inner}\n) else {tail}"
@@ -362,10 +367,13 @@ fn canonical_if(node: Node<'_>, text: &str) -> Option<String> {
 /// before `else` is a syntax error. Only true bracketing — parentheses
 /// (`sequence`), braces (`list`), or brackets (`array`) — introduces a local
 /// scope; clause bodies and loop bodies do not.
-fn is_at_global_scope(node: Node<'_>) -> bool {
+fn is_at_global_scope(node: M2Node<'_>) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
-        if matches!(parent.kind(), "sequence" | "list" | "array") {
+        if matches!(
+            parent.kind,
+            NodeKind::Sequence | NodeKind::List | NodeKind::Array
+        ) {
             return false;
         }
         current = parent;
@@ -376,8 +384,8 @@ fn is_at_global_scope(node: Node<'_>) -> bool {
 /// Render a body that follows a clause keyword with no trailing `else` to
 /// protect: a parenthesized block becomes ` (\n…\n)` (keeping it attached to the
 /// keyword line), any other body becomes a plain `\n<body>` on the next line.
-fn broken_body(expr: Node<'_>, text: &str) -> String {
-    if expr.kind() == "sequence" {
+fn broken_body(expr: M2Node<'_>, text: &str) -> String {
+    if expr.is(NodeKind::Sequence) {
         format!(" (\n{}\n)", if_body_inner(expr, text))
     } else {
         format!("\n{}", text[expr.start_byte()..expr.end_byte()].trim())
@@ -386,19 +394,19 @@ fn broken_body(expr: Node<'_>, text: &str) -> String {
 
 /// The body expression of a named clause (`then_clause`/`else_clause`) of an
 /// `if` statement, i.e. the clause's expression after its keyword.
-fn if_clause_expression<'tree>(node: Node<'tree>, clause_kind: &str) -> Option<Node<'tree>> {
-    let mut cursor = node.walk();
-    let clause = node
-        .children(&mut cursor)
-        .find(|child| child.kind() == clause_kind)?;
+fn if_clause_expression<'tree>(
+    node: M2Node<'tree>,
+    clause_kind: NodeKind,
+) -> Option<M2Node<'tree>> {
+    let clause = node.children().find(|child| child.is(clause_kind))?;
     clause.named_child(0)
 }
 
 /// The text of a then-body to place inside `then ( … )`, with one existing layer
 /// of wrapping parentheses stripped so re-formatting does not accumulate them.
-fn if_body_inner(expr: Node<'_>, text: &str) -> String {
+fn if_body_inner(expr: M2Node<'_>, text: &str) -> String {
     let body = &text[expr.start_byte()..expr.end_byte()];
-    if expr.kind() == "sequence" && body.starts_with('(') && body.ends_with(')') {
+    if expr.is(NodeKind::Sequence) && body.starts_with('(') && body.ends_with(')') {
         body[1..body.len() - 1].trim().to_string()
     } else {
         body.trim().to_string()
@@ -1168,22 +1176,22 @@ fn normalize_whitespace(text: &str) -> String {
     };
 
     let mut edits = Vec::new();
-    collect_format_edits(tree.root_node(), text, &mut edits);
+    collect_format_edits(M2Node::new(tree.root_node()), text, &mut edits);
     collect_line_final_operator_edits(text, &mut edits);
     apply_format_edits(text, edits)
 }
 
-fn collect_format_edits(node: tree_sitter::Node, text: &str, edits: &mut Vec<FormatEdit>) {
+fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit>) {
     if node.is_missing() {
         return;
     }
 
     if !node.is_error() {
-        if node.kind() == "," {
+        if node.is(NodeKind::Comma) {
             push_comma_whitespace_edits(text, node, edits);
         }
 
-        if node.kind() == ";" {
+        if node.is(NodeKind::Semicolon) {
             push_semicolon_whitespace_edits(text, node, edits);
         }
 
@@ -1195,33 +1203,30 @@ fn collect_format_edits(node: tree_sitter::Node, text: &str, edits: &mut Vec<For
                 push_call_whitespace_edits(node, text, edits);
             } else if should_space_factor_operator_with_adjacency_factor(node, operator_text) {
                 push_operator_whitespace_edits(text, operator, edits);
-            } else if should_compact_prefix_operator(node.kind(), operator_text) {
+            } else if should_compact_prefix_operator(node.kind, operator_text) {
                 push_prefix_operator_whitespace_edits(text, operator, edits);
-            } else if should_compact_operator(node.kind(), operator_text) {
+            } else if should_compact_operator(node.kind, operator_text) {
                 push_compact_operator_whitespace_edits(text, operator, edits);
-            } else if should_space_operator(node.kind(), operator_text) {
+            } else if should_space_operator(node.kind, operator_text) {
                 push_operator_whitespace_edits(text, operator, edits);
             }
         }
 
-        if node.kind() == "lambda_expression" {
+        if node.is(NodeKind::LambdaExpression) {
             push_lambda_operator_whitespace_edits(node, text, edits);
         }
     }
 
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
+    for child in node.children() {
         collect_format_edits(child, text, edits);
     }
 }
 
-fn should_space_operator(parent_kind: &str, operator: &str) -> bool {
+fn should_space_operator(parent_kind: NodeKind, operator: &str) -> bool {
     match parent_kind {
-        "assignment_expression"
-        | "function_expression"
-        | "option_assignment"
-        | "option_attachment" => true,
-        "binary_expression" => matches!(
+        // Assignments (`=`, `:=`, `<-`), options (`=>`), and arrows (`->`) are all
+        // `binary_expression` in this grammar; their operators are listed below.
+        NodeKind::BinaryExpression => matches!(
             operator,
             "==" | "!="
                 | "==="
@@ -1258,8 +1263,8 @@ fn should_space_operator(parent_kind: &str, operator: &str) -> bool {
     }
 }
 
-fn should_compact_operator(parent_kind: &str, operator: &str) -> bool {
-    parent_kind == "binary_expression" && is_compact_operator(operator)
+fn should_compact_operator(parent_kind: NodeKind, operator: &str) -> bool {
+    parent_kind == NodeKind::BinaryExpression && is_compact_operator(operator)
 }
 
 fn is_compact_operator(operator: &str) -> bool {
@@ -1291,8 +1296,8 @@ fn is_compact_operator(operator: &str) -> bool {
     )
 }
 
-fn should_compact_prefix_operator(parent_kind: &str, operator: &str) -> bool {
-    parent_kind == "prefix_expression"
+fn should_compact_prefix_operator(parent_kind: NodeKind, operator: &str) -> bool {
+    parent_kind == NodeKind::PrefixExpression
         && matches!(
             operator,
             "+" | "-"
@@ -1347,8 +1352,8 @@ fn is_spaced_line_final_operator(operator: &str) -> bool {
     )
 }
 
-fn is_parenthesized_call(node: tree_sitter::Node) -> bool {
-    if node.kind() != "binary_expression" {
+fn is_parenthesized_call(node: M2Node<'_>) -> bool {
+    if !node.is(NodeKind::BinaryExpression) {
         return false;
     }
 
@@ -1359,11 +1364,11 @@ fn is_parenthesized_call(node: tree_sitter::Node) -> bool {
         return false;
     };
 
-    operator.kind() == "SPACE" && right.kind() == "sequence"
+    operator.is(NodeKind::Space) && right.is(NodeKind::Sequence)
 }
 
-fn is_parenthesized_method_installation(node: tree_sitter::Node, text: &str) -> bool {
-    if !M2Node::new(node).is(NodeKind::BinaryExpression) {
+fn is_parenthesized_method_installation(node: M2Node<'_>, text: &str) -> bool {
+    if !node.is(NodeKind::BinaryExpression) {
         return false;
     }
     let Some(operator) = node.child_by_field_name("operator") else {
@@ -1375,12 +1380,11 @@ fn is_parenthesized_method_installation(node: tree_sitter::Node, text: &str) -> 
     if &text[operator.start_byte()..operator.end_byte()] != ":=" {
         return false;
     }
-    M2Node::new(left).is(NodeKind::BinaryExpression)
-        && binary_expression_operator_kind(left) == Some("SPACE")
+    is_space_operator_expression(left.inner())
 }
 
 fn push_call_gap_whitespace_edit(
-    node: tree_sitter::Node,
+    node: M2Node<'_>,
     text: &str,
     edits: &mut Vec<FormatEdit>,
     replacement: &'static str,
@@ -1403,7 +1407,7 @@ fn push_call_gap_whitespace_edit(
 }
 
 fn should_space_factor_operator_with_adjacency_factor(
-    node: tree_sitter::Node,
+    node: M2Node<'_>,
     operator_text: &str,
 ) -> bool {
     if !matches!(operator_text, "*" | "/" | "%" | "**" | "//") {
@@ -1418,25 +1422,24 @@ fn should_space_factor_operator_with_adjacency_factor(
     !is_adjacent_factor(left) || !is_adjacent_factor(right)
 }
 
-fn is_adjacent_factor(node: tree_sitter::Node) -> bool {
+fn is_adjacent_factor(node: M2Node<'_>) -> bool {
     matches!(
-        node.kind(),
-        "symbol"
-            | "integer_literal"
-            | "float_literal"
-            | "string_literal"
-            | "sequence"
-            | "list"
-            | "array"
-            | "angle_bar_list"
-            | "prefix_expression"
-            | "postfix_expression"
-            | "member_prefix_expression"
-            | "binary_expression"
+        node.kind,
+        NodeKind::Symbol
+            | NodeKind::IntegerLiteral
+            | NodeKind::FloatLiteral
+            | NodeKind::StringLiteral
+            | NodeKind::Sequence
+            | NodeKind::List
+            | NodeKind::Array
+            | NodeKind::AngleBarList
+            | NodeKind::PrefixExpression
+            | NodeKind::PostfixExpression
+            | NodeKind::BinaryExpression
     )
 }
 
-fn push_call_whitespace_edits(node: tree_sitter::Node, text: &str, edits: &mut Vec<FormatEdit>) {
+fn push_call_whitespace_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit>) {
     let Some(left) = node.child_by_field_name("left") else {
         return;
     };
@@ -1456,7 +1459,7 @@ fn push_call_whitespace_edits(node: tree_sitter::Node, text: &str, edits: &mut V
 }
 
 fn push_lambda_operator_whitespace_edits(
-    node: tree_sitter::Node,
+    node: M2Node<'_>,
     text: &str,
     edits: &mut Vec<FormatEdit>,
 ) {
@@ -1466,11 +1469,7 @@ fn push_lambda_operator_whitespace_edits(
     push_operator_whitespace_edits(text, operator, edits);
 }
 
-fn push_operator_whitespace_edits(
-    text: &str,
-    operator: tree_sitter::Node,
-    edits: &mut Vec<FormatEdit>,
-) {
+fn push_operator_whitespace_edits(text: &str, operator: M2Node<'_>, edits: &mut Vec<FormatEdit>) {
     let Some(start_byte) = same_line_horizontal_whitespace_start(text, operator.start_byte())
     else {
         return;
@@ -1493,7 +1492,7 @@ fn push_operator_whitespace_edits(
 
 fn push_compact_operator_whitespace_edits(
     text: &str,
-    operator: tree_sitter::Node,
+    operator: M2Node<'_>,
     edits: &mut Vec<FormatEdit>,
 ) {
     let Some(start_byte) = same_line_horizontal_whitespace_start(text, operator.start_byte())
@@ -1518,7 +1517,7 @@ fn push_compact_operator_whitespace_edits(
 
 fn push_prefix_operator_whitespace_edits(
     text: &str,
-    operator: tree_sitter::Node,
+    operator: M2Node<'_>,
     edits: &mut Vec<FormatEdit>,
 ) {
     let Some(end_byte) = same_line_horizontal_whitespace_end(text, operator.end_byte()) else {
@@ -1532,7 +1531,7 @@ fn push_prefix_operator_whitespace_edits(
     });
 }
 
-fn push_comma_whitespace_edits(text: &str, comma: tree_sitter::Node, edits: &mut Vec<FormatEdit>) {
+fn push_comma_whitespace_edits(text: &str, comma: M2Node<'_>, edits: &mut Vec<FormatEdit>) {
     if let Some(start_byte) = same_line_horizontal_whitespace_start(text, comma.start_byte()) {
         edits.push(FormatEdit {
             start_byte,
@@ -1556,11 +1555,7 @@ fn push_comma_whitespace_edits(text: &str, comma: tree_sitter::Node, edits: &mut
     });
 }
 
-fn push_semicolon_whitespace_edits(
-    text: &str,
-    semicolon: tree_sitter::Node,
-    edits: &mut Vec<FormatEdit>,
-) {
+fn push_semicolon_whitespace_edits(text: &str, semicolon: M2Node<'_>, edits: &mut Vec<FormatEdit>) {
     if let Some(start_byte) = same_line_horizontal_whitespace_start(text, semicolon.start_byte()) {
         edits.push(FormatEdit {
             start_byte,
