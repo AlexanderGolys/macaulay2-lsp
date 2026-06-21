@@ -70,6 +70,10 @@ struct Backend {
     workspace_index: Arc<WorkspaceIndex>,
     semantic_tokens_augment_syntax: AtomicBool,
     type_hierarchy_dynamic_registration: AtomicBool,
+    /// Opt-in (via `initializationOptions.inlayHints.expressionTypes`) to the
+    /// maximal per-expression inlay type readout. Off by default: the calm
+    /// release behavior shows only binding type hints.
+    inlay_expression_types: AtomicBool,
 }
 
 impl Backend {
@@ -93,6 +97,7 @@ impl Backend {
             workspace_index: Arc::new(WorkspaceIndex::default()),
             semantic_tokens_augment_syntax: AtomicBool::new(false),
             type_hierarchy_dynamic_registration: AtomicBool::new(false),
+            inlay_expression_types: AtomicBool::new(false),
         }
     }
 
@@ -257,6 +262,19 @@ impl LanguageServer for Backend {
             .unwrap_or(false);
         self.type_hierarchy_dynamic_registration
             .store(type_hierarchy_dynamic_registration, Ordering::Relaxed);
+
+        // Opt in to the maximal per-expression inlay readout (debugging) via
+        // `initializationOptions.inlayHints.expressionTypes`. Default: calm,
+        // binding-type hints only.
+        let inlay_expression_types = params
+            .initialization_options
+            .as_ref()
+            .and_then(|options| options.get("inlayHints"))
+            .and_then(|inlay_hints| inlay_hints.get("expressionTypes"))
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+        self.inlay_expression_types
+            .store(inlay_expression_types, Ordering::Relaxed);
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -511,7 +529,12 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        Ok(Some(inlay_hints_response(document.value(), params.range)))
+        let expression_types = self.inlay_expression_types.load(Ordering::Relaxed);
+        Ok(Some(inlay_hints_response(
+            document.value(),
+            params.range,
+            expression_types,
+        )))
     }
 
     async fn document_highlight(
