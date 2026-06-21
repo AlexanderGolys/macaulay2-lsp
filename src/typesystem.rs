@@ -1360,6 +1360,7 @@ struct DocRecord {
 /// Read the hover-docs asset (`m2-docs.jsonl`) into a name → markdown map once.
 /// Keyed by the record's primary name; alias lookups resolve through
 /// `doc_markdown`. The 4.5MB file is parsed once and never searched as text.
+#[allow(dead_code)] // Retained as the faithfulness oracle for the from_index equivalence test until P3 removes the constructor duality.
 fn load_docs_markdown(jsonl: &str) -> HashMap<InstanceID, String> {
     let mut docs = HashMap::new();
     for line in jsonl.lines() {
@@ -1508,6 +1509,7 @@ impl BuiltinData {
     /// `markdown` field embedded in `m2-types.jsonc`; only `load_docs_markdown`
     /// would change. Types/functions/operators have disjoint names (all M2
     /// first-class objects), so the pooled records never collide.
+    #[allow(dead_code)] // Retained as the faithfulness oracle for the from_index equivalence test until P3 removes the constructor duality.
     pub fn load_from_index(types_jsonl: &str, docs_jsonl: &str) -> Self {
         let index = crate::builtin_index::BuiltinIndex::load(types_jsonl);
         Self::from_index(&index, load_docs_markdown(docs_jsonl))
