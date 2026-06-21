@@ -4,7 +4,7 @@ use tower_lsp::lsp_types::{
 use tree_sitter::Parser;
 
 use crate::node_metadata::{M2Node, NodeKind};
-use crate::util::{full_document_range, is_space_operator_expression};
+use crate::util::full_document_range;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatOptions {
@@ -583,10 +583,15 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
 
         if let Some(operator) = node.child_by_field_name("operator") {
             let operator_text = &text[operator.start_byte()..operator.end_byte()];
-            if is_parenthesized_method_installation(node, text) {
-                push_call_gap_whitespace_edit(node, text, edits, " ");
-            } else if is_parenthesized_call(node) {
-                push_call_whitespace_edits(node, text, edits);
+            if is_parenthesized_call(node) {
+                // A call `f(...)` that is the head of a `:=` install reads as
+                // installation syntax, so it is spaced (`f (Types) := …`); an
+                // ordinary call is compacted (`f(x)`).
+                if is_method_installation_call_head(node, text) {
+                    push_call_gap_whitespace_edit(node, text, edits, " ");
+                } else {
+                    push_call_whitespace_edits(node, text, edits);
+                }
             } else if should_space_factor_operator_with_adjacency_factor(node, operator_text) {
                 push_operator_whitespace_edits(text, operator, edits);
             } else if should_compact_prefix_operator(node.kind, operator_text) {
@@ -762,20 +767,25 @@ fn is_parenthesized_call(node: M2Node<'_>) -> bool {
         )
 }
 
-fn is_parenthesized_method_installation(node: M2Node<'_>, text: &str) -> bool {
-    if !node.is(NodeKind::BinaryExpression) {
-        return false;
-    }
-    let Some(operator) = node.child_by_field_name("operator") else {
+/// Whether a parenthesized call `f(...)` is the head of a `:=` method install
+/// (`f(Types) := fn`) — i.e. it is the left operand of an enclosing `:=`. Such a
+/// head is installation syntax and is spaced rather than compacted.
+fn is_method_installation_call_head(node: M2Node<'_>, text: &str) -> bool {
+    let Some(parent) = node.parent() else {
         return false;
     };
-    let Some(left) = node.child_by_field_name("left") else {
+    if !parent.is(NodeKind::BinaryExpression) {
+        return false;
+    }
+    let Some(operator) = parent.child_by_field_name("operator") else {
         return false;
     };
     if &text[operator.start_byte()..operator.end_byte()] != ":=" {
         return false;
     }
-    is_space_operator_expression(left.inner())
+    parent.child_by_field_name("left").is_some_and(|left| {
+        left.start_byte() == node.start_byte() && left.end_byte() == node.end_byte()
+    })
 }
 
 fn push_call_gap_whitespace_edit(
@@ -1033,6 +1043,22 @@ mod tests {
             "x := 1\ny = 2\n"
         );
         assert_eq!(format_document_text("x := 1  "), "x := 1");
+    }
+
+    #[test]
+    fn spaces_parenthesized_method_install_head() {
+        // An install head reads as installation syntax: `f (Types) := …`.
+        assert_eq!(
+            format_document_text("f(ZZ,ZZ) := (i,j) -> i\n"),
+            "f (ZZ, ZZ) := (i, j) -> i\n"
+        );
+    }
+
+    #[test]
+    fn ordinary_call_stays_compact() {
+        // A plain call is not an install; it keeps `f(args)` with no space.
+        assert_eq!(format_document_text("g(5)\n"), "g(5)\n");
+        assert_eq!(format_document_text("h(1, 2)\n"), "h(1, 2)\n");
     }
 
     #[test]
