@@ -217,7 +217,7 @@ fn append_debug_log(message: &str) {
     let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("/tmp/m2_ls.log")
+        .open("/tmp/m2-ls.log")
     else {
         return;
     };
@@ -229,7 +229,7 @@ fn install_panic_logging() {
         let backtrace = Backtrace::force_capture();
         append_debug_log(&format!("panic: {panic_info}\n{backtrace}"));
     }));
-    append_debug_log("m2_ls starting");
+    append_debug_log("m2-ls starting");
 }
 
 #[tower_lsp::async_trait]
@@ -311,7 +311,7 @@ impl LanguageServer for Backend {
             && self
                 .client
                 .register_capability(vec![Registration {
-                    id: "m2_ls-type-hierarchy".to_string(),
+                    id: "m2-ls-type-hierarchy".to_string(),
                     method: TYPE_HIERARCHY_METHOD.to_string(),
                     register_options: Some(serde_json::json!({
                         "documentSelector": [
@@ -332,7 +332,7 @@ impl LanguageServer for Backend {
         let _ = self
             .client
             .register_capability(vec![Registration {
-                id: "m2_ls-watch-m2-files".to_string(),
+                id: "m2-ls-watch-m2-files".to_string(),
                 method: "workspace/didChangeWatchedFiles".to_string(),
                 register_options: Some(serde_json::json!({
                     "watchers": [{ "globPattern": "**/*.m2" }]
