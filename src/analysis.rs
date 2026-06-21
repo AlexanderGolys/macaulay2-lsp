@@ -560,7 +560,14 @@ impl Analysis {
                                 scope_idx: current_scope_idx,
                             },
                         ),
-                        "=" if current_scope_idx == 0 => self.collect_definitions(
+                        // `=` writes the nearest enclosing binding of the name, or
+                        // a global when none exists anywhere up the chain. The
+                        // `DefinitionScope::Global` arm guards on `is_defined_in_chain`
+                        // (walking enclosing locals AND the global scope from the
+                        // current scope), so an `=` inside a function with an
+                        // enclosing local resolves to it and creates no binding,
+                        // while one with no enclosing binding creates a global.
+                        "=" => self.collect_definitions(
                             left,
                             right,
                             text,
@@ -2247,6 +2254,45 @@ mod tests {
         ));
         let wrong = analyze_with_builtins("ZZ * ZZ = (a, b) -> a\n", &builtins);
         assert!(has_diagnostic_code(&wrong, INSTALL_ARITY_DIAGNOSTIC_CODE));
+    }
+
+    #[test]
+    fn scope_resolution_matches_m2_local_and_assignment_rules() {
+        // `:=` binds locally; `=` writes the nearest enclosing local of that name,
+        // or a global if none exists anywhere up the chain (verified in M2).
+        let analysis = analyze(concat!(
+            "x = 1\n",                            // 0: global x
+            "f := () -> (\n",                     // 1
+            "  y := 3;\n",                        // 2: f-local y
+            "  g := () -> (x := 5; y = 6; x);\n", // 3: g-local x; y= writes f's y
+            "  (x, y, g())\n",                    // 4
+            ")\n",                                // 5
+            "w := () -> (q = 8; q)\n",            // 6: q= has no enclosing q -> global
+            "y\n",                                // 7: top-level y -> unbound (no global y)
+            "q\n",                                // 8: top-level q -> global from w
+        ));
+        let def_line = |name: &str, pos: Position| {
+            analysis
+                .get_symbol_at(name, pos)
+                .map(|symbol| symbol.range.start.line)
+        };
+
+        // g's trailing `x` resolves to its own local `x := 5` (line 3), shadowing global.
+        assert_eq!(def_line("x", Position::new(3, 29)), Some(3));
+        // `y = 6` inside g writes f's enclosing `y := 3` (line 2), not a new binding.
+        assert_eq!(def_line("y", Position::new(3, 22)), Some(2));
+        // The tuple's `x` skips past (no f-local x) to the global `x` (line 0).
+        assert_eq!(def_line("x", Position::new(4, 3)), Some(0));
+        // The tuple's `y` is f's local `y := 3` (line 2).
+        assert_eq!(def_line("y", Position::new(4, 6)), Some(2));
+        // `q = 8` in w has no enclosing `q`, so M2 makes it global; the trailing `q`
+        // must resolve to it (line 6).
+        assert_eq!(def_line("q", Position::new(6, 19)), Some(6));
+        // Top level: `y` never escaped a function (every `y :=` was local and the
+        // `y =` writes hit those locals), so it is unbound — matching M2's
+        // `o7 : Symbol`. `q` did escape as a global, so it resolves.
+        assert_eq!(def_line("y", Position::new(7, 0)), None);
+        assert_eq!(def_line("q", Position::new(8, 0)), Some(6));
     }
 
     #[test]

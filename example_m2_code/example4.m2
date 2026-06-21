@@ -34,3 +34,12 @@ toString Tally := f
 e2 = tally {e2}
 e_2 = tally {e2}
 a = 2
+
+x = 1
+f := () -> (
+    y := 3;
+    z = 4;
+    g := () -> (x:=5;y=6;x);
+    h := () -> (x:=7;z=8;x);
+    (x, y, z, g(), h(), x, y, z)
+)
