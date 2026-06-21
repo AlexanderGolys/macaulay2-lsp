@@ -11,7 +11,7 @@ use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, SignatureHelp, SignatureInformation,
 };
 
-use crate::analysis::{is_space_operator_expression, Analysis, FunctionInfo, MethodInfo};
+use crate::analysis::{Analysis, FunctionInfo, MethodInfo};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::partitioned_index::ScopedIndex;
@@ -25,7 +25,7 @@ pub(crate) fn signature_help_response(
 ) -> Option<SignatureHelp> {
     let text = document.text();
     let cursor = byte_index_from_lsp_position(text, position)?;
-    let node = M2Node::new(document.node_at_position_minimal(position)?);
+    let node = document.node_at_position_minimal(position)?;
 
     let (callable_node, argument_node) = enclosing_application(node, cursor)?;
     // Only a named (symbol) head can be resolved to recorded signatures; a
@@ -34,7 +34,7 @@ pub(crate) fn signature_help_response(
     if callable_node.kind != NodeKind::Symbol {
         return None;
     }
-    let callable_name = &text[callable_node.start_byte()..callable_node.end_byte()];
+    let callable_name = callable_node.text();
 
     let signatures = signature_informations(callable_name, document.analysis(), scoped);
     if signatures.is_empty() {
@@ -60,7 +60,7 @@ fn enclosing_application<'tree>(
 ) -> Option<(M2Node<'tree>, M2Node<'tree>)> {
     let mut current = Some(node);
     while let Some(node) = current {
-        if node.kind == NodeKind::BinaryExpression && is_space_operator_expression(node) {
+        if node.kind == NodeKind::BinaryExpression && node.is_space_application() {
             if let (Some(left), Some(right)) = (
                 node.child_by_field_name("left"),
                 node.child_by_field_name("right"),

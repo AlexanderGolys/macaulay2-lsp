@@ -32,7 +32,7 @@ fn symbol_reference_highlights(
     position: Position,
 ) -> Option<Vec<DocumentHighlight>> {
     let target_node = document.symbol_node_at_position(position)?;
-    let target_name = document.text_for(target_node);
+    let target_name = target_node.text();
     let declaration = document
         .analysis()
         .get_symbol_at(target_name, position)?
@@ -69,7 +69,7 @@ fn keyword_sequence_highlights(
     document: &DocumentSnapshot,
     position: Position,
 ) -> Option<Vec<DocumentHighlight>> {
-    let node = M2Node::new(document.node_at_position_minimal(position)?);
+    let node = document.node_at_position_minimal(position)?;
     let statement = enclosing_keyword_statement(node)?;
     let keywords = statement_keyword_tokens(statement);
 
@@ -81,7 +81,7 @@ fn keyword_sequence_highlights(
         keywords
             .into_iter()
             .map(|keyword| DocumentHighlight {
-                range: document.range_for(keyword.inner()),
+                range: document.range_for(keyword),
                 kind: Some(DocumentHighlightKind::TEXT),
             })
             .collect(),

@@ -155,19 +155,53 @@ impl NodeKind {
 #[derive(Debug, Clone, Copy)]
 pub struct M2Node<'tree> {
     node: tree_sitter::Node<'tree>,
+    /// The full source buffer this node was parsed from. Held so `text()` can
+    /// return the node's exact span without the caller ever touching the raw
+    /// buffer. Carried (not re-derived) so navigations propagate it for free.
+    source: &'tree str,
     pub kind: NodeKind,
 }
 
 impl<'tree> M2Node<'tree> {
-    pub fn new(node: tree_sitter::Node<'tree>) -> Self {
+    pub fn new(node: tree_sitter::Node<'tree>, source: &'tree str) -> Self {
         Self {
             kind: NodeKind::from_str(node.kind()),
             node,
+            source,
         }
     }
 
-    pub fn raw_kind(&self) -> &'tree str {
+    /// The exact source text this node spans, as tree-sitter parsed it.
+    ///
+    /// This is the ONLY sanctioned way to read code. Never slice the raw buffer
+    /// or scan bytes to re-derive structure the parser already determined:
+    /// escaped `/////` inside raw strings, `--` inside strings, `"` inside
+    /// comments, and similar quirks are handled correctly by the parser and must
+    /// not be re-implemented here.
+    pub fn text(&self) -> &'tree str {
+        &self.source[self.node.start_byte()..self.node.end_byte()]
+    }
+
+    /// The source buffer this node carries, for constructing sibling/related
+    /// nodes that must share the same source (e.g. the root node of the tree).
+    pub fn source(&self) -> &'tree str {
+        self.source
+    }
+
+    /// The grammar's raw node-type name. PRIVATE on purpose: node-type names are
+    /// an implementation detail of the grammar (which is renamed from time to
+    /// time), so they must never be referenced outside this module. Classify with
+    /// `NodeKind` / the typed predicates below instead; a grammar rename then
+    /// touches only `NodeKind::from_str` and the anonymous-token predicates here.
+    fn raw_kind(&self) -> &'tree str {
         self.node.kind()
+    }
+
+    /// A human-facing label for the node's grammar kind, for diagnostic messages
+    /// only (e.g. "Missing: )"). This is a display value, never branched on, so it
+    /// stays correct across grammar renames.
+    pub fn syntax_label(&self) -> &'tree str {
+        self.raw_kind()
     }
 
     pub fn is(self, kind: NodeKind) -> bool {
@@ -203,42 +237,161 @@ impl<'tree> M2Node<'tree> {
         matches!(self.raw_kind(), ")" | "}" | "]" | "|>")
     }
 
+    /// An anonymous keyword token (`if`, `then`, `for`, `return`, `time`, ...) —
+    /// the bare keyword leaves, not the named clause/statement nodes that contain
+    /// them. Used for keyword highlighting.
+    pub fn is_keyword_token(&self) -> bool {
+        !self.node.is_named()
+            && matches!(
+                self.raw_kind(),
+                "if" | "then"
+                    | "else"
+                    | "from"
+                    | "to"
+                    | "when"
+                    | "do"
+                    | "in"
+                    | "of"
+                    | "list"
+                    | "for"
+                    | "while"
+                    | "break"
+                    | "continue"
+                    | "return"
+                    | "try"
+                    | "catch"
+                    | "throw"
+                    | "time"
+                    | "timing"
+                    | "elapsedTime"
+                    | "elapsedTiming"
+                    | "profile"
+                    | "shield"
+                    | "TEST"
+                    | "breakpoint"
+                    | "new"
+            )
+    }
+
+    /// An anonymous binding-modifier keyword token (`global`, `local`, `symbol`,
+    /// `threadVariable`, `threadLocal`).
+    pub fn is_modifier_token(&self) -> bool {
+        !self.node.is_named()
+            && matches!(
+                self.raw_kind(),
+                "global" | "local" | "symbol" | "threadVariable" | "threadLocal"
+            )
+    }
+
+    /// The `then`/`else` keyword tokens, which open the clauses an `if` indents.
+    pub fn is_then_or_else_keyword(&self) -> bool {
+        !self.node.is_named() && matches!(self.raw_kind(), "then" | "else")
+    }
+
+    /// The operator token's source text of a binary expression (`:=`, `=>`, ...),
+    /// or `None` if this is not a binary expression. Comparing this *parsed* text
+    /// against operator spellings is reading code, not node-type names, so it is
+    /// safe and rename-stable.
+    pub fn binary_operator(&self) -> Option<&'tree str> {
+        if self.kind != NodeKind::BinaryExpression {
+            return None;
+        }
+        self.child_by_field_name("operator").map(|op| op.text())
+    }
+
+    /// An assignment expression (`=`, `:=`, `<-`).
+    pub fn is_assignment(&self) -> bool {
+        matches!(self.binary_operator(), Some("=" | ":=" | "<-"))
+    }
+
+    /// An option assignment (`key => value`).
+    pub fn is_option_assignment(&self) -> bool {
+        self.binary_operator() == Some("=>")
+    }
+
+    /// An implicit application `f x` / `f(x)`: a binary expression whose operator
+    /// is the inserted `SPACE` token.
+    pub fn is_space_application(&self) -> bool {
+        self.kind == NodeKind::BinaryExpression
+            && self
+                .child_by_field_name("operator")
+                .is_some_and(|op| op.is_implicit_application())
+    }
+
+    /// Whether this node is the `operator` field of its own parent.
+    pub fn is_operator(&self) -> bool {
+        self.parent()
+            .and_then(|parent| parent.child_by_field_name("operator"))
+            .is_some_and(|operator| operator.id() == self.node.id())
+    }
+
+    /// Whether `other`'s byte span lies within this node's span.
+    pub fn contains(&self, other: M2Node<'_>) -> bool {
+        self.start_byte() <= other.start_byte() && other.end_byte() <= self.end_byte()
+    }
+
+    /// The text *inside* a string literal's delimiters — the value without the
+    /// surrounding `"`/`"` or `///`/`///` — located via the parser's own delimiter
+    /// tokens (first and last child), never by scanning for quote characters.
+    /// Escaped quotes, raw-string `/////`, and `"`-in-comment / `--`-in-string
+    /// nesting are the parser's concern, not ours. Returns `None` for a non-string
+    /// node or a literal missing a delimiter (e.g. an unterminated string).
+    pub fn string_literal_inner_text(&self) -> Option<&'tree str> {
+        if self.kind != NodeKind::StringLiteral {
+            return None;
+        }
+        let child_count = self.node.child_count();
+        if child_count < 2 {
+            return None;
+        }
+        let open = self.node.child(0)?;
+        let close = self.node.child((child_count - 1) as u32)?;
+        let (start, end) = (open.end_byte(), close.start_byte());
+        (start <= end).then(|| &self.source[start..end])
+    }
+
     pub fn child_by_field_name(&self, name: &str) -> Option<M2Node<'tree>> {
-        self.node.child_by_field_name(name).map(M2Node::new)
+        let source = self.source;
+        self.node
+            .child_by_field_name(name)
+            .map(|node| M2Node::new(node, source))
     }
 
     pub fn parent(&self) -> Option<M2Node<'tree>> {
-        self.node.parent().map(M2Node::new)
+        let source = self.source;
+        self.node.parent().map(|node| M2Node::new(node, source))
     }
 
     pub fn children(&self) -> impl Iterator<Item = M2Node<'tree>> + '_ {
+        let source = self.source;
         let mut cursor = self.node.walk();
         self.node
             .children(&mut cursor)
-            .map(M2Node::new)
+            .map(|node| M2Node::new(node, source))
             .collect::<Vec<_>>()
             .into_iter()
     }
 
     pub fn child(&self, index: u32) -> Option<M2Node<'tree>> {
-        self.node.child(index).map(M2Node::new)
+        let source = self.source;
+        self.node.child(index).map(|node| M2Node::new(node, source))
     }
 
     pub fn named_child(&self, index: u32) -> Option<M2Node<'tree>> {
-        self.node.named_child(index).map(M2Node::new)
+        let source = self.source;
+        self.node
+            .named_child(index)
+            .map(|node| M2Node::new(node, source))
     }
 
     pub fn named_children(&self) -> impl Iterator<Item = M2Node<'tree>> + '_ {
+        let source = self.source;
         let mut cursor = self.node.walk();
         self.node
             .named_children(&mut cursor)
-            .map(M2Node::new)
+            .map(|node| M2Node::new(node, source))
             .collect::<Vec<_>>()
             .into_iter()
-    }
-
-    pub fn inner(&self) -> tree_sitter::Node<'tree> {
-        self.node
     }
 
     pub fn start_byte(&self) -> usize {
@@ -250,16 +403,101 @@ impl<'tree> M2Node<'tree> {
     }
 }
 
-impl<'tree> From<tree_sitter::Node<'tree>> for M2Node<'tree> {
-    fn from(node: tree_sitter::Node<'tree>) -> Self {
-        Self::new(node)
-    }
-}
-
 impl<'tree> Deref for M2Node<'tree> {
     type Target = tree_sitter::Node<'tree>;
 
     fn deref(&self) -> &Self::Target {
         &self.node
+    }
+}
+
+#[cfg(test)]
+mod cst_compliance_gate {
+    //! Build gate enforcing the repo rule that the rest of the crate must reach
+    //! the syntax tree only through `M2Node` / `NodeKind` — never the raw
+    //! tree-sitter node-type name and never the raw source buffer. The grammar is
+    //! renamed over time, so node-type names live ONLY in `NodeKind::from_str` and
+    //! the anonymous-token predicates in this module; reading raw code re-derives
+    //! parser logic (escaped `/////`, `"` in comments, `--` in strings) and is
+    //! banned. A violation fails the test run, not just review.
+    use std::path::{Path, PathBuf};
+
+    /// Substrings that must not appear outside `node_metadata.rs`. Each is a way
+    /// to reach the raw tree-sitter node-type name or the unparsed source.
+    const BANNED: &[(&str, &str)] = &[
+        (
+            ".kind()",
+            "raw tree-sitter node-type name; use `node.kind` / `NodeKind` instead",
+        ),
+        (
+            ".raw_kind()",
+            "raw node-type name is private to node_metadata; use a typed predicate",
+        ),
+        (".utf8_text(", "reads raw bytes; use `node.text()`"),
+        ("tree_sitter::Node", "raw node type; pass `M2Node` instead"),
+        (
+            "starts_with('\"')",
+            "byte-scanning for string quotes; use `node.string_literal_inner_text()`",
+        ),
+        (
+            "strip_prefix('\"')",
+            "byte-stripping string quotes; use `node.string_literal_inner_text()`",
+        ),
+        (
+            "strip_suffix('\"')",
+            "byte-stripping string quotes; use `node.string_literal_inner_text()`",
+        ),
+    ];
+
+    fn rust_sources(dir: &Path, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).expect("src dir is readable") {
+            let path = entry.expect("dir entry").path();
+            if path.is_dir() {
+                rust_sources(&path, out);
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
+                out.push(path);
+            }
+        }
+    }
+
+    #[test]
+    fn no_raw_node_access_or_raw_code_reads_outside_node_metadata() {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        rust_sources(&src, &mut files);
+
+        let mut violations = Vec::new();
+        for file in files {
+            // node_metadata.rs is the one sanctioned home for raw access.
+            if file
+                .file_name()
+                .is_some_and(|name| name == "node_metadata.rs")
+            {
+                continue;
+            }
+            let contents = std::fs::read_to_string(&file).expect("source is readable");
+            for (line_number, line) in contents.lines().enumerate() {
+                // Skip comments: a doc/line comment may legitimately mention a
+                // banned form while describing the rule.
+                if line.trim_start().starts_with("//") {
+                    continue;
+                }
+                for (needle, why) in BANNED {
+                    if line.contains(needle) {
+                        violations.push(format!(
+                            "{}:{}: `{needle}` — {why}",
+                            file.display(),
+                            line_number + 1,
+                        ));
+                    }
+                }
+            }
+        }
+
+        assert!(
+            violations.is_empty(),
+            "CST-compliance gate failed; route these through M2Node/NodeKind:\n{}",
+            violations.join("\n")
+        );
     }
 }

@@ -3,10 +3,8 @@ use std::collections::HashSet;
 use tower_lsp::lsp_types::Url;
 use tower_lsp::lsp_types::{Position, Range as LspRange, SymbolKind};
 use tower_lsp::Client;
-use tree_sitter::Node;
 
 use crate::analysis::{
-    binary_expression_operator, is_assignment_expression, is_space_operator_expression,
     node_position, symbol_node_text, to_lsp_range, utf16_len_for_byte_span, Analysis, BindingRole,
 };
 use crate::diagnostic_registry::M2Diagnostic;
@@ -14,10 +12,10 @@ use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
 
 pub const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
-    "This is parsed like function call: dot followed immediately by digits are always parsed 
-    as literal floats with the high precedence, following only cobinding specifiers (like `symbol`) 
-    and merging dots into range operators. This makes the member access `.` operator 
-    impossible to use on literal number: 
+    "This is parsed like function call: dot followed immediately by digits are always parsed
+    as literal floats with the high precedence, following only cobinding specifiers (like `symbol`)
+    and merging dots into range operators. This makes the member access `.` operator
+    impossible to use on literal number:
         - `x.2` =>  `x SPACE .2`
         - `x.2.` => `x SPACE .2 . MISSING`
         - `x.2.2` => `x SPACE .2 SPACE .2`
@@ -30,9 +28,7 @@ pub(crate) async fn publish_diagnostics(client: &Client, uri: Url, document: &Do
 }
 
 impl Analysis {
-    pub(crate) fn collect_diagnostics(&mut self, node: Node, text: &str) {
-        let m2_node = M2Node::new(node);
-
+    pub(crate) fn collect_diagnostics(&mut self, node: M2Node, text: &str) {
         if node.is_error() {
             self.diagnostics.push(M2Diagnostic::SyntaxError.at(
                 single_line_range(text, node.start_position(), node.start_byte()),
@@ -41,14 +37,14 @@ impl Analysis {
         } else if node.is_missing() {
             self.diagnostics.push(M2Diagnostic::MissingNode.at(
                 to_lsp_range(text, node.range()),
-                format!("Missing: {}", m2_node.raw_kind()),
+                format!("Missing: {}", node.syntax_label()),
             ));
         } else if let Some(range) = ambiguous_float_member_access_range(node, text) {
             self.diagnostics.push(
                 M2Diagnostic::AmbiguousFloatMemberAccess
                     .at(range, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE),
             );
-        } else if is_assignment_expression(m2_node, text) {
+        } else if node.is_assignment() {
             self.validate_assignment_form(node, text);
         }
 
@@ -56,8 +52,7 @@ impl Analysis {
         // and an option `=>` is never an error/missing/assignment node.
         self.diagnose_option_key_convention(node, text);
 
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
+        for child in node.children() {
             self.collect_diagnostics(child, text);
         }
     }
@@ -66,18 +61,17 @@ impl Analysis {
     /// Flag a lowercase-initial key on an `=>` pair with a gentle Hint — but only
     /// when the pair is a function option, not a hashtable entry (see the context
     /// predicate, where lowercase keys are legitimate).
-    fn diagnose_option_key_convention(&mut self, node: Node, text: &str) {
-        let m2_node = M2Node::new(node);
-        if binary_expression_operator(m2_node, text) != Some("=>") {
+    fn diagnose_option_key_convention(&mut self, node: M2Node, text: &str) {
+        if node.binary_operator() != Some("=>") {
             return;
         }
-        let Some(key) = m2_node.child_by_field_name("left") else {
+        let Some(key) = node.child_by_field_name("left") else {
             return;
         };
         if key.kind != NodeKind::Symbol {
             return;
         }
-        let key_text = &text[key.inner().start_byte()..key.inner().end_byte()];
+        let key_text = key.text();
         let starts_lowercase = key_text
             .chars()
             .next()
@@ -89,23 +83,23 @@ impl Analysis {
             return;
         }
         self.diagnostics.push(M2Diagnostic::OptionKeyConvention.at(
-            to_lsp_range(text, key.inner().range()),
+            to_lsp_range(text, key.range()),
             format!("Option key `{key_text}` should be capitalized by Macaulay2 convention"),
         ));
     }
 
-    fn validate_assignment_form(&mut self, node: Node, text: &str) {
+    fn validate_assignment_form(&mut self, node: M2Node, text: &str) {
         let Some(left) = node.child_by_field_name("left") else {
             return;
         };
         let Some(operator) = node.child_by_field_name("operator") else {
             return;
         };
-        let op_text = &text[operator.start_byte()..operator.end_byte()];
+        let op_text = operator.text();
 
         // Consume the installation fact characterized during analysis (which had
         // the type registry) rather than re-deciding install-vs-call here.
-        let is_method_installation = self.installation_for(M2Node::new(node), text).is_some();
+        let is_method_installation = self.installation_for(node, text).is_some();
 
         if matches!(op_text, "=" | ":=")
             && !is_method_installation
@@ -118,10 +112,7 @@ impl Analysis {
                 ));
         }
 
-        if op_text == ":="
-            && M2Node::new(left).is(NodeKind::BinaryExpression)
-            && binary_expression_operator(M2Node::new(left), text) == Some("#")
-        {
+        if op_text == ":=" && left.binary_operator() == Some("#") {
             self.diagnostics
                 .push(M2Diagnostic::ColonEqualPartAssignment.at(
                     to_lsp_range(text, left.range()),
@@ -142,9 +133,7 @@ impl Analysis {
     /// are runtime-checked (the right side's length is not known statically) and
     /// left alone. Recurses so nested targets like `[x, [y, z]] = [1, {2, 3, 4}]`
     /// are checked at every level where both sides are collection literals.
-    fn validate_parallel_assignment_arity(&mut self, left: Node, right: Node, text: &str) {
-        let left = M2Node::new(left);
-        let right = M2Node::new(right);
+    fn validate_parallel_assignment_arity(&mut self, left: M2Node, right: M2Node, text: &str) {
         if !is_fixed_length_collection(left) || !is_fixed_length_collection(right) {
             return;
         }
@@ -153,7 +142,7 @@ impl Analysis {
         let value_nodes = right.named_children().collect::<Vec<_>>();
         if target_nodes.len() != value_nodes.len() {
             self.diagnostics.push(M2Diagnostic::ParallelAssignmentArity.at(
-                to_lsp_range(text, right.inner().range()),
+                to_lsp_range(text, right.range()),
                 format!(
                     "parallel assignment binds {} targets but the right-hand side lists {}; their lengths must match",
                     target_nodes.len(),
@@ -164,19 +153,19 @@ impl Analysis {
         }
 
         for (target, value) in target_nodes.iter().zip(value_nodes.iter()) {
-            self.validate_parallel_assignment_arity(target.inner(), value.inner(), text);
+            self.validate_parallel_assignment_arity(*target, *value, text);
         }
     }
 
-    pub(crate) fn collect_unused_binding_diagnostics(&mut self, root: Node, text: &str) {
+    pub(crate) fn collect_unused_binding_diagnostics(&mut self, root: M2Node, text: &str) {
         let mut used_bindings = HashSet::new();
         let mut cursor = root.walk();
         let mut reached_root = false;
         while !reached_root {
-            let node = cursor.node();
-            if M2Node::new(node).kind.is_symbol_like() {
-                let name = &text[node.start_byte()..node.end_byte()];
-                let position = node_position(text, M2Node::new(node));
+            let node = M2Node::new(cursor.node(), text);
+            if node.kind.is_symbol_like() {
+                let name = node.text();
+                let position = node_position(text, node);
                 if let Some(binding_idx) = self.binding_idx_at(name, position) {
                     if let Some(binding) = self.registry.bindings.get(binding_idx) {
                         let node_range = to_lsp_range(text, node.range());
@@ -254,12 +243,12 @@ fn single_line_range(text: &str, start: tree_sitter::Point, start_byte: usize) -
 
 /// Decide whether an `=>` pair is a *function/method option* (convention applies)
 /// versus a *hashtable / dictionary entry* (lowercase keys are legitimate).
-fn is_function_option_context(option: Node<'_>) -> bool {
+fn is_function_option_context(option: M2Node<'_>) -> bool {
     // PENDING (parked — resume as a learn-by-doing): return true only when this
     // `=>` pair is a function option, and false when it is a hashtable/list entry.
     //
     // `option` is the `binary_expression` whose operator is `=>`. Walk its
-    // ancestors via `M2Node::new(option).parent()` and inspect `.kind`:
+    // ancestors via `option.parent()` and inspect `.kind`:
     //   - call arguments / option lists live in a `NodeKind::Sequence` (the `(...)`
     //     after a function), e.g. `gb(I, Strategy => 4)`
     //   - hashtable & list literals are `NodeKind::List` (`{...}`) or
@@ -283,47 +272,40 @@ fn is_fixed_length_collection(node: M2Node) -> bool {
     node.kind != NodeKind::Sequence || node.named_children().count() != 1
 }
 
-fn multiple_assignment_targets_are_symbols(node: Node) -> bool {
-    let m2_node = M2Node::new(node);
-    if !m2_node.kind.is_collection_expression() {
+fn multiple_assignment_targets_are_symbols(node: M2Node) -> bool {
+    if !node.kind.is_collection_expression() {
         return true;
     }
 
-    let mut cursor = node.walk();
     // A target element is valid when it is a plain symbol or itself a nested
     // target collection whose elements are all valid (`[x, [y, z]] = ...`). The
     // recursion is gated on the child being a collection because the early
     // return above yields `true` for non-collections -- a bare recursive call
     // would otherwise wrongly accept `[x + 1, y]`.
-    let all_targets_valid = node.named_children(&mut cursor).all(|child| {
-        let child_kind = M2Node::new(child).kind;
-        child_kind == NodeKind::Symbol
-            || (child_kind.is_collection_expression()
+    node.named_children().all(|child| {
+        child.kind == NodeKind::Symbol
+            || (child.kind.is_collection_expression()
                 && multiple_assignment_targets_are_symbols(child))
-    });
-    all_targets_valid
+    })
 }
 
-pub(crate) fn ambiguous_float_member_access_rewrite(node: Node<'_>, text: &str) -> Option<String> {
-    if !is_space_operator_expression(M2Node::new(node)) {
+pub(crate) fn ambiguous_float_member_access_rewrite(node: M2Node<'_>) -> Option<String> {
+    if !node.is_space_application() {
         return None;
     }
 
     let left = node.child_by_field_name("left")?;
     let right = node.child_by_field_name("right")?;
-    if symbol_node_text(M2Node::new(left), text).is_none()
-        || M2Node::new(right).kind != NodeKind::FloatLiteral
+    if symbol_node_text(left).is_none()
+        || right.kind != NodeKind::FloatLiteral
         || left.end_byte() != right.start_byte()
     {
         return None;
     }
 
-    let right_text = &text[right.start_byte()..right.end_byte()];
+    let right_text = right.text();
     let member_index = member_index_for_ambiguous_float_literal(right_text)?;
-    Some(format!(
-        "{}#{member_index}",
-        &text[left.start_byte()..left.end_byte()]
-    ))
+    Some(format!("{}#{member_index}", left.text()))
 }
 
 pub(crate) fn member_index_for_ambiguous_float_literal(float_text: &str) -> Option<String> {
@@ -336,6 +318,6 @@ pub(crate) fn member_index_for_ambiguous_float_literal(float_text: &str) -> Opti
         .then(|| "0".to_string())
 }
 
-fn ambiguous_float_member_access_range(node: Node<'_>, text: &str) -> Option<LspRange> {
-    ambiguous_float_member_access_rewrite(node, text).map(|_| to_lsp_range(text, node.range()))
+fn ambiguous_float_member_access_range(node: M2Node<'_>, text: &str) -> Option<LspRange> {
+    ambiguous_float_member_access_rewrite(node).map(|_| to_lsp_range(text, node.range()))
 }

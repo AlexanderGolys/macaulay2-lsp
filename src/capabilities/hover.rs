@@ -2,11 +2,10 @@ use tower_lsp::lsp_types::*;
 
 use crate::analysis::{BindingRole, FunctionInfo, MethodInfo, SymbolInfo};
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::M2Node;
+use crate::node_metadata::{M2Node, NodeKind};
 use crate::partitioned_index::ScopedIndex;
 use crate::record_lsp::record_hover_with_package_and_usage;
 use crate::typesystem::InstanceID;
-use crate::util::*;
 
 pub(crate) fn hover_response(
     document: &DocumentSnapshot,
@@ -21,13 +20,11 @@ pub(crate) fn hover_response(
         return None;
     }
 
-    let start_byte = node.start_byte();
-    let end_byte = node.end_byte();
-    let node_text = &text[start_byte..end_byte];
+    let node_text = node.text();
 
     if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
         let local_installation_signature = analysis
-            .local_method_installation_signature_at(M2Node::new(node), text)
+            .local_method_installation_signature_at(node, text)
             .filter(|(method, _)| analysis.symbol_name(method.symbol) == node_text);
         let local_method = local_installation_signature
             .map(|(method, _)| method)
@@ -101,7 +98,7 @@ pub(crate) fn local_symbol_hover(
 }
 
 pub(crate) fn call_signature_usage_for_hover(
-    node: tree_sitter::Node,
+    node: M2Node,
     node_text: &str,
     text: &str,
     analysis: &crate::analysis::Analysis,
@@ -112,7 +109,7 @@ pub(crate) fn call_signature_usage_for_hover(
     // signature-usage resolution consults the full loaded scope.
     let builtins = scoped.core();
 
-    let argument_types = if is_space_operator_expression(parent) {
+    let argument_types = if parent.is_space_application() {
         let callable = parent.child_by_field_name("left")?;
         if callable.id() != node.id() {
             return None;
@@ -120,7 +117,7 @@ pub(crate) fn call_signature_usage_for_hover(
 
         let argument = parent.child_by_field_name("right")?;
         analysis
-            .infer_call_static_facts(M2Node::new(argument), text, Some(builtins))
+            .infer_call_static_facts(argument, text, Some(builtins))
             .dispatch_argument_types()
     } else if parent
         .child_by_field_name("operator")
@@ -134,8 +131,8 @@ pub(crate) fn call_signature_usage_for_hover(
         let left = parent.child_by_field_name("left")?;
         let right = parent.child_by_field_name("right")?;
         vec![
-            analysis.infer_expression_static_type_name(M2Node::new(left), text, Some(builtins)),
-            analysis.infer_expression_static_type_name(M2Node::new(right), text, Some(builtins)),
+            analysis.infer_expression_static_type_name(left, text, Some(builtins)),
+            analysis.infer_expression_static_type_name(right, text, Some(builtins)),
         ]
     } else {
         return None;
@@ -144,15 +141,15 @@ pub(crate) fn call_signature_usage_for_hover(
     scoped.resolve_call_signature_usage(node_text, &argument_types)
 }
 
-pub(crate) fn hoverable_symbol_or_operator_node(node: tree_sitter::Node) -> bool {
+pub(crate) fn hoverable_symbol_or_operator_node(node: M2Node) -> bool {
     if matches!(
-        node.kind(),
-        "symbol" | "identifier" | "keyword" | "operator"
+        node.kind,
+        NodeKind::Symbol | NodeKind::CobindingKeyword | NodeKind::CobindingOperator
     ) {
         return true;
     }
 
-    is_operator_node(node)
+    node.is_operator()
 }
 
 fn local_method_signatures_markdown(
@@ -309,7 +306,7 @@ mod tests {
             .get_symbol_at("p", position)
             .expect("method symbol should be visible");
         let (method, pinned_signature) = analysis
-            .local_method_installation_signature_at(M2Node::new(node), text)
+            .local_method_installation_signature_at(M2Node::new(node, text), text)
             .expect("method installation should pin the installed signature");
 
         let hover =
@@ -376,8 +373,14 @@ mod tests {
             )
             .expect("openOut node should be found");
 
-        let usage = call_signature_usage_for_hover(node, "openOut", text, &analysis, &scoped)
-            .expect("openOut hover should resolve usage signatures");
+        let usage = call_signature_usage_for_hover(
+            M2Node::new(node, text),
+            "openOut",
+            text,
+            &analysis,
+            &scoped,
+        )
+        .expect("openOut hover should resolve usage signatures");
         let signature = usage
             .pinned
             .expect("openOut hover should pin the String installation");
@@ -419,6 +422,7 @@ mod tests {
                 tree_sitter::Point::new(2, 7),
             )
             .expect("+ node should be found");
+        let node = M2Node::new(node, text);
         assert!(
             hoverable_symbol_or_operator_node(node),
             "operator tokens should be hoverable"

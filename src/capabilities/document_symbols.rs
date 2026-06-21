@@ -11,9 +11,8 @@ pub(crate) fn collect_document_symbols(
     document: &DocumentSnapshot,
     builtins: &BuiltinData,
 ) -> Vec<DocumentSymbol> {
-    let text = document.text();
     let mut scopes = DocumentSymbolScopes::new();
-    collect_document_symbols_from(document.root_node(), text, builtins, &mut scopes)
+    collect_document_symbols_from(document.root_node(), builtins, &mut scopes)
 }
 
 #[derive(Debug)]
@@ -72,22 +71,20 @@ impl DocumentSymbolScopes {
 }
 
 fn collect_document_symbols_from(
-    node: tree_sitter::Node,
-    text: &str,
+    node: M2Node,
     builtins: &BuiltinData,
     scopes: &mut DocumentSymbolScopes,
 ) -> Vec<DocumentSymbol> {
-    if is_assignment_expression(node, text) {
-        return collect_assignment_document_symbols(node, text, builtins, scopes);
+    if node.is_assignment() {
+        return collect_assignment_document_symbols(node, builtins, scopes);
     }
-    if is_option_assignment_expression(node, text) {
-        return collect_property_document_symbols(node, text, builtins, scopes);
+    if node.is_option_assignment() {
+        return collect_property_document_symbols(node, builtins, scopes);
     }
 
     let mut symbols = Vec::new();
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        symbols.extend(collect_document_symbols_from(child, text, builtins, scopes));
+    for child in node.children() {
+        symbols.extend(collect_document_symbols_from(child, builtins, scopes));
     }
     symbols
 }
@@ -97,8 +94,7 @@ fn collect_document_symbols_from(
 /// not here, and a repeated key is listed once. Keys passed to a function call
 /// are therefore skipped — they are package symbols or repeats.
 fn collect_property_document_symbols(
-    node: tree_sitter::Node,
-    text: &str,
+    node: M2Node,
     builtins: &BuiltinData,
     scopes: &mut DocumentSymbolScopes,
 ) -> Vec<DocumentSymbol> {
@@ -112,7 +108,7 @@ fn collect_property_document_symbols(
     left_symbols
         .into_iter()
         .filter_map(|symbol| {
-            let name = &text[symbol.start_byte()..symbol.end_byte()];
+            let name = symbol.text();
             if builtins.contains_name(name) || !scopes.introduce_option(name) {
                 return None;
             }
@@ -123,8 +119,8 @@ fn collect_property_document_symbols(
                 tags: None,
                 #[allow(deprecated)]
                 deprecated: None,
-                range: node_range(text, node),
-                selection_range: node_range(text, symbol),
+                range: node_range(node),
+                selection_range: node_range(symbol),
                 children: None,
             })
         })
@@ -132,8 +128,7 @@ fn collect_property_document_symbols(
 }
 
 fn collect_assignment_document_symbols(
-    node: tree_sitter::Node,
-    text: &str,
+    node: M2Node,
     builtins: &BuiltinData,
     scopes: &mut DocumentSymbolScopes,
 ) -> Vec<DocumentSymbol> {
@@ -142,13 +137,13 @@ fn collect_assignment_document_symbols(
     };
 
     let children = match node.child_by_field_name("right") {
-        Some(right) if M2Node::new(right).is(NodeKind::LambdaExpression) => {
-            collect_function_body_document_symbols(right, text, builtins, scopes)
+        Some(right) if right.is(NodeKind::LambdaExpression) => {
+            collect_function_body_document_symbols(right, builtins, scopes)
         }
         _ => None,
     };
 
-    let operator = assignment_operator(node, text);
+    let operator = assignment_operator(node);
     let mut binding_targets = Vec::new();
     collect_binding_target_nodes(left, &mut binding_targets);
 
@@ -156,72 +151,69 @@ fn collect_assignment_document_symbols(
         return binding_targets
             .into_iter()
             .filter(|symbol| {
-                let name = &text[symbol.start_byte()..symbol.end_byte()];
+                let name = symbol.text();
                 match operator {
                     AssignmentOperator::ColonEqual => scopes.introduce_local(name),
                     AssignmentOperator::Equal => scopes.introduce_global_if_missing(name),
                     AssignmentOperator::LeftArrow | AssignmentOperator::Other => false,
                 }
             })
-            .map(|symbol| {
-                let name = &text[symbol.start_byte()..symbol.end_byte()];
-                DocumentSymbol {
-                    name: name.to_string(),
-                    detail: None,
-                    kind: assignment_symbol_kind(node, text),
-                    tags: None,
-                    #[allow(deprecated)]
-                    deprecated: None,
-                    range: node_range(text, node),
-                    selection_range: node_range(text, symbol),
-                    children: children.clone(),
-                }
+            .map(|symbol| DocumentSymbol {
+                name: symbol.text().to_string(),
+                detail: None,
+                kind: assignment_symbol_kind(node),
+                tags: None,
+                #[allow(deprecated)]
+                deprecated: None,
+                range: node_range(node),
+                selection_range: node_range(symbol),
+                children: children.clone(),
             })
             .collect();
     }
 
-    let is_method_installation_left = M2Node::new(left).kind.is_method_installation_target();
+    let is_method_installation_left = left.kind.is_method_installation_target();
 
-    match (operator, binary_expression_operator(left, text)) {
+    match (operator, left.binary_operator()) {
         (AssignmentOperator::ColonEqual, _) if is_method_installation_left => {
             vec![DocumentSymbol {
-                name: text[left.start_byte()..left.end_byte()].to_string(),
+                name: left.text().to_string(),
                 detail: Some("method".to_string()),
                 kind: SymbolKind::METHOD,
                 tags: None,
                 #[allow(deprecated)]
                 deprecated: None,
-                range: node_range(text, node),
-                selection_range: node_range(text, left),
+                range: node_range(node),
+                selection_range: node_range(left),
                 children,
             }]
         }
         (AssignmentOperator::Equal, Some("_")) => vec![DocumentSymbol {
-            name: text[left.start_byte()..left.end_byte()].to_string(),
+            name: left.text().to_string(),
             detail: Some("indexed variable".to_string()),
             kind: SymbolKind::VARIABLE,
             tags: None,
             #[allow(deprecated)]
             deprecated: None,
-            range: node_range(text, node),
-            selection_range: node_range(text, left),
+            range: node_range(node),
+            selection_range: node_range(left),
             children: None,
         }],
         (AssignmentOperator::Equal, Some(_))
             if node
                 .child_by_field_name("right")
-                .is_some_and(|right| M2Node::new(right).is(NodeKind::LambdaExpression))
+                .is_some_and(|right| right.is(NodeKind::LambdaExpression))
                 && is_method_installation_left =>
         {
             vec![DocumentSymbol {
-                name: text[left.start_byte()..left.end_byte()].to_string(),
+                name: left.text().to_string(),
                 detail: Some("assignment method".to_string()),
                 kind: SymbolKind::METHOD,
                 tags: None,
                 #[allow(deprecated)]
                 deprecated: None,
-                range: node_range(text, node),
-                selection_range: node_range(text, left),
+                range: node_range(node),
+                selection_range: node_range(left),
                 children,
             }]
         }
@@ -230,8 +222,7 @@ fn collect_assignment_document_symbols(
 }
 
 fn collect_function_body_document_symbols(
-    function_node: tree_sitter::Node,
-    text: &str,
+    function_node: M2Node,
     builtins: &BuiltinData,
     scopes: &mut DocumentSymbolScopes,
 ) -> Option<Vec<DocumentSymbol>> {
@@ -240,27 +231,23 @@ fn collect_function_body_document_symbols(
     scopes.push();
     if let Some(params) = function_node.child_by_field_name("parameters") {
         let mut names = Vec::new();
-        collect_parameter_names(params, text, &mut names);
+        collect_parameter_names(params, &mut names);
         for name in names {
             scopes.add_current(&name);
         }
     }
 
-    let children = collect_document_symbols_from(body, text, builtins, scopes);
+    let children = collect_document_symbols_from(body, builtins, scopes);
     scopes.pop();
 
     (!children.is_empty()).then_some(children)
 }
 
-fn collect_left_symbol_nodes<'tree>(
-    node: tree_sitter::Node<'tree>,
-    symbols: &mut Vec<tree_sitter::Node<'tree>>,
-) {
-    match M2Node::new(node).kind {
+fn collect_left_symbol_nodes<'tree>(node: M2Node<'tree>, symbols: &mut Vec<M2Node<'tree>>) {
+    match node.kind {
         NodeKind::Symbol => symbols.push(node),
         NodeKind::Sequence | NodeKind::List => {
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
+            for child in node.children() {
                 collect_left_symbol_nodes(child, symbols);
             }
         }
@@ -268,16 +255,12 @@ fn collect_left_symbol_nodes<'tree>(
     }
 }
 
-fn collect_binding_target_nodes<'tree>(
-    node: tree_sitter::Node<'tree>,
-    symbols: &mut Vec<tree_sitter::Node<'tree>>,
-) {
-    match M2Node::new(node).kind {
+fn collect_binding_target_nodes<'tree>(node: M2Node<'tree>, symbols: &mut Vec<M2Node<'tree>>) {
+    match node.kind {
         NodeKind::Symbol => symbols.push(node),
         NodeKind::Sequence | NodeKind::List => {
-            let mut cursor = node.walk();
-            for child in node.named_children(&mut cursor) {
-                if M2Node::new(child).is(NodeKind::Symbol) {
+            for child in node.named_children() {
+                if child.is(NodeKind::Symbol) {
                     symbols.push(child);
                 }
             }
@@ -286,13 +269,12 @@ fn collect_binding_target_nodes<'tree>(
     }
 }
 
-fn collect_parameter_names(node: tree_sitter::Node, text: &str, names: &mut Vec<String>) {
-    match M2Node::new(node).kind {
-        NodeKind::Symbol => names.push(text[node.start_byte()..node.end_byte()].to_string()),
+fn collect_parameter_names(node: M2Node, names: &mut Vec<String>) {
+    match node.kind {
+        NodeKind::Symbol => names.push(node.text().to_string()),
         NodeKind::Sequence | NodeKind::List => {
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                collect_parameter_names(child, text, names);
+            for child in node.children() {
+                collect_parameter_names(child, names);
             }
         }
         _ => {}
@@ -307,10 +289,9 @@ enum AssignmentOperator {
     Other,
 }
 
-fn assignment_operator(node: tree_sitter::Node, text: &str) -> AssignmentOperator {
+fn assignment_operator(node: M2Node) -> AssignmentOperator {
     node.child_by_field_name("operator")
-        .map(|operator| &text[operator.start_byte()..operator.end_byte()])
-        .map(|operator| match operator {
+        .map(|operator| match operator.text() {
             "=" => AssignmentOperator::Equal,
             ":=" => AssignmentOperator::ColonEqual,
             "<-" => AssignmentOperator::LeftArrow,
@@ -319,26 +300,26 @@ fn assignment_operator(node: tree_sitter::Node, text: &str) -> AssignmentOperato
         .unwrap_or(AssignmentOperator::Other)
 }
 
-fn assignment_symbol_kind(node: tree_sitter::Node, text: &str) -> SymbolKind {
+fn assignment_symbol_kind(node: M2Node) -> SymbolKind {
     match node.child_by_field_name("right") {
         Some(right)
-            if M2Node::new(right).is(NodeKind::NewStatement)
-                && new_statement_type_name(right, text) == Some("Type") =>
+            if right.is(NodeKind::NewStatement)
+                && new_statement_type_name(right) == Some("Type") =>
         {
             SymbolKind::CLASS
         }
-        Some(right) if M2Node::new(right).is(NodeKind::LambdaExpression) => SymbolKind::FUNCTION,
+        Some(right) if right.is(NodeKind::LambdaExpression) => SymbolKind::FUNCTION,
         _ => SymbolKind::VARIABLE,
     }
 }
 
-fn new_statement_type_name<'a>(node: tree_sitter::Node, text: &'a str) -> Option<&'a str> {
+fn new_statement_type_name<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
     let type_node = node.child_by_field_name("type")?;
-    if !M2Node::new(type_node).is(NodeKind::Symbol) {
+    if !type_node.is(NodeKind::Symbol) {
         return None;
     }
 
-    Some(&text[type_node.start_byte()..type_node.end_byte()])
+    Some(type_node.text())
 }
 
 #[cfg(test)]
@@ -346,7 +327,6 @@ mod tests {
     use super::*;
     use crate::document::DocumentSnapshot;
     use crate::typesystem::BuiltinData;
-    use crate::util::is_assignment_expression;
     use tower_lsp::lsp_types::{Position, Range};
     use tree_sitter::Parser;
 
@@ -497,9 +477,10 @@ mod tests {
 
     #[test]
     fn document_symbols_cover_static_top_level_extractor_bindings() {
-        fn has_function_ancestor(mut node: tree_sitter::Node) -> bool {
+        fn has_function_ancestor(node: M2Node) -> bool {
+            let mut node = node;
             while let Some(parent) = node.parent() {
-                if parent.kind() == "lambda_expression" {
+                if parent.kind == NodeKind::LambdaExpression {
                     return true;
                 }
                 node = parent;
@@ -507,19 +488,15 @@ mod tests {
             false
         }
 
-        fn collect_static_top_level_bindings(
-            node: tree_sitter::Node,
-            text: &str,
-            names: &mut Vec<String>,
-        ) {
-            if is_assignment_expression(node, text) && !has_function_ancestor(node) {
-                if let (Some(left), Some(right)) = (
+        fn collect_static_top_level_bindings(node: M2Node, names: &mut Vec<String>) {
+            if node.is_assignment() && !has_function_ancestor(node) {
+                if let (Some(left), Some(operator)) = (
                     node.child_by_field_name("left"),
-                    node.child_by_field_name("right"),
+                    node.child_by_field_name("operator"),
                 ) {
-                    let operator_text = &text[left.end_byte()..right.start_byte()];
-                    if left.kind() == "symbol" && operator_text.contains(['=', ':']) {
-                        let name = text[left.start_byte()..left.end_byte()].to_string();
+                    let operator_text = operator.text();
+                    if left.kind == NodeKind::Symbol && operator_text.contains(['=', ':']) {
+                        let name = left.text().to_string();
                         if !names.contains(&name) {
                             names.push(name);
                         }
@@ -527,9 +504,8 @@ mod tests {
                 }
             }
 
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                collect_static_top_level_bindings(child, text, names);
+            for child in node.children() {
+                collect_static_top_level_bindings(child, names);
             }
         }
 
@@ -541,7 +517,7 @@ mod tests {
             .unwrap();
         let tree = parser.parse(text, None).expect("fixture should parse");
         let mut expected = Vec::new();
-        collect_static_top_level_bindings(tree.root_node(), text, &mut expected);
+        collect_static_top_level_bindings(M2Node::new(tree.root_node(), text), &mut expected);
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);

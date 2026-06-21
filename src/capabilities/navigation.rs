@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::*;
 
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::M2Node;
+use crate::node_metadata::{M2Node, NodeKind};
 use crate::package_index::SourceResolver;
 use crate::partitioned_index::ScopedIndex;
 use crate::record_lsp::record_symbol_kind;
@@ -162,12 +162,11 @@ pub(crate) fn goto_definition_response(
     workspace_index: &crate::workspace_index::WorkspaceIndex,
     record_location: impl Fn(&Record) -> Option<Location>,
 ) -> Option<GotoDefinitionResponse> {
-    let text = document.text();
     let analysis = document.analysis();
     let node = document.node_at_position_minimal(position)?;
 
-    if let Some(string_node) = document.enclosing_node_of_kind(node, "string_literal") {
-        if let Some(package_name) = crate::package_index::package_source_string(text, string_node) {
+    if let Some(string_node) = document.enclosing_node_of_kind(node, NodeKind::StringLiteral) {
+        if let Some(package_name) = crate::package_index::package_source_string(string_node) {
             if let Some(path) = source_resolver.resolve_package_file(package_name) {
                 if let Ok(uri) = Url::from_file_path(path) {
                     return Some(GotoDefinitionResponse::Scalar(Location {
@@ -179,12 +178,11 @@ pub(crate) fn goto_definition_response(
         }
     }
 
-    let kind = node.kind();
-    if kind != "symbol" {
+    if node.kind != NodeKind::Symbol {
         return None;
     }
 
-    let node_text = &text[node.start_byte()..node.end_byte()];
+    let node_text = node.text();
 
     if let Some(range) = analysis.find_definition(node_text, position) {
         return Some(GotoDefinitionResponse::Scalar(Location {
@@ -220,7 +218,7 @@ pub(crate) fn collect_reference_ranges(
     let Some(target_node) = document.symbol_node_at_position(position) else {
         return Vec::new();
     };
-    let target_name = &text[target_node.start_byte()..target_node.end_byte()];
+    let target_name = target_node.text();
     let Some(target_symbol) = analysis.get_symbol_at(target_name, position) else {
         return Vec::new();
     };
@@ -230,12 +228,9 @@ pub(crate) fn collect_reference_ranges(
     let mut cursor = root_node.walk();
     let mut reached_root = false;
     while !reached_root {
-        let node = cursor.node();
-        if matches!(
-            node.kind(),
-            "symbol" | "identifier" | "keyword" | "operator" | "punctuation"
-        ) {
-            let node_text = &text[node.start_byte()..node.end_byte()];
+        let node = M2Node::new(cursor.node(), text);
+        if node.kind.is_symbol_like() {
+            let node_text = node.text();
             if node_text == target_name {
                 let position = document.range_for(node).start;
                 if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
@@ -278,7 +273,7 @@ pub(crate) fn prepare_rename_range(
     position: Position,
 ) -> Option<Range> {
     let node = document.symbol_node_at_position(position)?;
-    let name = document.text_for(node);
+    let name = node.text();
     document.analysis().get_symbol_at(name, position)?;
     Some(document.range_for(node))
 }
@@ -331,7 +326,7 @@ pub(crate) fn reference_target(
     workspace_index: &WorkspaceIndex,
 ) -> Option<ReferenceTarget> {
     let node = document.symbol_node_at_position(position)?;
-    let name = document.text_for(node).to_string();
+    let name = node.text().to_string();
     match document.analysis().get_binding_at(&name, position) {
         Some(binding) if binding.scope_idx != 0 => Some(ReferenceTarget::Local),
         Some(_) => Some(ReferenceTarget::Global(name)),
@@ -352,10 +347,8 @@ pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -
     let mut cursor = root_node.walk();
     let mut reached_root = false;
     while !reached_root {
-        let node = cursor.node();
-        if M2Node::new(node).kind.is_symbol_like()
-            && &text[node.start_byte()..node.end_byte()] == name
-        {
+        let node = M2Node::new(cursor.node(), text);
+        if node.kind.is_symbol_like() && node.text() == name {
             let position = document.range_for(node).start;
             // A use is global unless a local binding shadows the name here.
             let shadowed = analysis

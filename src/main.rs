@@ -710,7 +710,7 @@ impl LanguageServer for Backend {
         let Some(node) = document.symbol_node_at_position(position) else {
             return Ok(None);
         };
-        let name = document.text_for(node);
+        let name = node.text();
         let range = document.range_for(node);
 
         let loaded = LoadedPackages::from_parts(
@@ -951,9 +951,9 @@ mod tests {
         let mut cursor = root.walk();
         let mut reached_root = false;
         while !reached_root {
-            let node = cursor.node();
-            if node.kind() == "string_literal" {
-                if let Some(package_name) = package_source_string(text, node) {
+            let node = crate::node_metadata::M2Node::new(cursor.node(), text);
+            if node.kind == crate::node_metadata::NodeKind::StringLiteral {
+                if let Some(package_name) = package_source_string(node) {
                     packages.push(package_name);
                 }
             }

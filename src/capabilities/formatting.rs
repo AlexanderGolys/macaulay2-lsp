@@ -180,7 +180,7 @@ impl TreeIndentLayout {
             };
         };
 
-        let root = M2Node::new(tree.root_node());
+        let root = M2Node::new(tree.root_node(), text);
         let brackets = collect_bracket_groups(root, line_count);
         let literal_rows = collect_literal_rows(root, line_count);
         let line_leads = line_leading_blank(text, line_count);
@@ -188,7 +188,7 @@ impl TreeIndentLayout {
         let depths = (0..line_count)
             .map(|row| {
                 bracket_depth(row, &brackets, &line_leads)
-                    + line_continuation(row, root, text, &line_leads)
+                    + line_continuation(row, root, &line_leads)
             })
             .collect();
 
@@ -344,14 +344,14 @@ fn bracket_depth(row: usize, brackets: &[BracketGroup], line_leads: &[usize]) ->
 
 /// `continuation(row)` is a flat +1 for a line that continues an expression or a
 /// clause body broken onto a later line (see the rule cases inline).
-fn line_continuation(row: usize, root: M2Node<'_>, text: &str, line_leads: &[usize]) -> usize {
+fn line_continuation(row: usize, root: M2Node<'_>, line_leads: &[usize]) -> usize {
     let Some(first) = first_leaf_on_row(root, row) else {
         return 0;
     };
 
     // (a) The first token is the start of the right operand of a binary
     // expression whose operator dangled on an earlier row (`a +\nb`).
-    if is_right_operand_first_token(first, row, text) {
+    if is_right_operand_first_token(first, row) {
         return 1;
     }
 
@@ -364,7 +364,7 @@ fn line_continuation(row: usize, root: M2Node<'_>, text: &str, line_leads: &[usi
     // (c) The first token is an `else`/`then` keyword whose controlling `if` is
     // not standalone (a ternary `x := if … then\n … else …`); a standalone `if`
     // aligns its `else` via bracket_depth instead.
-    if is_dangling_clause_keyword(first, row, text, line_leads) {
+    if is_dangling_clause_keyword(first, row, line_leads) {
         return 1;
     }
 
@@ -395,7 +395,7 @@ fn first_leaf_on_row(root: M2Node<'_>, row: usize) -> Option<M2Node<'_>> {
 /// whose operator dangled on a row before `row`. Only spaced operators carry a
 /// continuation: a compact operator like `*` left at line end (`a*\nb`) does not
 /// indent its continuation, matching the line-final-operator spacing pass.
-fn is_right_operand_first_token(node: M2Node<'_>, row: usize, text: &str) -> bool {
+fn is_right_operand_first_token(node: M2Node<'_>, row: usize) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
         if parent.is(NodeKind::BinaryExpression) {
@@ -403,10 +403,9 @@ fn is_right_operand_first_token(node: M2Node<'_>, row: usize, text: &str) -> boo
                 parent.child_by_field_name("operator"),
                 parent.child_by_field_name("right"),
             ) {
-                let operator_text = &text[operator.start_byte()..operator.end_byte()];
                 if right.start_byte() == node.start_byte()
                     && operator.start_position().row < row
-                    && is_spaced_line_final_operator(operator_text)
+                    && is_spaced_line_final_operator(operator.text())
                 {
                     return true;
                 }
@@ -445,13 +444,8 @@ fn is_clause_body_first_token(node: M2Node<'_>, row: usize) -> bool {
 ///   * An orphaned keyword that tree-sitter, recovering a line-broken ternary,
 ///     demotes to a leading `symbol` with no enclosing `if` — always the
 ///     continuation of the ternary begun on an earlier line.
-fn is_dangling_clause_keyword(
-    node: M2Node<'_>,
-    row: usize,
-    text: &str,
-    line_leads: &[usize],
-) -> bool {
-    if !is_clause_keyword_leaf(node, text) {
+fn is_dangling_clause_keyword(node: M2Node<'_>, row: usize, line_leads: &[usize]) -> bool {
+    if !is_clause_keyword_leaf(node) {
         return false;
     }
     if node.start_position().row != row {
@@ -467,12 +461,11 @@ fn is_dangling_clause_keyword(
 /// keyword token kinds, but when a line-broken ternary is parsed the keyword is
 /// demoted to a bare `symbol`; since `else`/`then` are reserved words no real
 /// identifier carries that text, so a symbol spelled so is the misparsed keyword.
-fn is_clause_keyword_leaf(node: M2Node<'_>, text: &str) -> bool {
-    if matches!(node.raw_kind(), "then" | "else") {
+fn is_clause_keyword_leaf(node: M2Node<'_>) -> bool {
+    if node.is_then_or_else_keyword() {
         return true;
     }
-    node.is(NodeKind::Symbol)
-        && matches!(&text[node.start_byte()..node.end_byte()], "else" | "then")
+    node.is(NodeKind::Symbol) && matches!(node.text(), "else" | "then")
 }
 
 /// The nearest enclosing `if_statement` of a clause keyword, walking up through
@@ -575,7 +568,7 @@ fn normalize_whitespace(text: &str) -> String {
     };
 
     let mut edits = Vec::new();
-    collect_format_edits(M2Node::new(tree.root_node()), text, &mut edits);
+    collect_format_edits(M2Node::new(tree.root_node(), text), text, &mut edits);
     apply_format_edits(text, edits)
 }
 
@@ -594,12 +587,12 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
         }
 
         if let Some(operator) = node.child_by_field_name("operator") {
-            let operator_text = &text[operator.start_byte()..operator.end_byte()];
+            let operator_text = operator.text();
             if is_parenthesized_call(node) {
                 // A call `f(...)` that is the head of a `:=` install reads as
                 // installation syntax, so it is spaced (`f (Types) := …`); an
                 // ordinary call is compacted (`f(x)`).
-                if is_method_installation_call_head(node, text) {
+                if is_method_installation_call_head(node) {
                     push_call_gap_whitespace_edit(node, text, edits, " ");
                 } else {
                     push_call_whitespace_edits(node, text, edits);
@@ -782,7 +775,7 @@ fn is_parenthesized_call(node: M2Node<'_>) -> bool {
 /// Whether a parenthesized call `f(...)` is the head of a `:=` method install
 /// (`f(Types) := fn`) — i.e. it is the left operand of an enclosing `:=`. Such a
 /// head is installation syntax and is spaced rather than compacted.
-fn is_method_installation_call_head(node: M2Node<'_>, text: &str) -> bool {
+fn is_method_installation_call_head(node: M2Node<'_>) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
@@ -792,7 +785,7 @@ fn is_method_installation_call_head(node: M2Node<'_>, text: &str) -> bool {
     let Some(operator) = parent.child_by_field_name("operator") else {
         return false;
     };
-    if &text[operator.start_byte()..operator.end_byte()] != ":=" {
+    if operator.text() != ":=" {
         return false;
     }
     parent.child_by_field_name("left").is_some_and(|left| {

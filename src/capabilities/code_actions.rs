@@ -7,7 +7,6 @@ use crate::capabilities::formatting::document_formatting_text_edits;
 use crate::diagnostic_registry::{diagnostic_has_kind, M2Diagnostic};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
-use crate::util::*;
 
 pub(crate) fn available_code_actions(
     document: &DocumentSnapshot,
@@ -72,7 +71,7 @@ pub(crate) fn convert_to_raw_string_code_action(
     position: Position,
 ) -> Option<CodeAction> {
     let string_node = string_literal_at_position(document, position)?;
-    let replacement = raw_string_replacement(document.text(), string_node)?;
+    let replacement = raw_string_replacement(string_node)?;
 
     Some(CodeAction {
         title: "Convert to raw string".to_string(),
@@ -110,7 +109,7 @@ pub(crate) fn ambiguous_float_member_access_code_action(
         })?
         .clone();
     let expression = ambiguous_float_member_access_node_at_position(document, position)?;
-    let replacement = ambiguous_float_member_access_rewrite(expression, document.text())?;
+    let replacement = ambiguous_float_member_access_rewrite(expression)?;
 
     Some(CodeAction {
         title: "Rewrite as member access".to_string(),
@@ -139,9 +138,8 @@ pub(crate) fn conditional_null_code_action(
     uri: &Url,
     position: Position,
 ) -> Option<CodeAction> {
-    let text = document.text();
     let if_node = if_statement_at_position(document, position)?;
-    let replacement = refactor_if_null_branch(if_node, text)?;
+    let replacement = refactor_if_null_branch(if_node)?;
 
     Some(CodeAction {
         title: "Simplify unnecessary null branch".to_string(),
@@ -170,9 +168,8 @@ pub(crate) fn simplify_try_code_action(
     uri: &Url,
     position: Position,
 ) -> Option<CodeAction> {
-    let text = document.text();
     let try_node = try_statement_at_position(document, position)?;
-    let replacement = refactor_try_statement(try_node, text)?;
+    let replacement = refactor_try_statement(try_node)?;
 
     Some(CodeAction {
         title: "Simplify try".to_string(),
@@ -201,22 +198,17 @@ pub(crate) fn simplify_if_condition_code_action(
     uri: &Url,
     position: Position,
 ) -> Option<CodeAction> {
-    let text = document.text();
     let if_node = if_statement_at_position(document, position)?;
     let condition = if_node.child_by_field_name("condition")?;
-    let simplified = simplify_condition(condition, text)?;
+    let simplified = simplify_condition(condition)?;
 
     let then_branch = expression_of_clause(clause_child(if_node, NodeKind::ThenClause)?)?;
     let else_clause = clause_child(if_node, NodeKind::ElseClause);
 
-    let mut replacement = format!(
-        "if {} then {}",
-        simplified,
-        &text[then_branch.start_byte()..then_branch.end_byte()]
-    );
+    let mut replacement = format!("if {} then {}", simplified, then_branch.text());
     if let Some(else_clause) = else_clause {
         replacement.push(' ');
-        replacement.push_str(&text[else_clause.start_byte()..else_clause.end_byte()]);
+        replacement.push_str(else_clause.text());
     }
 
     Some(CodeAction {
@@ -241,17 +233,16 @@ pub(crate) fn simplify_if_condition_code_action(
     })
 }
 
-fn simplify_condition(node: tree_sitter::Node, text: &str) -> Option<String> {
-    let original = &text[node.start_byte()..node.end_byte()];
+fn simplify_condition(node: M2Node<'_>) -> Option<String> {
+    let original = node.text();
 
-    if M2Node::new(node).kind == NodeKind::PrefixExpression {
+    if node.kind == NodeKind::PrefixExpression {
         if let Some(operator) = node.child_by_field_name("operator") {
-            if &text[operator.start_byte()..operator.end_byte()] == "not" {
-                let mut cursor = node.walk();
-                for child in node.named_children(&mut cursor) {
+            if operator.text() == "not" {
+                for child in node.named_children() {
                     if child.id() != operator.id() {
-                        let inner = unwrap_parentheses(child, text);
-                        let simplified = negated_condition_text(inner, text);
+                        let inner = unwrap_parentheses(child);
+                        let simplified = negated_condition_text(inner);
                         if simplified != original {
                             return Some(simplified);
                         }
@@ -271,16 +262,13 @@ fn simplify_condition(node: tree_sitter::Node, text: &str) -> Option<String> {
     None
 }
 
-fn unwrap_parentheses<'a>(node: tree_sitter::Node<'a>, text: &str) -> tree_sitter::Node<'a> {
+fn unwrap_parentheses(node: M2Node<'_>) -> M2Node<'_> {
     if node.child_count() == 3 {
-        let mut cursor = node.walk();
-        let children: Vec<_> = node.children(&mut cursor).collect();
+        let children: Vec<_> = node.children().collect();
         if let (Some(first), Some(middle), Some(last)) =
             (children.first(), children.get(1), children.get(2))
         {
-            let first_text = &text[first.start_byte()..first.end_byte()];
-            let last_text = &text[last.start_byte()..last.end_byte()];
-            if first_text == "(" && last_text == ")" {
+            if first.text() == "(" && last.text() == ")" {
                 return *middle;
             }
         }
@@ -288,61 +276,46 @@ fn unwrap_parentheses<'a>(node: tree_sitter::Node<'a>, text: &str) -> tree_sitte
     node
 }
 
-fn clause_child<'tree>(
-    parent: tree_sitter::Node<'tree>,
-    kind: NodeKind,
-) -> Option<tree_sitter::Node<'tree>> {
-    let mut cursor = parent.walk();
-    let mut children = parent.children(&mut cursor);
-    children.find(|child| M2Node::new(*child).kind == kind)
+fn clause_child<'tree>(parent: M2Node<'tree>, kind: NodeKind) -> Option<M2Node<'tree>> {
+    parent.children().find(|child| child.kind == kind)
 }
 
-fn expression_of_clause<'tree>(
-    clause: tree_sitter::Node<'tree>,
-) -> Option<tree_sitter::Node<'tree>> {
-    let mut cursor = clause.walk();
-    let mut children = clause.named_children(&mut cursor);
-    children.next()
+fn expression_of_clause(clause: M2Node<'_>) -> Option<M2Node<'_>> {
+    clause.named_children().next()
 }
 
-fn if_statement_at_position<'tree>(
-    document: &'tree DocumentSnapshot,
-    position: Position,
-) -> Option<tree_sitter::Node<'tree>> {
+fn if_statement_at_position(document: &DocumentSnapshot, position: Position) -> Option<M2Node<'_>> {
     let node = document.node_at_position_minimal(position)?;
-    document.enclosing_node_of_kind(node, "if_statement")
+    document.enclosing_node_of_kind(node, NodeKind::IfStatement)
 }
 
-fn try_statement_at_position<'tree>(
-    document: &'tree DocumentSnapshot,
+fn try_statement_at_position(
+    document: &DocumentSnapshot,
     position: Position,
-) -> Option<tree_sitter::Node<'tree>> {
+) -> Option<M2Node<'_>> {
     let node = document.node_at_position_minimal(position)?;
-    document.enclosing_node_of_kind(node, "try_statement")
+    document.enclosing_node_of_kind(node, NodeKind::TryStatement)
 }
 
-fn string_literal_at_position<'tree>(
-    document: &'tree DocumentSnapshot,
+fn string_literal_at_position(
+    document: &DocumentSnapshot,
     position: Position,
-) -> Option<tree_sitter::Node<'tree>> {
+) -> Option<M2Node<'_>> {
     let node = document.node_at_position_minimal(position)?;
-    let string_node = document.enclosing_node_of_kind(node, "string_literal")?;
-    let text = &document.text()[string_node.start_byte()..string_node.end_byte()];
-    (text.starts_with('"') && text.ends_with('"')).then_some(string_node)
+    document.enclosing_node_of_kind(node, NodeKind::StringLiteral)
 }
 
-fn ambiguous_float_member_access_node_at_position<'tree>(
-    document: &'tree DocumentSnapshot,
+fn ambiguous_float_member_access_node_at_position(
+    document: &DocumentSnapshot,
     position: Position,
-) -> Option<tree_sitter::Node<'tree>> {
+) -> Option<M2Node<'_>> {
     let node = document.node_at_position_minimal(position)?;
-    let binary = document.enclosing_node_of_kind(node, "binary_expression")?;
-    ambiguous_float_member_access_rewrite(binary, document.text()).map(|_| binary)
+    let binary = document.enclosing_node_of_kind(node, NodeKind::BinaryExpression)?;
+    ambiguous_float_member_access_rewrite(binary).map(|_| binary)
 }
 
-fn raw_string_replacement(text: &str, string_node: tree_sitter::Node<'_>) -> Option<String> {
-    let literal = &text[string_node.start_byte()..string_node.end_byte()];
-    let content = literal.strip_prefix('"')?.strip_suffix('"')?;
+fn raw_string_replacement(string_node: M2Node<'_>) -> Option<String> {
+    let content = string_node.string_literal_inner_text()?;
     let escape_count = count_string_escapes(content);
     if escape_count <= 2 {
         return None;
@@ -401,13 +374,12 @@ fn position_in_range(position: Position, range: Range) -> bool {
         && (position.line != range.end.line || position.character < range.end.character)
 }
 
-fn is_null_literal(node: tree_sitter::Node, text: &str) -> bool {
-    M2Node::new(node).kind == NodeKind::Symbol
-        && &text[node.start_byte()..node.end_byte()] == "null"
+fn is_null_literal(node: M2Node<'_>) -> bool {
+    node.kind == NodeKind::Symbol && node.text() == "null"
 }
 
-fn not_condition_needs_parentheses(node: tree_sitter::Node) -> bool {
-    M2Node::new(node).kind == NodeKind::BinaryExpression
+fn not_condition_needs_parentheses(node: M2Node<'_>) -> bool {
+    node.kind == NodeKind::BinaryExpression
 }
 
 fn negated_binary_operator(operator: &str) -> Option<&'static str> {
@@ -424,21 +396,20 @@ fn negated_binary_operator(operator: &str) -> Option<&'static str> {
     }
 }
 
-fn negated_condition_text(node: tree_sitter::Node, text: &str) -> String {
-    if M2Node::new(node).kind == NodeKind::PrefixExpression {
+fn negated_condition_text(node: M2Node<'_>) -> String {
+    if node.kind == NodeKind::PrefixExpression {
         if let Some(operator) = node.child_by_field_name("operator") {
-            if &text[operator.start_byte()..operator.end_byte()] == "not" {
-                let mut cursor = node.walk();
-                for child in node.named_children(&mut cursor) {
+            if operator.text() == "not" {
+                for child in node.named_children() {
                     if child.id() != operator.id() {
-                        return text[child.start_byte()..child.end_byte()].to_string();
+                        return child.text().to_string();
                     }
                 }
             }
         }
     }
 
-    if let Some(operator) = binary_expression_operator(node, text) {
+    if let Some(operator) = node.binary_operator() {
         if let Some(negated_operator) = negated_binary_operator(operator) {
             let left = node
                 .child_by_field_name("left")
@@ -446,16 +417,11 @@ fn negated_condition_text(node: tree_sitter::Node, text: &str) -> String {
             let right = node
                 .child_by_field_name("right")
                 .expect("binary expressions should have a right operand");
-            return format!(
-                "{} {} {}",
-                &text[left.start_byte()..left.end_byte()],
-                negated_operator,
-                &text[right.start_byte()..right.end_byte()],
-            );
+            return format!("{} {} {}", left.text(), negated_operator, right.text());
         }
     }
 
-    let condition_text = &text[node.start_byte()..node.end_byte()];
+    let condition_text = node.text();
     if not_condition_needs_parentheses(node) {
         format!("not ({condition_text})")
     } else {
@@ -463,40 +429,38 @@ fn negated_condition_text(node: tree_sitter::Node, text: &str) -> String {
     }
 }
 
-pub(crate) fn refactor_if_null_branch(if_node: tree_sitter::Node, text: &str) -> Option<String> {
+pub(crate) fn refactor_if_null_branch(if_node: M2Node<'_>) -> Option<String> {
     let condition = if_node.child_by_field_name("condition")?;
     let then_branch = expression_of_clause(clause_child(if_node, NodeKind::ThenClause)?)?;
     let else_branch = expression_of_clause(clause_child(if_node, NodeKind::ElseClause)?)?;
 
-    if is_null_literal(else_branch, text) {
+    if is_null_literal(else_branch) {
         return Some(format!(
             "if {} then {}",
-            &text[condition.start_byte()..condition.end_byte()],
-            &text[then_branch.start_byte()..then_branch.end_byte()],
+            condition.text(),
+            then_branch.text(),
         ));
     }
 
-    if is_null_literal(then_branch, text) && !is_null_literal(else_branch, text) {
+    if is_null_literal(then_branch) && !is_null_literal(else_branch) {
         return Some(format!(
             "if {} then {}",
-            negated_condition_text(condition, text),
-            &text[else_branch.start_byte()..else_branch.end_byte()],
+            negated_condition_text(condition),
+            else_branch.text(),
         ));
     }
 
     None
 }
 
-fn try_alternative_is_else(try_node: tree_sitter::Node, _text: &str) -> bool {
+fn try_alternative_is_else(try_node: M2Node<'_>) -> bool {
     clause_child(try_node, NodeKind::ElseClause).is_some()
 }
 
-fn try_condition<'tree>(try_node: tree_sitter::Node<'tree>) -> Option<tree_sitter::Node<'tree>> {
-    let mut cursor = try_node.walk();
-    let mut children = try_node.named_children(&mut cursor);
-    children.find(|child| {
+fn try_condition(try_node: M2Node<'_>) -> Option<M2Node<'_>> {
+    try_node.named_children().find(|child| {
         !matches!(
-            M2Node::new(*child).kind,
+            child.kind,
             NodeKind::ThenClause
                 | NodeKind::ElseClause
                 | NodeKind::ExceptClause
@@ -505,13 +469,13 @@ fn try_condition<'tree>(try_node: tree_sitter::Node<'tree>) -> Option<tree_sitte
     })
 }
 
-pub(crate) fn refactor_try_statement(try_node: tree_sitter::Node, text: &str) -> Option<String> {
+pub(crate) fn refactor_try_statement(try_node: M2Node<'_>) -> Option<String> {
     let condition = try_condition(try_node)?;
     let consequence = clause_child(try_node, NodeKind::ThenClause).and_then(expression_of_clause);
     let else_clause = clause_child(try_node, NodeKind::ElseClause);
 
-    let condition_text = &text[condition.start_byte()..condition.end_byte()];
-    let consequence_text = consequence.map(|node| &text[node.start_byte()..node.end_byte()]);
+    let condition_text = condition.text();
+    let consequence_text = consequence.map(|node| node.text());
 
     if let Some(consequence_text) = consequence_text {
         if consequence_text == condition_text && else_clause.is_none() {
@@ -521,7 +485,7 @@ pub(crate) fn refactor_try_statement(try_node: tree_sitter::Node, text: &str) ->
 
     if let Some(else_clause) = else_clause {
         let alternative = expression_of_clause(else_clause)?;
-        if is_null_literal(alternative, text) && try_alternative_is_else(try_node, text) {
+        if is_null_literal(alternative) && try_alternative_is_else(try_node) {
             let mut simplified = format!("try {condition_text}");
             if let Some(consequence_text) = consequence_text {
                 simplified.push_str(" then ");
@@ -539,6 +503,7 @@ mod tests {
     use super::*;
     use crate::document::DocumentSnapshot;
     use crate::typesystem::BuiltinData;
+    use crate::util::full_document_range;
 
     fn document(text: &str) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
