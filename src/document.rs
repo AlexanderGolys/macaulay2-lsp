@@ -364,9 +364,6 @@ mod tests {
         let fact = document
             .expression_fact_at_position(Position::new(2, 5))
             .expect("expression fact should resolve");
-        assert!(matches!(
-            fact.result_type,
-            crate::analysis::ExpressionType::Known(_)
-        ));
+        assert!(fact.result_type.label().is_some());
     }
 }

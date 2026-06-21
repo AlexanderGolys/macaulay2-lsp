@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use tower_lsp::lsp_types::{
     InlayHint, InlayHintKind, InlayHintLabel, InlayHintServerCapabilities, OneOf, Range,
 };
@@ -56,14 +58,29 @@ fn binding_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<InlayHi
 }
 
 fn expression_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<InlayHint> {
-    document
-        .analysis()
+    let analysis = document.analysis();
+    // A binding already shows its type on the variable, so drop the RHS /
+    // whole-assignment expression hint that would repeat the same type on the
+    // value side (`x : T = expr : T` → keep only `x : T`). Keyed by the binding's
+    // value-range end plus type, which both the RHS expression fact and the
+    // assignment fact share.
+    let binding_value_types: HashSet<(u32, u32, String)> = analysis
+        .typed_bindings_in_range(*range)
+        .into_iter()
+        .filter_map(|binding| {
+            let end = binding.value_range?.end;
+            Some((end.line, end.character, binding.type_name.clone()?))
+        })
+        .collect();
+    analysis
         .typed_expression_facts_in_range(*range)
         .into_iter()
         .filter_map(|fact| {
-            let crate::analysis::ExpressionType::Known(type_name) = &fact.result_type else {
+            let type_name = fact.result_type.label()?;
+            let end = fact.span.range.end;
+            if binding_value_types.contains(&(end.line, end.character, type_name.clone())) {
                 return None;
-            };
+            }
             Some(InlayHint {
                 position: fact.span.range.end,
                 label: InlayHintLabel::from(format!(": {type_name}")),

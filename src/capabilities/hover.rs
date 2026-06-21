@@ -118,7 +118,7 @@ pub(crate) fn call_signature_usage_for_hover(
         let argument = parent.child_by_field_name("right")?;
         analysis
             .infer_call_static_facts(M2Node::new(argument), text, Some(builtins))
-            .argument_types
+            .dispatch_argument_types()
     } else if parent
         .child_by_field_name("operator")
         .is_some_and(|operator| operator.id() == node.id())
