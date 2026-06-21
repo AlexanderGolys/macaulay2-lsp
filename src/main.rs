@@ -421,7 +421,12 @@ impl LanguageServer for Backend {
             document.imported_packages(),
         );
         let scoped = self.partitioned.scoped(&loaded);
-        Ok(completion_response(document.text(), position, &scoped))
+        Ok(completion_response(
+            document.text(),
+            position,
+            document.analysis(),
+            &scoped,
+        ))
     }
 
     async fn semantic_tokens_full(

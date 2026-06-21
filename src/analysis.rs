@@ -531,6 +531,26 @@ impl Analysis {
             .collect()
     }
 
+    /// Local symbol names visible at `pos` whose name starts with `prefix`, from
+    /// the most-nested scope outward, de-duplicated (a nearer binding shadows an
+    /// outer one). Drives local-symbol completion.
+    pub fn in_scope_symbols(&self, prefix: &str, pos: Position) -> Vec<(String, SymbolKind)> {
+        let mut seen = HashSet::new();
+        let mut out = Vec::new();
+        let mut current = self.find_scope_at(pos);
+        while let Some(idx) = current {
+            for (name, infos) in &self.scopes[idx].symbols {
+                if name.starts_with(prefix) && seen.insert(name.clone()) {
+                    if let Some(info) = infos.first() {
+                        out.push((name.clone(), info.kind));
+                    }
+                }
+            }
+            current = self.scopes[idx].parent_idx;
+        }
+        out
+    }
+
     fn find_scope_at(&self, pos: Position) -> Option<usize> {
         let mut best_idx = None;
         let mut best_range: Option<LspRange> = None;
@@ -2911,6 +2931,25 @@ mod tests {
             &analysis,
             M2Diagnostic::InstallNeedsColonEquals
         ));
+    }
+
+    #[test]
+    fn in_scope_symbols_lists_local_bindings_by_prefix() {
+        let analysis = analyze("alpha = 1\nalef = 2\nbeta = 3\n");
+        let mut names: Vec<String> = analysis
+            .in_scope_symbols("al", Position::new(3, 0))
+            .into_iter()
+            .map(|(name, _kind)| name)
+            .collect();
+        names.sort();
+        assert_eq!(names, vec!["alef".to_string(), "alpha".to_string()]);
+    }
+
+    #[test]
+    fn in_scope_symbols_classifies_functions() {
+        let analysis = analyze("g = x -> x\n");
+        let symbols = analysis.in_scope_symbols("g", Position::new(1, 0));
+        assert_eq!(symbols, vec![("g".to_string(), SymbolKind::FUNCTION)]);
     }
 
     #[test]

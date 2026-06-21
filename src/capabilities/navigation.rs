@@ -11,26 +11,97 @@ use crate::typesystem::{InstanceID, Record};
 use crate::util::*;
 use crate::workspace_index::WorkspaceIndex;
 
+/// The M2 keywords offered as completions — the control-flow, declaration, and
+/// value keywords a user types (a subset of all reserved words: the ones worth
+/// completing, not internal debug operators).
+const COMPLETION_KEYWORDS: &[&str] = &[
+    "if",
+    "then",
+    "else",
+    "for",
+    "from",
+    "to",
+    "do",
+    "list",
+    "while",
+    "when",
+    "in",
+    "of",
+    "break",
+    "continue",
+    "return",
+    "try",
+    "catch",
+    "throw",
+    "new",
+    "and",
+    "or",
+    "not",
+    "method",
+    "true",
+    "false",
+    "null",
+    "symbol",
+    "local",
+    "global",
+    "threadLocal",
+];
+
 pub(crate) fn completion_response(
     text: &str,
     position: Position,
+    analysis: &crate::analysis::Analysis,
     scoped: &ScopedIndex,
 ) -> Option<CompletionResponse> {
     let prefix = symbol_prefix_at(text, position)?;
+    let mut items = Vec::new();
+    let mut seen = std::collections::HashSet::new();
 
-    let items = scoped
-        .names_with_prefix(&prefix, 80)
-        .into_iter()
-        .map(|(package, name)| CompletionItem {
-            label: name.to_string(),
-            kind: Some(CompletionItemKind::FUNCTION),
-            // Label provenance only for non-baseline packages, matching prior UX.
-            detail: (package != "Core").then(|| format!("Package: {package}")),
-            ..Default::default()
-        })
-        .collect();
+    // Local in-scope symbols first — a user binding shadows a builtin of the
+    // same name, so it wins the de-dup.
+    for (name, kind) in analysis.in_scope_symbols(&prefix, position) {
+        if seen.insert(name.clone()) {
+            items.push(CompletionItem {
+                label: name,
+                kind: Some(completion_item_kind(kind)),
+                ..Default::default()
+            });
+        }
+    }
+
+    // Keywords.
+    for keyword in COMPLETION_KEYWORDS {
+        if keyword.starts_with(&prefix) && seen.insert((*keyword).to_string()) {
+            items.push(CompletionItem {
+                label: (*keyword).to_string(),
+                kind: Some(CompletionItemKind::KEYWORD),
+                ..Default::default()
+            });
+        }
+    }
+
+    // Builtin / imported package names from the scoped index.
+    for (package, name) in scoped.names_with_prefix(&prefix, 80) {
+        if seen.insert(name.to_string()) {
+            items.push(CompletionItem {
+                label: name.to_string(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                // Label provenance only for non-baseline packages, matching prior UX.
+                detail: (package != "Core").then(|| format!("Package: {package}")),
+                ..Default::default()
+            });
+        }
+    }
 
     Some(CompletionResponse::Array(items))
+}
+
+/// Map an analysis symbol kind to the completion-item kind shown in the editor.
+fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
+    match kind {
+        SymbolKind::FUNCTION => CompletionItemKind::FUNCTION,
+        _ => CompletionItemKind::VARIABLE,
+    }
 }
 
 pub(crate) fn references_response(
@@ -349,6 +420,37 @@ mod tests {
     fn document(text: &str) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), &crate::typesystem::BuiltinData::empty())
             .expect("fixture should parse")
+    }
+
+    fn completion_labels(text: &str, position: Position) -> Vec<String> {
+        use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
+        let document = document(text);
+        let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
+        let loaded = LoadedPackages::resolve(index.default_loaded(), text);
+        let scoped = index.scoped(&loaded);
+        match completion_response(text, position, document.analysis(), &scoped) {
+            Some(CompletionResponse::Array(items)) => {
+                items.into_iter().map(|item| item.label).collect()
+            }
+            other => panic!("expected an array completion response, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn completion_merges_locals_keywords_and_builtins() {
+        // Local bindings appear for a matching prefix.
+        let locals = completion_labels("myvar = 1\nmyfun = x -> x\nmy\n", Position::new(2, 2));
+        assert!(locals.contains(&"myvar".to_string()), "got {locals:?}");
+        assert!(locals.contains(&"myfun".to_string()), "got {locals:?}");
+
+        // Keywords appear for a matching prefix.
+        let keywords = completion_labels("wh\n", Position::new(0, 2));
+        assert!(keywords.contains(&"while".to_string()), "got {keywords:?}");
+        assert!(keywords.contains(&"when".to_string()), "got {keywords:?}");
+
+        // Builtin index names still appear.
+        let builtins = completion_labels("ZZ\n", Position::new(0, 2));
+        assert!(builtins.contains(&"ZZ".to_string()), "got {builtins:?}");
     }
 
     #[test]
