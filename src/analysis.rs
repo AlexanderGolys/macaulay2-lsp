@@ -586,6 +586,7 @@ impl Analysis {
         analysis.collect_expression_facts(M2Node::new(tree.root_node()), text, builtins);
         analysis.collect_installations(M2Node::new(tree.root_node()), text, builtins);
         analysis.collect_installation_diagnostics(builtins);
+        analysis.collect_install_form_diagnostics(M2Node::new(tree.root_node()), text, builtins);
         analysis.collect_diagnostics(tree.root_node(), text);
         analysis.collect_unused_binding_diagnostics(tree.root_node(), text);
         analysis
@@ -940,6 +941,71 @@ impl Analysis {
             self.installation_diagnostics(installation, Some(builtins), &mut diagnostics);
         }
         self.diagnostics.extend(diagnostics);
+    }
+
+    /// Flag a method install written with `=` instead of `:=` on a method
+    /// function head (`f Domain = fn`). M2 rejects this ("no method for storing
+    /// values of function f") because the assignment-install form is reserved for
+    /// operators; `:=` is the installation operator. A lambda RHS distinguishes an
+    /// install attempt from a legitimate value store. Walks the tree itself
+    /// because such an `=` is classified as a plain assignment (no install record).
+    fn collect_install_form_diagnostics(
+        &mut self,
+        node: M2Node,
+        text: &str,
+        builtins: Option<&BuiltinData>,
+    ) {
+        let mut diagnostics = Vec::new();
+        self.scan_install_form(node, text, builtins, &mut diagnostics);
+        self.diagnostics.extend(diagnostics);
+    }
+
+    fn scan_install_form(
+        &self,
+        node: M2Node,
+        text: &str,
+        builtins: Option<&BuiltinData>,
+        out: &mut Vec<Diagnostic>,
+    ) {
+        if let Some(name) = self.illegal_equals_install_head(node, text, builtins) {
+            out.push(M2Diagnostic::InstallNeedsColonEquals.at(
+                to_lsp_range(text, node.range()),
+                format!(
+                    "Installing a method on `{name}` must use `:=`, not `=`: M2 rejects this \
+                     (\"no method for storing values of function {name}\"). Use `:=`."
+                ),
+            ));
+        }
+        for child in node.children() {
+            self.scan_install_form(child, text, builtins, out);
+        }
+    }
+
+    /// The function name when `node` is `f Domain = fn` — an `=` assignment whose
+    /// left side is a function-head install shape, whose right side is a lambda
+    /// (install intent, not a value store), and whose head is a method function.
+    /// `None` otherwise.
+    fn illegal_equals_install_head(
+        &self,
+        node: M2Node,
+        text: &str,
+        builtins: Option<&BuiltinData>,
+    ) -> Option<String> {
+        if !is_assignment_expression(node, text)
+            || binary_expression_operator(node, text) != Some("=")
+        {
+            return None;
+        }
+        let right = node.child_by_field_name("right")?;
+        if right.kind != NodeKind::LambdaExpression {
+            return None;
+        }
+        let left = node.child_by_field_name("left")?;
+        let (MethodHead::Function(name), _) = self.installation_shape(left, text, builtins)? else {
+            return None;
+        };
+        (self.head_function_kind(&name, builtins) == HeadFunctionKind::MethodFunction)
+            .then_some(name)
     }
 
     /// The diagnostics for a single installation: a no-effect warning on a
@@ -2600,6 +2666,40 @@ mod tests {
         let analysis = analyze_with_builtins("f = x -> x\nf ZZ := y -> y\n", &builtins);
         let function = analysis.function("f").expect("f is a recorded function");
         assert!(function.methods.is_empty());
+    }
+
+    #[test]
+    fn equals_install_on_method_function_head_is_flagged() {
+        // `f Domain = fn` must be `:=`; M2 errors ("no method for storing
+        // values of function f"). Verified against M2 1.26.05.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins("f = method()\nf ZZ = x -> x\n", &builtins);
+        assert!(has_diagnostic(
+            &analysis,
+            M2Diagnostic::InstallNeedsColonEquals
+        ));
+    }
+
+    #[test]
+    fn colon_equals_install_is_not_flagged_as_wrong_form() {
+        // The correct `:=` install form must not trip the wrong-form diagnostic.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins("f = method()\nf ZZ := x -> x\n", &builtins);
+        assert!(!has_diagnostic(
+            &analysis,
+            M2Diagnostic::InstallNeedsColonEquals
+        ));
+    }
+
+    #[test]
+    fn operator_assignment_install_is_not_flagged_as_wrong_form() {
+        // `X op Y = fn` IS the legal assignment-install form for operators.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins("ZZ * ZZ = (a, b, c) -> c\n", &builtins);
+        assert!(!has_diagnostic(
+            &analysis,
+            M2Diagnostic::InstallNeedsColonEquals
+        ));
     }
 
     #[test]

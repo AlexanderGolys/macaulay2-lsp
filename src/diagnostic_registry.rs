@@ -26,6 +26,7 @@ pub enum M2Diagnostic {
     InstallNoEffect,
     OperatorNotFlexible,
     InstallArity,
+    InstallNeedsColonEquals,
 }
 
 impl M2Diagnostic {
@@ -43,6 +44,7 @@ impl M2Diagnostic {
             Self::InstallNoEffect => "E08",
             Self::OperatorNotFlexible => "E09",
             Self::InstallArity => "E10",
+            Self::InstallNeedsColonEquals => "E11",
         }
     }
 
@@ -61,6 +63,7 @@ impl M2Diagnostic {
             Self::InstallNoEffect => "install-no-effect",
             Self::OperatorNotFlexible => "operator-not-flexible",
             Self::InstallArity => "install-arity",
+            Self::InstallNeedsColonEquals => "install-needs-colon-equals",
         }
     }
 
@@ -72,7 +75,8 @@ impl M2Diagnostic {
             | Self::ColonEqualPartAssignment
             | Self::ParallelAssignmentArity
             | Self::OperatorNotFlexible
-            | Self::InstallArity => DiagnosticSeverity::ERROR,
+            | Self::InstallArity
+            | Self::InstallNeedsColonEquals => DiagnosticSeverity::ERROR,
             Self::AmbiguousFloatMemberAccess | Self::UnusedBinding | Self::InstallNoEffect => {
                 DiagnosticSeverity::WARNING
             }
@@ -125,6 +129,7 @@ mod tests {
             M2Diagnostic::InstallNoEffect,
             M2Diagnostic::OperatorNotFlexible,
             M2Diagnostic::InstallArity,
+            M2Diagnostic::InstallNeedsColonEquals,
         ];
         let mut names = HashSet::new();
         for (index, diagnostic) in all.iter().enumerate() {
