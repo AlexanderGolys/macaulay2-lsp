@@ -46,6 +46,12 @@ pub enum NodeKind {
     ThenClause,
     ElseClause,
     ExceptClause,
+    SilencedExpression,
+    // Anonymous tokens (named=false in the grammar) the formatter inspects by
+    // kind: the implicit-application operator and the sequence separators.
+    Space,
+    Comma,
+    Semicolon,
     LineComment,
     BlockComment,
     Unknown,
@@ -98,6 +104,10 @@ impl NodeKind {
             "then_clause" => Self::ThenClause,
             "else_clause" => Self::ElseClause,
             "except_clause" => Self::ExceptClause,
+            "silenced_expression" => Self::SilencedExpression,
+            "SPACE" => Self::Space,
+            "," => Self::Comma,
+            ";" => Self::Semicolon,
             "line_comment" => Self::LineComment,
             "block_comment" => Self::BlockComment,
             _ => Self::Unknown,
@@ -164,6 +174,10 @@ impl<'tree> M2Node<'tree> {
 
     pub fn child(&self, index: u32) -> Option<M2Node<'tree>> {
         self.node.child(index).map(M2Node::new)
+    }
+
+    pub fn named_child(&self, index: u32) -> Option<M2Node<'tree>> {
+        self.node.named_child(index).map(M2Node::new)
     }
 
     pub fn named_children(&self) -> impl Iterator<Item = M2Node<'tree>> + '_ {
