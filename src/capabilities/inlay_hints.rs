@@ -5,16 +5,10 @@ use tower_lsp::lsp_types::{
 use crate::document::DocumentSnapshot;
 
 pub(crate) fn inlay_hint_provider_capability() -> Option<OneOf<bool, InlayHintServerCapabilities>> {
-    None
+    Some(OneOf::Left(true))
 }
 
 pub(crate) fn inlay_hints_response(document: &DocumentSnapshot, range: Range) -> Vec<InlayHint> {
-    let _ = (document, range);
-    Vec::new()
-}
-
-#[allow(dead_code)]
-fn disabled_inlay_hints_response(document: &DocumentSnapshot, range: Range) -> Vec<InlayHint> {
     let mut hints = Vec::new();
 
     hints.extend(binding_type_hints(document, &range));
