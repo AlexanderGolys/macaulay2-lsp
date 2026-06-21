@@ -1513,9 +1513,8 @@ mod tests {
 
     #[test]
     fn specialized_documented_signatures_override_general_signatures() {
-        let builtins = BuiltinData::load_from_split(
-            "f\n",
-            "{\"name\":\"f\",\"class\":\"MethodFunction\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"Ideal\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"Ideal\"],\"output_types\":[\"Ring\"]}],\"general_signature\":{\"signature\":[\"f\"],\"output_types\":[\"Thing\"]}}}\n",
+        let builtins = BuiltinData::load_from_index(
+            "{\"kind\":\"methodFunction\",\"name\":\"f\",\"methods\":[{\"domain\":[\"Ideal\"],\"typicalValue\":\"Ring\"}]}\n",
         );
         let analysis = analyze_with_builtins("I := new Ideal from {}\nR := f I\nR\n", &builtins);
 
@@ -1529,9 +1528,8 @@ mod tests {
 
     #[test]
     fn infers_static_types_from_documented_operator_signatures() {
-        let builtins = BuiltinData::load_from_split(
-            "+\n",
-            "{\"name\":\"+\",\"class\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"],\"output_types\":[\"ZZ\"]}]}}\n",
+        let builtins = BuiltinData::load_from_index(
+            "{\"kind\":\"operator\",\"name\":\"+\",\"operator\":{\"forms\":[\"binary\"]},\"methods\":[{\"domain\":[\"ZZ\",\"ZZ\"],\"typicalValue\":\"ZZ\"}]}\n",
         );
         let analysis = analyze_with_builtins("x := 1\ny := 2\nz := x + y\nz\n", &builtins);
 
@@ -1663,27 +1661,9 @@ mod tests {
     }
 
     #[test]
-    fn infers_static_types_from_option_sensitive_facts() {
-        let builtins = BuiltinData::load_from_split_with_type_facts(
-            "f\n",
-            "{\"name\":\"f\",\"class\":\"MethodFunctionWithOptions\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"ZZ\"],\"output_types\":[\"String\"]}]}}\n",
-            "{\"callable\":\"f\",\"option_codomains\":[{\"domain\":[\"ZZ\"],\"key\":\"Mode\",\"value\":\"AsList\",\"codomain\":\"List\"}]}\n",
-        );
-        let analysis = analyze_with_builtins("y := f(1, Mode => AsList)\ny\n", &builtins);
-
-        assert_eq!(
-            analysis
-                .get_symbol_at("y", Position::new(1, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
-            Some("List")
-        );
-    }
-
-    #[test]
     fn call_options_do_not_count_as_positional_arguments() {
-        let builtins = BuiltinData::load_from_split(
-            "f\n",
-            "{\"name\":\"f\",\"class\":\"MethodFunctionWithOptions\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"f\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"f\",\"ZZ\"],\"output_types\":[\"String\"]}]}}\n",
+        let builtins = BuiltinData::load_from_index(
+            "{\"kind\":\"methodFunction\",\"name\":\"f\",\"methods\":[{\"domain\":[\"ZZ\"],\"typicalValue\":\"String\"}]}\n",
         );
         let analysis = analyze_with_builtins("y := f(1, Mode => AsList)\ny\n", &builtins);
 
@@ -1707,11 +1687,11 @@ mod tests {
 
     #[test]
     fn infers_static_types_from_space_adjacency_facts() {
-        let builtins = BuiltinData::load_from_split_with_type_facts(
-            "QQ\nSPACE\n",
-            "{\"name\":\"QQ\",\"class\":\"Ring\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{}}\n{\"name\":\"SPACE\",\"class\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"SPACE\",\"Ring\",\"Array\"]}]}}\n",
-            "{\"callable\":\"SPACE\",\"signatures\":[{\"domain\":[\"Ring\",\"Array\"],\"codomain\":\"Ring\"}]}\n",
+        let corpus = concat!(
+            "{\"kind\":\"type\",\"name\":\"QQ\",\"class\":\"Ring\"}\n",
+            "{\"kind\":\"operator\",\"name\":\"SPACE\",\"operator\":{\"forms\":[\"binary\"]},\"methods\":[{\"domain\":[\"Ring\",\"Array\"],\"typicalValue\":\"Ring\"}]}\n",
         );
+        let builtins = BuiltinData::load_from_index(corpus);
         let analysis = analyze_with_builtins("R := QQ\nS := R[x,y]\nS\n", &builtins);
 
         assert_eq!(
@@ -1788,9 +1768,8 @@ mod tests {
 
     #[test]
     fn registry_tracks_expression_and_call_facts() {
-        let builtins = BuiltinData::load_from_split(
-            "+\n",
-            "{\"name\":\"+\",\"class\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"],\"output_types\":[\"ZZ\"]}]}}\n",
+        let builtins = BuiltinData::load_from_index(
+            "{\"kind\":\"operator\",\"name\":\"+\",\"operator\":{\"forms\":[\"binary\"]},\"methods\":[{\"domain\":[\"ZZ\",\"ZZ\"],\"typicalValue\":\"ZZ\"}]}\n",
         );
         let text = "x := 1\ny := 2\nz := x + y\n";
         let mut parser = Parser::new();

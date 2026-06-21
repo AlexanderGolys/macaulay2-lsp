@@ -262,7 +262,7 @@ fn append_usage_signature_section(
 
 fn record_typical_value(record: &Record) -> Option<String> {
     if let Some(value) = record.extra.get("typical_value") {
-        return Some(value.to_string());
+        return value.as_str().map(ToString::to_string);
     }
 
     record

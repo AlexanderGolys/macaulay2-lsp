@@ -185,43 +185,6 @@ pub struct TypeLattice {
 }
 
 impl TypeLattice {
-    // Legacy split-format lattice builder, now only reachable from the test-only
-    // `load_from_split*` fixtures. Production builds via `from_type_index`.
-    #[cfg(test)]
-    pub fn from_builtins(builtins: &BuiltinData) -> Self {
-        let mut ancestors: HashMap<_, Vec<_>> = HashMap::new();
-        let mut children: HashMap<_, Vec<_>> = HashMap::new();
-
-        for name in &builtins.names {
-            let Some(record) = builtins.get_record(name) else {
-                continue;
-            };
-            let Some(type_info) = record.type_info else {
-                continue;
-            };
-            ancestors.insert(name.clone(), {
-                let mut chain = Vec::with_capacity(type_info.ancestors.len() + 1);
-                for ancestor in &type_info.ancestors {
-                    chain.push(ancestor.clone());
-                }
-                chain.sort();
-                chain.dedup();
-                chain
-            });
-            for subtype in &type_info.subtypes {
-                children
-                    .entry(subtype.clone())
-                    .or_default()
-                    .push(name.clone());
-            }
-        }
-
-        TypeLattice {
-            ancestors,
-            children,
-        }
-    }
-
     /// Build the lattice from the `m2-index.jsonl` type records: each carries its
     /// full ancestor chain (sorted here for binary search) and its immediate
     /// subtypes (the children edge).
@@ -356,63 +319,12 @@ pub struct TypeFacts {
     signatures_by_key: HashMap<String, Vec<(Vec<String>, String)>>,
     option_value_usages: HashMap<String, Vec<OptionValueUsage>>,
     option_values_by_slot: HashMap<(String, String), Vec<String>>,
-    option_codomains: Vec<OptionCodomainFact>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OptionValueUsage {
     pub callable: String,
     pub option: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct OptionCodomainFact {
-    callable: String,
-    domain: Vec<String>,
-    key: String,
-    value: String,
-    codomain: String,
-}
-
-// The `TypeFact*` raw structs and `load_jsonl` parse the legacy split-format
-// `type_facts.jsonl`, now only fed by the test-only `load_from_split*` fixtures.
-// Production type facts come from `TypeFacts::from_type_index`.
-#[cfg(test)]
-#[derive(Debug, Deserialize)]
-struct TypeFactRecord {
-    callable: String,
-    #[serde(default)]
-    signatures: Vec<TypeFactSignature>,
-    #[serde(default)]
-    options: Vec<TypeFactOption>,
-    #[serde(default)]
-    option_codomains: Vec<TypeFactOptionCodomain>,
-}
-
-#[cfg(test)]
-#[derive(Debug, Deserialize)]
-struct TypeFactSignature {
-    #[serde(default)]
-    domain: Vec<String>,
-    codomain: String,
-}
-
-#[cfg(test)]
-#[derive(Debug, Deserialize)]
-struct TypeFactOption {
-    key: String,
-    #[serde(default)]
-    values: Vec<String>,
-}
-
-#[cfg(test)]
-#[derive(Debug, Deserialize)]
-struct TypeFactOptionCodomain {
-    key: String,
-    value: String,
-    codomain: String,
-    #[serde(default)]
-    domain: Vec<String>,
 }
 
 /// Whether `domain` admits `arguments` componentwise: each argument is the
@@ -437,66 +349,6 @@ fn domain_at_least_as_specific(lattice: &TypeLattice, a: &[String], b: &[String]
 }
 
 impl TypeFacts {
-    #[cfg(test)]
-    fn load_jsonl(input: &str) -> Self {
-        let mut facts = TypeFacts::default();
-        for line in input.lines().filter(|line| !line.trim().is_empty()) {
-            let Ok(record) = serde_json::from_str::<TypeFactRecord>(line) else {
-                continue;
-            };
-
-            for signature in record.signatures {
-                facts.signature_codomains.insert(
-                    (record.callable.clone(), signature.domain),
-                    signature.codomain,
-                );
-            }
-
-            for option in record.options {
-                let slot = (record.callable.clone(), option.key.clone());
-                for value in option.values {
-                    facts
-                        .option_values_by_slot
-                        .entry(slot.clone())
-                        .or_default()
-                        .push(value.clone());
-                    facts
-                        .option_value_usages
-                        .entry(value)
-                        .or_default()
-                        .push(OptionValueUsage {
-                            callable: record.callable.clone(),
-                            option: option.key.clone(),
-                        });
-                }
-            }
-
-            for option_codomain in record.option_codomains {
-                facts.option_codomains.push(OptionCodomainFact {
-                    callable: record.callable.clone(),
-                    domain: option_codomain.domain,
-                    key: option_codomain.key,
-                    value: option_codomain.value,
-                    codomain: option_codomain.codomain,
-                });
-            }
-        }
-
-        for usages in facts.option_value_usages.values_mut() {
-            usages.sort_by(|left, right| {
-                (left.callable.as_str(), left.option.as_str())
-                    .cmp(&(right.callable.as_str(), right.option.as_str()))
-            });
-            usages.dedup();
-        }
-        for values in facts.option_values_by_slot.values_mut() {
-            values.sort();
-            values.dedup();
-        }
-
-        facts
-    }
-
     /// Build the typecheck facts from the `m2-index.jsonl` callable records.
     /// Honours the monotone rule: a method with no codomain (`typicalValue` null)
     /// contributes no signature — the lookup stays silent rather than guess.
@@ -832,17 +684,8 @@ impl BuiltinData {
         &self,
         callable: &str,
         argument_types: &[Option<String>],
-        literal_options: &[(String, String)],
+        _literal_options: &[(String, String)],
     ) -> Option<String> {
-        let option_codomains =
-            self.option_rule_return_types(callable, argument_types, literal_options);
-        if let [codomain] = option_codomains.as_slice() {
-            return Some(codomain.clone());
-        }
-        if option_codomains.len() > 1 {
-            return None;
-        }
-
         if let Some(signature) = self.resolve_call_signature(callable, argument_types) {
             if let [output_type] = signature.output_types.as_slice() {
                 return Some(output_type.0.clone());
@@ -868,39 +711,6 @@ impl BuiltinData {
         } else {
             None
         }
-    }
-
-    fn option_rule_return_types(
-        &self,
-        callable: &str,
-        argument_types: &[Option<String>],
-        literal_options: &[(String, String)],
-    ) -> Vec<String> {
-        let option_set = literal_options.iter().cloned().collect::<HashSet<_>>();
-        let mut codomains = self
-            .type_facts
-            .option_codomains
-            .iter()
-            .filter(|fact| fact.callable == callable)
-            .filter(|fact| option_set.contains(&(fact.key.clone(), fact.value.clone())))
-            .filter(|fact| {
-                fact.domain.is_empty()
-                    || (fact.domain.len() == argument_types.len()
-                        && domain_possibly_matches(
-                            self,
-                            &fact
-                                .domain
-                                .iter()
-                                .map(|name| InstanceID::new(name))
-                                .collect::<Vec<_>>(),
-                            argument_types,
-                        ))
-            })
-            .map(|fact| fact.codomain.clone())
-            .collect::<Vec<_>>();
-        codomains.sort();
-        codomains.dedup();
-        codomains
     }
 
     pub fn resolve_call_signature(
@@ -1367,59 +1177,6 @@ fn record_from_object(entry: &crate::builtin_index::ObjectEntry) -> Record {
 }
 
 impl BuiltinData {
-    // Legacy split-format (`names` + `details.jsonl`) builders, now only used by
-    // unit-test fixtures. The disk-cache path they served was removed with the
-    // `PackageIndexer` duality; production builds via `from_index`/`from_corpus`.
-    #[cfg(test)]
-    pub fn load_from_split(names: &str, details: &str) -> Self {
-        Self::load_from_split_with_type_facts(names, details, "")
-    }
-
-    /// Build a `BuiltinData` from a packed `names` + `details` JSONL pair — the
-    /// runtime per-package index format (one `Record` per `details` line, aligned
-    /// positionally with `names`). Records are deserialized once, eagerly.
-    #[cfg(test)]
-    pub fn load_from_split_with_type_facts(names: &str, details: &str, type_facts: &str) -> Self {
-        let names: Vec<_> = names
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .map(InstanceID::new)
-            .collect();
-        let name_to_index = names
-            .iter()
-            .cloned()
-            .enumerate()
-            .map(|(index, name)| (name, index))
-            .collect();
-
-        let detail_lines: Vec<&str> = details
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .collect();
-        let records: Vec<Record> = names
-            .iter()
-            .enumerate()
-            .map(|(index, name)| {
-                detail_lines
-                    .get(index)
-                    .and_then(|line| serde_json::from_str::<Record>(line).ok())
-                    .unwrap_or_else(|| Record::unknown(name.clone()))
-            })
-            .collect();
-
-        let mut data = BuiltinData {
-            names,
-            name_to_index,
-            records,
-            docs: HashMap::new(),
-            type_facts: TypeFacts::load_jsonl(type_facts),
-            type_lattice: TypeLattice::default(),
-        };
-        let lattice = TypeLattice::from_builtins(&data);
-        data.type_lattice = lattice;
-        data
-    }
-
     /// Build a `BuiltinData` from an already-parsed `BuiltinIndex`. Hover
     /// markdown is folded into each entry by the corpus generator, so the docs
     /// map is built here from the entries themselves — no separate docs asset.
@@ -1859,8 +1616,14 @@ mod tests {
 
     #[test]
     fn prefix_search_does_not_require_sorted_names() {
-        let builtins =
-            BuiltinData::load_from_split("ZZ\nabout\nRing\ncoefficient\n", "{}\n{}\n{}\n{}\n");
+        // Corpus order: ZZ, about, Ring, coefficient — non-alphabetical across kinds
+        let corpus = concat!(
+            "{\"kind\":\"type\",\"name\":\"ZZ\"}\n",
+            "{\"kind\":\"symbol\",\"name\":\"about\"}\n",
+            "{\"kind\":\"type\",\"name\":\"Ring\"}\n",
+            "{\"kind\":\"methodFunction\",\"name\":\"coefficient\"}\n",
+        );
+        let builtins = BuiltinData::load_from_index(corpus);
 
         assert_eq!(builtins.names_with_prefix("ab", 8), vec!["about"]);
         assert_eq!(builtins.names_with_prefix("co", 8), vec!["coefficient"]);
