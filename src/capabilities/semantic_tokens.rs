@@ -657,9 +657,9 @@ fn is_type_parameter_in_typical_value(node: M2Node<'_>, parent: M2Node<'_>, text
     if binary_expression_operator(parent.inner(), text) != Some("=>") {
         return false;
     }
-    if !parent
+    if parent
         .child_by_field_name("left")
-        .is_some_and(|left| left.id() == node.id())
+        .is_none_or(|left| left.id() != node.id())
     {
         return false;
     }

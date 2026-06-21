@@ -411,11 +411,9 @@ fn count_string_escapes(content: &str) -> usize {
     let mut chars = content.chars().peekable();
     let mut count = 0;
     while let Some(ch) = chars.next() {
-        if ch == '\\' {
-            if chars.peek().is_some() {
-                count += 1;
-                chars.next();
-            }
+        if ch == '\\' && chars.peek().is_some() {
+            count += 1;
+            chars.next();
         }
     }
     count

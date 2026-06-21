@@ -1371,14 +1371,12 @@ impl BuiltinData {
         let scripted_functor_type = InstanceID::new("ScriptedFunctor");
         let symbol_type = InstanceID::new("Symbol");
         let type_type = InstanceID::new("Type");
-        let compiled_function_type = InstanceID::new("CompiledFunction");
-        let compiled_function_closure_type = InstanceID::new("CompiledFunctionClosure");
 
         let is_command = self.is_subtype(&type_id, &command_type);
         let is_file = self.is_subtype(&type_id, &file_type);
         let is_manipulator = self.is_subtype(&type_id, &manipulator_type);
-        let is_compiled_function = self.is_subtype(&type_id, &compiled_function_type)
-            || self.is_subtype(&type_id, &compiled_function_closure_type);
+        // A CompiledFunction(Closure) is a `Function` subtype, so it is already
+        // classified by the `function_type` branch below — no separate test.
         let is_type_valued = self.is_subtype(&type_id, &type_type);
 
         let token_type = if type_name.starts_with("MethodFunction") {

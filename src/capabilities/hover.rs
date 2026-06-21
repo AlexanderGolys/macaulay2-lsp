@@ -447,13 +447,4 @@ mod tests {
             vec!["ZZ"]
         );
     }
-
-    fn signature_label_for_test(signature: &crate::typesystem::ResolvedSignature) -> String {
-        signature
-            .signature
-            .iter()
-            .map(|id| id.0.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
-    }
 }

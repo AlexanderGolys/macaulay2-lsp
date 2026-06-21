@@ -1,77 +1,104 @@
 # Macaulay2 LSP
 
-Experimental Rust language server for [Macaulay2](https://macaulay2.com/), built around Tree-sitter syntax analysis and generated runtime metadata from an installed `M2`.
+A Rust language server for [Macaulay2](https://macaulay2.com/), built on
+Tree-sitter syntax analysis plus a generated database of Macaulay2 builtin
+metadata (types, methods, options, documentation).
 
-The project is intentionally small right now: one active Rust crate, one generated builtin database, and enough LSP behavior to make Neovim testing practical.
+**Status: alpha.** The core capabilities below are implemented and tested, but
+the type system and some heuristics are still evolving. Expect rough edges.
 
 ## Features
 
-- Full-document sync over stdio via `tower-lsp`.
-- Tree-sitter parsing for basic syntax diagnostics.
-- Local go-to-definition for symbols discovered in the current document.
-- Hover and semantic tokens from generated Macaulay2 builtin metadata.
-- Completion for builtin symbols using the split builtin name/detail database.
-
-## Repository Layout
-
-```text
-Cargo.toml
-src/
-  main.rs
-  analysis.rs
-  typesystem.rs
-  capabilities/
-  data/
-    m2-types.jsonl
-    m2-docs.jsonl
-```
+- Full-document and incremental sync over stdio (`tower-lsp`).
+- Tree-sitter parsing with syntax and semantic diagnostics, including
+  Macaulay2-specific checks: invalid method installations (non-flexible
+  operators, no-effect installs, `=` vs `:=`, arity), parallel-assignment
+  arity, and option-key conventions. Diagnostic messages double as M2-idiom
+  hints.
+- **Expression type inference**: an inferred type for each expression
+  (literals, collections, applications, operator dispatch, control flow such as
+  `if`/`try`/`for`/`while`), surfaced through inlay hints and hover.
+- **Hover**: documentation, signatures, and inferred types for both local
+  symbols and indexed builtin/imported-package objects.
+- **Completion**: local in-scope symbols, Macaulay2 keywords, and
+  builtin/imported names.
+- **Signature help**: method signatures with the active parameter highlighted.
+- **Semantic tokens**: rich highlighting for local, builtin, and cross-file
+  workspace symbols.
+- **Navigation**: go-to-definition and references, both in-file and across
+  workspace files; workspace and document symbols; prepare/rename across files;
+  document highlight; type hierarchy.
+- **Formatting**: tree-driven whitespace and indentation; folding ranges.
 
 ## Requirements
 
 - Rust stable toolchain with Cargo.
-- Macaulay2 available as `M2` when regenerating builtin metadata.
-- Network access for Cargo when fetching the pinned Git dependencies:
-  - `tree-sitter`
-  - `tree-sitter-macaulay2`
+- A `tree-sitter-macaulay2` grammar (fetched as a pinned dependency by Cargo).
+- Macaulay2 itself is only needed at runtime by your editor; the builtin
+  metadata is checked in.
+
+## Build and install
+
+From the repository root:
+
+```sh
+cargo build --release
+install -m755 target/release/m2-ls ~/.local/bin/m2-ls
+```
+
+The binary is `m2-ls` (hyphen). Point your editor's LSP client at the installed
+path.
+
+## Editor setup (Neovim, native LSP)
+
+```lua
+vim.lsp.config['m2-ls'] = {
+  cmd = { vim.fn.expand('~/.local/bin/m2-ls') },
+  filetypes = { 'macaulay2' },
+  root_markers = { '.git' },
+}
+vim.lsp.enable('m2-ls')
+```
+
+Restart the client after rebuilding (`:LspRestart m2-ls`) so it picks up a new
+binary.
+
+## Builtin metadata
+
+The server does not hardcode Macaulay2 builtins. They live in a single
+checked-in corpus, `src/data/m2-index.jsonl` — one JSON record per builtin
+object (class, methods, options, semantic-token class, and folded hover
+markdown), partitioned in memory by home package and scoped per document by its
+`needsPackage`/`importFrom` imports. The corpus is a generated artifact produced
+from an installed Macaulay2's documentation.
+
+## Repository layout
+
+```text
+Cargo.toml
+src/
+  main.rs                 LSP server entry point and request handlers
+  analysis.rs             scopes, bindings, installations, type inference
+  typesystem.rs           builtin records, dispatch, signatures
+  diagnostic_registry.rs  the single registry of every diagnostic
+  document.rs             per-document snapshot and incremental edits
+  partitioned_index.rs    package-partitioned builtin index + scoped view
+  workspace_index.rs      cross-file global definition index
+  capabilities/           one module per LSP capability
+  data/
+    m2-index.jsonl        generated builtin corpus
+```
 
 ## Development
 
-Run commands from the repository root.
+Run from the repository root:
 
 ```sh
-cargo check
 cargo fmt
+cargo clippy --tests
 cargo test
 cargo build
-cargo clippy
 ```
 
-Use `cargo run` to start the language server on stdio. Editor configs should point at the built binary, for example:
-
-```text
-/home/flux/m2/macaulay2-lsp/target/debug/m2-ls
-```
-
-## Builtin Metadata
-
-The server does not hardcode Macaulay2 builtins. Regenerate the split database from an installed `M2`:
-
-```sh
-M2 --script scripts/extract_builtins.m2 src/data/builtins.details.jsonl
-```
-
-This writes line-aligned files:
-
-- `src/data/builtins.names`: compact symbol list for completion.
-- `src/data/builtins.details.jsonl`: detailed records for hover, semantic tokens, and type metadata.
-
-For extractor debugging without touching checked-in data:
-
-```sh
-M2 --script scripts/extract_builtins.m2 /tmp/builtins-debug.details.jsonl + % Ring
-M2 --script scripts/extract_builtins.m2 --rich /tmp/builtins-rich.details.jsonl + % Ring
-```
-
-## Documentation
-
-Contributor guidance lives in `CONTRIBUTIONS.md`. Local agent/project-memory routing may live in an ignored `AGENTS.md`.
+The build is expected to be warning-free. See `CONTRIBUTIONS.md` for contributor
+guidance.

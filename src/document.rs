@@ -116,9 +116,7 @@ impl DocumentSnapshot {
     }
 
     pub(crate) fn symbol_node_at_position(&self, position: Position) -> Option<Node<'_>> {
-        let Some(point) = self.point_for_position(position) else {
-            return None;
-        };
+        let point = self.point_for_position(position)?;
         let root = self.root_node();
         // When the cursor sits on the boundary between the anonymous SPACE
         // application operator (which the grammar emits zero-width) and an
