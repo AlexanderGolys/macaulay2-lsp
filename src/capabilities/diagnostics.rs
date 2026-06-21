@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 
 use tower_lsp::lsp_types::Url;
-use tower_lsp::lsp_types::{
-    Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range as LspRange, SymbolKind,
-};
+use tower_lsp::lsp_types::{Position, Range as LspRange, SymbolKind};
 use tower_lsp::Client;
 use tree_sitter::Node;
 
@@ -11,12 +9,10 @@ use crate::analysis::{
     binary_expression_operator, is_assignment_expression, is_space_operator_expression,
     node_position, symbol_node_text, to_lsp_range, utf16_len_for_byte_span, Analysis, BindingRole,
 };
+use crate::diagnostic_registry::M2Diagnostic;
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
 
-pub const ORPHAN_ELSE_DIAGNOSTIC_MESSAGE: &str =
-    "An else clause is optional and can be separated from the statement by a linebreak 
-    only in non-global scope.";
 pub const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
     "This is parsed like function call: dot followed immediately by digits are always parsed 
     as literal floats with the high precedence, following only cobinding specifiers (like `symbol`) 
@@ -28,9 +24,6 @@ pub const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
         - `x..2` => `x .. 2`
         - `x...2` => `x .. .2`
         - `symbol.....2` => `symbol.. .. .2`";
-pub const UNUSED_BINDING_DIAGNOSTIC_CODE: &str = "unused-binding";
-pub const OPTION_KEY_CONVENTION_DIAGNOSTIC_CODE: &str = "option-key-convention";
-
 pub(crate) async fn publish_diagnostics(client: &Client, uri: Url, document: &DocumentSnapshot) {
     let diagnostics = document.diagnostics().to_vec();
     client.publish_diagnostics(uri, diagnostics, None).await;
@@ -41,30 +34,22 @@ impl Analysis {
         let m2_node = M2Node::new(node);
 
         if node.is_error() {
-            self.diagnostics.push(Diagnostic {
-                range: single_line_range(text, node.start_position(), node.start_byte()),
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: "Syntax error".to_string(),
-                ..Default::default()
-            });
+            self.diagnostics.push(M2Diagnostic::SyntaxError.at(
+                single_line_range(text, node.start_position(), node.start_byte()),
+                "Syntax error",
+            ));
         } else if node.is_missing() {
-            self.diagnostics.push(Diagnostic {
-                range: to_lsp_range(text, node.range()),
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: format!("Missing: {}", m2_node.raw_kind()),
-                ..Default::default()
-            });
+            self.diagnostics.push(M2Diagnostic::MissingNode.at(
+                to_lsp_range(text, node.range()),
+                format!("Missing: {}", m2_node.raw_kind()),
+            ));
         } else if let Some(range) = ambiguous_float_member_access_range(node, text) {
-            self.diagnostics.push(Diagnostic {
-                range,
-                severity: Some(DiagnosticSeverity::WARNING),
-                message: AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE.to_string(),
-                ..Default::default()
-            });
+            self.diagnostics.push(
+                M2Diagnostic::AmbiguousFloatMemberAccess
+                    .at(range, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE),
+            );
         } else if is_assignment_expression(m2_node, text) {
             self.validate_assignment_form(node, text);
-        } else if m2_node.kind == NodeKind::Cell {
-            self.diagnose_leading_else(node, text);
         }
 
         // Runs independently of the chain above: any node may be an option pair,
@@ -103,34 +88,10 @@ impl Analysis {
         if !is_function_option_context(node) {
             return;
         }
-        self.diagnostics.push(Diagnostic {
-            range: to_lsp_range(text, key.inner().range()),
-            severity: Some(DiagnosticSeverity::HINT),
-            code: Some(NumberOrString::String(
-                OPTION_KEY_CONVENTION_DIAGNOSTIC_CODE.to_string(),
-            )),
-            message: format!(
-                "Option key `{key_text}` should be capitalized by Macaulay2 convention"
-            ),
-            ..Default::default()
-        });
-    }
-
-    fn diagnose_leading_else(&mut self, cell: Node, text: &str) {
-        let cell_text = &text[cell.start_byte()..cell.end_byte()];
-        if !cell_text.trim_start().starts_with("else") {
-            return;
-        }
-
-        let Some(symbol) = find_first_else_symbol(cell, text) else {
-            return;
-        };
-        self.diagnostics.push(Diagnostic {
-            range: to_lsp_range(text, symbol.range()),
-            severity: Some(DiagnosticSeverity::ERROR),
-            message: ORPHAN_ELSE_DIAGNOSTIC_MESSAGE.to_string(),
-            ..Default::default()
-        });
+        self.diagnostics.push(M2Diagnostic::OptionKeyConvention.at(
+            to_lsp_range(text, key.inner().range()),
+            format!("Option key `{key_text}` should be capitalized by Macaulay2 convention"),
+        ));
     }
 
     fn validate_assignment_form(&mut self, node: Node, text: &str) {
@@ -150,24 +111,22 @@ impl Analysis {
             && !is_method_installation
             && !multiple_assignment_targets_are_symbols(left)
         {
-            self.diagnostics.push(Diagnostic {
-                range: to_lsp_range(text, left.range()),
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: format!("{op_text} multiple assignment targets must be symbols"),
-                ..Default::default()
-            });
+            self.diagnostics
+                .push(M2Diagnostic::MultipleAssignmentTargets.at(
+                    to_lsp_range(text, left.range()),
+                    format!("{op_text} multiple assignment targets must be symbols"),
+                ));
         }
 
         if op_text == ":="
             && M2Node::new(left).is(NodeKind::BinaryExpression)
             && binary_expression_operator(M2Node::new(left), text) == Some("#")
         {
-            self.diagnostics.push(Diagnostic {
-                range: to_lsp_range(text, left.range()),
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: "`:=` cannot assign to parts; use `=` for part assignment".to_string(),
-                ..Default::default()
-            });
+            self.diagnostics
+                .push(M2Diagnostic::ColonEqualPartAssignment.at(
+                    to_lsp_range(text, left.range()),
+                    "`:=` cannot assign to parts; use `=` for part assignment",
+                ));
         }
 
         if matches!(op_text, "=" | ":=") && !is_method_installation {
@@ -193,16 +152,14 @@ impl Analysis {
         let target_nodes = left.named_children().collect::<Vec<_>>();
         let value_nodes = right.named_children().collect::<Vec<_>>();
         if target_nodes.len() != value_nodes.len() {
-            self.diagnostics.push(Diagnostic {
-                range: to_lsp_range(text, right.inner().range()),
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: format!(
+            self.diagnostics.push(M2Diagnostic::ParallelAssignmentArity.at(
+                to_lsp_range(text, right.inner().range()),
+                format!(
                     "parallel assignment binds {} targets but the right-hand side lists {}; their lengths must match",
                     target_nodes.len(),
                     value_nodes.len()
                 ),
-                ..Default::default()
-            });
+            ));
             return;
         }
 
@@ -269,15 +226,9 @@ impl Analysis {
             } else {
                 "variable"
             };
-            self.diagnostics.push(Diagnostic {
-                range: binding.range,
-                severity: Some(DiagnosticSeverity::WARNING),
-                code: Some(NumberOrString::String(
-                    UNUSED_BINDING_DIAGNOSTIC_CODE.to_string(),
-                )),
-                message: format!("Unused {noun} `{name}`"),
-                ..Default::default()
-            });
+            self.diagnostics.push(
+                M2Diagnostic::UnusedBinding.at(binding.range, format!("Unused {noun} `{name}`")),
+            );
         }
     }
 }
@@ -351,22 +302,6 @@ fn multiple_assignment_targets_are_symbols(node: Node) -> bool {
                 && multiple_assignment_targets_are_symbols(child))
     });
     all_targets_valid
-}
-
-fn find_first_else_symbol<'tree>(node: Node<'tree>, text: &str) -> Option<Node<'tree>> {
-    if M2Node::new(node).kind == NodeKind::Symbol
-        && &text[node.start_byte()..node.end_byte()] == "else"
-    {
-        return Some(node);
-    }
-
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if let Some(result) = find_first_else_symbol(child, text) {
-            return Some(result);
-        }
-    }
-    None
 }
 
 pub(crate) fn ambiguous_float_member_access_rewrite(node: Node<'_>, text: &str) -> Option<String> {

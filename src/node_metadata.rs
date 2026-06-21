@@ -14,8 +14,6 @@ pub enum NodeKind {
     IntegerLiteral,
     FloatLiteral,
     StringLiteral,
-    EscapeSequence,
-    RawStringEscape,
     Array,
     Sequence,
     // A parenthesized single expression `(x)` — its own node since grammar 2.5.0,
@@ -55,24 +53,10 @@ pub enum NodeKind {
     ElseClause,
     ExceptClause,
     SilencedExpression,
-    // Anonymous tokens (named=false in the grammar) the formatter inspects by
-    // kind: the implicit-application operator and the sequence separators.
-    Space,
-    Comma,
-    Semicolon,
-    LineComment,
-    BlockComment,
-    // Anonymous clause-keyword tokens the indenter aligns continuation lines to.
-    ThenKeyword,
-    ElseKeyword,
-    // Anonymous bracket-delimiter tokens, used to recover an unclosed opener that
-    // tree-sitter leaves loose inside an ERROR node rather than a collection node.
-    OpenParen,
-    CloseParen,
-    OpenBrace,
-    CloseBrace,
-    OpenBracket,
-    CloseBracket,
+    // Both `line_comment` and `block_comment` fold to one kind: nothing
+    // downstream distinguishes them. String escapes (`escape_sequence`,
+    // `raw_string_escape`) are deliberately not modelled at all.
+    Comment,
     Unknown,
 }
 
@@ -88,8 +72,6 @@ impl NodeKind {
             "integer_literal" => Self::IntegerLiteral,
             "float_literal" => Self::FloatLiteral,
             "string_literal" => Self::StringLiteral,
-            "escape_sequence" => Self::EscapeSequence,
-            "raw_string_escape" => Self::RawStringEscape,
             "array" => Self::Array,
             "sequence" => Self::Sequence,
             "parenthesized_expression" => Self::ParenthesizedExpression,
@@ -127,19 +109,7 @@ impl NodeKind {
             "else_clause" => Self::ElseClause,
             "except_clause" => Self::ExceptClause,
             "silenced_expression" => Self::SilencedExpression,
-            "SPACE" => Self::Space,
-            "," => Self::Comma,
-            ";" => Self::Semicolon,
-            "then" => Self::ThenKeyword,
-            "else" => Self::ElseKeyword,
-            "(" => Self::OpenParen,
-            ")" => Self::CloseParen,
-            "{" => Self::OpenBrace,
-            "}" => Self::CloseBrace,
-            "[" => Self::OpenBracket,
-            "]" => Self::CloseBracket,
-            "line_comment" => Self::LineComment,
-            "block_comment" => Self::BlockComment,
+            "line_comment" | "block_comment" => Self::Comment,
             _ => Self::Unknown,
         }
     }
@@ -202,6 +172,35 @@ impl<'tree> M2Node<'tree> {
 
     pub fn is(self, kind: NodeKind) -> bool {
         self.kind == kind
+    }
+
+    // Anonymous tokens carry no named grammar rule, so their `kind()` is the
+    // literal text. These predicates match that text directly rather than
+    // minting a `NodeKind` variant per literal, keeping the grammar's token
+    // set as the single source of truth.
+
+    pub fn is_comma(&self) -> bool {
+        self.raw_kind() == ","
+    }
+
+    pub fn is_semicolon(&self) -> bool {
+        self.raw_kind() == ";"
+    }
+
+    /// The implicit-application operator: the `SPACE` token tree-sitter inserts
+    /// between a function and its juxtaposed argument (`sin x`, `f(x)`).
+    pub fn is_implicit_application(&self) -> bool {
+        self.raw_kind() == "SPACE"
+    }
+
+    /// An opening collection delimiter: `(`, `{`, `[`, or `<|`.
+    pub fn is_opening_delimiter(&self) -> bool {
+        matches!(self.raw_kind(), "(" | "{" | "[" | "<|")
+    }
+
+    /// A closing collection delimiter: `)`, `}`, `]`, or `|>`.
+    pub fn is_closing_delimiter(&self) -> bool {
+        matches!(self.raw_kind(), ")" | "}" | "]" | "|>")
     }
 
     pub fn child_by_field_name(&self, name: &str) -> Option<M2Node<'tree>> {

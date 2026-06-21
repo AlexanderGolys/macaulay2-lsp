@@ -2,11 +2,9 @@ use std::collections::HashMap;
 
 use tower_lsp::lsp_types::*;
 
-use crate::capabilities::diagnostics::{
-    ambiguous_float_member_access_rewrite, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE,
-    ORPHAN_ELSE_DIAGNOSTIC_MESSAGE,
-};
+use crate::capabilities::diagnostics::ambiguous_float_member_access_rewrite;
 use crate::capabilities::formatting::document_formatting_text_edits;
+use crate::diagnostic_registry::{diagnostic_has_kind, M2Diagnostic};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::util::*;
@@ -19,9 +17,6 @@ pub(crate) fn available_code_actions(
 ) -> Option<CodeActionResponse> {
     let mut actions = Vec::new();
 
-    if let Some(action) = orphan_else_code_action(document, uri, position, diagnostics) {
-        actions.push(CodeActionOrCommand::CodeAction(action));
-    }
     if let Some(action) = format_file_code_action(document, uri) {
         actions.push(CodeActionOrCommand::CodeAction(action));
     }
@@ -110,7 +105,7 @@ pub(crate) fn ambiguous_float_member_access_code_action(
     let diagnostic = diagnostics
         .iter()
         .find(|diagnostic| {
-            diagnostic.message == AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE
+            diagnostic_has_kind(diagnostic, M2Diagnostic::AmbiguousFloatMemberAccess)
                 && position_in_range(position, diagnostic.range)
         })?
         .clone();
@@ -129,37 +124,6 @@ pub(crate) fn ambiguous_float_member_access_code_action(
                     new_text: replacement,
                 }],
             )])),
-            document_changes: None,
-            change_annotations: None,
-        }),
-        command: None,
-        is_preferred: Some(true),
-        disabled: None,
-        data: None,
-    })
-}
-
-pub(crate) fn orphan_else_code_action(
-    document: &DocumentSnapshot,
-    uri: &Url,
-    position: Position,
-    diagnostics: &[Diagnostic],
-) -> Option<CodeAction> {
-    let diagnostic = diagnostics
-        .iter()
-        .find(|diagnostic| {
-            diagnostic.message == ORPHAN_ELSE_DIAGNOSTIC_MESSAGE
-                && diagnostic.range.start.line == position.line
-        })?
-        .clone();
-    let edit = fix_orphan_else_edit(document, position)?;
-
-    Some(CodeAction {
-        title: "Move else to previous line".to_string(),
-        kind: Some(CodeActionKind::QUICKFIX),
-        diagnostics: Some(vec![diagnostic]),
-        edit: Some(WorkspaceEdit {
-            changes: Some(HashMap::from([(uri.clone(), vec![edit])])),
             document_changes: None,
             change_annotations: None,
         }),
@@ -427,71 +391,6 @@ fn ambiguous_float_member_access_node_at_position<'tree>(
     ambiguous_float_member_access_rewrite(binary, document.text()).map(|_| binary)
 }
 
-fn cell_at_position<'tree>(
-    document: &'tree DocumentSnapshot,
-    position: Position,
-) -> Option<tree_sitter::Node<'tree>> {
-    let node = document.node_at_position_minimal(position)?;
-    document.enclosing_node_of_kind(node, "cell")
-}
-
-fn fix_orphan_else_edit(document: &DocumentSnapshot, position: Position) -> Option<TextEdit> {
-    let text = document.text();
-    let cell = cell_at_position(document, position)?;
-    let cell_text = &text[cell.start_byte()..cell.end_byte()];
-    let trimmed = cell_text.trim_start();
-    if !trimmed.starts_with("else") {
-        return None;
-    }
-
-    let after_else = trimmed["else".len()..].trim_start();
-    if after_else.is_empty() {
-        return None;
-    }
-
-    let else_indent_len = cell_text.len().saturating_sub(trimmed.len());
-    let else_indent = &cell_text[..else_indent_len];
-    let nested_indent = format!("{else_indent}    ");
-
-    let previous_line = position.line.checked_sub(1)?;
-    let previous_line_start = line_start_byte(text, previous_line)?;
-    let previous_line_end = line_end_byte(text, previous_line_start);
-    let previous_line_end_char = text[previous_line_start..previous_line_end]
-        .encode_utf16()
-        .count() as u32;
-
-    Some(TextEdit {
-        range: Range::new(
-            Position::new(previous_line, previous_line_end_char),
-            document.range_for(cell).end,
-        ),
-        new_text: format!(" else\n{nested_indent}{after_else}"),
-    })
-}
-
-fn line_start_byte(text: &str, line: u32) -> Option<usize> {
-    if line == 0 {
-        return Some(0);
-    }
-    let mut current_line = 0;
-    for (idx, ch) in text.char_indices() {
-        if ch == '\n' {
-            current_line += 1;
-            if current_line == line {
-                return Some(idx + ch.len_utf8());
-            }
-        }
-    }
-    None
-}
-
-fn line_end_byte(text: &str, start_byte: usize) -> usize {
-    text[start_byte..]
-        .find('\n')
-        .map(|offset| start_byte + offset)
-        .unwrap_or(text.len())
-}
-
 fn raw_string_replacement(text: &str, string_node: tree_sitter::Node<'_>) -> Option<String> {
     let literal = &text[string_node.start_byte()..string_node.end_byte()];
     let content = literal.strip_prefix('"')?.strip_suffix('"')?;
@@ -740,49 +639,14 @@ mod tests {
     }
 
     #[test]
-    fn orphan_else_quickfix_moves_else_to_previous_line() {
-        let text = "if runtimeDict#?name then runtimeDict#name\nelse if isGlobalSmbol name then getGlobalSymbol name\n";
-        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
-        let document = document(text);
-        let diagnostic = Diagnostic {
-            range: Range::new(Position::new(1, 0), Position::new(1, 4)),
-            message: ORPHAN_ELSE_DIAGNOSTIC_MESSAGE.to_string(),
-            ..Default::default()
-        };
-
-        let action = orphan_else_code_action(
-            &document,
-            &uri,
-            Position::new(1, 0),
-            std::slice::from_ref(&diagnostic),
-        )
-        .expect("orphan else quickfix should be available");
-        assert_eq!(action.kind, Some(CodeActionKind::QUICKFIX));
-        assert_eq!(action.diagnostics, Some(vec![diagnostic]));
-
-        let edit = action
-            .edit
-            .expect("code action should carry an edit")
-            .changes
-            .expect("edit should use simple changes");
-        let change = &edit[&uri][0];
-
-        assert_eq!(
-            change.new_text,
-            " else\n    if isGlobalSmbol name then getGlobalSymbol name"
-        );
-    }
-
-    #[test]
     fn ambiguous_float_member_access_quickfix_rewrites_to_hash_member_access() {
         let text = "x.3\n";
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
-        let diagnostic = Diagnostic {
-            range: Range::new(Position::new(0, 0), Position::new(0, 3)),
-            message: AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE.to_string(),
-            ..Default::default()
-        };
+        let diagnostic = M2Diagnostic::AmbiguousFloatMemberAccess.at(
+            Range::new(Position::new(0, 0), Position::new(0, 3)),
+            "ambiguous float member access",
+        );
 
         let action = ambiguous_float_member_access_code_action(
             &document,

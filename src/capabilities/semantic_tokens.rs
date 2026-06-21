@@ -286,7 +286,7 @@ fn syntax_semantic_token_type(text: &str, node: M2Node<'_>) -> Option<M2Semantic
             Some(M2SemanticTokenType::Property)
         }
         NodeKind::StringLiteral => Some(M2SemanticTokenType::String),
-        NodeKind::LineComment | NodeKind::BlockComment => Some(M2SemanticTokenType::Comment),
+        NodeKind::Comment => Some(M2SemanticTokenType::Comment),
         _ if !node.is_named() && is_modifier_node_kind(node.raw_kind()) => {
             Some(M2SemanticTokenType::Modifier)
         }

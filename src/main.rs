@@ -17,6 +17,7 @@ use typesystem::BuiltinData;
 mod analysis;
 mod builtin_index;
 mod capabilities;
+mod diagnostic_registry;
 mod document;
 mod node_metadata;
 mod package_index;

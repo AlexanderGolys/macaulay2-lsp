@@ -846,9 +846,9 @@ checksum = "009994f150cc0cd50ff54917d5bc8bffe8cad10ca10d81c34da2ec421ae61782"
 
 [[package]]
 name = "tree-sitter-macaulay2"
-version = "2.5.1"
+version = "2.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3dff0f6d95cffc3b53287256214227d6708cb23940a117b0d8cbbe4befbfa22"
+checksum = "8f644fa0bb3c573d67e6def4c3ab4ed71713e168cd8b31ce4836a7b490874494"
 dependencies = [
  "cc",
  "tree-sitter",

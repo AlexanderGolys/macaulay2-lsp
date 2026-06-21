@@ -1,12 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use tower_lsp::lsp_types::{
-    Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range as LspRange, SymbolKind,
-};
+use tower_lsp::lsp_types::{Diagnostic, Position, Range as LspRange, SymbolKind};
 use tree_sitter::Tree;
 
-#[cfg(test)]
-use crate::capabilities::diagnostics::ORPHAN_ELSE_DIAGNOSTIC_MESSAGE;
+use crate::diagnostic_registry::M2Diagnostic;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::typesystem::{BuiltinData, InstanceID};
 use crate::util::binary_expression_operator_kind;
@@ -171,13 +168,6 @@ fn fixity_form(fixity: Fixity) -> &'static str {
         Fixity::Postfix => "postfix",
     }
 }
-
-/// Diagnostic code: a method installed on a non-method-function has no effect.
-pub const NO_EFFECT_INSTALL_DIAGNOSTIC_CODE: &str = "m2-install-no-effect";
-/// Diagnostic code: a method installed on an operator form that is not flexible.
-pub const NON_FLEXIBLE_OPERATOR_DIAGNOSTIC_CODE: &str = "m2-operator-not-flexible";
-/// Diagnostic code: the RHS function arity disagrees with the installed domain.
-pub const INSTALL_ARITY_DIAGNOSTIC_CODE: &str = "m2-install-arity";
 
 /// A function's argument shape, read from its lambda parameter node — the arity
 /// of its domain, independent of any installed methods (a function with no
@@ -822,37 +812,27 @@ impl Analysis {
         match &installation.head {
             MethodHead::Function(name) => {
                 if self.head_function_kind(name, builtins) == HeadFunctionKind::NonMethodFunction {
-                    out.push(Diagnostic {
-                        range: installation.range,
-                        severity: Some(DiagnosticSeverity::WARNING),
-                        code: Some(NumberOrString::String(
-                            NO_EFFECT_INSTALL_DIAGNOSTIC_CODE.to_string(),
-                        )),
-                        message: format!(
+                    out.push(M2Diagnostic::InstallNoEffect.at(
+                        installation.range,
+                        format!(
                             "Installing a method on `{name}` has no effect: `{name}` is not a \
                              method function. Define it with `{name} = method()` to make method \
                              installations take effect."
                         ),
-                        ..Default::default()
-                    });
+                    ));
                 }
             }
             MethodHead::Operator(operator) | MethodHead::OperatorAssign(operator) => {
                 let form = fixity_form(operator.fixity);
                 if self.operator_form_is_flexible(&operator.token, form, builtins) == Some(false) {
-                    out.push(Diagnostic {
-                        range: installation.range,
-                        severity: Some(DiagnosticSeverity::ERROR),
-                        code: Some(NumberOrString::String(
-                            NON_FLEXIBLE_OPERATOR_DIAGNOSTIC_CODE.to_string(),
-                        )),
-                        message: format!(
+                    out.push(M2Diagnostic::OperatorNotFlexible.at(
+                        installation.range,
+                        format!(
                             "Cannot install a method on the {form} operator `{}`: it is not \
                              flexible, so M2 rejects the assignment.",
                             operator.token
                         ),
-                        ..Default::default()
-                    });
+                    ));
                 }
             }
         }
@@ -862,18 +842,13 @@ impl Analysis {
         if let Some(Dispatch::Fixed(actual)) = installation.rhs_dispatch {
             let expected = installation.expected_rhs_arity();
             if actual != expected {
-                out.push(Diagnostic {
-                    range: installation.range,
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    code: Some(NumberOrString::String(
-                        INSTALL_ARITY_DIAGNOSTIC_CODE.to_string(),
-                    )),
-                    message: format!(
+                out.push(M2Diagnostic::InstallArity.at(
+                    installation.range,
+                    format!(
                         "This method's function takes {actual} argument(s) but the installation \
                          expects {expected}. Match the domain arity or use a variadic `x -> …`."
                     ),
-                    ..Default::default()
-                });
+                ));
             }
         }
     }
@@ -1992,9 +1967,9 @@ mod tests {
     use super::*;
     use crate::capabilities::diagnostics::{
         member_index_for_ambiguous_float_literal, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE,
-        UNUSED_BINDING_DIAGNOSTIC_CODE,
     };
-    use tower_lsp::lsp_types::{DiagnosticSeverity, NumberOrString};
+    use crate::diagnostic_registry::diagnostic_has_kind;
+    use tower_lsp::lsp_types::DiagnosticSeverity;
     use tree_sitter::Parser;
 
     fn analyze(text: &str) -> Analysis {
@@ -2190,13 +2165,11 @@ mod tests {
         );
     }
 
-    fn has_diagnostic_code(analysis: &Analysis, code: &str) -> bool {
-        analysis.diagnostics.iter().any(|diagnostic| {
-            matches!(
-                &diagnostic.code,
-                Some(NumberOrString::String(actual)) if actual == code
-            )
-        })
+    fn has_diagnostic(analysis: &Analysis, kind: M2Diagnostic) -> bool {
+        analysis
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic_has_kind(diagnostic, kind))
     }
 
     #[test]
@@ -2205,19 +2178,16 @@ mod tests {
         // method install on it is rejected by M2.
         let builtins = core_builtins();
         let analysis = analyze_with_builtins("ZZ > ZZ := (a, b) -> a\n", &builtins);
-        assert!(has_diagnostic_code(
-            &analysis,
-            NON_FLEXIBLE_OPERATOR_DIAGNOSTIC_CODE
-        ));
+        assert!(has_diagnostic(&analysis, M2Diagnostic::OperatorNotFlexible));
     }
 
     #[test]
     fn install_on_flexible_binary_operator_has_no_flexibility_error() {
         let builtins = core_builtins();
         let analysis = analyze_with_builtins("ZZ * ZZ := (a, b) -> a\n", &builtins);
-        assert!(!has_diagnostic_code(
+        assert!(!has_diagnostic(
             &analysis,
-            NON_FLEXIBLE_OPERATOR_DIAGNOSTIC_CODE
+            M2Diagnostic::OperatorNotFlexible
         ));
     }
 
@@ -2226,10 +2196,7 @@ mod tests {
         // Binary domain expects 2 arguments; the fixed-arity RHS supplies 1.
         let builtins = core_builtins();
         let analysis = analyze_with_builtins("ZZ * ZZ := (a) -> a\n", &builtins);
-        assert!(has_diagnostic_code(
-            &analysis,
-            INSTALL_ARITY_DIAGNOSTIC_CODE
-        ));
+        assert!(has_diagnostic(&analysis, M2Diagnostic::InstallArity));
     }
 
     #[test]
@@ -2237,10 +2204,7 @@ mod tests {
         // A bare-symbol parameter absorbs any arity, so it is always valid.
         let builtins = core_builtins();
         let analysis = analyze_with_builtins("ZZ * ZZ := a -> a\n", &builtins);
-        assert!(!has_diagnostic_code(
-            &analysis,
-            INSTALL_ARITY_DIAGNOSTIC_CODE
-        ));
+        assert!(!has_diagnostic(&analysis, M2Diagnostic::InstallArity));
     }
 
     #[test]
@@ -2248,12 +2212,9 @@ mod tests {
         // `X op Y = z` installs `((op,=), X, Y)`; the RHS needs domain + 1 = 3 args.
         let builtins = core_builtins();
         let correct = analyze_with_builtins("ZZ * ZZ = (a, b, c) -> c\n", &builtins);
-        assert!(!has_diagnostic_code(
-            &correct,
-            INSTALL_ARITY_DIAGNOSTIC_CODE
-        ));
+        assert!(!has_diagnostic(&correct, M2Diagnostic::InstallArity));
         let wrong = analyze_with_builtins("ZZ * ZZ = (a, b) -> a\n", &builtins);
-        assert!(has_diagnostic_code(&wrong, INSTALL_ARITY_DIAGNOSTIC_CODE));
+        assert!(has_diagnostic(&wrong, M2Diagnostic::InstallArity));
     }
 
     #[test]
@@ -2767,28 +2728,12 @@ mod tests {
     }
 
     #[test]
-    fn diagnoses_orphan_else_on_new_line_in_global_scope() {
+    fn global_scope_orphan_else_is_a_syntax_error() {
+        // A line-broken `if … then …` at global scope completes at the newline,
+        // so the trailing `else` is orphaned — M2 rejects it. The parser now
+        // reports this directly as a syntax error (no bespoke diagnostic).
         let analysis = analyze("if x then y\n    else z");
-        assert_eq!(analysis.diagnostics.len(), 1);
-        assert_eq!(
-            analysis.diagnostics[0].message,
-            ORPHAN_ELSE_DIAGNOSTIC_MESSAGE
-        );
-        assert_eq!(analysis.diagnostics[0].range.start, Position::new(1, 4));
-        assert_eq!(analysis.diagnostics[0].range.end, Position::new(1, 8));
-    }
-
-    #[test]
-    fn diagnoses_orphan_else_on_new_line_in_example_shape() {
-        let analysis = analyze(
-            "if runtimeDict#?name then runtimeDict#name\nelse if isGlobalSmbol name then getGlobalSymbol name\n",
-        );
-        assert_eq!(analysis.diagnostics.len(), 1);
-        assert_eq!(
-            analysis.diagnostics[0].message,
-            ORPHAN_ELSE_DIAGNOSTIC_MESSAGE
-        );
-        assert_eq!(analysis.diagnostics[0].range.start, Position::new(1, 0));
+        assert!(has_diagnostic(&analysis, M2Diagnostic::SyntaxError));
     }
 
     #[test]
@@ -2796,12 +2741,7 @@ mod tests {
         let analysis = analyze("f := x -> x\nx = 1\n");
 
         assert!(
-            analysis.diagnostics.iter().all(|diagnostic| {
-                diagnostic.code
-                    != Some(NumberOrString::String(
-                        UNUSED_BINDING_DIAGNOSTIC_CODE.to_string(),
-                    ))
-            }),
+            !has_diagnostic(&analysis, M2Diagnostic::UnusedBinding),
             "top-level bindings should not be warned as unused exports"
         );
     }

@@ -246,14 +246,10 @@ fn collect_unclosed_error_brackets(
 ) {
     let mut open_rows = Vec::new();
     for child in error.children() {
-        match child.kind {
-            NodeKind::OpenParen | NodeKind::OpenBrace | NodeKind::OpenBracket => {
-                open_rows.push(child.start_position().row);
-            }
-            NodeKind::CloseParen | NodeKind::CloseBrace | NodeKind::CloseBracket => {
-                open_rows.pop();
-            }
-            _ => {}
+        if child.is_opening_delimiter() {
+            open_rows.push(child.start_position().row);
+        } else if child.is_closing_delimiter() {
+            open_rows.pop();
         }
     }
     let last_row = line_count.saturating_sub(1);
@@ -460,7 +456,7 @@ fn is_dangling_clause_keyword(
 /// demoted to a bare `symbol`; since `else`/`then` are reserved words no real
 /// identifier carries that text, so a symbol spelled so is the misparsed keyword.
 fn is_clause_keyword_leaf(node: M2Node<'_>, text: &str) -> bool {
-    if matches!(node.kind, NodeKind::ElseKeyword | NodeKind::ThenKeyword) {
+    if matches!(node.raw_kind(), "then" | "else") {
         return true;
     }
     node.is(NodeKind::Symbol)
@@ -577,11 +573,11 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
     }
 
     if !node.is_error() {
-        if node.is(NodeKind::Comma) {
+        if node.is_comma() {
             push_comma_whitespace_edits(text, node, edits);
         }
 
-        if node.is(NodeKind::Semicolon) {
+        if node.is_semicolon() {
             push_semicolon_whitespace_edits(text, node, edits);
         }
 
@@ -759,7 +755,7 @@ fn is_parenthesized_call(node: M2Node<'_>) -> bool {
 
     // A call's argument list is a `sequence` (`f(a, b)`, `f()`) or, for a single
     // parenthesized argument, a `parenthesized_expression` (`f(x)`).
-    operator.is(NodeKind::Space)
+    operator.is_implicit_application()
         && matches!(
             right.kind,
             NodeKind::Sequence | NodeKind::ParenthesizedExpression
@@ -1217,18 +1213,29 @@ mod tests {
 
     #[test]
     fn indents_else_branches_of_line_broken_if_expression() {
-        let chain = "extracted := if kind === \"function\" then\n\
+        // A line-broken `if`/`else` chain is only valid M2 inside brackets: at
+        // global scope the newline after a completable `if … then …` ends the
+        // expression and the following `else` is a syntax error. Within `( … )`
+        // the newline is whitespace, so the whole chain is one expression. Each
+        // `else if …` aligns with its `if`, and the final `else` belongs to the
+        // nested `if kind === "operator"`, so it indents one level deeper.
+        let chain = "extracted := (\n\
+             if kind === \"function\" then\n\
              extractFunc(name, db)\n\
              else if kind === \"operator\" then extractOperator(name, db)\n\
-             else extractObject(name, db);\n";
+             else extractObject(name, db)\n\
+             );\n";
         let formatted = format_document_text(chain);
 
-        // Every continuation line of the broken `if` expression sits one level in,
-        // not just the first broken body.
-        assert!(formatted.contains("\n    extractFunc(name, db)\n"));
-        assert!(formatted
-            .contains("\n    else if kind === \"operator\" then extractOperator(name, db)\n"));
-        assert!(formatted.contains("\n    else extractObject(name, db);\n"));
+        assert_eq!(
+            formatted,
+            "extracted := (\n\
+             \x20   if kind === \"function\" then\n\
+             \x20       extractFunc(name, db)\n\
+             \x20   else if kind === \"operator\" then extractOperator(name, db)\n\
+             \x20       else extractObject(name, db)\n\
+             );\n"
+        );
         // The result is stable under re-formatting.
         assert_eq!(format_document_text(&formatted), formatted);
     }
