@@ -3,15 +3,15 @@ use tower_lsp::lsp_types::*;
 use crate::analysis::{BindingRole, FunctionInfo, MethodInfo, SymbolInfo};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::M2Node;
-use crate::typesystem::{BuiltinData, InstanceID};
+use crate::partitioned_index::ScopedIndex;
+use crate::record_lsp::record_hover_with_package_and_usage;
+use crate::typesystem::InstanceID;
 use crate::util::*;
-use crate::{record_lsp::record_hover_with_package_and_usage, typesystem};
 
 pub(crate) fn hover_response(
     document: &DocumentSnapshot,
     position: Position,
-    builtins: &BuiltinData,
-    active_package_indexes: &[(String, BuiltinData)],
+    scoped: &ScopedIndex,
 ) -> Option<Hover> {
     let text = document.text();
     let analysis = document.analysis();
@@ -42,26 +42,12 @@ pub(crate) fn hover_response(
         ));
     }
 
-    for (package, package_index) in active_package_indexes {
-        if let Some(record) = package_index.get_record(&InstanceID(node_text.to_string())) {
-            return Some(crate::record_lsp::record_hover_with_package(
-                &record,
-                Some(package),
-                builtins,
-            ));
-        }
-    }
-
-    if !builtins.contains_name(node_text) {
-        return None;
-    }
-
-    let record = builtins.get_record(&typesystem::InstanceID(node_text.to_string()))?;
-    let signature_usage = call_signature_usage_for_hover(node, node_text, text, analysis, builtins);
+    let (package, record) = scoped.get_record_with_package(&InstanceID(node_text.to_string()))?;
+    let signature_usage = call_signature_usage_for_hover(node, node_text, text, analysis, scoped);
     Some(record_hover_with_package_and_usage(
         &record,
-        Some("Core"),
-        builtins,
+        Some(package),
+        scoped.core(),
         signature_usage.as_ref(),
     ))
 }
@@ -116,9 +102,12 @@ pub(crate) fn call_signature_usage_for_hover(
     node_text: &str,
     text: &str,
     analysis: &crate::analysis::Analysis,
-    builtins: &BuiltinData,
+    scoped: &ScopedIndex,
 ) -> Option<crate::typesystem::SignatureUsage> {
     let parent = node.parent()?;
+    // Static inference stays Core-scoped (its package path is a later phase);
+    // signature-usage resolution consults the full loaded scope.
+    let builtins = scoped.core();
 
     let argument_types = if is_space_operator_expression(parent) {
         let callable = parent.child_by_field_name("left")?;
@@ -149,7 +138,7 @@ pub(crate) fn call_signature_usage_for_hover(
         return None;
     };
 
-    builtins.resolve_call_signature_usage(node_text, &argument_types)
+    scoped.resolve_call_signature_usage(node_text, &argument_types)
 }
 
 pub(crate) fn hoverable_symbol_or_operator_node(node: tree_sitter::Node) -> bool {
@@ -240,7 +229,7 @@ fn local_method_signature_label(
 mod tests {
     use super::*;
     use crate::analysis::{Analysis, BindingRole, SymbolInfo};
-    use crate::typesystem::BuiltinData;
+    use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
     use tower_lsp::lsp_types::{HoverContents, Position, Range, SymbolKind};
     use tree_sitter::Parser;
 
@@ -338,13 +327,15 @@ mod tests {
     #[test]
     fn hover_call_context_specializes_builtin_method_signatures() {
         let text = "F := openOut \"test.oldvalues\"\n";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
+        let loaded = LoadedPackages::resolve(index.default_loaded(), "");
+        let scoped = index.scoped(&loaded);
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_builtins(&tree, text, Some(&builtins));
+        let analysis = Analysis::new_with_builtins(&tree, text, Some(scoped.core()));
         let node = tree
             .root_node()
             .descendant_for_point_range(
@@ -353,7 +344,7 @@ mod tests {
             )
             .expect("openOut node should be found");
 
-        let usage = call_signature_usage_for_hover(node, "openOut", text, &analysis, &builtins)
+        let usage = call_signature_usage_for_hover(node, "openOut", text, &analysis, &scoped)
             .expect("openOut hover should resolve usage signatures");
         let signature = usage
             .pinned
@@ -380,16 +371,15 @@ mod tests {
     #[test]
     fn hover_call_context_specializes_operator_method_signatures() {
         let text = "x := 1\ny := 2\nz := x + y\n";
-        let builtins = BuiltinData::load_from_split(
-            "+\n",
-            "{\"name\":\"+\",\"class\":\"Keyword\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{},\"function_info\":{\"methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"]}],\"documented_methods\":[{\"signature\":[\"+\",\"ZZ\",\"ZZ\"],\"output_types\":[\"ZZ\"],\"doc_key\":\"+(ZZ,ZZ)\"}]}}\n",
-        );
+        let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
+        let loaded = LoadedPackages::resolve(index.default_loaded(), "");
+        let scoped = index.scoped(&loaded);
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_builtins(&tree, text, Some(&builtins));
+        let analysis = Analysis::new_with_builtins(&tree, text, Some(scoped.core()));
         let node = tree
             .root_node()
             .descendant_for_point_range(
@@ -402,7 +392,7 @@ mod tests {
             "operator tokens should be hoverable"
         );
 
-        let usage = call_signature_usage_for_hover(node, "+", text, &analysis, &builtins)
+        let usage = call_signature_usage_for_hover(node, "+", text, &analysis, &scoped)
             .expect("+ hover should resolve usage signatures");
         let signature = usage
             .pinned

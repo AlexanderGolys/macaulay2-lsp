@@ -443,13 +443,12 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let active_package_indexes = self.active_package_indexes(document.text());
-        Ok(hover_response(
-            document.value(),
-            position,
-            &self.builtins,
-            &active_package_indexes,
-        ))
+        let loaded = LoadedPackages::from_parts(
+            self.partitioned.default_loaded(),
+            document.imported_packages(),
+        );
+        let scoped = self.partitioned.scoped(&loaded);
+        Ok(hover_response(document.value(), position, &scoped))
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {

@@ -45,6 +45,9 @@ pub(crate) fn record_symbol_kind(record: &Record) -> SymbolKind {
     }
 }
 
+// Thin no-usage wrapper, now only exercised by record-hover unit tests; the
+// production hover path always routes through `record_hover_with_package_and_usage`.
+#[allow(dead_code)]
 pub(crate) fn record_hover_with_package(
     record: &Record,
     package: Option<&str>,
