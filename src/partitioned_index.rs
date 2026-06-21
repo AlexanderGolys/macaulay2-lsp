@@ -131,6 +131,20 @@ impl<'a> ScopedIndex<'a> {
             .find_map(|(package, data)| data.get_record(name).map(|record| (*package, record)))
     }
 
+    /// The owning partition of `name`: its package, record, and the partition's
+    /// `BuiltinData` (which carries that record's docs, documented signatures, and
+    /// option usages). Hover renders from the owning partition so an imported
+    /// package object shows its own documentation, not just a Core lookup.
+    pub fn record_partition(
+        &self,
+        name: &InstanceID,
+    ) -> Option<(&'a str, Record, &'a BuiltinData)> {
+        self.partitions.iter().find_map(|(package, data)| {
+            data.get_record(name)
+                .map(|record| (*package, record, *data))
+        })
+    }
+
     pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
         self.get_record_with_package(name).map(|(_, record)| record)
     }

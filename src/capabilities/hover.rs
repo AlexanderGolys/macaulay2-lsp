@@ -42,12 +42,15 @@ pub(crate) fn hover_response(
         ));
     }
 
-    let (package, record) = scoped.get_record_with_package(&InstanceID(node_text.to_string()))?;
+    // Render from the partition that owns the record so an imported package
+    // object shows its own documentation/signatures, not only a Core lookup.
+    let (package, record, owning_data) =
+        scoped.record_partition(&InstanceID(node_text.to_string()))?;
     let signature_usage = call_signature_usage_for_hover(node, node_text, text, analysis, scoped);
     Some(record_hover_with_package_and_usage(
         &record,
         Some(package),
-        scoped.core(),
+        owning_data,
         signature_usage.as_ref(),
     ))
 }
@@ -230,6 +233,7 @@ mod tests {
     use super::*;
     use crate::analysis::{Analysis, BindingRole, SymbolInfo};
     use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
+    use crate::typesystem::BuiltinData;
     use tower_lsp::lsp_types::{HoverContents, Position, Range, SymbolKind};
     use tree_sitter::Parser;
 
@@ -323,6 +327,33 @@ mod tests {
             .contains("**Excluded Signatures For This Usage:**"));
         assert!(markup.value.contains("`CC, CC -> Array`"));
         assert!(!markup.value.contains("**Local Method Signatures:**"));
+    }
+
+    #[test]
+    fn hover_shows_imported_package_documentation() {
+        // Hovering an object from an imported package renders that package's own
+        // documentation (resolved from the owning partition, not just Core).
+        let text = "needsPackage \"JSON\"\ntoJSON\n";
+        let document = DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
+            .expect("fixture should parse");
+        let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
+        let loaded = LoadedPackages::resolve(index.default_loaded(), text);
+        let scoped = index.scoped(&loaded);
+        let hover = hover_response(&document, Position::new(1, 0), &scoped)
+            .expect("hover over an imported package object");
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("imported-package hover should use markdown");
+        };
+        assert!(
+            markup.value.contains("Package: `JSON`"),
+            "got: {}",
+            markup.value
+        );
+        assert!(
+            markup.value.contains("Encode Macaulay2 things as JSON"),
+            "expected the JSON package doc body, got: {}",
+            markup.value
+        );
     }
 
     #[test]
