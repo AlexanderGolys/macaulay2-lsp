@@ -75,6 +75,10 @@ pub struct CallableEntry {
     /// Capitalized operator forms (`Binary`/`Prefix`/`Postfix`) collected across
     /// this callable's methods — drives operator hover label rendering.
     pub forms: Vec<String>,
+    /// Per-form operator attributes from the corpus (`binary` → `["Flexible"]`,
+    /// …); empty for non-operators. Drives the per-fixity flexibility check that
+    /// decides whether `:=` may install a method on this operator.
+    pub operator_attributes: HashMap<String, Vec<String>>,
     /// General codomain when documented apart from a specific signature.
     pub typical_value: Option<String>,
     pub options: Vec<OptionSpec>,
@@ -158,6 +162,11 @@ impl BuiltinIndex {
                         .as_ref()
                         .map(|op| op.forms.iter().map(|f| capitalize_form(f)).collect())
                         .unwrap_or_default();
+                    let operator_attributes = raw
+                        .operator
+                        .as_ref()
+                        .map(|op| op.attributes.clone())
+                        .unwrap_or_default();
                     let signatures = raw
                         .methods
                         .into_iter()
@@ -175,6 +184,7 @@ impl BuiltinIndex {
                         class: raw.class.as_deref().map(deref_ref),
                         is_operator: raw.kind == "operator",
                         forms,
+                        operator_attributes,
                         typical_value: concrete_codomain(raw.typical_value.as_deref()),
                         options: raw.options,
                         signatures,
@@ -367,6 +377,10 @@ struct RawMethod {
 struct RawOperator {
     #[serde(default)]
     forms: Vec<String>,
+    /// Per-form operator attributes, e.g. `{"binary": ["Flexible"], "prefix": […]}`.
+    /// `Flexible` marks the forms that accept runtime method installation.
+    #[serde(default)]
+    attributes: HashMap<String, Vec<String>>,
 }
 
 /// `binary` → `Binary`, etc. The corpus uses lowercase operator forms; the LSP

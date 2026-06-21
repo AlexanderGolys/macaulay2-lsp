@@ -141,9 +141,27 @@ pub struct OperatorInfo {
     pub forms: Vec<String>,
     #[serde(default)]
     pub flags: HashMap<String, Vec<String>>,
-    pub flexible: bool,
+    /// Per-form operator attributes from the corpus (`binary` → `["Flexible"]`,
+    /// …). Flexibility is per-form: an operator can be flexible as a prefix yet
+    /// not as a binary, so it is queried via [`OperatorInfo::is_flexible`].
     #[serde(default)]
     pub attributes: HashMap<String, Vec<String>>,
+}
+
+/// The operator attribute marking a form as accepting runtime method
+/// installation (`X op Y := …`).
+const FLEXIBLE_ATTRIBUTE: &str = "Flexible";
+
+impl OperatorInfo {
+    /// Whether this operator accepts a method installed on the given form
+    /// (`"binary"`/`"prefix"`/`"postfix"`) — i.e. that form is `Flexible`.
+    // Consumed by the install-validation diagnostic (next phase).
+    #[allow(dead_code)]
+    pub fn is_flexible(&self, form: &str) -> bool {
+        self.attributes
+            .get(form)
+            .is_some_and(|attributes| attributes.iter().any(|a| a == FLEXIBLE_ATTRIBUTE))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1144,8 +1162,7 @@ fn record_from_callable(entry: &crate::builtin_index::CallableEntry) -> Record {
             method_symbol: InstanceID::new(&entry.name),
             forms: entry.forms.clone(),
             flags: HashMap::new(),
-            flexible: false,
-            attributes: HashMap::new(),
+            attributes: entry.operator_attributes.clone(),
         });
     }
 
@@ -1601,6 +1618,30 @@ mod tests {
             }),
             "+ should preserve its operator forms (binary + prefix)"
         );
+    }
+
+    #[test]
+    fn operator_flexibility_is_per_form() {
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
+
+        // `>` is flexible as a prefix but NOT as a binary — the asymmetric case.
+        let greater = builtins
+            .get_record(&InstanceID::new(">"))
+            .and_then(|record| record.operator_info)
+            .expect("> operator should carry operator info");
+        assert!(greater.is_flexible("prefix"), "> is flexible as a prefix");
+        assert!(
+            !greater.is_flexible("binary"),
+            "> is NOT flexible as a binary"
+        );
+
+        // `-` is flexible in both forms.
+        let minus = builtins
+            .get_record(&InstanceID::new("-"))
+            .and_then(|record| record.operator_info)
+            .expect("- operator should carry operator info");
+        assert!(minus.is_flexible("binary"), "- is flexible as a binary");
+        assert!(minus.is_flexible("prefix"), "- is flexible as a prefix");
     }
 
     #[test]
