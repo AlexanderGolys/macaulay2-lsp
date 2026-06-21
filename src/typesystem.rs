@@ -1459,6 +1459,7 @@ impl BuiltinData {
 
     /// An empty index — no records, no facts, empty lattice. For tests and
     /// snapshots that need a `BuiltinData` placeholder with no builtin knowledge.
+    #[allow(dead_code)] // test-only placeholder; production builds from the corpus
     pub fn empty() -> Self {
         Self::from_index(&crate::builtin_index::BuiltinIndex::default())
     }

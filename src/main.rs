@@ -150,13 +150,6 @@ impl Backend {
         })
     }
 
-    fn type_hierarchy_index(&self, package: Option<&str>) -> Option<BuiltinData> {
-        match package {
-            Some(package) if package != "Core" => self.package_index(package),
-            _ => Some(self.builtins.clone()),
-        }
-    }
-
     fn type_hierarchy_package(item: &TypeHierarchyItem) -> Option<&str> {
         item.data
             .as_ref()
@@ -164,29 +157,33 @@ impl Backend {
             .and_then(|package| package.as_str())
     }
 
-    fn type_hierarchy_record(
-        &self,
-        package: Option<&str>,
-        name: &str,
-    ) -> Option<(String, BuiltinData, Record)> {
-        let index = self.type_hierarchy_index(package)?;
+    fn type_hierarchy_record(&self, package: Option<&str>, name: &str) -> Option<(String, Record)> {
+        let package = package.unwrap_or("Core");
+        let index = self.partitioned.partition(package)?;
         let record = index.get_record(&InstanceID::new(name))?;
         record.type_info.as_ref()?;
-        Some((package.unwrap_or("Core").to_string(), index, record))
+        Some((package.to_string(), record))
     }
 
+    /// Resolve a related type (parent/subtype) record, preferring the originating
+    /// package's partition and falling back to Core (cross-package edges into the
+    /// Core lattice resolve there).
     fn type_hierarchy_related_record(
         &self,
         package: &str,
-        index: &BuiltinData,
         name: &InstanceID,
     ) -> Option<(String, Record)> {
-        if let Some(record) = index.get_record(name) {
+        if let Some(record) = self
+            .partitioned
+            .partition(package)
+            .and_then(|index| index.get_record(name))
+        {
             return Some((package.to_string(), record));
         }
 
-        self.builtins
-            .get_record(name)
+        self.partitioned
+            .partition("Core")
+            .and_then(|core| core.get_record(name))
             .map(|record| ("Core".to_string(), record))
     }
 
@@ -700,20 +697,12 @@ impl LanguageServer for Backend {
         let name = document.text_for(node);
         let range = document.range_for(node);
 
-        for (package, package_index) in self.active_package_indexes(document.text()) {
-            if let Some(record) = package_index.get_record(&InstanceID::new(name)) {
-                if record.type_info.is_some() {
-                    return Ok(Some(vec![self.type_hierarchy_item(
-                        &package,
-                        &record,
-                        Some(uri.clone()),
-                        Some(range),
-                    )]));
-                }
-            }
-        }
-
-        let Some(record) = self.builtins.get_record(&InstanceID::new(name)) else {
+        let loaded = LoadedPackages::from_parts(
+            self.partitioned.default_loaded(),
+            document.imported_packages(),
+        );
+        let scoped = self.partitioned.scoped(&loaded);
+        let Some((package, record)) = scoped.get_record_with_package(&InstanceID::new(name)) else {
             return Ok(None);
         };
         if record.type_info.is_none() {
@@ -721,7 +710,7 @@ impl LanguageServer for Backend {
         }
 
         Ok(Some(vec![self.type_hierarchy_item(
-            "Core",
+            package,
             &record,
             Some(uri.clone()),
             Some(range),
@@ -733,8 +722,7 @@ impl LanguageServer for Backend {
         params: TypeHierarchySupertypesParams,
     ) -> Result<Option<Vec<TypeHierarchyItem>>> {
         let package = Self::type_hierarchy_package(&params.item);
-        let Some((package, index, record)) = self.type_hierarchy_record(package, &params.item.name)
-        else {
+        let Some((package, record)) = self.type_hierarchy_record(package, &params.item.name) else {
             return Ok(None);
         };
 
@@ -748,7 +736,7 @@ impl LanguageServer for Backend {
         };
 
         let Some((parent_package, parent_record)) =
-            self.type_hierarchy_related_record(&package, &index, parent_name)
+            self.type_hierarchy_related_record(&package, parent_name)
         else {
             return Ok(Some(Vec::new()));
         };
@@ -766,8 +754,7 @@ impl LanguageServer for Backend {
         params: TypeHierarchySubtypesParams,
     ) -> Result<Option<Vec<TypeHierarchyItem>>> {
         let package = Self::type_hierarchy_package(&params.item);
-        let Some((package, index, record)) = self.type_hierarchy_record(package, &params.item.name)
-        else {
+        let Some((package, record)) = self.type_hierarchy_record(package, &params.item.name) else {
             return Ok(None);
         };
 
@@ -778,7 +765,7 @@ impl LanguageServer for Backend {
                     continue;
                 }
                 if let Some((subtype_package, subtype_record)) =
-                    self.type_hierarchy_related_record(&package, &index, subtype)
+                    self.type_hierarchy_related_record(&package, subtype)
                 {
                     items.push(self.type_hierarchy_item(
                         &subtype_package,
