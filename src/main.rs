@@ -20,6 +20,7 @@ mod capabilities;
 mod document;
 mod node_metadata;
 mod package_index;
+mod partitioned_index;
 mod record_lsp;
 mod typesystem;
 mod util;
