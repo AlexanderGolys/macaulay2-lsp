@@ -53,6 +53,7 @@ use package_index::{collect_imported_packages, PackageIndexer, SourceResolver};
 use record_lsp::record_package;
 use record_lsp::{record_source_file, record_source_line, record_symbol_kind};
 
+use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
 use crate::typesystem::{InstanceID, Record};
 use crate::workspace_index::WorkspaceIndex;
 
@@ -60,6 +61,9 @@ use crate::workspace_index::WorkspaceIndex;
 struct Backend {
     client: Client,
     builtins: BuiltinData,
+    // Forward-looking P3 field: not yet consulted by query routing.
+    #[allow(dead_code)]
+    partitioned: PackagePartitionedIndex,
     source_resolver: SourceResolver,
     package_indexer: PackageIndexer,
     package_indexes: DashMap<String, BuiltinData>,
@@ -71,13 +75,22 @@ struct Backend {
 
 impl Backend {
     fn new(client: Client) -> Self {
-        let builtins = BuiltinData::load_from_index(
+        let partitioned = PackagePartitionedIndex::from_corpus(
             include_str!("./data/m2-types.jsonc"),
             include_str!("./data/m2-docs.jsonl"),
         );
+        // `self.builtins` is the Core partition — the new partitioned path and
+        // the legacy single-blob path share one source so they cannot drift.
+        // Core is always present (it is the loaded-set floor); its absence is a
+        // corrupt corpus, so fail fast.
+        let builtins = partitioned
+            .partition("Core")
+            .expect("Core partition present in builtin corpus")
+            .clone();
         Backend {
             client,
             builtins,
+            partitioned,
             source_resolver: SourceResolver::from_environment(),
             package_indexer: PackageIndexer::from_environment(),
             package_indexes: DashMap::new(),
@@ -107,6 +120,15 @@ impl Backend {
                 Some((package, index))
             })
             .collect()
+    }
+
+    /// The ordered in-scope package set for a document: the partitioned index's
+    /// default-loaded baseline plus the document's imports. Pure function of the
+    /// text. Not yet consulted by query routing (P3) — provided so that work has
+    /// a single source for "what is loaded here".
+    #[allow(dead_code)]
+    fn loaded_packages(&self, text: &str) -> LoadedPackages {
+        LoadedPackages::resolve(self.partitioned.default_loaded(), text)
     }
 
     fn reindex_from_disk(&self, uri: &Url) {
