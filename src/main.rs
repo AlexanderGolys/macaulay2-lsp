@@ -458,13 +458,12 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let active_package_indexes = self.active_package_indexes(document.text());
-        Ok(completion_response(
-            document.text(),
-            position,
-            &self.builtins,
-            &active_package_indexes,
-        ))
+        let loaded = LoadedPackages::from_parts(
+            self.partitioned.default_loaded(),
+            document.imported_packages(),
+        );
+        let scoped = self.partitioned.scoped(&loaded);
+        Ok(completion_response(document.text(), position, &scoped))
     }
 
     async fn semantic_tokens_full(
@@ -827,17 +826,12 @@ impl LanguageServer for Backend {
             return Ok(Some(Vec::new()));
         }
 
-        let loaded_package_indexes = self
-            .package_indexes
-            .iter()
-            .map(|entry| (entry.key().clone(), entry.value().clone()))
-            .collect::<Vec<_>>();
-        Ok(Some(workspace_symbols_response(
-            query,
-            &loaded_package_indexes,
-            &self.builtins,
-            |record| self.record_location(record),
-        )))
+        // No open-document context here, so scope to the default-loaded baseline.
+        let loaded = LoadedPackages::resolve(self.partitioned.default_loaded(), "");
+        let scoped = self.partitioned.scoped(&loaded);
+        Ok(Some(workspace_symbols_response(query, &scoped, |record| {
+            self.record_location(record)
+        })))
     }
 
     async fn goto_definition(
@@ -851,13 +845,16 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let active_package_indexes = self.active_package_indexes(document.text());
+        let loaded = LoadedPackages::from_parts(
+            self.partitioned.default_loaded(),
+            document.imported_packages(),
+        );
+        let scoped = self.partitioned.scoped(&loaded);
         Ok(goto_definition_response(
             document.value(),
             uri,
             position,
-            &self.builtins,
-            &active_package_indexes,
+            &scoped,
             &self.source_resolver,
             &self.workspace_index,
             |record| self.record_location(record),

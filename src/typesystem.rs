@@ -1457,6 +1457,12 @@ impl BuiltinData {
         Self::from_index(&crate::builtin_index::BuiltinIndex::load(corpus))
     }
 
+    /// An empty index — no records, no facts, empty lattice. For tests and
+    /// snapshots that need a `BuiltinData` placeholder with no builtin knowledge.
+    pub fn empty() -> Self {
+        Self::from_index(&crate::builtin_index::BuiltinIndex::default())
+    }
+
     pub fn get_semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
         let record = self.get_record(&InstanceID::new(name))?;
         let data_type = &record.class;
