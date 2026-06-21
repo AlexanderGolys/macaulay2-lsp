@@ -1001,7 +1001,7 @@ impl Analysis {
 
     /// The function name when `node` is `f Domain = fn` — an `=` assignment whose
     /// left side is a function-head install shape, whose right side is a lambda
-    /// (install intent, not a value store), and whose head is a method function.
+    /// (install intent, not a value store), and whose head resolves to a function.
     /// `None` otherwise.
     fn illegal_equals_install_head(
         &self,
@@ -1022,8 +1022,10 @@ impl Analysis {
         let (MethodHead::Function(name), _) = self.installation_shape(left, text, builtins)? else {
             return None;
         };
-        (self.head_function_kind(&name, builtins) == HeadFunctionKind::MethodFunction)
-            .then_some(name)
+        // M2 rejects `f Domain = fn` for ANY function head, method function or
+        // not ("no method for storing values of function f"); verified against
+        // v1.26.05. Stay silent only when `name` does not resolve to a function.
+        (self.head_function_kind(&name, builtins) != HeadFunctionKind::Unknown).then_some(name)
     }
 
     /// The diagnostics for a single installation: a no-effect warning on a
@@ -2904,6 +2906,18 @@ mod tests {
         // values of function f"). Verified against M2 1.26.05.
         let builtins = core_builtins();
         let analysis = analyze_with_builtins("f = method()\nf ZZ = x -> x\n", &builtins);
+        assert!(has_diagnostic(
+            &analysis,
+            M2Diagnostic::InstallNeedsColonEquals
+        ));
+    }
+
+    #[test]
+    fn equals_install_on_lambda_head_is_also_flagged() {
+        // M2 rejects `f Domain = fn` for a non-method function head too
+        // ("no method for storing values"). Verified against M2 1.26.05.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins("f = x -> x\nf ZZ = y -> y\n", &builtins);
         assert!(has_diagnostic(
             &analysis,
             M2Diagnostic::InstallNeedsColonEquals

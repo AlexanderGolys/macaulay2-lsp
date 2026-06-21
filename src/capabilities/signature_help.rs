@@ -28,6 +28,9 @@ pub(crate) fn signature_help_response(
     let node = M2Node::new(document.node_at_position_minimal(position)?);
 
     let (callable_node, argument_node) = enclosing_application(node, cursor)?;
+    // Only a named (symbol) head can be resolved to recorded signatures; a
+    // computed head (`(f g) x`, `obj#k a`) has no name to look up, so we give no
+    // signature help for it rather than guess.
     if callable_node.kind != NodeKind::Symbol {
         return None;
     }
@@ -73,11 +76,13 @@ fn enclosing_application<'tree>(
 }
 
 /// The active-parameter index: the number of completed arguments whose end falls
-/// before the cursor (`f(a, |b)` → 1, the cursor is on the second argument).
+/// strictly before the cursor (`f(a, |b)` → 1, the cursor is on the second
+/// argument). Strict `<` keeps the cursor on an argument while it sits at that
+/// argument's trailing edge (`f(a|, b)` stays on the first argument).
 fn active_parameter_index(argument_node: M2Node, cursor: usize) -> u32 {
     argument_list(argument_node)
         .into_iter()
-        .filter(|argument| argument.end_byte() <= cursor)
+        .filter(|argument| argument.end_byte() < cursor)
         .count() as u32
 }
 
