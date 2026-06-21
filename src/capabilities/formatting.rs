@@ -3,7 +3,6 @@ use tower_lsp::lsp_types::{
 };
 use tree_sitter::Parser;
 
-use crate::capabilities::code_actions::{refactor_if_null_branch, refactor_try_statement};
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::util::{full_document_range, is_space_operator_expression};
 
@@ -85,17 +84,13 @@ pub fn format_document_text(text: &str) -> String {
 }
 
 pub fn format_document_text_with_options(text: &str, options: &FormatOptions) -> String {
-    let formatted = simplify_redundant_branches(text);
-    let formatted = normalize_whitespace(&formatted);
-    let formatted = reflow_standalone_ifs(&formatted);
-    let formatted = normalize_multiline_closing_delimiters(&formatted);
-    let mut formatted = formatted
-        .lines()
-        .scan(IndentState::default(), |state, line| {
-            Some(indent_line(line, state, options))
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
+    // Basic spacing only, and provably string/comment-safe: every edit either
+    // adjusts whitespace adjacent to a real operator/punctuation node
+    // (`normalize_whitespace`) or rebuilds a line's leading indentation
+    // (`reindent_from_tree`). Neither rewrites token text, so string and comment
+    // contents are never modified. No reflow/line-breaking, no byte-scanning.
+    let formatted = normalize_whitespace(text);
+    let mut formatted = reindent_from_tree(&formatted, options);
 
     if text.ends_with('\n') {
         formatted.push('\n');
@@ -104,325 +99,40 @@ pub fn format_document_text_with_options(text: &str, options: &FormatOptions) ->
     formatted
 }
 
-fn simplify_redundant_branches(text: &str) -> String {
-    let mut current = text.to_string();
-
-    loop {
-        let Some(next) = simplify_redundant_branches_once(&current) else {
-            return current;
-        };
-        if next == current {
-            return current;
-        }
-        current = next;
-    }
-}
-
-fn simplify_redundant_branches_once(text: &str) -> Option<String> {
-    let mut parser = Parser::new();
-    parser
-        .set_language(&tree_sitter_macaulay2::language())
-        .ok()?;
-    let tree = parser.parse(text, None)?;
-    let root = tree.root_node();
-
-    let mut stack = vec![M2Node::new(root)];
-    let mut best_rewrite: Option<(usize, usize, String)> = None;
-
-    while let Some(node) = stack.pop() {
-        let replacement = branch_simplification(node, text);
-        if let Some(replacement) = replacement {
-            let candidate = (node.start_byte(), node.end_byte(), replacement);
-            let should_replace = best_rewrite
-                .as_ref()
-                .is_none_or(|(best_start, best_end, _)| {
-                    let best_len = best_end - best_start;
-                    let candidate_len = candidate.1 - candidate.0;
-                    candidate_len <= best_len
-                });
-            if should_replace {
-                best_rewrite = Some(candidate);
+/// Re-indent every line of already-normalized `text` from a fresh parse: parse #2
+/// of the two-parse design (parse #1 ran in `normalize_whitespace`). Each line's
+/// leading whitespace is rebuilt as `options.indent.repeat(depth)` from the
+/// tree-derived depth; lines inside a multiline string/raw-string are emitted
+/// verbatim so their interior spacing is preserved.
+fn reindent_from_tree(text: &str, options: &FormatOptions) -> String {
+    let layout = TreeIndentLayout::build(text);
+    text.lines()
+        .enumerate()
+        .map(|(row, line)| {
+            if layout.is_literal_line(row) {
+                return line.to_string();
             }
-        }
-
-        stack.extend(node.children());
-    }
-
-    let (start, end, replacement) = best_rewrite?;
-    let mut rewritten = String::with_capacity(text.len() - (end - start) + replacement.len());
-    rewritten.push_str(&text[..start]);
-    rewritten.push_str(&replacement);
-    rewritten.push_str(&text[end..]);
-    Some(rewritten)
-}
-
-fn branch_simplification(node: M2Node<'_>, text: &str) -> Option<String> {
-    match node.kind {
-        NodeKind::IfStatement => refactor_if_null_branch(node.inner(), text),
-        NodeKind::TryStatement => refactor_try_statement(node.inner(), text),
-        _ => None,
-    }
-}
-
-/// Reflow standalone `if` statements onto multiple lines: break after `then`,
-/// and for branches with an `else`, wrap each then-body in parentheses so the
-/// `) else` keeps `else` off the start of a line (a newline before `else` is a
-/// syntax error at global scope; the parens make one layout legal everywhere).
-/// Ternary `if`-expressions used as a value (e.g. RHS of `:=`) are left alone.
-/// The emitted form is flat — the downstream indent pass adds the indentation.
-fn reflow_standalone_ifs(text: &str) -> String {
-    let mut current = text.to_string();
-    loop {
-        let Some(next) = reflow_standalone_ifs_once(&current) else {
-            return current;
-        };
-        if next == current {
-            return current;
-        }
-        current = next;
-    }
-}
-
-fn reflow_standalone_ifs_once(text: &str) -> Option<String> {
-    let mut parser = Parser::new();
-    parser
-        .set_language(&tree_sitter_macaulay2::language())
-        .ok()?;
-    let tree = parser.parse(text, None)?;
-    let root = tree.root_node();
-
-    // Outermost-first: a chain's `else if` inner statements are reflowed as part
-    // of their parent, so we rewrite the if with the smallest start byte first.
-    let mut stack = vec![M2Node::new(root)];
-    let mut best: Option<(usize, usize, String)> = None;
-    while let Some(node) = stack.pop() {
-        if let Some(canonical) = reflowed_statement(node, text) {
-            if canonical != text[node.start_byte()..node.end_byte()] {
-                let candidate = (node.start_byte(), node.end_byte(), canonical);
-                let take = best
-                    .as_ref()
-                    .is_none_or(|(start, _, _)| candidate.0 < *start);
-                if take {
-                    best = Some(candidate);
-                }
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                return String::new();
             }
-        }
-        stack.extend(node.children());
-    }
-
-    let (start, end, replacement) = best?;
-    let mut rewritten = String::with_capacity(text.len() - (end - start) + replacement.len());
-    rewritten.push_str(&text[..start]);
-    rewritten.push_str(&replacement);
-    rewritten.push_str(&text[end..]);
-    Some(rewritten)
-}
-
-/// Reflow a standalone control statement (`if`/`for`/`while`) to its canonical
-/// multi-line form, or `None` if it is not a candidate (a value sub-expression,
-/// or a body that is a single atom that reads fine inline).
-fn reflowed_statement(node: M2Node<'_>, text: &str) -> Option<String> {
-    match node.kind {
-        NodeKind::IfStatement
-            if is_standalone_statement(node, text) && if_chain_has_block_body(node, text) =>
-        {
-            canonical_if(node, text)
-        }
-        NodeKind::ForStatement | NodeKind::WhileStatement
-            if is_standalone_statement(node, text) =>
-        {
-            canonical_loop(node, text)
-        }
-        _ => None,
-    }
-}
-
-/// A standalone control statement begins its own line (only whitespace before
-/// it) and is a statement, not a value sub-expression. The line-start test also
-/// excludes the `else if` members of a chain (their line begins with `else`).
-fn is_standalone_statement(node: M2Node<'_>, text: &str) -> bool {
-    let start = node.start_byte();
-    let line_start = text[..start].rfind('\n').map_or(0, |index| index + 1);
-    if !text[line_start..start].trim().is_empty() {
-        return false;
-    }
-    // A ternary `if` (or loop used as a value) is an operand of an expression
-    // (assignment RHS, operator argument), reached through expression parents.
-    // Assignments and options are `binary_expression` in this grammar.
-    !matches!(
-        node.parent().map(|parent| parent.kind),
-        Some(
-            NodeKind::BinaryExpression
-                | NodeKind::PrefixExpression
-                | NodeKind::PostfixExpression
-                | NodeKind::LambdaExpression
-        )
-    )
-}
-
-/// Whether any branch body in an `if` chain is a block worth breaking onto its
-/// own line — i.e. not a single atom (`if ok then a else b` reads fine inline).
-fn if_chain_has_block_body(node: M2Node<'_>, _text: &str) -> bool {
-    let Some(then_body) = if_clause_expression(node, NodeKind::ThenClause) else {
-        return false;
-    };
-    if !is_atom_expression(then_body) {
-        return true;
-    }
-    match if_clause_expression(node, NodeKind::ElseClause) {
-        None => false,
-        Some(else_body) if else_body.is(NodeKind::IfStatement) => {
-            if_chain_has_block_body(else_body, _text)
-        }
-        Some(else_body) => !is_atom_expression(else_body),
-    }
-}
-
-/// A single-token body: an identifier or literal, with no call/operator/group
-/// structure. These read fine on the same line as `then`/`do`.
-fn is_atom_expression(node: M2Node<'_>) -> bool {
-    matches!(
-        node.kind,
-        NodeKind::Symbol
-            | NodeKind::ResolvedSymbol
-            | NodeKind::IntegerLiteral
-            | NodeKind::FloatLiteral
-            | NodeKind::StringLiteral
-    )
-}
-
-/// Reflow a standalone `for`/`while` loop: break after its body keyword
-/// (`do`, or `list` when there is no `do`). No `else` follows the body, so no
-/// wrapping parentheses are needed. Single-atom bodies are left inline.
-fn canonical_loop(node: M2Node<'_>, text: &str) -> Option<String> {
-    let body_clause = loop_body_clause(node)?;
-    let body = body_clause.named_child(0)?;
-    if is_atom_expression(body) {
-        return None;
-    }
-    let keyword = body_clause.child(0)?;
-    let header = text[node.start_byte()..keyword.end_byte()].trim_end();
-    Some(format!("{header}{}", broken_body(body, text)))
-}
-
-/// The clause carrying a loop's body: the `do` clause, or the `list` clause when
-/// the loop has no `do`.
-fn loop_body_clause<'tree>(node: M2Node<'tree>) -> Option<M2Node<'tree>> {
-    let clauses: Vec<M2Node<'tree>> = node.children().collect();
-    clauses
-        .iter()
-        .find(|child| child.is(NodeKind::DoClause))
-        .or_else(|| clauses.iter().find(|child| child.is(NodeKind::ListClause)))
-        .copied()
-}
-
-/// Build the flat canonical multi-line form of an `if` chain.
-fn canonical_if(node: M2Node<'_>, text: &str) -> Option<String> {
-    let condition = node.child_by_field_name("condition")?;
-    let condition_text = text[condition.start_byte()..condition.end_byte()].trim();
-    let then_body = if_clause_expression(node, NodeKind::ThenClause)?;
-
-    let Some(else_clause_expr) = if_clause_expression(node, NodeKind::ElseClause) else {
-        // No else: breaking after `then` is always legal, no parens needed. A
-        // block body keeps its own parens; a plain body just moves to the next
-        // line.
-        return Some(format!(
-            "if {condition_text} then{}",
-            broken_body(then_body, text)
-        ));
-    };
-
-    // The protective parens around the then-body exist only to keep `else` off
-    // the start of a line, which is a syntax error at global scope. Inside any
-    // bracketing (parens/braces/brackets) a newline before `else` is legal, so
-    // there we break after `then` and let `else` begin its own line unwrapped.
-    if !is_at_global_scope(node) {
-        let then_part = broken_body(then_body, text);
-        return if else_clause_expr.is(NodeKind::IfStatement) {
-            let tail = canonical_if(else_clause_expr, text)?;
-            Some(format!("if {condition_text} then{then_part}\nelse {tail}"))
-        } else {
-            Some(format!(
-                "if {condition_text} then{then_part}\nelse{}",
-                broken_body(else_clause_expr, text)
-            ))
-        };
-    }
-
-    let then_inner = if_body_inner(then_body, text);
-    if else_clause_expr.is(NodeKind::IfStatement) {
-        let tail = canonical_if(else_clause_expr, text)?;
-        Some(format!(
-            "if {condition_text} then (\n{then_inner}\n) else {tail}"
-        ))
-    } else {
-        Some(format!(
-            "if {condition_text} then (\n{then_inner}\n) else{}",
-            broken_body(else_clause_expr, text)
-        ))
-    }
-}
-
-/// Whether an `if` statement sits at global (top-level) scope, where a newline
-/// before `else` is a syntax error. Only true bracketing — parentheses
-/// (`sequence`), braces (`list`), or brackets (`array`) — introduces a local
-/// scope; clause bodies and loop bodies do not.
-fn is_at_global_scope(node: M2Node<'_>) -> bool {
-    let mut current = node;
-    while let Some(parent) = current.parent() {
-        if matches!(
-            parent.kind,
-            NodeKind::Sequence | NodeKind::List | NodeKind::Array
-        ) {
-            return false;
-        }
-        current = parent;
-    }
-    true
-}
-
-/// Render a body that follows a clause keyword with no trailing `else` to
-/// protect: a parenthesized block becomes ` (\n…\n)` (keeping it attached to the
-/// keyword line), any other body becomes a plain `\n<body>` on the next line.
-fn broken_body(expr: M2Node<'_>, text: &str) -> String {
-    if expr.is(NodeKind::Sequence) {
-        format!(" (\n{}\n)", if_body_inner(expr, text))
-    } else {
-        format!("\n{}", text[expr.start_byte()..expr.end_byte()].trim())
-    }
-}
-
-/// The body expression of a named clause (`then_clause`/`else_clause`) of an
-/// `if` statement, i.e. the clause's expression after its keyword.
-fn if_clause_expression<'tree>(
-    node: M2Node<'tree>,
-    clause_kind: NodeKind,
-) -> Option<M2Node<'tree>> {
-    let clause = node.children().find(|child| child.is(clause_kind))?;
-    clause.named_child(0)
-}
-
-/// The text of a then-body to place inside `then ( … )`, with one existing layer
-/// of wrapping parentheses stripped so re-formatting does not accumulate them.
-fn if_body_inner(expr: M2Node<'_>, text: &str) -> String {
-    let body = &text[expr.start_byte()..expr.end_byte()];
-    if expr.is(NodeKind::Sequence) && body.starts_with('(') && body.ends_with(')') {
-        body[1..body.len() - 1].trim().to_string()
-    } else {
-        body.trim().to_string()
-    }
+            let mut indented = options.indent.repeat(layout.depth(row));
+            indented.push_str(trimmed);
+            indented
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 pub fn folding_ranges_for_text(text: &str) -> Vec<FormatFoldRange> {
-    let mut state = IndentState::default();
+    let layout = TreeIndentLayout::build(text);
     let indented_lines = text
         .lines()
         .enumerate()
-        .filter_map(|(line_number, line)| {
-            let indent = line_indent(line, &mut state);
-            (!indent.is_blank).then_some(IndentedLine {
-                line: line_number as u32,
-                depth: indent.depth,
+        .filter_map(|(row, line)| {
+            (!line.trim().is_empty()).then_some(IndentedLine {
+                line: row as u32,
+                depth: layout.depth(row),
             })
         })
         .collect::<Vec<_>>();
@@ -430,351 +140,350 @@ pub fn folding_ranges_for_text(text: &str) -> Vec<FormatFoldRange> {
     collect_indent_fold_ranges(&indented_lines)
 }
 
-#[derive(Debug, Default)]
-struct IndentState {
-    delimiters: Vec<TrackedDelimiter>,
-    next_group_id: u32,
-    in_block_comment: bool,
-    continuation_indent: bool,
-    literal: LiteralState,
-    /// Depth of the most recent block `if` (one that begins its own line), so its
-    /// `else` branches align with it instead of with the indented branch bodies.
-    pending_if_depth: Option<usize>,
+/// Per-line indentation depths derived from a tree-sitter parse of normalized
+/// text, plus the rows that lie inside a multiline string and must be left
+/// verbatim. `depth(row) = bracket_depth(row) + continuation(row)`.
+struct TreeIndentLayout {
+    depths: Vec<usize>,
+    literal_rows: Vec<bool>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DelimiterGroupId(u32);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct TrackedDelimiter {
-    kind: TrackedDelimiterKind,
-    group_id: Option<DelimiterGroupId>,
-    special_closer: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TrackedDelimiterKind {
-    Paren,
-    Brace,
-    Bracket,
-    AngleBarList,
-}
-
-/// Whether a trimmed `line` begins with `keyword` as a whole word (so `else`
-/// matches `else` and `else if`, but not `elsewhere`).
-fn line_starts_with_keyword(line: &str, keyword: &str) -> bool {
-    line.strip_prefix(keyword).is_some_and(|rest| {
-        rest.bytes()
-            .next()
-            .is_none_or(|byte| !byte.is_ascii_alphanumeric() && byte != b'_')
-    })
-}
-
-/// Resolve the indent depth of an already-trimmed `line`, aligning `else` with
-/// its matching block `if`, and update if/else branch tracking. Must run before
-/// `update_indent_state`, which mutates the delimiter stack.
-fn resolve_line_depth(line: &str, state: &mut IndentState) -> usize {
-    let leading_group_closes = leading_group_closing_count(line, state);
-    let mut depth = active_group_count(state).saturating_sub(leading_group_closes);
-    let is_continuation = state.continuation_indent || starts_with_continuation_keyword(line);
-
-    if leading_group_closes == 0 {
-        if line_starts_with_keyword(line, "else") {
-            // Align `else` with its block `if`; fall back to a plain continuation
-            // when the `if` was not on its own line (e.g. a ternary `x := if …`).
-            depth = state.pending_if_depth.unwrap_or(depth + 1);
-        } else if is_continuation {
-            depth += 1;
-        }
-    }
-
-    // A fresh statement back at or above the `if` level ends the construct; an
-    // `if` that begins its own line owns the `else` branches that follow it.
-    let starts_closer = leading_group_closes > 0;
-    if !line_starts_with_keyword(line, "else")
-        && !starts_closer
-        && !is_continuation
-        && state
-            .pending_if_depth
-            .is_some_and(|if_depth| depth <= if_depth)
-    {
-        state.pending_if_depth = None;
-    }
-    if line_starts_with_keyword(line, "if") {
-        state.pending_if_depth = Some(depth);
-    }
-
-    depth
-}
-
-fn indent_line(line: &str, state: &mut IndentState, options: &FormatOptions) -> String {
-    if state.literal != LiteralState::None {
-        update_literal_state(line, state);
-        return line.to_string();
-    }
-
-    let line = trim_line_end_preserving_operator_space(line.trim_start());
-    if line.is_empty() {
-        state.continuation_indent = false;
-        return String::new();
-    }
-
-    let line_depth = resolve_line_depth(line, state);
-    let mut indented = options.indent.repeat(line_depth);
-    indented.push_str(line);
-    update_indent_state(line, state);
-    let trimmed = code_before_line_comment(line).trim_end_matches([' ', '\t']);
-    if state.literal == LiteralState::None {
-        state.continuation_indent =
-            line_final_operator(trimmed).is_some_and(is_spaced_line_final_operator);
-        trim_line_end_preserving_operator_space(&indented).to_string()
-    } else {
-        indented
-    }
-}
-
-fn active_group_count(state: &IndentState) -> usize {
-    let mut groups = Vec::new();
-    for delimiter in &state.delimiters {
-        if let Some(group_id) = delimiter.group_id {
-            if !groups.contains(&group_id) {
-                groups.push(group_id);
-            }
-        }
-    }
-    groups.len()
-}
-
-fn leading_group_closing_count(line: &str, state: &IndentState) -> usize {
-    let bytes = line.as_bytes();
-    let mut delimiters = state.delimiters.clone();
-    let mut groups = Vec::new();
-    let mut index = 0;
-
-    while index < bytes.len() {
-        let kind = if bytes[index..].starts_with(b"|>") {
-            index += 2;
-            TrackedDelimiterKind::AngleBarList
-        } else {
-            let Some(kind) = closing_delimiter_kind(bytes[index]) else {
-                break;
+impl TreeIndentLayout {
+    fn build(text: &str) -> Self {
+        let line_count = text.lines().count().max(1);
+        let mut parser = Parser::new();
+        if parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .is_err()
+        {
+            return Self {
+                depths: vec![0; line_count],
+                literal_rows: vec![false; line_count],
             };
-            index += 1;
-            kind
+        }
+        let Some(tree) = parser.parse(text, None) else {
+            return Self {
+                depths: vec![0; line_count],
+                literal_rows: vec![false; line_count],
+            };
         };
 
-        if let Some(group_id) = pop_matching_tracked_delimiter(&mut delimiters, kind)
-            .and_then(|delimiter| delimiter.group_id)
-        {
-            if !groups.contains(&group_id) {
-                groups.push(group_id);
-            }
+        let root = M2Node::new(tree.root_node());
+        let brackets = collect_bracket_groups(root, line_count);
+        let literal_rows = collect_literal_rows(root, line_count);
+        let line_leads = line_leading_blank(text, line_count);
+
+        let depths = (0..line_count)
+            .map(|row| {
+                bracket_depth(row, &brackets, &line_leads)
+                    + line_continuation(row, root, text, &line_leads)
+            })
+            .collect();
+
+        Self {
+            depths,
+            literal_rows,
         }
     }
 
-    groups.len()
+    fn depth(&self, row: usize) -> usize {
+        self.depths.get(row).copied().unwrap_or(0)
+    }
+
+    fn is_literal_line(&self, row: usize) -> bool {
+        self.literal_rows.get(row).copied().unwrap_or(false)
+    }
 }
 
-fn update_indent_state(line: &str, state: &mut IndentState) {
-    let bytes = line.as_bytes();
-    let trailing_openers = trailing_open_delimiter_starts(line);
-    let mut index = 0;
-    while index < bytes.len() {
-        if state.in_block_comment {
-            if bytes[index..].starts_with(b"*-") {
-                state.in_block_comment = false;
-                index += 2;
-            } else {
-                index += 1;
-            }
-            continue;
-        }
+/// A multiline bracket node, keyed by the row it opens on. Brackets that open on
+/// the same row collapse to one indent level, so the `open_row` is the group id.
+#[derive(Debug, Clone, Copy)]
+struct BracketGroup {
+    open_row: usize,
+    close_row: usize,
+    /// Column of the closing delimiter on `close_row`; its closer "begins the
+    /// line" when this equals the line's leading-whitespace length.
+    close_col: usize,
+}
 
-        if bytes[index..].starts_with(b"--") {
-            break;
-        }
-        if bytes[index..].starts_with(b"-*") {
-            state.in_block_comment = true;
-            index += 2;
-            continue;
-        }
-        if bytes[index..].starts_with(b"///") {
-            let (next_index, closed) = skip_raw_string(bytes, index);
-            if !closed {
-                state.literal = LiteralState::RawString;
+/// Collect every multiline bracket node (`(…)`, `{…}`, `[…]`, `<|…|>`) spanning
+/// more than one row, keyed by open/close row for the depth computation. The
+/// closer's width (`)` is 1, `|>` is 2) does not matter; only its start column.
+fn collect_bracket_groups(root: M2Node<'_>, line_count: usize) -> Vec<BracketGroup> {
+    let mut groups = Vec::new();
+    let mut stack = vec![root];
+    while let Some(node) = stack.pop() {
+        if node.kind.is_collection_expression() {
+            let open_row = node.start_position().row;
+            let close_position = node.end_position();
+            if open_row < close_position.row {
+                groups.push(BracketGroup {
+                    open_row,
+                    close_row: close_position.row,
+                    close_col: close_position
+                        .column
+                        .saturating_sub(closer_width(node.kind)),
+                });
             }
-            index = next_index;
-            continue;
         }
+        if node.is_error() {
+            collect_unclosed_error_brackets(node, line_count, &mut groups);
+        }
+        stack.extend(node.children());
+    }
+    groups
+}
 
-        match bytes[index] {
-            b'"' => {
-                let (next_index, closed) = skip_string(bytes, index);
-                if !closed {
-                    state.literal = LiteralState::String;
+/// Recover unclosed opener tokens that tree-sitter leaves loose inside an ERROR
+/// node (e.g. a `(` at EOF with no `)`). Each unmatched opener still indents its
+/// body, so it opens a group from its row to the last line of the document.
+fn collect_unclosed_error_brackets(
+    error: M2Node<'_>,
+    line_count: usize,
+    groups: &mut Vec<BracketGroup>,
+) {
+    let mut open_rows = Vec::new();
+    for child in error.children() {
+        match child.kind {
+            NodeKind::OpenParen | NodeKind::OpenBrace | NodeKind::OpenBracket => {
+                open_rows.push(child.start_position().row);
+            }
+            NodeKind::CloseParen | NodeKind::CloseBrace | NodeKind::CloseBracket => {
+                open_rows.pop();
+            }
+            _ => {}
+        }
+    }
+    let last_row = line_count.saturating_sub(1);
+    for open_row in open_rows {
+        if open_row < last_row {
+            groups.push(BracketGroup {
+                open_row,
+                close_row: last_row,
+                close_col: usize::MAX,
+            });
+        }
+    }
+}
+
+/// The byte width of a bracket node's closing delimiter: `|>` is two, all others
+/// (`)`, `}`, `]`) are one.
+fn closer_width(kind: NodeKind) -> usize {
+    if kind == NodeKind::AngleBarList {
+        2
+    } else {
+        1
+    }
+}
+
+/// Rows whose start lies strictly inside a multiline string node (the second and
+/// later rows of a `"…"` or `///…///` literal). Their contents are preserved
+/// verbatim, never re-indented.
+fn collect_literal_rows(root: M2Node<'_>, line_count: usize) -> Vec<bool> {
+    let mut literal = vec![false; line_count];
+    let mut stack = vec![root];
+    while let Some(node) = stack.pop() {
+        if node.is(NodeKind::StringLiteral) {
+            let start_row = node.start_position().row;
+            let end_row = node.end_position().row;
+            for row in (start_row + 1)..=end_row {
+                if let Some(slot) = literal.get_mut(row) {
+                    *slot = true;
                 }
-                index = next_index;
             }
-            b'(' | b'{' | b'[' => {
-                state.delimiters.push(TrackedDelimiter {
-                    kind: opening_delimiter_kind(bytes[index])
-                        .expect("opening delimiter byte should map to kind"),
-                    group_id: None,
-                    special_closer: trailing_openers.contains(&index),
-                });
-                index += 1;
-            }
-            b'<' if bytes[index..].starts_with(b"<|") => {
-                state.delimiters.push(TrackedDelimiter {
-                    kind: TrackedDelimiterKind::AngleBarList,
-                    group_id: None,
-                    special_closer: trailing_openers.contains(&index),
-                });
-                index += 2;
-            }
-            b')' | b'}' | b']' => {
-                let kind = closing_delimiter_kind(bytes[index])
-                    .expect("closing delimiter byte should map to kind");
-                pop_matching_tracked_delimiter(&mut state.delimiters, kind);
-                index += 1;
-            }
-            b'|' if bytes[index..].starts_with(b"|>") => {
-                pop_matching_tracked_delimiter(
-                    &mut state.delimiters,
-                    TrackedDelimiterKind::AngleBarList,
-                );
-                index += 2;
-            }
-            _ => index += 1,
+        }
+        stack.extend(node.children());
+    }
+    literal
+}
+
+/// The leading-whitespace length (in bytes) of each line, used purely as layout
+/// to test whether a closer is the first non-whitespace token on its line.
+fn line_leading_blank(text: &str, line_count: usize) -> Vec<usize> {
+    let mut leads = vec![0; line_count];
+    for (row, line) in text.lines().enumerate() {
+        if let Some(slot) = leads.get_mut(row) {
+            *slot = line.len() - line.trim_start().len();
         }
     }
+    leads
+}
 
-    // Any delimiter still open without a group was opened on this line: a line
-    // that both closes and reopens a scope (e.g. `) else (`) leaves the stack
-    // length unchanged, so keying off `len > line_start_stack_len` would miss
-    // the freshly opened delimiter. Grouping every ungrouped opener under one id
-    // keeps multiple trailing openers on a line at a single indent level.
-    if state
-        .delimiters
-        .iter()
-        .any(|delimiter| delimiter.group_id.is_none())
-    {
-        let group_id = DelimiterGroupId(state.next_group_id);
-        state.next_group_id += 1;
-        for delimiter in &mut state.delimiters {
-            if delimiter.group_id.is_none() {
-                delimiter.group_id = Some(group_id);
+/// `bracket_depth(row)` = (distinct open-rows of multiline brackets currently
+/// open across this row) minus (distinct groups whose closer begins this row).
+/// The latter dedents closing-delimiter lines back to the opener level. After
+/// `normalize_multiline_closing_delimiters` a multiline closer is on its own
+/// line, so any multiline group closing on `row` has its closer leading.
+fn bracket_depth(row: usize, brackets: &[BracketGroup], line_leads: &[usize]) -> usize {
+    let leading_blank = line_leads.get(row).copied().unwrap_or(0);
+    let mut active = Vec::new();
+    let mut leading_closed = Vec::new();
+    for group in brackets {
+        if group.open_row < row && row <= group.close_row && !active.contains(&group.open_row) {
+            active.push(group.open_row);
+        }
+        if group.close_row == row
+            && group.close_col == leading_blank
+            && !leading_closed.contains(&group.open_row)
+        {
+            leading_closed.push(group.open_row);
+        }
+    }
+    active.len().saturating_sub(leading_closed.len())
+}
+
+/// `continuation(row)` is a flat +1 for a line that continues an expression or a
+/// clause body broken onto a later line (see the rule cases inline).
+fn line_continuation(row: usize, root: M2Node<'_>, text: &str, line_leads: &[usize]) -> usize {
+    let Some(first) = first_leaf_on_row(root, row) else {
+        return 0;
+    };
+
+    // (a) The first token is the start of the right operand of a binary
+    // expression whose operator dangled on an earlier row (`a +\nb`).
+    if is_right_operand_first_token(first, row, text) {
+        return 1;
+    }
+
+    // (b) The first token starts a clause body whose keyword is on an earlier row
+    // (`then\n  f(x)`, `else\n  c`, `do\n  body`).
+    if is_clause_body_first_token(first, row) {
+        return 1;
+    }
+
+    // (c) The first token is an `else`/`then` keyword whose controlling `if` is
+    // not standalone (a ternary `x := if … then\n … else …`); a standalone `if`
+    // aligns its `else` via bracket_depth instead.
+    if is_dangling_clause_keyword(first, row, text, line_leads) {
+        return 1;
+    }
+
+    0
+}
+
+/// The leftmost leaf node starting on `row`.
+fn first_leaf_on_row(root: M2Node<'_>, row: usize) -> Option<M2Node<'_>> {
+    let mut best: Option<M2Node<'_>> = None;
+    let mut stack = vec![root];
+    while let Some(node) = stack.pop() {
+        if node.start_position().row > row || node.end_position().row < row {
+            continue;
+        }
+        let is_leaf = node.child(0).is_none();
+        if is_leaf && node.start_position().row == row && node.start_byte() < node.end_byte() {
+            best = match best {
+                Some(current) if current.start_byte() <= node.start_byte() => Some(current),
+                _ => Some(node),
+            };
+        }
+        stack.extend(node.children());
+    }
+    best
+}
+
+/// Whether `node` is the first token of the right operand of a binary expression
+/// whose operator dangled on a row before `row`. Only spaced operators carry a
+/// continuation: a compact operator like `*` left at line end (`a*\nb`) does not
+/// indent its continuation, matching the line-final-operator spacing pass.
+fn is_right_operand_first_token(node: M2Node<'_>, row: usize, text: &str) -> bool {
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if parent.is(NodeKind::BinaryExpression) {
+            if let (Some(operator), Some(right)) = (
+                parent.child_by_field_name("operator"),
+                parent.child_by_field_name("right"),
+            ) {
+                let operator_text = &text[operator.start_byte()..operator.end_byte()];
+                if right.start_byte() == node.start_byte()
+                    && operator.start_position().row < row
+                    && is_spaced_line_final_operator(operator_text)
+                {
+                    return true;
+                }
             }
         }
+        current = parent;
+    }
+    false
+}
+
+/// Whether `node` is the first token of a clause body (`then`/`else`/`do`/`list`)
+/// whose clause keyword is on a row before `row`.
+fn is_clause_body_first_token(node: M2Node<'_>, row: usize) -> bool {
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if matches!(
+            parent.kind,
+            NodeKind::ThenClause | NodeKind::ElseClause | NodeKind::DoClause | NodeKind::ListClause
+        ) {
+            if let (Some(keyword), Some(body)) = (parent.child(0), parent.named_child(0)) {
+                if body.start_byte() == node.start_byte() && keyword.start_position().row < row {
+                    return true;
+                }
+            }
+        }
+        current = parent;
+    }
+    false
+}
+
+/// Whether `node` is an `else`/`then` clause keyword beginning `row` that
+/// continues a non-standalone `if` (a ternary). Two parse shapes occur:
+///   * A proper clause keyword inside an `if_statement`: a continuation only when
+///     that `if` is not standalone (a standalone `if` aligns its `else` via
+///     bracket_depth instead).
+///   * An orphaned keyword that tree-sitter, recovering a line-broken ternary,
+///     demotes to a leading `symbol` with no enclosing `if` — always the
+///     continuation of the ternary begun on an earlier line.
+fn is_dangling_clause_keyword(
+    node: M2Node<'_>,
+    row: usize,
+    text: &str,
+    line_leads: &[usize],
+) -> bool {
+    if !is_clause_keyword_leaf(node, text) {
+        return false;
+    }
+    if node.start_position().row != row {
+        return false;
+    }
+    match enclosing_if_statement(node) {
+        Some(if_statement) => !if_statement_is_standalone(if_statement, line_leads),
+        None => true,
     }
 }
 
-fn opening_delimiter_kind(byte: u8) -> Option<TrackedDelimiterKind> {
-    match byte {
-        b'(' => Some(TrackedDelimiterKind::Paren),
-        b'{' => Some(TrackedDelimiterKind::Brace),
-        b'[' => Some(TrackedDelimiterKind::Bracket),
-        _ => None,
+/// Whether a leaf is an `else`/`then` clause keyword. Normally these are the
+/// keyword token kinds, but when a line-broken ternary is parsed the keyword is
+/// demoted to a bare `symbol`; since `else`/`then` are reserved words no real
+/// identifier carries that text, so a symbol spelled so is the misparsed keyword.
+fn is_clause_keyword_leaf(node: M2Node<'_>, text: &str) -> bool {
+    if matches!(node.kind, NodeKind::ElseKeyword | NodeKind::ThenKeyword) {
+        return true;
     }
+    node.is(NodeKind::Symbol)
+        && matches!(&text[node.start_byte()..node.end_byte()], "else" | "then")
 }
 
-fn closing_delimiter_kind(byte: u8) -> Option<TrackedDelimiterKind> {
-    match byte {
-        b')' => Some(TrackedDelimiterKind::Paren),
-        b'}' => Some(TrackedDelimiterKind::Brace),
-        b']' => Some(TrackedDelimiterKind::Bracket),
-        _ => None,
-    }
-}
-
-fn pop_matching_tracked_delimiter(
-    delimiters: &mut Vec<TrackedDelimiter>,
-    expected_kind: TrackedDelimiterKind,
-) -> Option<TrackedDelimiter> {
-    while let Some(delimiter) = delimiters.pop() {
-        if delimiter.kind == expected_kind {
-            return Some(delimiter);
+/// The nearest enclosing `if_statement` of a clause keyword, walking up through
+/// its clause parent.
+fn enclosing_if_statement(node: M2Node<'_>) -> Option<M2Node<'_>> {
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if parent.is(NodeKind::IfStatement) {
+            return Some(parent);
         }
+        current = parent;
     }
     None
 }
 
-fn trailing_open_delimiter_starts(line: &str) -> Vec<usize> {
-    let code = code_before_line_comment(line).trim_end_matches([' ', '\t']);
-    let bytes = code.as_bytes();
-    let mut starts = Vec::new();
-    let mut index = bytes.len();
-
-    while index > 0 {
-        if index >= 2 && bytes[index - 2..index] == *b"<|" {
-            starts.push(index - 2);
-            index -= 2;
-            continue;
-        }
-
-        match bytes[index - 1] {
-            b'(' | b'{' | b'[' => {
-                starts.push(index - 1);
-                index -= 1;
-            }
-            _ => break,
-        }
-    }
-
-    starts
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-enum LiteralState {
-    #[default]
-    None,
-    String,
-    RawString,
-}
-
-fn update_literal_state(line: &str, state: &mut IndentState) {
-    let bytes = line.as_bytes();
-    match state.literal {
-        LiteralState::None => {}
-        LiteralState::String => {
-            let (_, closed) = skip_string_contents(bytes, 0);
-            if closed {
-                state.literal = LiteralState::None;
-            }
-        }
-        LiteralState::RawString => {
-            if bytes.windows(3).any(|window| window == b"///") {
-                state.literal = LiteralState::None;
-            }
-        }
-    }
-}
-
-fn skip_string(bytes: &[u8], start: usize) -> (usize, bool) {
-    skip_string_contents(bytes, start + 1)
-}
-
-fn skip_string_contents(bytes: &[u8], start: usize) -> (usize, bool) {
-    let mut index = start;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\\' => index = (index + 2).min(bytes.len()),
-            b'"' => return (index + 1, true),
-            _ => index += 1,
-        }
-    }
-    (bytes.len(), false)
-}
-
-fn skip_raw_string(bytes: &[u8], start: usize) -> (usize, bool) {
-    let mut index = start + 3;
-    while index < bytes.len() {
-        if bytes[index..].starts_with(b"///") {
-            return (index + 3, true);
-        }
-        index += 1;
-    }
-    (bytes.len(), false)
+/// Whether an `if_statement` begins its own line (only whitespace precedes the
+/// `if` token on its row).
+fn if_statement_is_standalone(node: M2Node<'_>, line_leads: &[usize]) -> bool {
+    let row = node.start_position().row;
+    let column = node.start_position().column;
+    line_leads.get(row).copied().unwrap_or(0) >= column
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -789,46 +498,10 @@ struct IndentedLine {
     depth: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct LineIndent {
-    depth: usize,
-    is_blank: bool,
-}
-
 #[derive(Debug, Clone, Copy)]
 struct OpenFoldRange {
     start_line: u32,
     depth: usize,
-}
-
-fn line_indent(line: &str, state: &mut IndentState) -> LineIndent {
-    if state.literal != LiteralState::None {
-        update_literal_state(line, state);
-        return LineIndent {
-            depth: active_group_count(state)
-                .saturating_sub(leading_group_closing_count(line, state)),
-            is_blank: line.trim().is_empty(),
-        };
-    }
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        state.continuation_indent = false;
-        return LineIndent {
-            depth: active_group_count(state),
-            is_blank: true,
-        };
-    }
-    let line_depth = resolve_line_depth(trimmed, state);
-    update_indent_state(trimmed, state);
-    let code = code_before_line_comment(trimmed).trim_end_matches([' ', '\t']);
-    if state.literal == LiteralState::None {
-        state.continuation_indent =
-            line_final_operator(code).is_some_and(is_spaced_line_final_operator);
-    }
-    LineIndent {
-        depth: line_depth,
-        is_blank: false,
-    }
 }
 
 fn collect_indent_fold_ranges(lines: &[IndentedLine]) -> Vec<FormatFoldRange> {
@@ -882,290 +555,6 @@ fn close_fold_range(
     });
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Delimiter {
-    kind: DelimiterKind,
-    line: usize,
-    group_id: Option<DelimiterGroupId>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DelimiterKind {
-    Paren,
-    Brace,
-    Bracket,
-    AngleBarList,
-}
-
-fn normalize_multiline_closing_delimiters(text: &str) -> String {
-    let mut state = ScanState::default();
-    let mut stack = Vec::new();
-    let mut edits = Vec::new();
-    let bytes = text.as_bytes();
-    let mut index = 0;
-    let mut line = 0;
-    let mut line_start = 0;
-
-    while index < bytes.len() {
-        if state.in_block_comment {
-            if bytes[index..].starts_with(b"*-") {
-                state.in_block_comment = false;
-                index += 2;
-            } else {
-                (index, line, line_start) = advance_byte(bytes, index, line, line_start);
-            }
-            continue;
-        }
-
-        if bytes[index..].starts_with(b"--") {
-            while index < bytes.len() && bytes[index] != b'\n' {
-                index += 1;
-            }
-            continue;
-        }
-        if bytes[index..].starts_with(b"-*") {
-            state.in_block_comment = true;
-            index += 2;
-            continue;
-        }
-        if bytes[index..].starts_with(b"///") {
-            (index, line, line_start) = skip_raw_string_with_lines(bytes, index, line, line_start);
-            continue;
-        }
-
-        match bytes[index] {
-            b'\n' => {
-                line += 1;
-                index += 1;
-                line_start = index;
-            }
-            b'"' => {
-                (index, line, line_start) = skip_string_with_lines(bytes, index, line, line_start);
-            }
-            b'(' => {
-                stack.push(Delimiter {
-                    kind: DelimiterKind::Paren,
-                    line,
-                    group_id: trailing_delimiter_group(text, line_start, index),
-                });
-                index += 1;
-            }
-            b'{' => {
-                stack.push(Delimiter {
-                    kind: DelimiterKind::Brace,
-                    line,
-                    group_id: trailing_delimiter_group(text, line_start, index),
-                });
-                index += 1;
-            }
-            b'[' => {
-                stack.push(Delimiter {
-                    kind: DelimiterKind::Bracket,
-                    line,
-                    group_id: trailing_delimiter_group(text, line_start, index),
-                });
-                index += 1;
-            }
-            b'<' if bytes[index..].starts_with(b"<|") => {
-                stack.push(Delimiter {
-                    kind: DelimiterKind::AngleBarList,
-                    line,
-                    group_id: trailing_delimiter_group(text, line_start, index),
-                });
-                index += 2;
-            }
-            b')' => {
-                push_multiline_closer_edit(
-                    text,
-                    &mut stack,
-                    DelimiterKind::Paren,
-                    line,
-                    line_start,
-                    index,
-                    &mut edits,
-                );
-                index += 1;
-            }
-            b'}' => {
-                push_multiline_closer_edit(
-                    text,
-                    &mut stack,
-                    DelimiterKind::Brace,
-                    line,
-                    line_start,
-                    index,
-                    &mut edits,
-                );
-                index += 1;
-            }
-            b']' => {
-                push_multiline_closer_edit(
-                    text,
-                    &mut stack,
-                    DelimiterKind::Bracket,
-                    line,
-                    line_start,
-                    index,
-                    &mut edits,
-                );
-                index += 1;
-            }
-            b'|' if bytes[index..].starts_with(b"|>") => {
-                push_multiline_closer_edit(
-                    text,
-                    &mut stack,
-                    DelimiterKind::AngleBarList,
-                    line,
-                    line_start,
-                    index,
-                    &mut edits,
-                );
-                index += 2;
-            }
-            _ => index += 1,
-        }
-    }
-
-    apply_format_edits(text, edits)
-}
-
-#[derive(Debug, Default)]
-struct ScanState {
-    in_block_comment: bool,
-}
-
-fn push_multiline_closer_edit(
-    text: &str,
-    stack: &mut Vec<Delimiter>,
-    expected_kind: DelimiterKind,
-    line: usize,
-    line_start: usize,
-    closer_start: usize,
-    edits: &mut Vec<FormatEdit>,
-) {
-    let Some(opener) = pop_matching_delimiter(stack, expected_kind) else {
-        return;
-    };
-    if opener.group_id.is_none() {
-        return;
-    }
-    if opener.line == line {
-        return;
-    }
-
-    let prefix = &text[line_start..closer_start];
-    if prefix.trim().is_empty() {
-        return;
-    }
-
-    let edit_start = line_start + prefix.trim_end_matches([' ', '\t']).len();
-    edits.push(FormatEdit {
-        start_byte: edit_start,
-        end_byte: closer_start,
-        replacement: "\n",
-    });
-}
-
-fn trailing_delimiter_group(
-    text: &str,
-    line_start: usize,
-    opener_start: usize,
-) -> Option<DelimiterGroupId> {
-    let line = &text[line_start..];
-    let line_end = line
-        .find('\n')
-        .map(|offset| line_start + offset)
-        .unwrap_or(text.len());
-    let line_text = &text[line_start..line_end];
-    let trailing = trailing_open_delimiter_starts(line_text);
-    if trailing.contains(&(opener_start - line_start)) {
-        return Some(DelimiterGroupId(line_start as u32));
-    }
-
-    let code = code_before_line_comment(line_text).trim_end_matches([' ', '\t']);
-    let suffix = code
-        .get((opener_start - line_start + 1)..)?
-        .trim_end_matches([' ', '\t']);
-    if suffix.ends_with(',') || suffix.ends_with(';') {
-        return Some(DelimiterGroupId(line_start as u32));
-    }
-    if line_final_operator(suffix).is_some() {
-        return Some(DelimiterGroupId(line_start as u32));
-    }
-
-    None
-}
-
-fn pop_matching_delimiter(
-    stack: &mut Vec<Delimiter>,
-    expected_kind: DelimiterKind,
-) -> Option<Delimiter> {
-    while let Some(delimiter) = stack.pop() {
-        if delimiter.kind == expected_kind {
-            return Some(delimiter);
-        }
-    }
-    None
-}
-
-fn advance_byte(
-    bytes: &[u8],
-    index: usize,
-    mut line: usize,
-    mut line_start: usize,
-) -> (usize, usize, usize) {
-    let next_index = index + 1;
-    if bytes[index] == b'\n' {
-        line += 1;
-        line_start = next_index;
-    }
-    (next_index, line, line_start)
-}
-
-fn skip_string_with_lines(
-    bytes: &[u8],
-    start: usize,
-    mut line: usize,
-    mut line_start: usize,
-) -> (usize, usize, usize) {
-    let mut index = start + 1;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\\' => index = (index + 2).min(bytes.len()),
-            b'"' => return (index + 1, line, line_start),
-            b'\n' => {
-                line += 1;
-                index += 1;
-                line_start = index;
-            }
-            _ => index += 1,
-        }
-    }
-    (bytes.len(), line, line_start)
-}
-
-fn skip_raw_string_with_lines(
-    bytes: &[u8],
-    start: usize,
-    mut line: usize,
-    mut line_start: usize,
-) -> (usize, usize, usize) {
-    let mut index = start + 3;
-    while index < bytes.len() {
-        if bytes[index..].starts_with(b"///") {
-            return (index + 3, line, line_start);
-        }
-        if bytes[index] == b'\n' {
-            line += 1;
-            index += 1;
-            line_start = index;
-        } else {
-            index += 1;
-        }
-    }
-    (bytes.len(), line, line_start)
-}
-
 fn normalize_whitespace(text: &str) -> String {
     let mut parser = Parser::new();
     parser
@@ -1177,7 +566,6 @@ fn normalize_whitespace(text: &str) -> String {
 
     let mut edits = Vec::new();
     collect_format_edits(M2Node::new(tree.root_node()), text, &mut edits);
-    collect_line_final_operator_edits(text, &mut edits);
     apply_format_edits(text, edits)
 }
 
@@ -1316,6 +704,9 @@ fn should_compact_prefix_operator(parent_kind: NodeKind, operator: &str) -> bool
         )
 }
 
+/// Whether `operator`, when it dangles at the end of a line, takes a trailing
+/// space and so signals that the following row is an indented continuation. Used
+/// by the tree-driven indenter to decide right-operand continuation indentation.
 fn is_spaced_line_final_operator(operator: &str) -> bool {
     matches!(
         operator,
@@ -1579,132 +970,6 @@ fn push_semicolon_whitespace_edits(text: &str, semicolon: M2Node<'_>, edits: &mu
     }
 }
 
-fn collect_line_final_operator_edits(text: &str, edits: &mut Vec<FormatEdit>) {
-    let mut line_start = 0;
-    let mut state = IndentState::default();
-    for line_with_ending in text.split_inclusive('\n') {
-        let line_end = line_start + line_with_ending.trim_end_matches(['\r', '\n']).len();
-        let line = &text[line_start..line_end];
-        if state.literal == LiteralState::None {
-            push_line_final_operator_edit(text, line_start, line_end, edits);
-            update_indent_state(line, &mut state);
-        } else {
-            update_literal_state(line, &mut state);
-        }
-        line_start += line_with_ending.len();
-    }
-
-    if !text.ends_with('\n') && line_start < text.len() && state.literal == LiteralState::None {
-        push_line_final_operator_edit(text, line_start, text.len(), edits);
-    }
-}
-
-fn push_line_final_operator_edit(
-    text: &str,
-    line_start: usize,
-    line_end: usize,
-    edits: &mut Vec<FormatEdit>,
-) {
-    let line = &text[line_start..line_end];
-    let trimmed_end = line.trim_end_matches([' ', '\t']).len();
-    if trimmed_end == 0 {
-        return;
-    }
-
-    let code_end = code_before_line_comment(&line[..trimmed_end]).len();
-    if code_end == 0 {
-        return;
-    }
-    let trimmed_line = &line[..code_end];
-    let Some(operator) = line_final_operator(trimmed_line) else {
-        return;
-    };
-    let operator_start = line_start + code_end - operator.len();
-
-    let replacement = if is_compact_operator(operator) {
-        ""
-    } else if is_spaced_line_final_operator(operator) {
-        " "
-    } else {
-        return;
-    };
-
-    let mut before_start = operator_start;
-    while before_start > line_start && matches!(text.as_bytes()[before_start - 1], b' ' | b'\t') {
-        before_start -= 1;
-    }
-    edits.push(FormatEdit {
-        start_byte: before_start,
-        end_byte: operator_start,
-        replacement,
-    });
-
-    let after_replacement = if is_compact_operator(operator) {
-        ""
-    } else {
-        " "
-    };
-    edits.push(FormatEdit {
-        start_byte: line_start + code_end,
-        end_byte: line_start + code_end,
-        replacement: after_replacement,
-    });
-}
-
-fn code_before_line_comment(line: &str) -> &str {
-    line.find("--")
-        .map_or(line, |comment_start| &line[..comment_start])
-}
-
-/// A line opening with a continuation keyword (`else`/`then`) continues the
-/// `if`/`try` expression begun on an earlier line, so it indents one level under
-/// that statement even when the previous line did not end on a line-final
-/// operator. The keyword must match as a whole word — `elseBranch` is an
-/// identifier, not `else`.
-fn starts_with_continuation_keyword(line: &str) -> bool {
-    const CONTINUATION_KEYWORDS: &[&str] = &["else", "then"];
-    CONTINUATION_KEYWORDS.iter().any(|keyword| {
-        line.strip_prefix(keyword).is_some_and(|rest| {
-            rest.bytes()
-                .next()
-                .is_none_or(|byte| !byte.is_ascii_alphanumeric() && byte != b'_')
-        })
-    })
-}
-
-fn line_final_operator(line: &str) -> Option<&'static str> {
-    const OPERATORS: &[&str] = &[
-        "<==>", "<==", "===>", "<===", "===", "=!=", "<=", ">=", "==", "!=", ":=", "<-", "=>",
-        "->", "++", "||", "^^", "??", "\\\\", "\\", "+", "-", "=", "<", ">", "|", "&", "or", "xor",
-        "and", "^**", "@@?", "@@", "|_", "^<=", "^>=", "_<=", "_>=", "**", "//", "·", "⊠", "⧢",
-        "%", "/", "*", "@", "^<", "^>", "_<", "_>", "^", "_", "#?", "#", "then", "else", "do",
-        "list",
-    ];
-
-    OPERATORS.iter().copied().find(|operator| {
-        if !line.ends_with(operator) {
-            return false;
-        }
-        if operator.bytes().all(|byte| byte.is_ascii_alphabetic()) {
-            let operator_start = line.len() - operator.len();
-            return operator_start == 0
-                || !line.as_bytes()[operator_start - 1].is_ascii_alphanumeric();
-        }
-        true
-    })
-}
-
-fn trim_line_end_preserving_operator_space(line: &str) -> &str {
-    let trimmed = line.trim_end_matches([' ', '\t']);
-    if line.len() > trimmed.len()
-        && line_final_operator(trimmed).is_some_and(is_spaced_line_final_operator)
-    {
-        &line[..trimmed.len() + 1]
-    } else {
-        trimmed
-    }
-}
-
 fn same_line_horizontal_whitespace_start(text: &str, byte_index: usize) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut start_byte = byte_index;
@@ -1794,26 +1059,16 @@ mod tests {
     }
 
     #[test]
-    fn normalizes_line_final_operator_whitespace() {
-        assert_eq!(format_document_text("a+\nb\n"), "a + \n    b\n");
-        assert_eq!(format_document_text("a   +\nb\n"), "a + \n    b\n");
-        assert_eq!(format_document_text("a+   \nb\n"), "a + \n    b\n");
-        assert_eq!(format_document_text("a*\nb\n"), "a*\nb\n");
-        assert_eq!(format_document_text("a  *   \nb\n"), "a*\nb\n");
-        assert_eq!(format_document_text("sand   \n"), "sand\n");
-    }
-
-    #[test]
     fn indents_operator_continuations() {
         let options = FormatOptions::new(3, true);
 
         assert_eq!(
             format_document_text_with_options("a + \nb +\nc\n", &options),
-            "a + \n   b + \n   c\n"
+            "a +\n   b +\n   c\n"
         );
         assert_eq!(
             format_document_text_with_options("f := (a +\nb +\nc)\n", &options),
-            "f := (a + \n      b + \n      c\n)\n"
+            "f := (a +\n      b +\n      c)\n"
         );
         assert_eq!(
             format_document_text_with_options("-----\ntop = 1\n", &options),
@@ -1828,7 +1083,7 @@ mod tests {
         assert_eq!(format_document_text("f(x,  y)\n"), "f(x, y)\n");
         assert_eq!(format_document_text("f(x ,  y)\n"), "f(x, y)\n");
         assert_eq!(format_document_text("f(x,)\n"), "f(x,)\n");
-        assert_eq!(format_document_text("f(x,\ny)\n"), "f(x,\n    y\n)\n");
+        assert_eq!(format_document_text("f(x,\ny)\n"), "f(x,\n    y)\n");
     }
 
     #[test]
@@ -1847,28 +1102,12 @@ mod tests {
     }
 
     #[test]
-    fn formatting_removes_redundant_if_null_branch() {
-        assert_eq!(
-            format_document_text("if ready then value else null\n"),
-            "if ready then value\n"
-        );
-    }
-
-    #[test]
-    fn formatting_removes_redundant_try_else_null_branch() {
-        assert_eq!(
-            format_document_text("try value then result else null\n"),
-            "try value then result\n"
-        );
-    }
-
-    #[test]
     fn line_end_open_brackets_create_single_extra_indent_scope() {
         assert_eq!(
             format_document_text(
                 "scan(docKeys, key -> (\nbaseName := recordNameFromDocKey key;\nif db#?key then result#baseName = append(result#baseName ?? {}, hashTable {\"key\" => key, \"raw\" => db#key});\n)\n);\n"
             ),
-            "scan(docKeys, key -> (\n    baseName := recordNameFromDocKey key;\n    if db#?key then\n        result#baseName = append(result#baseName ?? {}, hashTable {\"key\" => key, \"raw\" => db#key});\n)\n);\n"
+            "scan(docKeys, key -> (\n    baseName := recordNameFromDocKey key;\n    if db#?key then result#baseName = append(result#baseName ?? {}, hashTable {\"key\" => key, \"raw\" => db#key});\n)\n);\n"
         );
     }
 
@@ -1893,21 +1132,6 @@ mod tests {
         assert_eq!(
             format_document_text_with_options("f := (i=0;j=0;)\n", &FormatOptions::new(4, false)),
             "f := (i = 0;\n\tj = 0;\n)\n"
-        );
-    }
-
-    #[test]
-    fn puts_multiline_closing_brackets_on_their_own_line() {
-        let options = FormatOptions::new(3, true);
-
-        assert_eq!(
-            format_document_text_with_options("f = x -> (\ns;\nb)\n", &options),
-            "f = x -> (\n   s;\n   b\n)\n"
-        );
-        assert_eq!(format_document_text("f(x)\n"), "f(x)\n");
-        assert_eq!(
-            format_document_text("\"b)\" -- comment c)\n"),
-            "\"b)\" -- comment c)\n"
         );
     }
 
@@ -1947,63 +1171,6 @@ mod tests {
     }
 
     #[test]
-    fn reflows_standalone_if_with_block_then_body() {
-        assert_eq!(
-            format_document_text("if a then f(x) else c\n"),
-            "if a then (\n    f(x)\n) else\n    c\n"
-        );
-    }
-
-    #[test]
-    fn reflows_standalone_if_else_chain() {
-        assert_eq!(
-            format_document_text("if a then f(x) else if d then g(y) else h(z)\n"),
-            "if a then (\n    f(x)\n) else if d then (\n    g(y)\n) else\n    h(z)\n"
-        );
-    }
-
-    #[test]
-    fn reflows_if_in_local_scope_without_protective_parens() {
-        // Inside a function body (parens) a newline before `else` is legal, so the
-        // then-body is not wrapped in protective parens, and `else` aligns with
-        // its `if` rather than with the indented branch body.
-        assert_eq!(
-            format_document_text("f = () -> (\nif a then f(x) else c\n)\n"),
-            "f = () -> (\n    if a then\n        f(x)\n    else\n        c\n)\n"
-        );
-        assert!(
-            !format_document_text("f = () -> (\nif a then f(x) else c\n)\n").contains("then ("),
-            "local-scope if must not introduce protective parens"
-        );
-    }
-
-    #[test]
-    fn keeps_protective_parens_for_nested_global_then_block() {
-        // The outer `if` is global (parens required); the inner `if` lives inside
-        // the outer then-block parens, so it is local (no protective parens) and
-        // its `else` aligns with the inner `if`.
-        let formatted = format_document_text("if a then (\nif x then p(1) else q(2)\n) else w\n");
-        assert!(formatted.starts_with("if a then (\n"));
-        assert!(formatted.contains("    if x then\n        p(1)\n    else\n        q(2)\n"));
-    }
-
-    #[test]
-    fn local_scope_if_reflow_is_idempotent() {
-        for source in [
-            "f = () -> (\nif a then f(x) else c\n)\n",
-            "f = () -> (\nif a then f(x) else if d then g(y) else h(z)\n)\n",
-            "if a then (\nif x then p(1) else q(2)\n) else w\n",
-        ] {
-            let once = format_document_text(source);
-            assert_eq!(
-                format_document_text(&once),
-                once,
-                "not idempotent: {source:?}"
-            );
-        }
-    }
-
-    #[test]
     fn leaves_single_word_if_bodies_inline() {
         assert_eq!(
             format_document_text("if a then b else c\n"),
@@ -2018,38 +1185,6 @@ mod tests {
             format_document_text("x := if a then f(x) else g(y)\n"),
             "x := if a then f(x) else g(y)\n"
         );
-    }
-
-    #[test]
-    fn reflows_loop_body_after_do_and_list() {
-        assert_eq!(
-            format_document_text("for i in L do compute(i)\n"),
-            "for i in L do\n    compute(i)\n"
-        );
-        assert_eq!(
-            format_document_text("for i in L list f(i)\n"),
-            "for i in L list\n    f(i)\n"
-        );
-        assert_eq!(
-            format_document_text("for i in L do x\n"),
-            "for i in L do x\n"
-        );
-    }
-
-    #[test]
-    fn reflow_is_idempotent() {
-        for source in [
-            "if a then f(x) else if d then g(y) else h(z)\n",
-            "for i in L do compute(i)\n",
-            "if cond then (a;b) else (c;d)\n",
-        ] {
-            let once = format_document_text(source);
-            assert_eq!(
-                format_document_text(&once),
-                once,
-                "not idempotent: {source:?}"
-            );
-        }
     }
 
     #[test]

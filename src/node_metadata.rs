@@ -54,6 +54,17 @@ pub enum NodeKind {
     Semicolon,
     LineComment,
     BlockComment,
+    // Anonymous clause-keyword tokens the indenter aligns continuation lines to.
+    ThenKeyword,
+    ElseKeyword,
+    // Anonymous bracket-delimiter tokens, used to recover an unclosed opener that
+    // tree-sitter leaves loose inside an ERROR node rather than a collection node.
+    OpenParen,
+    CloseParen,
+    OpenBrace,
+    CloseBrace,
+    OpenBracket,
+    CloseBracket,
     Unknown,
 }
 
@@ -108,6 +119,14 @@ impl NodeKind {
             "SPACE" => Self::Space,
             "," => Self::Comma,
             ";" => Self::Semicolon,
+            "then" => Self::ThenKeyword,
+            "else" => Self::ElseKeyword,
+            "(" => Self::OpenParen,
+            ")" => Self::CloseParen,
+            "{" => Self::OpenBrace,
+            "}" => Self::CloseBrace,
+            "[" => Self::OpenBracket,
+            "]" => Self::CloseBracket,
             "line_comment" => Self::LineComment,
             "block_comment" => Self::BlockComment,
             _ => Self::Unknown,

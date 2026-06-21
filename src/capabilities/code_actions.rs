@@ -862,9 +862,11 @@ mod tests {
         assert_eq!(action.kind, Some(CodeActionKind::SOURCE));
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].range, full_document_range(text));
+        // "Format file" only normalizes trivia now; branch simplification
+        // (dropping the redundant `else null`) is a separate code-action.
         assert_eq!(
             changes[0].new_text,
-            "if ready then value\nf := (i = 0;\n    j = 0;\n)\n"
+            "if ready then value else null\nf := (i = 0;\n    j = 0;\n)\n"
         );
     }
 
