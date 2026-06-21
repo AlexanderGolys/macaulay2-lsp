@@ -228,8 +228,16 @@ impl TypeLattice {
 
         for entry in index.types() {
             let id = InstanceID::new(&entry.name);
+            // The corpus `ancestors` field is the is-a chain ABOVE the immediate
+            // parent (verified against M2: `ancestors Array` = {Array, VisibleList,
+            // BasicList, Thing}, while the field carries only {BasicList, Thing}).
+            // Fold the immediate `parent` in so `is_subtype(child, parent)` holds
+            // for the direct edge — otherwise it only ever succeeds reflexively.
             let mut chain: Vec<InstanceID> =
                 entry.ancestors.iter().map(|a| InstanceID::new(a)).collect();
+            if let Some(parent) = &entry.parent {
+                chain.push(InstanceID::new(parent));
+            }
             chain.sort();
             chain.dedup();
             ancestors.insert(id.clone(), chain);
@@ -1726,6 +1734,25 @@ mod tests {
             facts.resolve_codomain(&lattice, "gb", &["Ideal"]),
             Some("GroebnerBasis")
         );
+    }
+
+    #[test]
+    fn is_subtype_holds_for_the_immediate_parent_edge() {
+        // Regression: the corpus `ancestors` field omits the immediate parent, so
+        // a lattice built from it alone made `is_subtype(child, parent)` succeed
+        // only reflexively (`new Type` worked, `new SelfInitializingType` did not).
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
+
+        // Direct parent edges (verified against M2): SelfInitializingType <: Type,
+        // Array <: VisibleList.
+        assert!(builtins.is_subtype(
+            &InstanceID::new("SelfInitializingType"),
+            &InstanceID::new("Type")
+        ));
+        assert!(builtins.is_subtype(&InstanceID::new("Array"), &InstanceID::new("VisibleList")));
+        // Transitive edges still hold, and unrelated types stay unrelated.
+        assert!(builtins.is_subtype(&InstanceID::new("Array"), &InstanceID::new("Thing")));
+        assert!(!builtins.is_subtype(&InstanceID::new("Array"), &InstanceID::new("Type")));
     }
 
     fn generated_builtins() -> BuiltinData {
