@@ -155,8 +155,6 @@ const FLEXIBLE_ATTRIBUTE: &str = "Flexible";
 impl OperatorInfo {
     /// Whether this operator accepts a method installed on the given form
     /// (`"binary"`/`"prefix"`/`"postfix"`) — i.e. that form is `Flexible`.
-    // Consumed by the install-validation diagnostic (next phase).
-    #[allow(dead_code)]
     pub fn is_flexible(&self, form: &str) -> bool {
         self.attributes
             .get(form)

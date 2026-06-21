@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use tower_lsp::lsp_types::{Diagnostic, Position, Range as LspRange, SymbolKind};
+use tower_lsp::lsp_types::{
+    Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range as LspRange, SymbolKind,
+};
 use tree_sitter::Tree;
 
 #[cfg(test)]
@@ -91,13 +93,8 @@ pub const SPACE_OPERATOR: &str = "SPACE";
 /// installed methods.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MethodHead {
-    /// `f X := …` → key `(f, …)`; the head is the function itself.
     Function(String),
-    /// `X op Y := …`, `X Y := …` (op = SPACE), `prefix X := …`, `X postfix := …`
-    /// → key `(op, …)`.
     Operator(Operator),
-    /// `X op Y = z`, `X Y = z` (op = SPACE) → key `((op, =), …)`; the
-    /// assignment form, a distinct key from the bare operator.
     OperatorAssign(Operator),
 }
 
@@ -112,28 +109,82 @@ pub struct MethodInstallation {
     pub head: MethodHead,
     pub domain: Vec<TypeRef>,
     pub range: LspRange,
+    /// The argument shape of the right-hand-side function, when it is a lambda.
+    /// Lets the arity diagnostic check it against [`expected_rhs_arity`] without
+    /// re-walking the tree. `None` when the RHS is not a plain lambda.
+    pub rhs_dispatch: Option<Dispatch>,
 }
 
 impl MethodInstallation {
     /// The argument count the right-hand-side function must take: one per domain
     /// type, plus one for the assigned value `z` in an assignment-form install.
-    // Consumed by the installation-arity diagnostic (next phase).
-    #[allow(dead_code)]
     pub fn expected_rhs_arity(&self) -> usize {
         self.domain.len() + usize::from(matches!(self.head, MethodHead::OperatorAssign(_)))
     }
 }
+
+/// The classes whose instances are method functions — the only functions a method
+/// install actually attaches a method to. Installing on any other function class
+/// (`FunctionClosure`, `CompiledFunction`, …) compiles but has no effect, so we
+/// warn and record nothing. `method(Options => …)` yields `MethodFunctionWithOptions`;
+/// we currently tag every `method(…)` as `MethodFunction`, which is still in this
+/// set, so the distinction does not change the verdict.
+const METHOD_FUNCTION_CLASSES: [&str; 4] = [
+    "MethodFunction",
+    "MethodFunctionBinary",
+    "MethodFunctionSingle",
+    "MethodFunctionWithOptions",
+];
+
+/// Strip a corpus `$Package$Name` qualifier down to the bare class name, so a
+/// builtin class (`$Core$CompiledFunction`) and a locally-inferred class
+/// (`FunctionClosure`) compare on the same footing.
+fn bare_class_name(name: &str) -> &str {
+    name.rsplit_once('$').map_or(name, |(_, bare)| bare)
+}
+
+/// Whether a bare class name is one of the method-function classes.
+// Used by the `head_function_kind` resolver once it is implemented.
+#[allow(dead_code)]
+fn is_method_function_class(class: &str) -> bool {
+    METHOD_FUNCTION_CLASSES.contains(&bare_class_name(class))
+}
+
+/// How an installation head resolves with respect to method-function-ness — the
+/// hinge of the no-effect rule. `Unknown` keeps the analysis monotone: we never
+/// warn (nor suppress a record) on an unresolved head.
+// `MethodFunction` is constructed by the `head_function_kind` resolver once implemented.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HeadFunctionKind {
+    MethodFunction,
+    NonMethodFunction,
+    Unknown,
+}
+
+/// The corpus attribute key for an operator form, matching `operator.attributes`
+/// in the index (`binary`/`prefix`/`postfix`).
+fn fixity_form(fixity: Fixity) -> &'static str {
+    match fixity {
+        Fixity::Binary => "binary",
+        Fixity::Prefix => "prefix",
+        Fixity::Postfix => "postfix",
+    }
+}
+
+/// Diagnostic code: a method installed on a non-method-function has no effect.
+pub const NO_EFFECT_INSTALL_DIAGNOSTIC_CODE: &str = "m2-install-no-effect";
+/// Diagnostic code: a method installed on an operator form that is not flexible.
+pub const NON_FLEXIBLE_OPERATOR_DIAGNOSTIC_CODE: &str = "m2-operator-not-flexible";
+/// Diagnostic code: the RHS function arity disagrees with the installed domain.
+pub const INSTALL_ARITY_DIAGNOSTIC_CODE: &str = "m2-install-arity";
 
 /// A function's argument shape, read from its lambda parameter node — the arity
 /// of its domain, independent of any installed methods (a function with no
 /// methods can still be total).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dispatch {
-    /// `x -> …` — a bare-symbol parameter binds the whole argument sequence; the
-    /// function accepts any arity.
     Variadic,
-    /// `(x, y) -> …` — a parenthesized tuple; exactly `n` arguments. `() -> …` is
-    /// `Fixed(0)`, `(x) -> …` is `Fixed(1)`.
     Fixed(usize),
 }
 
@@ -425,6 +476,7 @@ impl Analysis {
         analysis.build_scopes(M2Node::new(tree.root_node()), text, 0, builtins);
         analysis.collect_expression_facts(M2Node::new(tree.root_node()), text, builtins);
         analysis.collect_installations(M2Node::new(tree.root_node()), text, builtins);
+        analysis.collect_installation_diagnostics(builtins);
         analysis.collect_diagnostics(tree.root_node(), text);
         analysis.collect_unused_binding_diagnostics(tree.root_node(), text);
         analysis
@@ -462,7 +514,7 @@ impl Analysis {
                 if let (Some(left), Some(op)) = (left, op) {
                     let op_text = &text[op.start_byte()..op.end_byte()];
                     if op_text == ":=" {
-                        self.collect_local_method_installation(left, right, text);
+                        self.collect_local_method_installation(left, right, text, builtins);
                     }
                     let symbol_kind = match right {
                         Some(right) if right.kind == NodeKind::LambdaExpression => {
@@ -578,6 +630,12 @@ impl Analysis {
         let left = node.child_by_field_name("left")?;
         let (head, domain) = self.installation_shape(left, text, builtins)?;
         let range = to_lsp_range(text, node.range());
+        // The RHS function shape, read once here so the arity diagnostic need not
+        // re-walk the tree. Only a plain lambda RHS carries a checkable arity.
+        let rhs_dispatch = node
+            .child_by_field_name("right")
+            .filter(|right| right.kind == NodeKind::LambdaExpression)
+            .and_then(function_dispatch);
 
         match operator {
             // `:=` installs by shape alone — no type check on the operands.
@@ -585,6 +643,7 @@ impl Analysis {
                 head,
                 domain,
                 range,
+                rhs_dispatch,
             }),
             // `=` installs only the assignment form of a BINARY operator (incl.
             // SPACE), and only when every operand is a type; otherwise the same
@@ -600,6 +659,7 @@ impl Analysis {
                         head: MethodHead::OperatorAssign(op),
                         domain,
                         range,
+                        rhs_dispatch,
                     })
                 }
                 _ => None,
@@ -722,6 +782,125 @@ impl Analysis {
                 })
             })
         })
+    }
+
+    /// Emit a diagnostic for every characterized installation that M2 would
+    /// reject or silently ignore. Runs after [`collect_installations`] so it only
+    /// consumes the stored facts; the type universe (builtins ∪ local) is queried
+    /// here because validity depends on the head's class and the operator corpus.
+    fn collect_installation_diagnostics(&mut self, builtins: Option<&BuiltinData>) {
+        // Validity hinges on the type universe: adjacency `A B := …` is a SPACE
+        // operator install when `A` is a type but a function-head install
+        // otherwise, and the two have different domains (hence different arities).
+        // Without builtins we cannot tell them apart, so we stay silent (monotone).
+        let Some(builtins) = builtins else {
+            return;
+        };
+        let mut diagnostics = Vec::new();
+        for installation in &self.installations {
+            self.installation_diagnostics(installation, Some(builtins), &mut diagnostics);
+        }
+        self.diagnostics.extend(diagnostics);
+    }
+
+    /// The diagnostics for a single installation: a no-effect warning on a
+    /// non-method-function head, a hard error on a non-flexible operator form, and
+    /// a hard error when a fixed-arity RHS disagrees with the installed domain.
+    fn installation_diagnostics(
+        &self,
+        installation: &MethodInstallation,
+        builtins: Option<&BuiltinData>,
+        out: &mut Vec<Diagnostic>,
+    ) {
+        match &installation.head {
+            MethodHead::Function(name) => {
+                if self.head_function_kind(name, builtins) == HeadFunctionKind::NonMethodFunction {
+                    out.push(Diagnostic {
+                        range: installation.range,
+                        severity: Some(DiagnosticSeverity::WARNING),
+                        code: Some(NumberOrString::String(
+                            NO_EFFECT_INSTALL_DIAGNOSTIC_CODE.to_string(),
+                        )),
+                        message: format!(
+                            "Installing a method on `{name}` has no effect: `{name}` is not a \
+                             method function. Define it with `{name} = method()` to make method \
+                             installations take effect."
+                        ),
+                        ..Default::default()
+                    });
+                }
+            }
+            MethodHead::Operator(operator) | MethodHead::OperatorAssign(operator) => {
+                let form = fixity_form(operator.fixity);
+                if self.operator_form_is_flexible(&operator.token, form, builtins) == Some(false) {
+                    out.push(Diagnostic {
+                        range: installation.range,
+                        severity: Some(DiagnosticSeverity::ERROR),
+                        code: Some(NumberOrString::String(
+                            NON_FLEXIBLE_OPERATOR_DIAGNOSTIC_CODE.to_string(),
+                        )),
+                        message: format!(
+                            "Cannot install a method on the {form} operator `{}`: it is not \
+                             flexible, so M2 rejects the assignment.",
+                            operator.token
+                        ),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+
+        // A variadic RHS (`x -> …`) binds the whole argument sequence and absorbs
+        // any arity, so only a fixed-arity RHS can be wrong.
+        if let Some(Dispatch::Fixed(actual)) = installation.rhs_dispatch {
+            let expected = installation.expected_rhs_arity();
+            if actual != expected {
+                out.push(Diagnostic {
+                    range: installation.range,
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    code: Some(NumberOrString::String(
+                        INSTALL_ARITY_DIAGNOSTIC_CODE.to_string(),
+                    )),
+                    message: format!(
+                        "This method's function takes {actual} argument(s) but the installation \
+                         expects {expected}. Match the domain arity or use a variadic `x -> …`."
+                    ),
+                    ..Default::default()
+                });
+            }
+        }
+    }
+
+    /// Whether the named operator's given form is flexible (accepts a runtime
+    /// method install). `None` when the operator or its attributes are unknown
+    /// (e.g. `SPACE`), so the caller stays silent rather than guessing.
+    fn operator_form_is_flexible(
+        &self,
+        token: &str,
+        form: &str,
+        builtins: Option<&BuiltinData>,
+    ) -> Option<bool> {
+        let record = builtins?.get_record(&InstanceID::new(token))?;
+        let operator_info = record.operator_info.as_ref()?;
+        Some(operator_info.is_flexible(form))
+    }
+
+    /// Classify an installation's function head by method-function-ness, querying
+    /// the layered type universe (local bindings first, then builtins).
+    fn head_function_kind(&self, name: &str, builtins: Option<&BuiltinData>) -> HeadFunctionKind {
+        // TODO(human): resolve `name` to the class of the function it heads and
+        // map it to a `HeadFunctionKind`:
+        //   • a function whose class is a method-function class → MethodFunction
+        //   • a resolvable function that is NOT                 → NonMethodFunction
+        //   • not resolvable as a function                      → Unknown (silent)
+        // Local resolution: a `self.scopes` binding named `name` with
+        // `kind == SymbolKind::FUNCTION` carries the inferred class in `type_name`
+        // (a lambda is `"FunctionClosure"`, `method()` is `"MethodFunction"`).
+        // Builtin resolution: `builtins.get_record(&InstanceID::new(name))` is a
+        // function when its `function_info` is `Some`; its class is `record.class.0`.
+        // Use `is_method_function_class` for the set membership test.
+        let _ = (name, builtins);
+        HeadFunctionKind::Unknown
     }
 
     fn collect_parameters(
@@ -955,10 +1134,16 @@ impl Analysis {
         node: M2Node,
         right: Option<M2Node>,
         text: &str,
+        builtins: Option<&BuiltinData>,
     ) {
         let Some((name, domain)) = method_installation_signature(node, text) else {
             return;
         };
+        // An install on a non-method-function compiles but has no effect, so it
+        // creates no method record (the no-effect warning is emitted separately).
+        if self.head_function_kind(&name, builtins) == HeadFunctionKind::NonMethodFunction {
+            return;
+        }
         let range = to_lsp_range(text, node.range());
         let symbol = self.registry.intern_symbol(&name);
         let method = self
@@ -1143,7 +1328,10 @@ impl Analysis {
         builtins: Option<&BuiltinData>,
     ) -> Option<String> {
         match node.kind {
-            NodeKind::LambdaExpression => Some("Function".to_string()),
+            // A lambda's class is the concrete `FunctionClosure`, not the abstract
+            // `Function` — this distinction drives the method-install no-effect rule
+            // (a `FunctionClosure` is not a method function).
+            NodeKind::LambdaExpression => Some("FunctionClosure".to_string()),
             NodeKind::BinaryExpression
                 if method_declaration_typical_value(node, text).is_some() =>
             {
@@ -1916,6 +2104,27 @@ mod tests {
         assert_eq!(domain_names(&analysis.installations[0]), vec!["X", "Y"]);
     }
 
+    #[test]
+    fn parenthesized_operator_left_is_still_an_installation() {
+        // `(T op S) := f` is identified with `T op S := f`: a paren is its inner
+        // value, so the binary-operator install is recognized through it.
+        let analysis = analyze("(R * S) := (a, b) -> a\n");
+        assert_eq!(analysis.installations.len(), 1);
+        assert_eq!(
+            analysis.installations[0].head,
+            MethodHead::Operator(binary_op("*"))
+        );
+        assert_eq!(domain_names(&analysis.installations[0]), vec!["R", "S"]);
+    }
+
+    #[test]
+    fn chained_colon_equal_is_not_an_installation() {
+        // `:=` is right-associative, so `x := y := z` parses as `x := (y := z)`:
+        // the left of the outer `:=` is the symbol `x`, never a binary expression.
+        let analysis = analyze("x := y := z\n");
+        assert!(analysis.installations.is_empty());
+    }
+
     fn dispatch_of(src: &str) -> Option<Dispatch> {
         let mut parser = Parser::new();
         parser
@@ -1960,6 +2169,84 @@ mod tests {
         // lambda parameter list, so `dispatch` stays None.
         let analysis = analyze("p = method()\n");
         assert_eq!(analysis.function("p").and_then(|info| info.dispatch), None);
+    }
+
+    #[test]
+    fn dispatch_reads_arity_from_any_collection_parameter_form() {
+        // M2 does not remember the collection type of a parameter list: `{x,y}`,
+        // `[x,y]`, `<|x,y|>` and `(x,y)` all define the same 2-ary function.
+        assert_eq!(dispatch_of("f := {x, y} -> x\n"), Some(Dispatch::Fixed(2)));
+        assert_eq!(dispatch_of("f := [x, y] -> x\n"), Some(Dispatch::Fixed(2)));
+        assert_eq!(
+            dispatch_of("f := <|x, y|> -> x\n"),
+            Some(Dispatch::Fixed(2))
+        );
+    }
+
+    fn has_diagnostic_code(analysis: &Analysis, code: &str) -> bool {
+        analysis.diagnostics.iter().any(|diagnostic| {
+            matches!(
+                &diagnostic.code,
+                Some(NumberOrString::String(actual)) if actual == code
+            )
+        })
+    }
+
+    #[test]
+    fn install_on_non_flexible_binary_operator_is_an_error() {
+        // `>` is flexible as a prefix but not as a binary operator, so a binary
+        // method install on it is rejected by M2.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins("ZZ > ZZ := (a, b) -> a\n", &builtins);
+        assert!(has_diagnostic_code(
+            &analysis,
+            NON_FLEXIBLE_OPERATOR_DIAGNOSTIC_CODE
+        ));
+    }
+
+    #[test]
+    fn install_on_flexible_binary_operator_has_no_flexibility_error() {
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins("ZZ * ZZ := (a, b) -> a\n", &builtins);
+        assert!(!has_diagnostic_code(
+            &analysis,
+            NON_FLEXIBLE_OPERATOR_DIAGNOSTIC_CODE
+        ));
+    }
+
+    #[test]
+    fn fixed_arity_rhs_disagreeing_with_domain_is_an_error() {
+        // Binary domain expects 2 arguments; the fixed-arity RHS supplies 1.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins("ZZ * ZZ := (a) -> a\n", &builtins);
+        assert!(has_diagnostic_code(
+            &analysis,
+            INSTALL_ARITY_DIAGNOSTIC_CODE
+        ));
+    }
+
+    #[test]
+    fn variadic_rhs_never_triggers_an_arity_error() {
+        // A bare-symbol parameter absorbs any arity, so it is always valid.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins("ZZ * ZZ := a -> a\n", &builtins);
+        assert!(!has_diagnostic_code(
+            &analysis,
+            INSTALL_ARITY_DIAGNOSTIC_CODE
+        ));
+    }
+
+    #[test]
+    fn assignment_form_install_arity_counts_the_assigned_value() {
+        // `X op Y = z` installs `((op,=), X, Y)`; the RHS needs domain + 1 = 3 args.
+        let builtins = core_builtins();
+        let correct = analyze_with_builtins("ZZ * ZZ = (a, b, c) -> c\n", &builtins);
+        assert!(!has_diagnostic_code(
+            &correct,
+            INSTALL_ARITY_DIAGNOSTIC_CODE
+        ));
+        let wrong = analyze_with_builtins("ZZ * ZZ = (a, b) -> a\n", &builtins);
+        assert!(has_diagnostic_code(&wrong, INSTALL_ARITY_DIAGNOSTIC_CODE));
     }
 
     #[test]
