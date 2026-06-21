@@ -185,6 +185,9 @@ pub struct TypeLattice {
 }
 
 impl TypeLattice {
+    // Legacy split-format lattice builder, now only reachable from the test-only
+    // `load_from_split*` fixtures. Production builds via `from_type_index`.
+    #[cfg(test)]
     pub fn from_builtins(builtins: &BuiltinData) -> Self {
         let mut ancestors: HashMap<_, Vec<_>> = HashMap::new();
         let mut children: HashMap<_, Vec<_>> = HashMap::new();
@@ -371,6 +374,10 @@ struct OptionCodomainFact {
     codomain: String,
 }
 
+// The `TypeFact*` raw structs and `load_jsonl` parse the legacy split-format
+// `type_facts.jsonl`, now only fed by the test-only `load_from_split*` fixtures.
+// Production type facts come from `TypeFacts::from_type_index`.
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct TypeFactRecord {
     callable: String,
@@ -382,6 +389,7 @@ struct TypeFactRecord {
     option_codomains: Vec<TypeFactOptionCodomain>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct TypeFactSignature {
     #[serde(default)]
@@ -389,6 +397,7 @@ struct TypeFactSignature {
     codomain: String,
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct TypeFactOption {
     key: String,
@@ -396,6 +405,7 @@ struct TypeFactOption {
     values: Vec<String>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct TypeFactOptionCodomain {
     key: String,
@@ -427,6 +437,7 @@ fn domain_at_least_as_specific(lattice: &TypeLattice, a: &[String], b: &[String]
 }
 
 impl TypeFacts {
+    #[cfg(test)]
     fn load_jsonl(input: &str) -> Self {
         let mut facts = TypeFacts::default();
         for line in input.lines().filter(|line| !line.trim().is_empty()) {
@@ -1356,6 +1367,10 @@ fn record_from_object(entry: &crate::builtin_index::ObjectEntry) -> Record {
 }
 
 impl BuiltinData {
+    // Legacy split-format (`names` + `details.jsonl`) builders, now only used by
+    // unit-test fixtures. The disk-cache path they served was removed with the
+    // `PackageIndexer` duality; production builds via `from_index`/`from_corpus`.
+    #[cfg(test)]
     pub fn load_from_split(names: &str, details: &str) -> Self {
         Self::load_from_split_with_type_facts(names, details, "")
     }
@@ -1363,6 +1378,7 @@ impl BuiltinData {
     /// Build a `BuiltinData` from a packed `names` + `details` JSONL pair — the
     /// runtime per-package index format (one `Record` per `details` line, aligned
     /// positionally with `names`). Records are deserialized once, eagerly.
+    #[cfg(test)]
     pub fn load_from_split_with_type_facts(names: &str, details: &str, type_facts: &str) -> Self {
         let names: Vec<_> = names
             .lines()

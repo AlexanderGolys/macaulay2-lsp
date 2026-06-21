@@ -66,8 +66,6 @@ impl DocumentSnapshot {
     /// The packages this document imports, memoized from its tree. Combined with
     /// the partitioned index's baseline (`LoadedPackages::from_parts`) to build
     /// the scoped query view.
-    // Consumed by the Backend query handlers once they route through ScopedIndex.
-    #[allow(dead_code)]
     pub(crate) fn imported_packages(&self) -> &[String] {
         &self.imported_packages
     }

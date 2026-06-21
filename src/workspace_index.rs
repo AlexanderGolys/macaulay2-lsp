@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn indexes_and_looks_up_cross_file_definitions() {
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
         let index = WorkspaceIndex::default();
         let defs = Url::parse("file:///defs.m2").expect("uri");
         let main = Url::parse("file:///main.m2").expect("uri");

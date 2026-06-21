@@ -698,7 +698,7 @@ mod tests {
     #[test]
     fn semantic_tokens_classify_parameter_body_references_as_parameters() {
         let text = "f := x -> x";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
 
         let tokens = collect_semantic_tokens(&document, &builtins, false);
@@ -755,7 +755,7 @@ mod tests {
     #[test]
     fn semantic_tokens_include_recognized_syntax_tokens() {
         let text = "-- hi\nif x then 42 + 1 else \"no\"\nlocal y";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, false);
@@ -782,7 +782,7 @@ mod tests {
     #[test]
     fn semantic_tokens_classify_binding_qualifiers_as_modifiers() {
         let text = "global x\nlocal y\nsymbol z\nthreadLocal w\nthreadVariable q";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, false);
@@ -805,7 +805,7 @@ mod tests {
     #[test]
     fn semantic_tokens_do_not_classify_booleans_as_keywords() {
         let text = "if true then false else true";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, false);
@@ -826,7 +826,7 @@ mod tests {
     #[test]
     fn semantic_tokens_classify_regex_string_arguments_as_regexp() {
         let text = "match(\"a+\", s)\nreplace(\"a+\", \"b\", s)\nseparate(\"a+\", s)";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, false);
@@ -863,7 +863,7 @@ mod tests {
             "exportFrom {\"Pkg\"}\n",
             "print \"ordinary\""
         );
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, false);
@@ -903,7 +903,7 @@ mod tests {
             "importFrom(\"Core\", {\"first\", \"second\"})\n",
             "exportFrom(\"Pkg\", \"only\")\n",
         );
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, false);
@@ -940,7 +940,7 @@ mod tests {
             "    \"GlobalQuote\" => \"global\"\n",
             "}\n",
         );
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, false);
 
@@ -967,7 +967,7 @@ mod tests {
         // A string on the right of `#` / `#?` is a literal key (property). A
         // symbol key (`h#k`) is evaluated, so it stays an ordinary reference.
         let text = "a = h#\"first\"\nb = h#?\"second\"\nc = \"plain\"\n";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, false);
 
@@ -993,7 +993,7 @@ mod tests {
         // `name` is also a global variable, yet the quoted global key in `R.name`
         // and `R.?name` must still win as a property over any other role.
         let text = "name = 5\nx = R.name\ny = R.?name\n";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, false);
 
@@ -1062,7 +1062,7 @@ mod tests {
             range: Range::new(Position::new(0, 5), Position::new(0, 6)),
             type_name: None,
         };
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         assert_eq!(
             local_symbol_semantic_token_type(&symbol, Position::new(0, 5), &builtins),

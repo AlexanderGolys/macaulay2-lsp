@@ -691,7 +691,7 @@ mod tests {
     use crate::typesystem::BuiltinData;
 
     fn document(text: &str) -> DocumentSnapshot {
-        DocumentSnapshot::from_text(text.to_string(), &BuiltinData::load_from_split("", ""))
+        DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
             .expect("fixture should parse")
     }
 

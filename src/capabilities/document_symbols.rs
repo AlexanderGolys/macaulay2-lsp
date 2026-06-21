@@ -357,7 +357,7 @@ mod tests {
     #[test]
     fn document_symbol_ranges_use_lsp_utf16_columns() {
         let text = "\"😀\"; f := 1";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);
@@ -395,7 +395,7 @@ mod tests {
         // A key not indexed in any package is listed at its first occurrence and
         // not repeated when it is reused.
         let text = "f = method(Options => {MyOpt => 1})\ng(MyOpt => 2)\n";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);
 
@@ -410,7 +410,7 @@ mod tests {
     #[test]
     fn document_symbols_include_top_level_and_nested_assignments() {
         let text = "f := x -> (y := x + 1; y)\nR = QQ[a]\n";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);
@@ -442,7 +442,7 @@ mod tests {
     fn document_symbols_include_only_new_bindings_in_m2_scopes() {
         let text =
             "x := 1\nx := 2\ny = 1\ny = 2\nf := x -> (x = 2; K = x; z := 3; z := 4)\nK = 3\n";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);
@@ -474,7 +474,7 @@ mod tests {
         // A top-level name assigned more than once is a single static symbol,
         // anchored at its first binding.
         let text = "x = 1\nargs = {}\nargs = append(args, 1)\n";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);
@@ -534,7 +534,7 @@ mod tests {
         }
 
         let text = include_str!("../../example_m2_code/example1.m2");
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
@@ -574,7 +574,7 @@ String * String = (x, y, e) -> e
 - String := peek
 String ^~ := peek
 ";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);
@@ -613,7 +613,7 @@ Z = new Type of X
 Y + X := (a,b) -> \"Y + X\"
 X + Z := (a,b) -> \"X + Z\"
 ";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);
@@ -637,7 +637,7 @@ X + Z := (a,b) -> \"X + Z\"
     #[test]
     fn document_symbols_include_cst_option_properties() {
         let text = "f := x -> g(x, Strategy => LongPolynomial)";
-        let builtins = BuiltinData::load_from_split("", "");
+        let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);

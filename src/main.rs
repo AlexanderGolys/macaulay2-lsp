@@ -46,11 +46,9 @@ use capabilities::navigation::{
 use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
 use capabilities::type_hierarchy::{TypeHierarchyCapabilityService, TYPE_HIERARCHY_METHOD};
 use document::DocumentSnapshot;
+use package_index::SourceResolver;
 #[cfg(test)]
-use package_index::package_source_string;
-use package_index::{collect_imported_packages, PackageIndexer, SourceResolver};
-#[cfg(test)]
-use record_lsp::record_package;
+use package_index::{collect_imported_packages, package_source_string};
 use record_lsp::{record_source_file, record_source_line, record_symbol_kind};
 
 use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
@@ -60,13 +58,12 @@ use crate::workspace_index::WorkspaceIndex;
 #[derive(Debug)]
 struct Backend {
     client: Client,
+    /// The Core partition, used for parse-time document analysis and workspace
+    /// indexing (inference stays Core-scoped). On-demand queries route through a
+    /// `ScopedIndex` over `partitioned` instead.
     builtins: BuiltinData,
-    // Forward-looking P3 field: not yet consulted by query routing.
-    #[allow(dead_code)]
     partitioned: PackagePartitionedIndex,
     source_resolver: SourceResolver,
-    package_indexer: PackageIndexer,
-    package_indexes: DashMap<String, BuiltinData>,
     documents: DashMap<Url, DocumentSnapshot>,
     workspace_index: Arc<WorkspaceIndex>,
     semantic_tokens_augment_syntax: AtomicBool,
@@ -90,43 +87,11 @@ impl Backend {
             builtins,
             partitioned,
             source_resolver: SourceResolver::from_environment(),
-            package_indexer: PackageIndexer::from_environment(),
-            package_indexes: DashMap::new(),
             documents: DashMap::new(),
             workspace_index: Arc::new(WorkspaceIndex::default()),
             semantic_tokens_augment_syntax: AtomicBool::new(false),
             type_hierarchy_dynamic_registration: AtomicBool::new(false),
         }
-    }
-
-    fn package_index(&self, package_name: &str) -> Option<BuiltinData> {
-        if let Some(index) = self.package_indexes.get(package_name) {
-            return Some(index.clone());
-        }
-
-        let index = self.package_indexer.load(package_name)?;
-        self.package_indexes
-            .insert(package_name.to_string(), index.clone());
-        Some(index)
-    }
-
-    fn active_package_indexes(&self, text: &str) -> Vec<(String, BuiltinData)> {
-        collect_imported_packages(text)
-            .into_iter()
-            .filter_map(|package| {
-                let index = self.package_index(&package)?;
-                Some((package, index))
-            })
-            .collect()
-    }
-
-    /// The ordered in-scope package set for a document: the partitioned index's
-    /// default-loaded baseline plus the document's imports. Pure function of the
-    /// text. Not yet consulted by query routing (P3) — provided so that work has
-    /// a single source for "what is loaded here".
-    #[allow(dead_code)]
-    fn loaded_packages(&self, text: &str) -> LoadedPackages {
-        LoadedPackages::resolve(self.partitioned.default_loaded(), text)
     }
 
     fn reindex_from_disk(&self, uri: &Url) {
@@ -228,7 +193,6 @@ impl Backend {
             return;
         };
         let uri = params.uri;
-        let _ = self.active_package_indexes(document.text());
         self.workspace_index
             .index_file(&uri, document.text(), &self.builtins);
         self.documents.insert(uri.clone(), document);
@@ -242,7 +206,6 @@ impl Backend {
             if document.apply_changes(&changes, &self.builtins).is_none() {
                 return;
             }
-            let _ = self.active_package_indexes(document.text());
             self.workspace_index
                 .index_file(&uri, document.text(), &self.builtins);
             publish_diagnostics(&self.client, uri, document.value()).await;
@@ -413,9 +376,6 @@ impl LanguageServer for Backend {
         // Re-index from disk so the workspace index reflects the saved file
         // rather than the last in-editor edit.
         self.reindex_from_disk(&uri);
-        if self.documents.is_empty() {
-            self.package_indexes.clear();
-        }
     }
 
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
@@ -970,34 +930,6 @@ mod tests {
             collect_imported_packages(text),
             vec!["Graphs".to_string(), "Normaliz".to_string()]
         );
-    }
-
-    #[test]
-    fn package_indexer_loads_cached_line_aligned_package_records() {
-        let root = env::temp_dir().join(format!("m2-lsp-package-index-{}", std::process::id()));
-        fs::create_dir_all(&root).expect("test package cache dir should be created");
-        fs::write(root.join("Graphs.names"), "graph\n")
-            .expect("package names fixture should write");
-        fs::write(
-            root.join("Graphs.details.jsonl"),
-            "{\"name\":\"graph\",\"class\":\"MethodFunction\",\"description_short\":null,\"description_long\":null,\"examples\":[],\"extra\":{\"package\":\"Graphs\"}}\n",
-        )
-        .expect("package details fixture should write");
-
-        let indexer = PackageIndexer {
-            cache_dir: root.clone(),
-        };
-        let index = indexer
-            .load("Graphs")
-            .expect("cached package index should load");
-        let record = index
-            .get_record(&typesystem::InstanceID::new("graph"))
-            .expect("package record should be available");
-
-        assert_eq!(record.name.0, "graph");
-        assert_eq!(record_package(&record), Some("Graphs"));
-
-        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

@@ -1,10 +1,7 @@
 use std::collections::HashSet;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use tree_sitter::Parser;
-
-use crate::typesystem::BuiltinData;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SourceResolver {
@@ -59,47 +56,6 @@ impl SourceResolver {
         let source_file = format!("{package_name}.m2");
         self.resolve_source_file(&source_file)
     }
-}
-
-/// Loads pre-extracted package index files from a cache dir. Per the static-asset
-/// decision the LSP never *generates* these — extraction is an external,
-/// build-time pipeline — so this only ever reads cache files that already exist.
-#[derive(Debug, Clone)]
-pub(crate) struct PackageIndexer {
-    pub(crate) cache_dir: PathBuf,
-}
-
-impl PackageIndexer {
-    pub(crate) fn from_environment() -> Self {
-        let cache_dir = std::env::var_os("M2_LSP_PACKAGE_INDEX_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(default_package_index_dir);
-
-        PackageIndexer { cache_dir }
-    }
-
-    pub(crate) fn load(&self, package_name: &str) -> Option<BuiltinData> {
-        let names = fs::read_to_string(self.names_path(package_name)).ok()?;
-        let details = fs::read_to_string(self.details_path(package_name)).ok()?;
-        Some(BuiltinData::load_from_split(&names, &details))
-    }
-
-    fn names_path(&self, package_name: &str) -> PathBuf {
-        self.cache_dir.join(format!("{package_name}.names"))
-    }
-
-    fn details_path(&self, package_name: &str) -> PathBuf {
-        self.cache_dir.join(format!("{package_name}.details.jsonl"))
-    }
-}
-
-fn default_package_index_dir() -> PathBuf {
-    std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
-        .unwrap_or_else(std::env::temp_dir)
-        .join("macaulay2-lsp")
-        .join("package-index")
 }
 
 fn unquoted_string_literal<'a>(text: &'a str, node: tree_sitter::Node<'_>) -> Option<&'a str> {
