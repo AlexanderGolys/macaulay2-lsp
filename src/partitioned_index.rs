@@ -84,15 +84,19 @@ impl LoadedPackages {
     /// import-order, with duplicates dropped (a re-import of a default package
     /// does not move it).
     pub fn resolve(default_loaded: &[String], text: &str) -> Self {
+        Self::from_parts(default_loaded, &collect_imported_packages(text))
+    }
+
+    /// Combine the baseline with an already-collected import list (e.g. the set a
+    /// document snapshot memoized from its own tree), baseline-first then
+    /// import-order, deduplicated. The hot path on each request: no parsing, just
+    /// a dedup over a handful of names.
+    pub fn from_parts(default_loaded: &[String], imported: &[String]) -> Self {
         let mut ordered = Vec::new();
         let mut seen = std::collections::HashSet::new();
-        for package in default_loaded
-            .iter()
-            .cloned()
-            .chain(collect_imported_packages(text))
-        {
+        for package in default_loaded.iter().chain(imported.iter()) {
             if seen.insert(package.clone()) {
-                ordered.push(package);
+                ordered.push(package.clone());
             }
         }
         LoadedPackages(ordered)

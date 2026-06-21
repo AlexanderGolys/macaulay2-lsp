@@ -158,7 +158,16 @@ pub(crate) fn collect_imported_packages(text: &str) -> Vec<String> {
     let Some(tree) = parser.parse(text, None) else {
         return Vec::new();
     };
+    collect_imported_packages_in_tree(text, &tree)
+}
 
+/// Walk an already-parsed tree for package-import calls, reusing the caller's
+/// parse rather than spinning up a fresh parser. The snapshot keeps its tree
+/// around, so per-version import collection costs one walk, not a re-parse.
+pub(crate) fn collect_imported_packages_in_tree(
+    text: &str,
+    tree: &tree_sitter::Tree,
+) -> Vec<String> {
     let root = tree.root_node();
     let mut packages = Vec::new();
     let mut seen = HashSet::new();

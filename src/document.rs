@@ -5,6 +5,7 @@ use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
 #[cfg(test)]
 use crate::analysis::ExpressionFact;
 use crate::analysis::{Analysis, BindingInfo, FunctionInfo};
+use crate::package_index::collect_imported_packages_in_tree;
 use crate::typesystem::BuiltinData;
 use crate::util::{
     byte_index_from_lsp_position, floor_char_boundary, node_range,
@@ -16,6 +17,11 @@ pub(crate) struct DocumentSnapshot {
     text: String,
     tree: Tree,
     analysis: Analysis,
+    /// Packages this document imports (`needsPackage`/`loadPackage`/`debug`/
+    /// `importFrom`), collected once per version from `tree`. The baseline is
+    /// owned by the partitioned index, so the snapshot stores only its own
+    /// contribution to the loaded set.
+    imported_packages: Vec<String>,
 }
 
 impl DocumentSnapshot {
@@ -26,10 +32,12 @@ impl DocumentSnapshot {
             .ok()?;
         let tree = parser.parse(&text, None)?;
         let analysis = Analysis::new_with_builtins(&tree, &text, Some(builtins));
+        let imported_packages = collect_imported_packages_in_tree(&text, &tree);
         Some(Self {
             text,
             tree,
             analysis,
+            imported_packages,
         })
     }
 
@@ -53,6 +61,15 @@ impl DocumentSnapshot {
 
     pub(crate) fn text(&self) -> &str {
         &self.text
+    }
+
+    /// The packages this document imports, memoized from its tree. Combined with
+    /// the partitioned index's baseline (`LoadedPackages::from_parts`) to build
+    /// the scoped query view.
+    // Consumed by the Backend query handlers once they route through ScopedIndex.
+    #[allow(dead_code)]
+    pub(crate) fn imported_packages(&self) -> &[String] {
+        &self.imported_packages
     }
 
     pub(crate) fn analysis(&self) -> &Analysis {
@@ -188,6 +205,7 @@ impl DocumentSnapshot {
             .ok()?;
         let tree = parser.parse(&self.text, Some(&edited_tree))?;
         let analysis = Analysis::new_with_builtins(&tree, &self.text, Some(builtins));
+        self.imported_packages = collect_imported_packages_in_tree(&self.text, &tree);
         self.tree = tree;
         self.analysis = analysis;
         Some(())
@@ -232,6 +250,32 @@ mod tests {
             .symbol_node_at_position(Position::new(1, trailing_m as u32))
             .expect("trailing application operand should resolve to its symbol");
         assert_eq!(doc.text_for(node), "M");
+    }
+
+    #[test]
+    fn memoizes_imported_packages_and_rederives_on_edit() {
+        let builtins = builtins();
+        let mut document =
+            DocumentSnapshot::from_text("needsPackage \"JSON\"\n".to_string(), &builtins)
+                .expect("fixture should parse");
+        assert_eq!(document.imported_packages(), &["JSON".to_string()]);
+
+        // Append a second import incrementally; the memoized set re-derives.
+        let end = Position::new(1, 0);
+        document
+            .apply_changes(
+                &[TextDocumentContentChangeEvent {
+                    range: Some(Range::new(end, end)),
+                    range_length: None,
+                    text: "needsPackage \"Text\"\n".to_string(),
+                }],
+                &builtins,
+            )
+            .expect("edit should parse");
+        assert_eq!(
+            document.imported_packages(),
+            &["JSON".to_string(), "Text".to_string()]
+        );
     }
 
     #[test]
