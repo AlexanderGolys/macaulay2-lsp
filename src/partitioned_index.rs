@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use crate::builtin_index::BuiltinIndex;
 use crate::package_index::collect_imported_packages;
-use crate::typesystem::BuiltinData;
+use crate::typesystem::{BuiltinData, InstanceID, Record, SignatureUsage};
 
 /// Every shipped package's `BuiltinData`, keyed by home package, plus the
 /// default-loaded baseline. Built once from the single embedded corpus.
@@ -57,6 +57,20 @@ impl PackagePartitionedIndex {
     pub fn packages(&self) -> impl Iterator<Item = &str> {
         self.partitions.keys().map(String::as_str)
     }
+
+    /// A non-materializing view over the partitions loaded for a document, in
+    /// resolution order (baseline/Core-first, then import order). Imports with no
+    /// partition in the corpus are skipped. Borrows the partitions — nothing is
+    /// copied or rebuilt; importing/removing a package only changes which
+    /// references the view holds.
+    pub fn scoped<'a>(&'a self, loaded: &'a LoadedPackages) -> ScopedIndex<'a> {
+        let partitions = loaded
+            .as_slice()
+            .iter()
+            .filter_map(|package| self.partition(package).map(|data| (package.as_str(), data)))
+            .collect();
+        ScopedIndex { partitions }
+    }
 }
 
 /// The ordered set of packages in scope for a document: the default-loaded
@@ -86,6 +100,119 @@ impl LoadedPackages {
 
     pub fn as_slice(&self) -> &[String] {
         &self.0
+    }
+}
+
+/// An ordered, borrowing view over the loaded packages' `BuiltinData`. Lookups
+/// resolve first-match across the ordered partitions; searches aggregate across
+/// all of them. Holds only references — never a merged or rebuilt index.
+#[derive(Debug, Clone)]
+pub(crate) struct ScopedIndex<'a> {
+    partitions: Vec<(&'a str, &'a BuiltinData)>,
+}
+
+impl<'a> ScopedIndex<'a> {
+    /// The Core partition — always the first loaded (baseline floor). Used by the
+    /// few hover helpers that still take the raw Core `BuiltinData`.
+    pub fn core(&self) -> &'a BuiltinData {
+        self.partitions
+            .first()
+            .map(|(_, data)| *data)
+            .expect("loaded set is never empty: Core is always the baseline")
+    }
+
+    pub fn get_record_with_package(&self, name: &InstanceID) -> Option<(&'a str, Record)> {
+        self.partitions
+            .iter()
+            .find_map(|(package, data)| data.get_record(name).map(|record| (*package, record)))
+    }
+
+    pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
+        self.get_record_with_package(name).map(|(_, record)| record)
+    }
+
+    pub fn contains_name(&self, name: &str) -> bool {
+        self.partitions
+            .iter()
+            .any(|(_, data)| data.contains_name(name))
+    }
+
+    pub fn is_subtype(&self, child: &InstanceID, parent: &InstanceID) -> bool {
+        // The partition owning `child` carries its full flattened ancestor chain,
+        // so a single partition answers definitively; others return false (or the
+        // reflexive child == parent). `any` therefore yields the correct edge.
+        self.partitions
+            .iter()
+            .any(|(_, data)| data.is_subtype(child, parent))
+    }
+
+    pub fn resolve_call_return_type(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+    ) -> Option<String> {
+        self.partitions
+            .iter()
+            .find_map(|(_, data)| data.resolve_call_return_type(callable, argument_types))
+    }
+
+    pub fn resolve_call_return_type_with_options(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+        literal_options: &[(String, String)],
+    ) -> Option<String> {
+        self.partitions.iter().find_map(|(_, data)| {
+            data.resolve_call_return_type_with_options(callable, argument_types, literal_options)
+        })
+    }
+
+    pub fn resolve_call_signature_usage(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+    ) -> Option<SignatureUsage> {
+        self.partitions
+            .iter()
+            .find_map(|(_, data)| data.resolve_call_signature_usage(callable, argument_types))
+    }
+
+    /// Names across all loaded partitions starting with `prefix`, deduped by name
+    /// (first occurrence wins, baseline-first), capped at `limit`. Each entry is
+    /// `(package, name)` so callers can label provenance.
+    pub fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(&'a str, &'a str)> {
+        self.aggregate_names(limit, |data, remaining| {
+            data.names_with_prefix(prefix, remaining)
+        })
+    }
+
+    pub fn matching_names(&self, query: &str, limit: usize) -> Vec<(&'a str, &'a str)> {
+        self.aggregate_names(limit, |data, remaining| {
+            data.matching_names(query, remaining)
+        })
+    }
+
+    fn aggregate_names(
+        &self,
+        limit: usize,
+        per_partition: impl Fn(&'a BuiltinData, usize) -> Vec<&'a str>,
+    ) -> Vec<(&'a str, &'a str)> {
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::new();
+        for (package, data) in &self.partitions {
+            if out.len() >= limit {
+                break;
+            }
+            for name in per_partition(data, limit.saturating_sub(out.len())) {
+                if seen.insert(name) {
+                    out.push((*package, name));
+                    if out.len() >= limit {
+                        break;
+                    }
+                }
+            }
+        }
+        out
     }
 }
 
@@ -194,5 +321,45 @@ mod tests {
             !after_removal.as_slice().iter().any(|p| p == "JSON"),
             "deleting the import line drops the package from the loaded set"
         );
+    }
+
+    #[test]
+    fn scoped_resolves_only_loaded_partitions() {
+        let index = PackagePartitionedIndex::from_corpus(corpus());
+
+        // Baseline only: Core resolves, JSON does not.
+        let baseline = LoadedPackages::resolve(index.default_loaded(), "1 + 1");
+        let scoped = index.scoped(&baseline);
+        assert!(scoped.get_record(&InstanceID::new("ZZ")).is_some());
+        assert!(scoped.get_record(&InstanceID::new("toJSON")).is_none());
+
+        // Import JSON: now toJSON resolves, tagged with its package.
+        let loaded = LoadedPackages::resolve(index.default_loaded(), "needsPackage \"JSON\"");
+        let scoped = index.scoped(&loaded);
+        let (pkg, record) = scoped
+            .get_record_with_package(&InstanceID::new("toJSON"))
+            .expect("toJSON resolves once JSON is loaded");
+        assert_eq!(pkg, "JSON");
+        assert_eq!(record.name.0, "toJSON");
+    }
+
+    #[test]
+    fn scoped_is_subtype_spans_package_to_core() {
+        // A loaded package type whose flattened ancestor chain reaches a Core type
+        // resolves is_subtype without any merged lattice (chain is stored per record).
+        let index = PackagePartitionedIndex::from_corpus(corpus());
+        let loaded = LoadedPackages::resolve(index.default_loaded(), "needsPackage \"JSON\"");
+        let scoped = index.scoped(&loaded);
+        // Every type is a subtype of Thing; reflexive check is the floor.
+        assert!(scoped.is_subtype(&InstanceID::new("ZZ"), &InstanceID::new("Thing")));
+    }
+
+    #[test]
+    fn scoped_skips_imports_absent_from_corpus() {
+        // Importing a package not in the corpus simply contributes nothing.
+        let index = PackagePartitionedIndex::from_corpus(corpus());
+        let loaded = LoadedPackages::resolve(index.default_loaded(), "needsPackage \"NoSuchPkg\"");
+        let scoped = index.scoped(&loaded);
+        assert!(scoped.get_record(&InstanceID::new("ZZ")).is_some());
     }
 }
