@@ -124,12 +124,42 @@ impl MethodInstallation {
     }
 }
 
+/// A function's argument shape, read from its lambda parameter node — the arity
+/// of its domain, independent of any installed methods (a function with no
+/// methods can still be total).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dispatch {
+    /// `x -> …` — a bare-symbol parameter binds the whole argument sequence; the
+    /// function accepts any arity.
+    Variadic,
+    /// `(x, y) -> …` — a parenthesized tuple; exactly `n` arguments. `() -> …` is
+    /// `Fixed(0)`, `(x) -> …` is `Fixed(1)`.
+    Fixed(usize),
+}
+
+/// The [`Dispatch`] shape of a lambda from its parameter node: a bare `Symbol`
+/// parameter is variadic; a `Sequence` is fixed-arity with one slot per named
+/// element. The same source-level rule fundocs applies via M2 `parse` to record
+/// builtin dispatch.
+fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
+    let parameters = lambda.child_by_field_name("parameters")?;
+    Some(match parameters.kind {
+        NodeKind::Sequence => Dispatch::Fixed(parameters.named_children().count()),
+        NodeKind::Symbol => Dispatch::Variadic,
+        _ => return None,
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionInfo {
     pub symbol: SymbolId,
     pub range: LspRange,
     pub typical_value: Option<String>,
     pub methods: Vec<MethodInfo>,
+    /// Argument shape of a lambda-defined function (`f := (x,y) -> …`). `None`
+    /// for method functions (arity comes from their installed method domains)
+    /// and for functions whose shape we can't read.
+    pub dispatch: Option<Dispatch>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -447,6 +477,10 @@ impl Analysis {
                     {
                         if let Some(typical_value) = method_declaration_typical_value(right, text) {
                             self.record_local_method_declaration(name, typical_value, left, text);
+                        } else if right.kind == NodeKind::LambdaExpression {
+                            if let Some(dispatch) = function_dispatch(right) {
+                                self.record_local_function_dispatch(name, dispatch, left, text);
+                            }
                         }
                     }
 
@@ -846,6 +880,32 @@ impl Analysis {
         self.infer_static_type_name(node, text, scope_idx, builtins)
     }
 
+    /// Record the [`Dispatch`] shape of a lambda-defined local function on its
+    /// function record, creating the record if this is its first mention.
+    fn record_local_function_dispatch(
+        &mut self,
+        name: &str,
+        dispatch: Dispatch,
+        node: M2Node,
+        text: &str,
+    ) {
+        let range = to_lsp_range(text, node.range());
+        let symbol = self.registry.intern_symbol(name);
+        let function = self
+            .registry
+            .functions
+            .entry(symbol)
+            .or_insert_with(|| FunctionInfo {
+                symbol,
+                range,
+                typical_value: None,
+                methods: Vec::new(),
+                dispatch: None,
+            });
+        function.range = range;
+        function.dispatch = Some(dispatch);
+    }
+
     fn record_local_method_declaration(
         &mut self,
         name: &str,
@@ -864,6 +924,7 @@ impl Analysis {
                 range,
                 typical_value: None,
                 methods: Vec::new(),
+                dispatch: None,
             });
         method.range = range;
         method.typical_value = typical_value;
@@ -889,6 +950,7 @@ impl Analysis {
                 range,
                 typical_value: None,
                 methods: Vec::new(),
+                dispatch: None,
             });
         let codomain = right
             .and_then(|right| explicit_method_installation_codomain(right, text))
@@ -1799,6 +1861,52 @@ mod tests {
             MethodHead::OperatorAssign(binary_op("+"))
         );
         assert_eq!(domain_names(&analysis.installations[0]), vec!["X", "Y"]);
+    }
+
+    fn dispatch_of(src: &str) -> Option<Dispatch> {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(src, None).expect("fixture should parse");
+        fn first_lambda(node: M2Node) -> Option<M2Node> {
+            if node.kind == NodeKind::LambdaExpression {
+                return Some(node);
+            }
+            node.named_children().find_map(first_lambda)
+        }
+        function_dispatch(first_lambda(M2Node::new(tree.root_node()))?)
+    }
+
+    #[test]
+    fn dispatch_reads_arity_from_the_lambda_parameter_node() {
+        // Bare symbol binds the whole sequence — any arity.
+        assert_eq!(dispatch_of("f := x -> x\n"), Some(Dispatch::Variadic));
+        // Parenthesized forms are fixed-arity, including length 0 and 1.
+        assert_eq!(dispatch_of("f := () -> 1\n"), Some(Dispatch::Fixed(0)));
+        assert_eq!(dispatch_of("f := (x) -> x\n"), Some(Dispatch::Fixed(1)));
+        assert_eq!(dispatch_of("f := (x, y) -> x\n"), Some(Dispatch::Fixed(2)));
+    }
+
+    #[test]
+    fn lambda_function_records_its_dispatch_shape() {
+        let analysis = analyze("f := (x, y) -> x + y\ng := z -> z\n");
+        assert_eq!(
+            analysis.function("f").and_then(|info| info.dispatch),
+            Some(Dispatch::Fixed(2))
+        );
+        assert_eq!(
+            analysis.function("g").and_then(|info| info.dispatch),
+            Some(Dispatch::Variadic)
+        );
+    }
+
+    #[test]
+    fn method_function_has_no_lambda_dispatch() {
+        // Method functions get their arity from installed method domains, not a
+        // lambda parameter list, so `dispatch` stays None.
+        let analysis = analyze("p = method()\n");
+        assert_eq!(analysis.function("p").and_then(|info| info.dispatch), None);
     }
 
     #[test]
