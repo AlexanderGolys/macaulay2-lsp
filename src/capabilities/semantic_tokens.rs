@@ -226,7 +226,7 @@ pub(crate) fn local_symbol_semantic_token_type(
         SymbolKind::FUNCTION => M2SemanticTokenType::Function,
         SymbolKind::VARIABLE => M2SemanticTokenType::Variable,
         SymbolKind::METHOD => M2SemanticTokenType::Method,
-        SymbolKind::CLASS => M2SemanticTokenType::Class,
+        SymbolKind::CLASS => M2SemanticTokenType::Type,
         SymbolKind::NAMESPACE => M2SemanticTokenType::Namespace,
         SymbolKind::PROPERTY => M2SemanticTokenType::Property,
         SymbolKind::CONSTANT => M2SemanticTokenType::EnumMember,

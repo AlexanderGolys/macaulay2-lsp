@@ -1258,7 +1258,6 @@ impl BuiltinData {
         let operator_type = InstanceID::new("Operator");
         let scripted_functor_type = InstanceID::new("ScriptedFunctor");
         let symbol_type = InstanceID::new("Symbol");
-        let type_type = InstanceID::new("Type");
         let compiled_function_type = InstanceID::new("CompiledFunction");
         let compiled_function_closure_type = InstanceID::new("CompiledFunctionClosure");
 
@@ -1271,25 +1270,15 @@ impl BuiltinData {
         let is_constructor =
             self.is_constructor_name(&record.name.0) && !is_manipulator && !is_command;
 
-        // 1. M2 classes are runtime objects whose own class is a subtype of Type.
-        // Other values that participate in the type hierarchy keep the generic
-        // LSP type role.
+        // 1. Every M2 type is the same kind of thing: an object whose own class
+        // is a subtype of `Type`. M2 draws no class-vs-type distinction (`class x`
+        // *is* the type of `x`), so every type-valued symbol gets the one TYPE
+        // role rather than splitting on an inheritance detail that has no meaning
+        // in the language.
         if let Some(type_info) = &record.type_info {
             if type_info.parent_type.is_some() {
-                let token_type = match &record.relation_info {
-                    Some(relation_info)
-                        if relation_info
-                            .class_ancestors
-                            .iter()
-                            .any(|ancestor| ancestor == &type_type) =>
-                    {
-                        M2SemanticTokenType::Class
-                    }
-                    _ => M2SemanticTokenType::Type,
-                };
-
                 return Some(M2SemanticToken {
-                    token_type,
+                    token_type: M2SemanticTokenType::Type,
                     is_command: false,
                     is_file: false,
                     is_manipulator: false,
@@ -1382,7 +1371,7 @@ impl BuiltinData {
         } else if self.is_subtype(&type_id, &package_type) {
             M2SemanticTokenType::Namespace
         } else if is_type_valued {
-            M2SemanticTokenType::Class
+            M2SemanticTokenType::Type
         } else if self.is_subtype(&type_id, &function_type)
             || self.is_subtype(&type_id, &scripted_functor_type)
             || is_manipulator
