@@ -2817,6 +2817,69 @@ mod tests {
     }
 
     #[test]
+    fn operator_installs_on_thing_are_recognized() {
+        // The named binary operators `..` and `_` install methods on a type pair,
+        // exactly like an explicit `*`/`+` operator install.
+        let builtins = core_builtins();
+        for (source, token) in [
+            ("Thing .. Thing := (a, b) -> a\n", ".."),
+            ("Thing _ Thing := (a, b) -> a\n", "_"),
+        ] {
+            let analysis = analyze_with_builtins(source, &builtins);
+            assert_eq!(analysis.installations.len(), 1, "for `{source}`");
+            assert_eq!(
+                analysis.installations[0].head,
+                MethodHead::Operator(binary_op(token)),
+                "for `{source}`"
+            );
+            assert_eq!(
+                domain_names(&analysis.installations[0]),
+                vec!["Thing", "Thing"]
+            );
+        }
+    }
+
+    #[test]
+    fn install_with_codomain_arrow_records_the_function() {
+        // `f(CC,CC) := Array => fn` installs (f, CC, CC) -> Array; the `Array =>`
+        // codomain wrapper must not be mistaken for an Option value.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins(
+            "f = method()\nf(CC, CC) := Array => (i, j) -> i\n",
+            &builtins,
+        );
+        let f = analysis.function("f").expect("f is a recorded function");
+        let method = f
+            .methods
+            .iter()
+            .find(|method| method.domain == vec!["CC".to_string(), "CC".to_string()])
+            .expect("(f, CC, CC) recorded");
+        assert_eq!(method.codomain.as_deref(), Some("Array"));
+    }
+
+    #[test]
+    fn chained_colon_equals_installs_every_alias() {
+        // `p(ZZ,ZZ) := p(List,ZZ) := fn` installs the same body for both
+        // domains; right-associativity makes the inner install the RHS of the
+        // outer, and both must be recorded as methods of `p`.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins(
+            "p = method()\np(ZZ, ZZ) := p(List, ZZ) := (i, j) -> {i, j}\n",
+            &builtins,
+        );
+        let p = analysis.function("p").expect("p is a recorded function");
+        let domains: Vec<&Vec<String>> = p.methods.iter().map(|method| &method.domain).collect();
+        assert!(
+            domains.contains(&&vec!["ZZ".to_string(), "ZZ".to_string()]),
+            "missing (p, ZZ, ZZ); got {domains:?}"
+        );
+        assert!(
+            domains.contains(&&vec!["List".to_string(), "ZZ".to_string()]),
+            "missing (p, List, ZZ); got {domains:?}"
+        );
+    }
+
+    #[test]
     fn equals_install_on_method_function_head_is_flagged() {
         // `f Domain = fn` must be `:=`; M2 errors ("no method for storing
         // values of function f"). Verified against M2 1.26.05.
