@@ -169,6 +169,46 @@ impl Analysis {
                 ..Default::default()
             });
         }
+
+        if matches!(op_text, "=" | ":=") && !is_method_installation {
+            if let Some(right) = node.child_by_field_name("right") {
+                self.validate_parallel_assignment_arity(left, right, text);
+            }
+        }
+    }
+
+    /// A destructuring assignment whose right-hand side is itself a fixed-length
+    /// collection literal must match arity: `[x, y] = [a, b, c]` and
+    /// `[x, y] = {a}` are always errors, while `[x, y] = a` and `[x, y] = (a)`
+    /// are runtime-checked (the right side's length is not known statically) and
+    /// left alone. Recurses so nested targets like `[x, [y, z]] = [1, {2, 3, 4}]`
+    /// are checked at every level where both sides are collection literals.
+    fn validate_parallel_assignment_arity(&mut self, left: Node, right: Node, text: &str) {
+        let left = M2Node::new(left);
+        let right = M2Node::new(right);
+        if !is_fixed_length_collection(left) || !is_fixed_length_collection(right) {
+            return;
+        }
+
+        let target_nodes = left.named_children().collect::<Vec<_>>();
+        let value_nodes = right.named_children().collect::<Vec<_>>();
+        if target_nodes.len() != value_nodes.len() {
+            self.diagnostics.push(Diagnostic {
+                range: to_lsp_range(text, right.inner().range()),
+                severity: Some(DiagnosticSeverity::ERROR),
+                message: format!(
+                    "parallel assignment binds {} targets but the right-hand side lists {}; their lengths must match",
+                    target_nodes.len(),
+                    value_nodes.len()
+                ),
+                ..Default::default()
+            });
+            return;
+        }
+
+        for (target, value) in target_nodes.iter().zip(value_nodes.iter()) {
+            self.validate_parallel_assignment_arity(target.inner(), value.inner(), text);
+        }
     }
 
     pub(crate) fn collect_unused_binding_diagnostics(&mut self, root: Node, text: &str) {
@@ -279,17 +319,38 @@ fn is_function_option_context(option: Node<'_>) -> bool {
     false
 }
 
+/// A genuine fixed-length collection literal, whose arity is known statically.
+/// `List`/`Array`/`AngleBarList` of any length qualify, including length 0 and 1
+/// (`{a}` is a real one-element list). A `Sequence` qualifies at every length
+/// except 1: the current grammar represents a parenthesized expression `(a)` as
+/// a length-1 `Sequence`, so that single case is runtime-checked, not static.
+/// The empty sequence `()` (length 0) is a real value and stays in scope.
+fn is_fixed_length_collection(node: M2Node) -> bool {
+    if !node.kind.is_collection_expression() {
+        return false;
+    }
+    node.kind != NodeKind::Sequence || node.named_children().count() != 1
+}
+
 fn multiple_assignment_targets_are_symbols(node: Node) -> bool {
     let m2_node = M2Node::new(node);
-    if !matches!(m2_node.kind, NodeKind::Sequence | NodeKind::List) {
+    if !m2_node.kind.is_collection_expression() {
         return true;
     }
 
     let mut cursor = node.walk();
-    let all_targets_are_symbols = node
-        .named_children(&mut cursor)
-        .all(|child| M2Node::new(child).kind == NodeKind::Symbol);
-    all_targets_are_symbols
+    // A target element is valid when it is a plain symbol or itself a nested
+    // target collection whose elements are all valid (`[x, [y, z]] = ...`). The
+    // recursion is gated on the child being a collection because the early
+    // return above yields `true` for non-collections -- a bare recursive call
+    // would otherwise wrongly accept `[x + 1, y]`.
+    let all_targets_valid = node.named_children(&mut cursor).all(|child| {
+        let child_kind = M2Node::new(child).kind;
+        child_kind == NodeKind::Symbol
+            || (child_kind.is_collection_expression()
+                && multiple_assignment_targets_are_symbols(child))
+    });
+    all_targets_valid
 }
 
 fn find_first_else_symbol<'tree>(node: Node<'tree>, text: &str) -> Option<Node<'tree>> {

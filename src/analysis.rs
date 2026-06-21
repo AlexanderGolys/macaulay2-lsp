@@ -477,20 +477,22 @@ impl Analysis {
                     }
                 }
             }
-            NodeKind::Sequence | NodeKind::List => {
+            _ if node.kind.is_collection_expression() => {
+                // Recurse on every element so nested destructuring targets such
+                // as `[x, [y, z]]` register their inner symbols too; non-symbol,
+                // non-collection elements fall through to the `_` arm and are
+                // ignored.
                 for child in node.named_children() {
-                    if child.kind == NodeKind::Symbol {
-                        self.collect_definitions(
-                            child,
-                            value_node,
-                            text,
-                            definition_scope,
-                            SymbolRegistration {
-                                type_name: None,
-                                ..registration
-                            },
-                        );
-                    }
+                    self.collect_definitions(
+                        child,
+                        value_node,
+                        text,
+                        definition_scope,
+                        SymbolRegistration {
+                            type_name: None,
+                            ..registration
+                        },
+                    );
                 }
             }
             _ => {}
@@ -1798,6 +1800,83 @@ mod tests {
             .get(&SpanKey::from_node(text, binary))
             .expect("call info should be registered");
         assert_eq!(call.callable_name.as_deref(), Some("+"));
+    }
+
+    #[test]
+    fn registers_destructured_symbols_from_all_collection_targets() {
+        let analysis = analyze(
+            "[x, y] = {1, 2}\n<|a, b, c|> = [3, 4, 5]\n(p, q) := (6, 7)\nx\ny\na\nb\nc\np\nq\n",
+        );
+
+        for (name, line) in [("x", 4), ("y", 5), ("a", 6), ("b", 7), ("c", 8)] {
+            assert!(
+                analysis
+                    .get_symbol_at(name, Position::new(line, 0))
+                    .is_some(),
+                "{name} from a bracket/angle-bar destructuring target should be registered"
+            );
+        }
+        assert!(analysis.get_symbol_at("p", Position::new(9, 0)).is_some());
+        assert!(analysis.get_symbol_at("q", Position::new(10, 0)).is_some());
+    }
+
+    #[test]
+    fn registers_nested_destructured_symbols() {
+        let analysis = analyze("[x, [y, z]] := {1, {2, 3}}\nx\ny\nz\n");
+
+        for (name, line) in [("x", 1), ("y", 2), ("z", 3)] {
+            assert!(
+                analysis
+                    .get_symbol_at(name, Position::new(line, 0))
+                    .is_some(),
+                "{name} from a nested destructuring target should be registered"
+            );
+        }
+    }
+
+    #[test]
+    fn parallel_assignment_expression_has_right_hand_side_type() {
+        let analysis = analyze("{a, b} = [1, 2]\n");
+        let tree = {
+            let mut parser = Parser::new();
+            parser
+                .set_language(&tree_sitter_macaulay2::language())
+                .expect("macaulay2 parser should load");
+            parser.parse("{a, b} = [1, 2]\n", None).expect("parse")
+        };
+        let assignment = M2Node::new(
+            tree.root_node()
+                .descendant_for_byte_range(0, 15)
+                .expect("assignment node"),
+        );
+        // The assignment evaluates to its right-hand side, so its expression
+        // type is Array even though the target is written with `{}`.
+        assert_eq!(
+            analysis.infer_expression_static_type_name(assignment, "{a, b} = [1, 2]\n", None),
+            Some("Array".to_string())
+        );
+    }
+
+    #[test]
+    fn diagnoses_parallel_assignment_arity_mismatch() {
+        // Flagged: `[a,b,c]` (3) and `{r}` (1) mismatch the 2 targets; the empty
+        // sequence `()` (0) mismatches; the nested `{2,3,4}` (3) mismatches its 2
+        // targets `[y,z]`. Not flagged: `(s)` is a length-1 sequence i.e. a
+        // parenthesized expression (runtime-checked), `[g,h]` matches, `(a,b)`
+        // is a real 2-tuple matching its 2 targets.
+        let analysis = analyze(
+            "[x, y] = [a, b, c]\n[p, q] = {r}\n[m, n] = (s)\n[u, v] = [g, h]\n[i, [j, k]] = [1, {2, 3, 4}]\n[c, d] = ()\n[e, f] = (a, b)\n",
+        );
+
+        let arity_errors = analysis
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.severity == Some(DiagnosticSeverity::ERROR))
+            .filter(|diagnostic| diagnostic.message.contains("parallel assignment binds"))
+            .map(|diagnostic| diagnostic.range.start.line)
+            .collect::<Vec<_>>();
+
+        assert_eq!(arity_errors, vec![0, 1, 4, 5]);
     }
 
     #[test]

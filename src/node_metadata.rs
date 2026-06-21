@@ -131,6 +131,19 @@ impl NodeKind {
             Self::BinaryExpression | Self::PrefixExpression | Self::PostfixExpression
         )
     }
+
+    /// M2's delimited collection forms: `(a,b)`, `{a,b}`, `[a,b]`, `<|a,b|>`.
+    /// These are the nodes whose element count is known statically, so they
+    /// serve both as parallel-assignment targets (the left of a destructuring
+    /// `=`/`:=`) and as fixed-length right-hand sides whose arity can be checked
+    /// against the targets. A parenthesized single expression `(a)` is not one
+    /// of these -- the grammar collapses it to the bare expression.
+    pub fn is_collection_expression(self) -> bool {
+        matches!(
+            self,
+            Self::Sequence | Self::List | Self::Array | Self::AngleBarList
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
