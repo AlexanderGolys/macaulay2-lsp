@@ -38,6 +38,9 @@ pub struct Analysis {
     pub scopes: Vec<Scope>,
     pub diagnostics: Vec<Diagnostic>,
     pub registry: SemanticRegistry,
+    /// Method installations characterized once (with type info) and consumed by
+    /// capabilities; see [`MethodInstallation`].
+    pub installations: Vec<MethodInstallation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,6 +48,80 @@ pub struct MethodInfo {
     pub domain: Vec<String>,
     pub codomain: Option<String>,
     pub range: LspRange,
+}
+
+/// A lazily-resolved reference to a type in the unified universe (builtins ∪
+/// locally-defined). Holds the written or inferred name; resolution against the
+/// layered registry happens at query time, so the reference survives per-edit
+/// rebuilds with no dangling pointer into a dropped registry.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeRef(String);
+
+impl TypeRef {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self(name.into())
+    }
+
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Where an operator sits relative to its operand(s). Distinguishes the arity-1
+/// forms (`prefix X` vs `X postfix`) that share a token.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Fixity {
+    Prefix,
+    Binary,
+    Postfix,
+}
+
+/// An M2 operator — including `SPACE`, the juxtaposition operator (`X Y` is
+/// `X SPACE Y`). Just another operator, not a special "adjacency" concept.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Operator {
+    pub token: String,
+    pub fixity: Fixity,
+}
+
+/// Juxtaposition's operator token, e.g. the `SPACE` in `(SPACE, Ring, Array)`.
+pub const SPACE_OPERATOR: &str = "SPACE";
+
+/// The head of an M2 method key `(head, ...domain)`, mirroring how M2 stores
+/// installed methods.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MethodHead {
+    /// `f X := …` → key `(f, …)`; the head is the function itself.
+    Function(String),
+    /// `X op Y := …`, `X Y := …` (op = SPACE), `prefix X := …`, `X postfix := …`
+    /// → key `(op, …)`.
+    Operator(Operator),
+    /// `X op Y = z`, `X Y = z` (op = SPACE) → key `((op, =), …)`; the
+    /// assignment form, a distinct key from the bare operator.
+    OperatorAssign(Operator),
+}
+
+/// A characterized method installation — the single source of truth for "this
+/// assignment installs a method", produced once during analysis and consumed by
+/// every capability instead of each re-deciding it from raw syntax.
+///
+/// `domain` is the tuple of dispatch types (e.g. `[ZZ, String]`). `range` is the
+/// span of the whole assignment so a consumer can match a node to its fact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MethodInstallation {
+    pub head: MethodHead,
+    pub domain: Vec<TypeRef>,
+    pub range: LspRange,
+}
+
+impl MethodInstallation {
+    /// The argument count the right-hand-side function must take: one per domain
+    /// type, plus one for the assigned value `z` in an assignment-form install.
+    // Consumed by the installation-arity diagnostic (next phase).
+    #[allow(dead_code)]
+    pub fn expected_rhs_arity(&self) -> usize {
+        self.domain.len() + usize::from(matches!(self.head, MethodHead::OperatorAssign(_)))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -301,10 +378,15 @@ impl Analysis {
                 }],
                 ..Default::default()
             },
+            installations: Vec::new(),
         };
-        analysis.collect_diagnostics(tree.root_node(), text);
+        // Analysis-first: derive the semantic metadata (scopes, expression facts,
+        // method installations) BEFORE running diagnostics, which are almost
+        // entirely semantic and consume that metadata rather than re-deriving it.
         analysis.build_scopes(M2Node::new(tree.root_node()), text, 0, builtins);
         analysis.collect_expression_facts(M2Node::new(tree.root_node()), text, builtins);
+        analysis.collect_installations(M2Node::new(tree.root_node()), text, builtins);
+        analysis.collect_diagnostics(tree.root_node(), text);
         analysis.collect_unused_binding_diagnostics(tree.root_node(), text);
         analysis
     }
@@ -408,6 +490,184 @@ impl Analysis {
         for child in node.children() {
             self.build_scopes(child, text, next_scope_idx, builtins);
         }
+    }
+
+    /// Walk the tree once, characterizing every method installation into
+    /// `self.installations`. This is the only place the install-vs-call decision
+    /// is made; capabilities read the result.
+    fn collect_installations(&mut self, node: M2Node, text: &str, builtins: Option<&BuiltinData>) {
+        if is_assignment_expression(node, text) {
+            if let Some(installation) = self.classify_installation(node, text, builtins) {
+                self.installations.push(installation);
+            }
+        }
+
+        for child in node.children() {
+            self.collect_installations(child, text, builtins);
+        }
+    }
+
+    /// The installation characterized for the assignment spanning `node`, if any.
+    pub(crate) fn installation_for(&self, node: M2Node, text: &str) -> Option<&MethodInstallation> {
+        let range = to_lsp_range(text, node.range());
+        self.installations
+            .iter()
+            .find(|installation| installation.range == range)
+    }
+
+    /// Characterize an `=`/`:=` assignment as a method installation, or `None`
+    /// when it is an ordinary assignment/call. The single source of truth for
+    /// the install-vs-call distinction.
+    ///
+    /// - `:=` installs whenever the left side matches an installation shape (the
+    ///   six forms: `f Type`, `f (T..)`, `T1 op T2`, `T1 T2` adjacency,
+    ///   `prefix T`, `T postfix`).
+    /// - `=` installs ONLY the assignment-operator form `T1 op T2 = f`, and only
+    ///   when both operands are types — otherwise the identical syntax assigns
+    ///   `f` to the lvalue `T1 op T2`, which is a call.
+    pub(crate) fn classify_installation(
+        &self,
+        node: M2Node,
+        text: &str,
+        builtins: Option<&BuiltinData>,
+    ) -> Option<MethodInstallation> {
+        let operator = binary_expression_operator(node, text)?;
+        let left = node.child_by_field_name("left")?;
+        let (head, domain) = self.installation_shape(left, text, builtins)?;
+        let range = to_lsp_range(text, node.range());
+
+        match operator {
+            // `:=` installs by shape alone — no type check on the operands.
+            ":=" => Some(MethodInstallation {
+                head,
+                domain,
+                range,
+            }),
+            // `=` installs only the assignment form of a BINARY operator (incl.
+            // SPACE), and only when every operand is a type; otherwise the same
+            // syntax assigns to the lvalue `X op Y`, which is a call.
+            "=" => match head {
+                MethodHead::Operator(op)
+                    if op.fixity == Fixity::Binary
+                        && domain
+                            .iter()
+                            .all(|operand| self.operand_is_type(operand.name(), builtins)) =>
+                {
+                    Some(MethodInstallation {
+                        head: MethodHead::OperatorAssign(op),
+                        domain,
+                        range,
+                    })
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Classify the left side of an assignment into a `(MethodHead, domain)`
+    /// pair (the bare, non-assignment head), or `None` if it is not an
+    /// installation target at all. The `=`/`:=` rule is applied by the caller.
+    fn installation_shape(
+        &self,
+        node: M2Node,
+        text: &str,
+        builtins: Option<&BuiltinData>,
+    ) -> Option<(MethodHead, Vec<TypeRef>)> {
+        match node.kind {
+            NodeKind::BinaryExpression => {
+                let left = node.child_by_field_name("left")?;
+                let right = node.child_by_field_name("right")?;
+                if is_space_operator_expression(node) {
+                    // `A B` (juxtaposition = the SPACE operator): a method on the
+                    // named function `A` when `A` is a function, or a SPACE
+                    // operator method on the type pair when `A` is a type.
+                    let left_name = symbol_node_text(left, text)?;
+                    if self.operand_is_type(left_name, builtins) {
+                        let right_name = symbol_node_text(right, text)?;
+                        Some((
+                            MethodHead::Operator(Operator {
+                                token: SPACE_OPERATOR.to_string(),
+                                fixity: Fixity::Binary,
+                            }),
+                            vec![TypeRef::new(left_name), TypeRef::new(right_name)],
+                        ))
+                    } else {
+                        Some((
+                            MethodHead::Function(left_name.to_string()),
+                            method_installation_domain(right, text)?
+                                .into_iter()
+                                .map(TypeRef::new)
+                                .collect(),
+                        ))
+                    }
+                } else {
+                    // `X op Y`: an explicit binary-operator method.
+                    let operator = binary_expression_operator(node, text)?;
+                    if matches!(operator, "=" | ":=" | "<-" | "=>") {
+                        return None;
+                    }
+                    Some((
+                        MethodHead::Operator(Operator {
+                            token: operator.to_string(),
+                            fixity: Fixity::Binary,
+                        }),
+                        vec![
+                            TypeRef::new(symbol_node_text(left, text)?),
+                            TypeRef::new(symbol_node_text(right, text)?),
+                        ],
+                    ))
+                }
+            }
+            NodeKind::PrefixExpression => Some((
+                MethodHead::Operator(Operator {
+                    token: operator_text(node, text)?.to_string(),
+                    fixity: Fixity::Prefix,
+                }),
+                vec![TypeRef::new(symbol_node_text(
+                    node.child_by_field_name("operand")?,
+                    text,
+                )?)],
+            )),
+            NodeKind::PostfixExpression => Some((
+                MethodHead::Operator(Operator {
+                    token: operator_text(node, text)?.to_string(),
+                    fixity: Fixity::Postfix,
+                }),
+                vec![TypeRef::new(symbol_node_text(
+                    node.child_by_field_name("operand")?,
+                    text,
+                )?)],
+            )),
+            _ => None,
+        }
+    }
+
+    /// Whether `name` denotes a TYPE — the hinge of the installation rules. The
+    /// type universe is layered (see the loaded-package / scoped-index design):
+    /// a local binding whose inferred class is `Type` (e.g. `X = new Type of …`)
+    /// shadows builtins, then the builtin type records are consulted. The two
+    /// stores keep their own lifecycles; only this query unifies them.
+    fn operand_is_type(&self, name: &str, builtins: Option<&BuiltinData>) -> bool {
+        self.local_binding_is_type(name, builtins)
+            || builtins
+                .and_then(|builtins| builtins.get_record(&InstanceID::new(name)))
+                .is_some_and(|record| record.type_info.is_some())
+    }
+
+    /// Whether any local binding named `name` is a type — its inferred static
+    /// class is `Type` or a `Type` descendant.
+    fn local_binding_is_type(&self, name: &str, builtins: Option<&BuiltinData>) -> bool {
+        self.scopes.iter().any(|scope| {
+            scope.symbols.get(name).is_some_and(|bindings| {
+                bindings.iter().any(|binding| {
+                    binding
+                        .type_name
+                        .as_deref()
+                        .is_some_and(|type_name| type_name_denotes_type(type_name, builtins))
+                })
+            })
+        })
     }
 
     fn collect_parameters(
@@ -1205,6 +1465,22 @@ fn explicit_method_installation_codomain(node: M2Node, text: &str) -> Option<Str
     symbol_node_text(codomain, text).map(ToString::to_string)
 }
 
+/// The operator token of a prefix/postfix expression, e.g. `-` in `-X` / `X-`.
+fn operator_text<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
+    let operator = node.child_by_field_name("operator")?;
+    Some(&text[operator.start_byte()..operator.end_byte()])
+}
+
+/// Whether `type_name` (an inferred static class or a referenced name) denotes a
+/// TYPE, i.e. is `Type` itself or one of its descendants (`SelfInitializingType`,
+/// …). Without the registry only the exact `Type` is recognized.
+fn type_name_denotes_type(type_name: &str, builtins: Option<&BuiltinData>) -> bool {
+    type_name == "Type"
+        || builtins.is_some_and(|builtins| {
+            builtins.is_subtype(&InstanceID::new(type_name), &InstanceID::new("Type"))
+        })
+}
+
 pub(crate) fn method_installation_signature(
     node: M2Node,
     text: &str,
@@ -1427,6 +1703,102 @@ mod tests {
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
         Analysis::new_with_builtins(&tree, text, Some(builtins))
+    }
+
+    fn core_builtins() -> BuiltinData {
+        BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"))
+    }
+
+    fn binary_op(token: &str) -> Operator {
+        Operator {
+            token: token.to_string(),
+            fixity: Fixity::Binary,
+        }
+    }
+
+    fn domain_names(installation: &MethodInstallation) -> Vec<&str> {
+        installation.domain.iter().map(TypeRef::name).collect()
+    }
+
+    #[test]
+    fn colon_equal_function_method_is_always_an_installation() {
+        // `:=` installs by shape, with no type check on the domain.
+        let analysis = analyze("f ZZ := x -> x\n");
+        assert_eq!(analysis.installations.len(), 1);
+        assert_eq!(
+            analysis.installations[0].head,
+            MethodHead::Function("f".to_string())
+        );
+        assert_eq!(domain_names(&analysis.installations[0]), vec!["ZZ"]);
+    }
+
+    #[test]
+    fn colon_equal_binary_operator_is_always_an_installation() {
+        // `:=` does not require the operands to be types.
+        let analysis = analyze("R * S := (a, b) -> a\n");
+        assert_eq!(analysis.installations.len(), 1);
+        assert_eq!(
+            analysis.installations[0].head,
+            MethodHead::Operator(binary_op("*"))
+        );
+        assert_eq!(domain_names(&analysis.installations[0]), vec!["R", "S"]);
+    }
+
+    #[test]
+    fn colon_equal_adjacency_on_types_is_a_space_operator_installation() {
+        // `X Y := f` with both operands types is the SPACE operator on the pair.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins(
+            "X = new Type of HashTable\nY = new Type of HashTable\nX Y := (a, b) -> a\n",
+            &builtins,
+        );
+        assert_eq!(analysis.installations.len(), 1);
+        assert_eq!(
+            analysis.installations[0].head,
+            MethodHead::Operator(binary_op(SPACE_OPERATOR))
+        );
+        assert_eq!(domain_names(&analysis.installations[0]), vec!["X", "Y"]);
+    }
+
+    #[test]
+    fn equal_binary_operator_on_builtin_types_is_an_assignment_installation() {
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins("ZZ + ZZ = (a, b, c) -> c\n", &builtins);
+        assert_eq!(analysis.installations.len(), 1);
+        assert_eq!(
+            analysis.installations[0].head,
+            MethodHead::OperatorAssign(binary_op("+"))
+        );
+        assert_eq!(domain_names(&analysis.installations[0]), vec!["ZZ", "ZZ"]);
+        // RHS must take domain.len() + 1 args (the assigned value `z`).
+        assert_eq!(analysis.installations[0].expected_rhs_arity(), 3);
+    }
+
+    #[test]
+    fn equal_binary_operator_on_non_types_is_a_call_not_an_installation() {
+        // `a` and `b` are not types, so `a + b = f` assigns to the lvalue
+        // `a + b` — a call, not an installation.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins("a + b = f\n", &builtins);
+        assert!(analysis.installations.is_empty());
+    }
+
+    #[test]
+    fn equal_binary_operator_on_local_types_is_an_assignment_installation() {
+        // The killer case for the layered (local-first) type universe: X and Y
+        // are user-defined types (`new Type …`), absent from builtins, yet the
+        // local registry recognizes them so `X + Y = f` installs `((+, =), X, Y)`.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins(
+            "X = new Type of HashTable\nY = new Type of HashTable\nX + Y = (a, b, c) -> c\n",
+            &builtins,
+        );
+        assert_eq!(analysis.installations.len(), 1);
+        assert_eq!(
+            analysis.installations[0].head,
+            MethodHead::OperatorAssign(binary_op("+"))
+        );
+        assert_eq!(domain_names(&analysis.installations[0]), vec!["X", "Y"]);
     }
 
     #[test]

@@ -239,6 +239,7 @@ mod tests {
             scopes: Vec::new(),
             diagnostics: Vec::new(),
             registry: Default::default(),
+            installations: Vec::new(),
         };
         let symbol = SymbolInfo {
             kind: SymbolKind::VARIABLE,

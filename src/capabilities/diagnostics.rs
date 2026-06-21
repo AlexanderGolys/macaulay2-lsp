@@ -9,8 +9,7 @@ use tree_sitter::Node;
 
 use crate::analysis::{
     binary_expression_operator, is_assignment_expression, is_space_operator_expression,
-    method_installation_signature, node_position, symbol_node_text, to_lsp_range,
-    utf16_len_for_byte_span, Analysis, BindingRole,
+    node_position, symbol_node_text, to_lsp_range, utf16_len_for_byte_span, Analysis, BindingRole,
 };
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
@@ -143,8 +142,9 @@ impl Analysis {
         };
         let op_text = &text[operator.start_byte()..operator.end_byte()];
 
-        let is_method_installation =
-            op_text == ":=" && method_installation_signature(M2Node::new(left), text).is_some();
+        // Consume the installation fact characterized during analysis (which had
+        // the type registry) rather than re-deciding install-vs-call here.
+        let is_method_installation = self.installation_for(M2Node::new(node), text).is_some();
 
         if matches!(op_text, "=" | ":=")
             && !is_method_installation
