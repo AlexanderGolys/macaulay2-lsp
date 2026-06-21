@@ -320,7 +320,6 @@ impl InferredType {
     /// subsumed by a more-general one already present (`↑a ⊆ ↑b` when `a` is-a
     /// `b`) is dropped. Needs the lattice to compare subtypes; without it the
     /// union is only deduplicated.
-    #[allow(dead_code)] // produced once control flow (if/try) gains a join type
     fn join(self, other: Self, builtins: Option<&BuiltinData>) -> Self {
         let mut generators = self.generators;
         for generator in other.generators {
@@ -1615,7 +1614,105 @@ impl Analysis {
                     InferredType::of(&text[type_node.start_byte()..type_node.end_byte()])
                 })
                 .unwrap_or_else(InferredType::unknown),
+            // `if c then A [else B]` is whichever branch runs; with no `else`,
+            // a false condition yields `null` (`Nothing`). The static type is the
+            // join of the reachable branch types.
+            NodeKind::IfStatement => self.if_statement_type(node, text, scope_idx, builtins),
+            // `try E [then A] [else B | except e do B]` is the success value
+            // (`then A`, else `E`) joined with the failure value (`else`/`do B`,
+            // else `null` since an unhandled error makes `try` evaluate to null).
+            NodeKind::TryStatement => self.try_statement_type(node, text, scope_idx, builtins),
+            // A `for … list …` collects a `List`; a `for … do …` loop (and every
+            // `while` loop) evaluates to `null` (`Nothing`).
+            NodeKind::ForStatement => {
+                if node
+                    .named_children()
+                    .any(|child| child.kind == NodeKind::ListClause)
+                {
+                    InferredType::of("List")
+                } else {
+                    InferredType::of("Nothing")
+                }
+            }
+            NodeKind::WhileStatement => InferredType::of("Nothing"),
+            // A control transfer evaluates (for the loop/function it escapes) to
+            // its operand, or `null` (`Nothing`) when bare.
+            NodeKind::ReturnStatement | NodeKind::BreakStatement | NodeKind::ContinueStatement => {
+                self.control_transfer_type(node, text, scope_idx, builtins)
+            }
+            // A debug clause (`time E`, `break v`, …) passes through to the value
+            // of its inner statement/expression.
+            NodeKind::DebugClause => node
+                .named_children()
+                .next()
+                .map(|inner| self.type_of(inner, text, scope_idx, builtins))
+                .unwrap_or_else(InferredType::unknown),
             _ => InferredType::unknown(),
+        }
+    }
+
+    /// The type of an `if` statement: the join of its `then` branch with its
+    /// `else` branch, where a missing `else` contributes `Nothing` (a false
+    /// condition makes the whole expression `null`).
+    fn if_statement_type(
+        &self,
+        node: M2Node,
+        text: &str,
+        scope_idx: usize,
+        builtins: Option<&BuiltinData>,
+    ) -> InferredType {
+        let then_type = clause_of(node, NodeKind::ThenClause)
+            .and_then(clause_value)
+            .map(|value| self.type_of(value, text, scope_idx, builtins))
+            .unwrap_or_else(InferredType::unknown);
+        let else_type = match clause_of(node, NodeKind::ElseClause).and_then(clause_value) {
+            Some(value) => self.type_of(value, text, scope_idx, builtins),
+            None => InferredType::of("Nothing"),
+        };
+        then_type.join(else_type, builtins)
+    }
+
+    /// The type of a `try` statement: the success value (`then` clause if present,
+    /// else the guarded body) joined with the failure value (`else`/`do` clause if
+    /// present, else `Nothing` since an unhandled error makes `try` yield `null`).
+    fn try_statement_type(
+        &self,
+        node: M2Node,
+        text: &str,
+        scope_idx: usize,
+        builtins: Option<&BuiltinData>,
+    ) -> InferredType {
+        let body = node
+            .named_children()
+            .find(|child| !is_try_clause(child.kind));
+        let success_value = clause_of(node, NodeKind::ThenClause)
+            .and_then(clause_value)
+            .or(body);
+        let success = success_value
+            .map(|value| self.type_of(value, text, scope_idx, builtins))
+            .unwrap_or_else(InferredType::unknown);
+        let failure_value = clause_of(node, NodeKind::ElseClause)
+            .or_else(|| clause_of(node, NodeKind::DoClause))
+            .and_then(clause_value);
+        let failure = match failure_value {
+            Some(value) => self.type_of(value, text, scope_idx, builtins),
+            None => InferredType::of("Nothing"),
+        };
+        success.join(failure, builtins)
+    }
+
+    /// The type of a control transfer (`return e` / `break e` / `continue e`):
+    /// its operand's type, or `Nothing` when the transfer is bare.
+    fn control_transfer_type(
+        &self,
+        node: M2Node,
+        text: &str,
+        scope_idx: usize,
+        builtins: Option<&BuiltinData>,
+    ) -> InferredType {
+        match node.named_children().next() {
+            Some(operand) => self.type_of(operand, text, scope_idx, builtins),
+            None => InferredType::of("Nothing"),
         }
     }
 
@@ -2008,8 +2105,16 @@ fn expression_kind(node: M2Node<'_>, text: &str) -> Option<ExpressionKind> {
         NodeKind::IfStatement
         | NodeKind::WhileStatement
         | NodeKind::ForStatement
-        | NodeKind::NewStatement => Some(ExpressionKind::ControlExpr),
-        NodeKind::LambdaExpression | NodeKind::BinaryExpression | NodeKind::PrefixExpression => {
+        | NodeKind::NewStatement
+        | NodeKind::TryStatement
+        | NodeKind::ReturnStatement
+        | NodeKind::BreakStatement
+        | NodeKind::ContinueStatement
+        | NodeKind::DebugClause => Some(ExpressionKind::ControlExpr),
+        NodeKind::LambdaExpression
+        | NodeKind::BinaryExpression
+        | NodeKind::PrefixExpression
+        | NodeKind::PostfixExpression => {
             if is_assignment_expression(node, text) {
                 Some(ExpressionKind::Assign)
             } else {
@@ -2248,6 +2353,29 @@ fn method_installation_expression_for_callable_node<'tree>(
 /// `((a))` → `a`. A trailing-`;` parenthesized expression (`(a;)`) denotes null,
 /// so it has no value node — returns `None`. A non-parenthesized node is its own
 /// value. `()` and `(a, b)` are `Sequence` nodes (real values), left untouched.
+/// The first direct clause of `node` of the given kind (`then`/`else`/`do`/…).
+fn clause_of(node: M2Node, kind: NodeKind) -> Option<M2Node> {
+    node.named_children().find(|child| child.kind == kind)
+}
+
+/// The value expression a clause wraps (`then E` → `E`): its single named child.
+fn clause_value(clause: M2Node) -> Option<M2Node> {
+    clause.named_children().next()
+}
+
+/// Whether a node kind is a `try` clause (so the remaining named child is the
+/// guarded body).
+fn is_try_clause(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::ThenClause
+            | NodeKind::ElseClause
+            | NodeKind::ExceptClause
+            | NodeKind::DoClause
+            | NodeKind::WhenClause
+    )
+}
+
 fn parenthesized_value(node: M2Node) -> Option<M2Node> {
     let mut current = node;
     while current.kind == NodeKind::ParenthesizedExpression {
@@ -2417,6 +2545,26 @@ mod tests {
 
     fn core_builtins() -> BuiltinData {
         BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"))
+    }
+
+    /// The inferred-type label of the first expression node of `kind` in `text`.
+    fn type_label_of_kind(text: &str, builtins: &BuiltinData, kind: NodeKind) -> Option<String> {
+        fn find<'tree>(node: M2Node<'tree>, kind: NodeKind) -> Option<M2Node<'tree>> {
+            if node.kind == kind {
+                return Some(node);
+            }
+            node.children().find_map(|child| find(child, kind))
+        }
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let analysis = Analysis::new_with_builtins(&tree, text, Some(builtins));
+        let node = find(M2Node::new(tree.root_node()), kind)?;
+        analysis
+            .expression_fact(text, node)
+            .and_then(|fact| fact.result_type.label())
     }
 
     fn binary_op(token: &str) -> Operator {
@@ -2700,6 +2848,77 @@ mod tests {
             &analysis,
             M2Diagnostic::InstallNeedsColonEquals
         ));
+    }
+
+    #[test]
+    fn if_with_both_branches_joins_branch_types() {
+        // `if c then 1 else 2.0` is `ZZ` or `RR` — the join of both branches.
+        let builtins = core_builtins();
+        let label = type_label_of_kind("if x then 1 else 2.0\n", &builtins, NodeKind::IfStatement)
+            .expect("if statement should have an inferred type");
+        assert!(label.contains("ZZ") && label.contains("RR"), "got {label}");
+    }
+
+    #[test]
+    fn if_without_else_admits_nothing() {
+        // With no `else`, a false condition makes the whole `if` evaluate to null.
+        let builtins = core_builtins();
+        let label = type_label_of_kind("if x then 1\n", &builtins, NodeKind::IfStatement)
+            .expect("if statement should have an inferred type");
+        assert!(
+            label.contains("ZZ") && label.contains("Nothing"),
+            "got {label}"
+        );
+    }
+
+    #[test]
+    fn for_list_loop_is_a_list() {
+        let builtins = core_builtins();
+        let label = type_label_of_kind("for i to 3 list i\n", &builtins, NodeKind::ForStatement);
+        assert_eq!(label.as_deref(), Some("List"));
+    }
+
+    #[test]
+    fn for_do_loop_is_nothing() {
+        let builtins = core_builtins();
+        let label = type_label_of_kind("for i to 3 do i\n", &builtins, NodeKind::ForStatement);
+        assert_eq!(label.as_deref(), Some("Nothing"));
+    }
+
+    #[test]
+    fn while_loop_is_nothing() {
+        let builtins = core_builtins();
+        let label = type_label_of_kind("while x do 1\n", &builtins, NodeKind::WhileStatement);
+        assert_eq!(label.as_deref(), Some("Nothing"));
+    }
+
+    #[test]
+    fn try_joins_success_and_failure_paths() {
+        // `try E then 1 else 2.0` is `ZZ` (success) or `RR` (failure).
+        let builtins = core_builtins();
+        let label =
+            type_label_of_kind("try x then 1 else 2.0\n", &builtins, NodeKind::TryStatement)
+                .expect("try statement should have an inferred type");
+        assert!(label.contains("ZZ") && label.contains("RR"), "got {label}");
+    }
+
+    #[test]
+    fn bare_try_admits_nothing_on_failure() {
+        // `try 1` is `ZZ` on success or null on an unhandled error.
+        let builtins = core_builtins();
+        let label = type_label_of_kind("try 1\n", &builtins, NodeKind::TryStatement)
+            .expect("try statement should have an inferred type");
+        assert!(
+            label.contains("ZZ") && label.contains("Nothing"),
+            "got {label}"
+        );
+    }
+
+    #[test]
+    fn break_with_value_takes_the_operand_type() {
+        let builtins = core_builtins();
+        let label = type_label_of_kind("break 7\n", &builtins, NodeKind::BreakStatement);
+        assert_eq!(label.as_deref(), Some("ZZ"));
     }
 
     #[test]
