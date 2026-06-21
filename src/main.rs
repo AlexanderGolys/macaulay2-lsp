@@ -75,10 +75,8 @@ struct Backend {
 
 impl Backend {
     fn new(client: Client) -> Self {
-        let partitioned = PackagePartitionedIndex::from_corpus(
-            include_str!("./data/m2-types.jsonc"),
-            include_str!("./data/m2-docs.jsonl"),
-        );
+        let partitioned =
+            PackagePartitionedIndex::from_corpus(include_str!("./data/m2-index.jsonl"));
         // `self.builtins` is the Core partition — the new partitioned path and
         // the legacy single-blob path share one source so they cannot drift.
         // Core is always present (it is the loaded-set floor); its absence is a
@@ -1044,10 +1042,7 @@ mod tests {
 
     #[test]
     fn record_hover_includes_explicit_package_context() {
-        let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonc"),
-            include_str!("./data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
         let record = builtins
             .get_record(&typesystem::InstanceID::new("clearAll"))
             .expect("clearAll should have builtin metadata");

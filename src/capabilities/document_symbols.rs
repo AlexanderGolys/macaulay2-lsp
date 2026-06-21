@@ -374,10 +374,7 @@ mod tests {
         // Option keys passed to a call that are indexed in a package (here the
         // newPackage keys) are defined in that package, not here.
         let text = "newPackage(\"P\", Version => \"0.1\", DebuggingMode => false)\n";
-        let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonc"),
-            include_str!("../data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);
 
@@ -657,10 +654,7 @@ X + Z := (a,b) -> \"X + Z\"
     #[test]
     fn document_symbols_keep_to_type_functions_as_functions() {
         let text = "toString := x -> x";
-        let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonc"),
-            include_str!("../data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document, &builtins);

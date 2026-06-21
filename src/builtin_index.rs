@@ -1,4 +1,4 @@
-//! The static builtin index parsed from `data/m2-types.jsonc` — the typecheck
+//! The static builtin index parsed from `data/m2-index.jsonl` — the typecheck
 //! source of truth (replacing the old runtime-scraped `Record`/`BuiltinData`).
 //!
 //! Two tables: a **type lattice** (`parent`/`ancestors`/`class`/`subtypes`) for
@@ -31,6 +31,9 @@ pub struct TypeEntry {
     pub ancestors: Vec<String>,
     pub subtypes: Vec<String>,
     pub instances: Vec<String>,
+    /// Rendered hover markdown for this entry, folded into the record by the
+    /// corpus generator. `None` ⇒ undocumented (monotone: absent, not empty).
+    pub markdown: Option<String>,
 }
 
 /// One installed method: an argument-type tuple and its result type.
@@ -56,6 +59,8 @@ pub struct ObjectEntry {
     pub aliases: Vec<String>,
     pub package: Option<String>,
     pub class: Option<String>,
+    /// Rendered hover markdown, folded into the record. `None` ⇒ undocumented.
+    pub markdown: Option<String>,
 }
 
 /// A function or operator and the signatures it dispatches on.
@@ -74,6 +79,8 @@ pub struct CallableEntry {
     pub typical_value: Option<String>,
     pub options: Vec<OptionSpec>,
     pub signatures: Vec<Signature>,
+    /// Rendered hover markdown, folded into the record. `None` ⇒ undocumented.
+    pub markdown: Option<String>,
 }
 
 /// An optional argument: its key and (sparsely curated) value constraints.
@@ -106,20 +113,26 @@ pub struct BuiltinIndex {
 impl BuiltinIndex {
     pub fn load(corpus: &str) -> Self {
         let mut index = BuiltinIndex::default();
-        // JSONC: strip the `//` header lines, then parse the single JSON array.
-        let body: String = corpus
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("//"))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let Ok(records) = serde_json::from_str::<Vec<RawRecord>>(&body) else {
-            return index;
-        };
+        // JSONL: one JSON object per physical line (markdown newlines are
+        // escaped inside the JSON string, so a record never spans lines).
+        for line in corpus.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let raw: RawRecord = serde_json::from_str(line)
+                .unwrap_or_else(|e| panic!("malformed corpus line: {e}\n{line}"));
 
-        for raw in records {
+            // Every non-meta record must name a symbol; an unnamed one is a
+            // corrupt corpus, not a record to skip.
+            if raw.kind != "meta" && raw.name.is_empty() {
+                panic!("corpus record of kind '{}' has no name: {line}", raw.kind);
+            }
+
             // name + aliases + extra_keys all resolve to this record.
             let mut keys = raw.aliases.clone();
             keys.extend(raw.extra_keys.iter().cloned());
+            let markdown = raw.markdown.filter(|m| !m.is_empty());
 
             match raw.kind.as_str() {
                 "type" => {
@@ -134,6 +147,7 @@ impl BuiltinIndex {
                         ancestors: raw.ancestors.iter().map(|a| deref_ref(a)).collect(),
                         subtypes: raw.subtypes.iter().map(|s| deref_ref(s)).collect(),
                         instances: raw.instances.iter().map(|i| deref_ref(i)).collect(),
+                        markdown,
                     });
                 }
                 "function" | "methodFunction" | "operator" => {
@@ -164,6 +178,7 @@ impl BuiltinIndex {
                         typical_value: concrete_codomain(raw.typical_value.as_deref()),
                         options: raw.options,
                         signatures,
+                        markdown,
                     });
                 }
                 "symbol" | "object" | "table" => {
@@ -174,6 +189,7 @@ impl BuiltinIndex {
                         aliases: keys,
                         package: raw.package.as_deref().map(deref_ref),
                         class: raw.class.as_deref().map(deref_ref),
+                        markdown,
                     });
                 }
                 "meta" => {
@@ -328,6 +344,8 @@ struct RawRecord {
     operator: Option<RawOperator>,
     #[serde(default)]
     default_loaded: Vec<String>,
+    #[serde(default)]
+    markdown: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -366,17 +384,22 @@ mod tests {
     use super::*;
 
     fn index() -> BuiltinIndex {
-        BuiltinIndex::load(include_str!("./data/m2-types.jsonc"))
+        BuiltinIndex::load(include_str!("./data/m2-index.jsonl"))
     }
 
     #[test]
     fn load_parses_new_format_corpus() {
-        let index = BuiltinIndex::load(include_str!("./data/m2-types.jsonc"));
+        let index = BuiltinIndex::load(include_str!("./data/m2-index.jsonl"));
 
         // type record: parent/ancestors deref'd to bare names
         let zz = index.type_entry("ZZ").expect("ZZ type present");
         assert_eq!(zz.package.as_deref(), Some("Core")); // $Core$Core -> Core
         assert!(zz.ancestors.iter().all(|a| !a.starts_with('$')));
+        // markdown is now folded onto the entry (documented Core type).
+        assert!(
+            zz.markdown.is_some(),
+            "ZZ should carry folded hover markdown"
+        );
 
         // methodFunction record -> callable, with a deref'd codomain
         let beta = index.callable("Beta").expect("Beta callable present");
@@ -492,10 +515,11 @@ mod tests {
 
     #[test]
     fn captures_default_loaded_from_meta_record() {
-        let corpus = r#"[
-            {"kind":"meta","default_loaded":["Core","Classic","Polyhedra"]},
-            {"kind":"type","name":"ZZ","package":"$Core$Core"}
-        ]"#;
+        let corpus = concat!(
+            r#"{"kind":"meta","default_loaded":["Core","Classic","Polyhedra"]}"#,
+            "\n",
+            r#"{"kind":"type","name":"ZZ","package":"$Core$Core"}"#,
+        );
         let index = BuiltinIndex::load(corpus);
         assert_eq!(index.default_loaded(), &["Core", "Classic", "Polyhedra"]);
         assert!(
@@ -506,18 +530,26 @@ mod tests {
 
     #[test]
     fn default_loaded_is_empty_without_meta_record() {
-        let corpus = r#"[{"kind":"type","name":"ZZ","package":"$Core$Core"}]"#;
+        let corpus = r#"{"kind":"type","name":"ZZ","package":"$Core$Core"}"#;
         let index = BuiltinIndex::load(corpus);
         assert!(index.default_loaded().is_empty());
     }
 
     #[test]
+    #[should_panic(expected = "has no name")]
+    fn load_panics_on_unnamed_non_meta_record() {
+        BuiltinIndex::load(r#"{"kind":"type","package":"$Core$Core"}"#);
+    }
+
+    #[test]
     fn partition_routes_records_to_their_home_package() {
-        let corpus = r#"[
-            {"kind":"type","name":"ZZ","package":"$Core$Core","ancestors":["$Core$Thing"]},
-            {"kind":"type","name":"FooType","package":"$FooPkg$FooPkg","parent":"$Core$ZZ"},
-            {"kind":"function","name":"fooFn","package":"$FooPkg$FooPkg"}
-        ]"#;
+        let corpus = concat!(
+            r#"{"kind":"type","name":"ZZ","package":"$Core$Core","ancestors":["$Core$Thing"]}"#,
+            "\n",
+            r#"{"kind":"type","name":"FooType","package":"$FooPkg$FooPkg","parent":"$Core$ZZ"}"#,
+            "\n",
+            r#"{"kind":"function","name":"fooFn","package":"$FooPkg$FooPkg"}"#,
+        );
         let index = BuiltinIndex::load(corpus);
         let parts = index.partition_by_package();
 
@@ -535,12 +567,15 @@ mod tests {
     }
 
     #[test]
-    fn partition_of_real_corpus_yields_core() {
-        let index = BuiltinIndex::load(include_str!("./data/m2-types.jsonc"));
+    fn partition_of_real_corpus_is_a_true_partition() {
+        let index = BuiltinIndex::load(include_str!("./data/m2-index.jsonl"));
         let parts = index.partition_by_package();
-        let core = parts.get("Core").expect("Core partition present");
-        // The whole Core corpus lands in the single Core partition.
-        assert_eq!(core.type_count(), index.type_count());
-        assert_eq!(core.callable_count(), index.callable_count());
+        // Core is always present (the loaded-set floor).
+        assert!(parts.contains_key("Core"), "Core partition present");
+        // Every record lands in exactly one partition — no loss, no duplication.
+        let part_types: usize = parts.values().map(|p| p.type_count()).sum();
+        let part_callables: usize = parts.values().map(|p| p.callable_count()).sum();
+        assert_eq!(part_types, index.type_count());
+        assert_eq!(part_callables, index.callable_count());
     }
 }

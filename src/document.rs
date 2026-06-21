@@ -215,10 +215,7 @@ mod tests {
     use super::*;
 
     fn builtins() -> BuiltinData {
-        BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonc"),
-            include_str!("./data/m2-docs.jsonl"),
-        )
+        BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"))
     }
 
     #[test]

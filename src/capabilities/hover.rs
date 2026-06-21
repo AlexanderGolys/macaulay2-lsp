@@ -338,10 +338,7 @@ mod tests {
     #[test]
     fn hover_call_context_specializes_builtin_method_signatures() {
         let text = "F := openOut \"test.oldvalues\"\n";
-        let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonc"),
-            include_str!("../data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())

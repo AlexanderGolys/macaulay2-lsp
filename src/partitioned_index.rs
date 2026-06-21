@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use crate::builtin_index::BuiltinIndex;
 use crate::package_index::collect_imported_packages;
-use crate::typesystem::{load_docs_markdown_by_package, BuiltinData};
+use crate::typesystem::BuiltinData;
 
 /// Every shipped package's `BuiltinData`, keyed by home package, plus the
 /// default-loaded baseline. Built once from the single embedded corpus.
@@ -21,33 +21,28 @@ pub(crate) struct PackagePartitionedIndex {
 }
 
 impl PackagePartitionedIndex {
-    /// Parse the corpus once, partition by home package, and build one
-    /// `BuiltinData` per partition. The baseline is the corpus `meta` record's
-    /// `default_loaded`; when the corpus carries none (today's Core-only file),
-    /// it falls back to the sorted set of packages actually present — correct
-    /// while only Core ships, and self-correcting once fundocs emits `meta`.
-    pub fn from_corpus(types_jsonl: &str, docs_jsonl: &str) -> Self {
-        let index = BuiltinIndex::load(types_jsonl);
+    /// Parse the combined corpus once, partition by home package, and build one
+    /// `BuiltinData` per partition (each entry carries its own folded markdown).
+    /// The baseline is the corpus `meta` record's `default_loaded`; a corpus
+    /// without it is corrupt, so we fail fast rather than guess.
+    pub fn from_corpus(corpus: &str) -> Self {
+        let index = BuiltinIndex::load(corpus);
         let sub_indexes = index.partition_by_package();
-        let mut docs_by_package = load_docs_markdown_by_package(docs_jsonl);
 
         let mut partitions = HashMap::new();
         for (package, sub_index) in &sub_indexes {
-            let docs = docs_by_package.remove(package).unwrap_or_default();
-            partitions.insert(package.clone(), BuiltinData::from_index(sub_index, docs));
+            partitions.insert(package.clone(), BuiltinData::from_index(sub_index));
         }
 
-        let default_loaded = if index.default_loaded().is_empty() {
-            let mut present: Vec<String> = partitions.keys().cloned().collect();
-            present.sort();
-            present
-        } else {
-            index.default_loaded().to_vec()
-        };
+        let default_loaded = index.default_loaded();
+        assert!(
+            !default_loaded.is_empty(),
+            "corpus is missing the mandatory leading `meta` record with default_loaded"
+        );
 
         PackagePartitionedIndex {
             partitions,
-            default_loaded,
+            default_loaded: default_loaded.to_vec(),
         }
     }
 
@@ -99,15 +94,12 @@ mod tests {
     use super::*;
 
     fn corpus() -> &'static str {
-        include_str!("./data/m2-types.jsonc")
-    }
-    fn docs() -> &'static str {
-        include_str!("./data/m2-docs.jsonl")
+        include_str!("./data/m2-index.jsonl")
     }
 
     #[test]
     fn from_corpus_builds_a_core_partition() {
-        let index = PackagePartitionedIndex::from_corpus(corpus(), docs());
+        let index = PackagePartitionedIndex::from_corpus(corpus());
         let core = index.partition("Core").expect("Core partition present");
         assert!(core
             .get_record(&crate::typesystem::InstanceID::new("ZZ"))
@@ -115,20 +107,22 @@ mod tests {
     }
 
     #[test]
-    fn default_loaded_falls_back_to_present_packages_without_meta() {
-        // Today's corpus has no meta record, so the baseline is the packages
-        // present — Core only.
-        let index = PackagePartitionedIndex::from_corpus(corpus(), docs());
-        assert_eq!(index.default_loaded(), &["Core"]);
+    #[should_panic(expected = "missing the mandatory leading `meta` record")]
+    fn from_corpus_panics_without_meta() {
+        // A corpus with object records but no meta line is corrupt.
+        PackagePartitionedIndex::from_corpus(
+            r#"{"kind":"type","name":"ZZ","package":"$Core$Core"}"#,
+        );
     }
 
     #[test]
     fn default_loaded_uses_meta_record_when_present() {
-        let synthetic = r#"[
-            {"kind":"meta","default_loaded":["Core","Classic"]},
-            {"kind":"type","name":"ZZ","package":"$Core$Core"}
-        ]"#;
-        let index = PackagePartitionedIndex::from_corpus(synthetic, "");
+        let synthetic = concat!(
+            r#"{"kind":"meta","default_loaded":["Core","Classic"]}"#,
+            "\n",
+            r#"{"kind":"type","name":"ZZ","package":"$Core$Core"}"#,
+        );
+        let index = PackagePartitionedIndex::from_corpus(synthetic);
         assert_eq!(index.default_loaded(), &["Core", "Classic"]);
     }
 
@@ -142,6 +136,63 @@ mod tests {
         assert_eq!(
             loaded.as_slice(),
             &["Core".to_string(), "FooPkg".to_string()]
+        );
+    }
+
+    #[test]
+    fn curated_extras_are_non_default_partitions() {
+        let index = PackagePartitionedIndex::from_corpus(corpus());
+
+        // JSON ships as its own partition with its symbols...
+        let json = index.partition("JSON").expect("JSON partition present");
+        assert!(json.contains_name("toJSON"));
+        assert!(json.contains_name("fromJSON"));
+
+        // ...but it is NOT autoloaded: absent from the default-loaded baseline...
+        assert!(
+            !index.default_loaded().iter().any(|p| p == "JSON"),
+            "JSON is a non-default package and must stay out of the baseline"
+        );
+
+        // ...and absent from the Core partition (so self.builtins won't resolve
+        // it until P3 routes imports through loaded partitions).
+        let core = index.partition("Core").expect("Core partition present");
+        assert!(!core.contains_name("toJSON"));
+    }
+
+    #[test]
+    fn loaded_packages_picks_up_an_imported_extra() {
+        let index = PackagePartitionedIndex::from_corpus(corpus());
+
+        let imported = LoadedPackages::resolve(index.default_loaded(), "needsPackage \"JSON\"");
+        assert!(
+            imported.as_slice().iter().any(|p| p == "JSON"),
+            "an imported non-default package joins the loaded set"
+        );
+
+        let plain = LoadedPackages::resolve(index.default_loaded(), "1 + 1");
+        assert!(
+            !plain.as_slice().iter().any(|p| p == "JSON"),
+            "an un-imported non-default package stays out of the loaded set"
+        );
+    }
+
+    #[test]
+    fn removing_an_import_unloads_the_package() {
+        // `LoadedPackages` is a pure function of the text, so "the import line
+        // was deleted" is identical to "the text never had it" — no add/remove
+        // state to get wrong. Resolving the post-edit text simply omits JSON.
+        let index = PackagePartitionedIndex::from_corpus(corpus());
+        let baseline = index.default_loaded();
+
+        let with_import = LoadedPackages::resolve(baseline, "needsPackage \"JSON\"\n1 + 1");
+        assert!(with_import.as_slice().iter().any(|p| p == "JSON"));
+
+        // The same document with the `needsPackage` line removed.
+        let after_removal = LoadedPackages::resolve(baseline, "1 + 1");
+        assert!(
+            !after_removal.as_slice().iter().any(|p| p == "JSON"),
+            "deleting the import line drops the package from the loaded set"
         );
     }
 }

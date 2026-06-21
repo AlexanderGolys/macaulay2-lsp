@@ -1476,10 +1476,7 @@ mod tests {
 
     #[test]
     fn infers_static_types_from_new_constructors() {
-        let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonc"),
-            include_str!("./data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
         let analysis = analyze_with_builtins(
             "clearAll = new Command from { () -> () }\nclearAll\n",
             &builtins,
@@ -1494,10 +1491,7 @@ mod tests {
 
     #[test]
     fn infers_static_types_from_documented_call_signatures() {
-        let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonc"),
-            include_str!("./data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
         let analysis = analyze_with_builtins(
             "I := new Ideal from {}\nR := ring I\nS := ring x\nR\nS\n",
             &builtins,
@@ -1584,10 +1578,7 @@ mod tests {
 
     #[test]
     fn infers_static_types_from_local_method_typical_values() {
-        let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonc"),
-            include_str!("./data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
         let analysis = analyze_with_builtins(
             "p = method(Binary => true, TypicalValue => List)\np(ZZ,ZZ) := p(List,ZZ) := (i,j) -> {i,j}\nx := p(1, 2)\nx\n",
             &builtins,
@@ -1633,10 +1624,7 @@ mod tests {
 
     #[test]
     fn local_methods_without_codomains_remain_unknown() {
-        let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonc"),
-            include_str!("./data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
         let analysis =
             analyze_with_builtins("f = method()\nf ZZ := x -> -x\ny := f 1\ny\n", &builtins);
 
@@ -1655,10 +1643,7 @@ mod tests {
 
     #[test]
     fn explicit_local_method_codomains_override_typical_values() {
-        let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonc"),
-            include_str!("./data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
         let analysis = analyze_with_builtins(
             "f = method(TypicalValue => List)\nf ZZ := Ring => x -> x\ny := f 1\ny\n",
             &builtins,

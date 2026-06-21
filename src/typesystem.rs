@@ -219,7 +219,7 @@ impl TypeLattice {
         }
     }
 
-    /// Build the lattice from the `m2-types.jsonc` type records: each carries its
+    /// Build the lattice from the `m2-index.jsonl` type records: each carries its
     /// full ancestor chain (sorted here for binary search) and its immediate
     /// subtypes (the children edge).
     pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
@@ -313,8 +313,9 @@ pub struct BuiltinData {
     /// re-deserializing a packed string per lookup.
     records: Vec<Record>,
     /// Pre-rendered hover markdown keyed by name + aliases. Read once at load
-    /// (from `m2-docs.jsonl` for builtins); the typecheck records carry no doc
-    /// text, so hover reads it from here. Empty for runtime package indexes.
+    /// (folded into each `m2-index.jsonl` record for builtins and lifted into
+    /// this map by `from_index`); hover reads it from here. Empty for runtime
+    /// package indexes.
     docs: HashMap<InstanceID, String>,
     type_facts: TypeFacts,
     type_lattice: TypeLattice,
@@ -477,7 +478,7 @@ impl TypeFacts {
         facts
     }
 
-    /// Build the typecheck facts from the `m2-types.jsonc` callable records.
+    /// Build the typecheck facts from the `m2-index.jsonl` callable records.
     /// Honours the monotone rule: a method with no codomain (`typicalValue` null)
     /// contributes no signature — the lookup stays silent rather than guess.
     pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
@@ -1346,69 +1347,6 @@ fn record_from_object(entry: &crate::builtin_index::ObjectEntry) -> Record {
     record
 }
 
-/// A single line from the hover-docs asset (`m2-docs.jsonl`).
-#[derive(Deserialize)]
-struct DocRecord {
-    name: String,
-    #[serde(default)]
-    #[allow(dead_code)] // read by load_docs_markdown_by_package; not by load_docs_markdown
-    package: Option<String>,
-    #[serde(default)]
-    markdown: String,
-}
-
-/// Read the hover-docs asset (`m2-docs.jsonl`) into a name → markdown map once.
-/// Keyed by the record's primary name; alias lookups resolve through
-/// `doc_markdown`. The 4.5MB file is parsed once and never searched as text.
-#[allow(dead_code)] // Retained as the faithfulness oracle for the from_index equivalence test until P3 removes the constructor duality.
-fn load_docs_markdown(jsonl: &str) -> HashMap<InstanceID, String> {
-    let mut docs = HashMap::new();
-    for line in jsonl.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let Ok(doc) = serde_json::from_str::<DocRecord>(line) else {
-            continue;
-        };
-        if doc.markdown.is_empty() {
-            continue;
-        }
-        docs.entry(InstanceID::new(&doc.name))
-            .or_insert(doc.markdown);
-    }
-    docs
-}
-
-/// Like `load_docs_markdown`, but bucketed by each record's `package` so every
-/// partition receives only its own hover pages. Records with no package bucket
-/// under `"Core"` (the loaded-set floor). Keyed by package name.
-#[allow(dead_code)] // consumed by the upcoming per-package partition task
-pub(crate) fn load_docs_markdown_by_package(
-    jsonl: &str,
-) -> HashMap<String, HashMap<InstanceID, String>> {
-    let mut by_package: HashMap<String, HashMap<InstanceID, String>> = HashMap::new();
-    for line in jsonl.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let Ok(doc) = serde_json::from_str::<DocRecord>(line) else {
-            continue;
-        };
-        if doc.markdown.is_empty() {
-            continue;
-        }
-        let package = doc.package.clone().unwrap_or_else(|| "Core".to_string());
-        by_package
-            .entry(package)
-            .or_default()
-            .entry(InstanceID::new(&doc.name))
-            .or_insert(doc.markdown);
-    }
-    by_package
-}
-
 impl BuiltinData {
     pub fn load_from_split(names: &str, details: &str) -> Self {
         Self::load_from_split_with_type_facts(names, details, "")
@@ -1458,37 +1396,46 @@ impl BuiltinData {
         data
     }
 
-    /// Build a `BuiltinData` from an already-parsed `BuiltinIndex` and a docs
-    /// map. This is the post-parse half of `load_from_index`, split out so the
-    /// package-partitioned index can build one `BuiltinData` per partition from
-    /// a sub-index without re-serializing JSON.
-    pub fn from_index(
-        index: &crate::builtin_index::BuiltinIndex,
-        docs: HashMap<InstanceID, String>,
-    ) -> Self {
+    /// Build a `BuiltinData` from an already-parsed `BuiltinIndex`. Hover
+    /// markdown is folded into each entry by the corpus generator, so the docs
+    /// map is built here from the entries themselves — no separate docs asset.
+    pub fn from_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
         let type_lattice = TypeLattice::from_type_index(index);
         let type_facts = TypeFacts::from_type_index(index);
 
         let mut names = Vec::new();
         let mut name_to_index = HashMap::new();
         let mut records = Vec::new();
+        let mut docs = HashMap::new();
 
         for entry in index.types() {
             let id = records.len();
             register_record_keys(&mut name_to_index, &entry.name, &entry.aliases, id);
             names.push(InstanceID::new(&entry.name));
+            if let Some(md) = &entry.markdown {
+                docs.entry(InstanceID::new(&entry.name))
+                    .or_insert_with(|| md.clone());
+            }
             records.push(record_from_type(entry));
         }
         for entry in index.callables() {
             let id = records.len();
             register_record_keys(&mut name_to_index, &entry.name, &entry.aliases, id);
             names.push(InstanceID::new(&entry.name));
+            if let Some(md) = &entry.markdown {
+                docs.entry(InstanceID::new(&entry.name))
+                    .or_insert_with(|| md.clone());
+            }
             records.push(record_from_callable(entry));
         }
         for entry in index.objects() {
             let id = records.len();
             register_record_keys(&mut name_to_index, &entry.name, &entry.aliases, id);
             names.push(InstanceID::new(&entry.name));
+            if let Some(md) = &entry.markdown {
+                docs.entry(InstanceID::new(&entry.name))
+                    .or_insert_with(|| md.clone());
+            }
             records.push(record_from_object(entry));
         }
 
@@ -1502,17 +1449,12 @@ impl BuiltinData {
         }
     }
 
-    /// Build a `BuiltinData` from the static builtin assets: `m2-types.jsonc`
-    /// (structured typecheck + classification facts) and `m2-docs.jsonl`
-    /// (pre-rendered hover markdown). The two are separate by design — the
-    /// typecheck records carry no doc text — but the docs could equally be a
-    /// `markdown` field embedded in `m2-types.jsonc`; only `load_docs_markdown`
-    /// would change. Types/functions/operators have disjoint names (all M2
-    /// first-class objects), so the pooled records never collide.
-    #[allow(dead_code)] // Retained as the faithfulness oracle for the from_index equivalence test until P3 removes the constructor duality.
-    pub fn load_from_index(types_jsonl: &str, docs_jsonl: &str) -> Self {
-        let index = crate::builtin_index::BuiltinIndex::load(types_jsonl);
-        Self::from_index(&index, load_docs_markdown(docs_jsonl))
+    /// Build a `BuiltinData` over the whole combined corpus (`m2-index.jsonl`).
+    /// Production routes through `PackagePartitionedIndex::from_corpus` and uses
+    /// only the Core partition; this whole-corpus convenience is for tests.
+    #[allow(dead_code)] // whole-corpus convenience; production uses from_corpus + Core partition
+    pub fn load_from_index(corpus: &str) -> Self {
+        Self::from_index(&crate::builtin_index::BuiltinIndex::load(corpus))
     }
 
     pub fn get_semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
@@ -1737,15 +1679,13 @@ mod tests {
     fn dispatch_walks_the_lattice_to_the_installed_supertype_method() {
         // dim is installed on Ring; PolynomialRing <: Ring.
         let corpus = concat!(
-            "[",
             r#"{"kind":"type","name":"Thing","aliases":[],"extra_keys":[]}"#,
-            ",",
+            "\n",
             r#"{"kind":"type","name":"Ring","parent":"Thing","ancestors":["Thing"],"subtypes":["PolynomialRing"],"aliases":[],"extra_keys":[]}"#,
-            ",",
+            "\n",
             r#"{"kind":"type","name":"PolynomialRing","parent":"Ring","ancestors":["Ring","Thing"],"subtypes":[],"aliases":[],"extra_keys":[]}"#,
-            ",",
+            "\n",
             r#"{"kind":"function","name":"dim","methods":[{"domain":["Ring"],"typicalValue":"ZZ"}],"aliases":[],"extra_keys":[]}"#,
-            "]",
         );
         let index = BuiltinIndex::load(corpus);
         let lattice = TypeLattice::from_type_index(&index);
@@ -1772,7 +1712,7 @@ mod tests {
 
     #[test]
     fn resolves_real_gb_codomain_from_the_type_index() {
-        let index = BuiltinIndex::load(include_str!("./data/m2-types.jsonc"));
+        let index = BuiltinIndex::load(include_str!("./data/m2-index.jsonl"));
         let lattice = TypeLattice::from_type_index(&index);
         let facts = TypeFacts::from_type_index(&index);
         assert_eq!(
@@ -1782,10 +1722,7 @@ mod tests {
     }
 
     fn generated_builtins() -> BuiltinData {
-        BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonc"),
-            include_str!("./data/m2-docs.jsonl"),
-        )
+        BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"))
     }
 
     #[test]
@@ -1882,52 +1819,8 @@ mod tests {
     }
 
     #[test]
-    fn from_index_and_load_from_index_agree_on_core() {
-        // load_from_index must remain equivalent to building from a parsed index
-        // + global docs — the refactor changes structure, not output.
-        let types = include_str!("./data/m2-types.jsonc");
-        let docs = include_str!("./data/m2-docs.jsonl");
-        let direct = BuiltinData::load_from_index(types, docs);
-
-        let index = crate::builtin_index::BuiltinIndex::load(types);
-        let via_from_index = BuiltinData::from_index(&index, load_docs_markdown(docs));
-
-        // `names` and `records` are private; assert equivalence through the public API.
-        assert_eq!(direct.len(), via_from_index.len());
-        for name in ["ZZ", "gb", "ideal", "Ring", "+", "pi"] {
-            assert_eq!(
-                direct.get_record(&InstanceID::new(name)).is_some(),
-                via_from_index.get_record(&InstanceID::new(name)).is_some(),
-                "get_record disagreement for {name}"
-            );
-            assert_eq!(
-                direct.contains_name(name),
-                via_from_index.contains_name(name),
-                "contains_name disagreement for {name}"
-            );
-        }
-        assert!(via_from_index.get_record(&InstanceID::new("ZZ")).is_some());
-    }
-
-    #[test]
-    fn docs_partition_buckets_by_package() {
-        let jsonl = concat!(
-            r##"{"name":"foo","package":"Core","markdown":"# foo"}"##,
-            "\n",
-            r##"{"name":"bar","package":"FooPkg","markdown":"# bar"}"##,
-        );
-        let by_pkg = load_docs_markdown_by_package(jsonl);
-        assert!(by_pkg["Core"].contains_key(&InstanceID::new("foo")));
-        assert!(by_pkg["FooPkg"].contains_key(&InstanceID::new("bar")));
-        assert!(!by_pkg["Core"].contains_key(&InstanceID::new("bar")));
-    }
-
-    #[test]
     fn new_corpus_preserves_hover_and_subtype_facts() {
-        let builtins = BuiltinData::load_from_index(
-            include_str!("./data/m2-types.jsonc"),
-            include_str!("./data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
 
         // hover markdown still resolves by bare name
         assert!(builtins.doc_markdown(&InstanceID::new("ideal")).is_some());

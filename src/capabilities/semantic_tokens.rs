@@ -726,10 +726,7 @@ mod tests {
     #[test]
     fn typed_parameter_references_remain_parameters() {
         let text = "f ZZ := x -> x";
-        let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonc"),
-            include_str!("../data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
 
         let tokens = collect_semantic_tokens(&document, &builtins, false);
@@ -1011,10 +1008,7 @@ mod tests {
     #[test]
     fn string_valued_locals_remain_variables() {
         let text = "s := 1\nt := toString s\nt\n";
-        let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonc"),
-            include_str!("../data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
 
         let tokens = collect_semantic_tokens(&document, &builtins, true);
@@ -1032,10 +1026,7 @@ mod tests {
     #[test]
     fn semantic_tokens_classify_commands_as_functions_with_command_modifier() {
         let text = "saveClearAll := clearAll\nclearAll = new Command from { () -> () }\nprotect symbol clearAll";
-        let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonc"),
-            include_str!("../data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, true);
 
@@ -1130,10 +1121,7 @@ mod tests {
 
     #[test]
     fn builtin_constructor_like_names_do_not_emit_constructor_modifier() {
-        let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonc"),
-            include_str!("../data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let token = builtins
             .get_semantic_token("toString")
             .expect("toString should have builtin metadata");
@@ -1148,10 +1136,7 @@ mod tests {
     #[test]
     fn option_assignment_roles_require_metadata() {
         let text = "f(x, notAnOption => notAnOptionValue)";
-        let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonc"),
-            include_str!("../data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
@@ -1205,10 +1190,7 @@ mod tests {
     #[test]
     fn method_installation_domain_emits_type_for_known_types() {
         let text = "Ring Element := x -> x";
-        let builtins = BuiltinData::load_from_index(
-            include_str!("../data/m2-types.jsonc"),
-            include_str!("../data/m2-docs.jsonl"),
-        );
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
 
         let document = document(text, &builtins);
         let tokens = collect_semantic_tokens(&document, &builtins, false);
