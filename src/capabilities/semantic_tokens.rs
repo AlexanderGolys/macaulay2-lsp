@@ -2,6 +2,7 @@ use tower_lsp::lsp_types::*;
 
 use crate::analysis::{BindingRole, SymbolInfo};
 use crate::document::DocumentSnapshot;
+use crate::node_metadata::{M2Node, NodeKind};
 use crate::typesystem::{BuiltinData, M2SemanticTokenType};
 use crate::util::*;
 
@@ -51,14 +52,10 @@ pub(crate) fn collect_semantic_tokens(
     let mut reached_root = false;
 
     while !reached_root {
-        let node = cursor.node();
-        let kind = node.kind();
+        let node = M2Node::new(cursor.node());
 
         let mut emitted_token = false;
-        if kind == "symbol"
-            || kind == "identifier"
-            || kind == "resolved_symbol"
-            || kind == "builtin_constant"
+        if matches!(node.kind, NodeKind::Symbol | NodeKind::ResolvedSymbol)
             || syntax_semantic_token_type(text, node).is_some()
         {
             let start_byte = node.start_byte();
@@ -175,11 +172,11 @@ pub(crate) fn collect_semantic_tokens(
 
 pub(crate) fn option_assignment_role(
     text: &str,
-    node: tree_sitter::Node,
+    node: M2Node<'_>,
     builtins: &BuiltinData,
 ) -> Option<M2SemanticTokenType> {
     let parent = node.parent()?;
-    if !is_option_assignment_expression(parent, text) {
+    if !is_option_assignment_expression(parent.inner(), text) {
         return None;
     }
 
@@ -198,7 +195,7 @@ pub(crate) fn option_assignment_role(
     {
         let option_key = parent
             .child_by_field_name("left")
-            .filter(|left| matches!(left.kind(), "symbol" | "identifier" | "resolved_symbol"))
+            .filter(|left| matches!(left.kind, NodeKind::Symbol | NodeKind::ResolvedSymbol))
             .map(|left| &text[left.start_byte()..left.end_byte()])?;
         if builtins.is_option_value_for_key(option_key, node_text) {
             return Some(M2SemanticTokenType::EnumMember);
@@ -270,37 +267,39 @@ fn static_type_semantic_token_for_local_symbol(
     }
 }
 
-fn syntax_semantic_token_type(text: &str, node: tree_sitter::Node) -> Option<M2SemanticTokenType> {
+fn syntax_semantic_token_type(text: &str, node: M2Node<'_>) -> Option<M2SemanticTokenType> {
     if is_cobinding_operator_node(node) {
         return Some(M2SemanticTokenType::Modifier);
     }
 
-    if is_operator_node(node) {
+    if is_operator_node(node.inner()) {
         return Some(M2SemanticTokenType::Operator);
     }
 
-    match node.kind() {
-        "integer_literal" | "float_literal" => Some(M2SemanticTokenType::Number),
-        "string_literal" if is_regexp_string_argument(text, node) => {
+    match node.kind {
+        NodeKind::IntegerLiteral | NodeKind::FloatLiteral => Some(M2SemanticTokenType::Number),
+        NodeKind::StringLiteral if is_regexp_string_argument(text, node) => {
             Some(M2SemanticTokenType::Regexp)
         }
-        "string_literal" if is_namespace_string_argument(text, node) => {
+        NodeKind::StringLiteral if is_namespace_string_argument(text, node) => {
             Some(M2SemanticTokenType::Namespace)
         }
-        "string_literal" if is_hash_key_string(text, node) => Some(M2SemanticTokenType::Property),
-        "string_literal" => Some(M2SemanticTokenType::String),
-        "line_comment" | "block_comment" => Some(M2SemanticTokenType::Comment),
-        kind if !node.is_named() && is_modifier_node_kind(kind) => {
+        NodeKind::StringLiteral if is_hash_key_string(text, node) => {
+            Some(M2SemanticTokenType::Property)
+        }
+        NodeKind::StringLiteral => Some(M2SemanticTokenType::String),
+        NodeKind::LineComment | NodeKind::BlockComment => Some(M2SemanticTokenType::Comment),
+        _ if !node.is_named() && is_modifier_node_kind(node.raw_kind()) => {
             Some(M2SemanticTokenType::Modifier)
         }
-        kind if !node.is_named() && is_keyword_node_kind(kind) => {
+        _ if !node.is_named() && is_keyword_node_kind(node.raw_kind()) => {
             Some(M2SemanticTokenType::Keyword)
         }
         _ => None,
     }
 }
 
-fn should_emit_syntax_token_when_augmenting(text: &str, node: tree_sitter::Node) -> bool {
+fn should_emit_syntax_token_when_augmenting(text: &str, node: M2Node<'_>) -> bool {
     matches!(
         syntax_semantic_token_type(text, node),
         Some(M2SemanticTokenType::Modifier)
@@ -365,20 +364,23 @@ fn is_modifier_node_kind(kind: &str) -> bool {
     )
 }
 
-fn is_cobinding_operator_node(node: tree_sitter::Node) -> bool {
+fn is_cobinding_operator_node(node: M2Node<'_>) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
     matches!(
-        parent.kind(),
-        "cobinding" | "global_cobinding" | "local_cobinding" | "thread_cobinding"
+        parent.kind,
+        NodeKind::Cobinding
+            | NodeKind::GlobalCobinding
+            | NodeKind::LocalCobinding
+            | NodeKind::ThreadCobinding
     ) && parent
         .child_by_field_name("operator")
         .is_some_and(|operator| operator.id() == node.id())
 }
 
-fn is_regexp_string_argument(text: &str, node: tree_sitter::Node) -> bool {
-    if node.kind() != "string_literal" {
+fn is_regexp_string_argument(text: &str, node: M2Node<'_>) -> bool {
+    if node.kind != NodeKind::StringLiteral {
         return false;
     }
 
@@ -386,8 +388,8 @@ fn is_regexp_string_argument(text: &str, node: tree_sitter::Node) -> bool {
         .is_some_and(|name| matches!(name, "match" | "regex" | "select" | "replace" | "separate"))
 }
 
-fn is_namespace_string_argument(text: &str, node: tree_sitter::Node) -> bool {
-    if node.kind() != "string_literal" {
+fn is_namespace_string_argument(text: &str, node: M2Node<'_>) -> bool {
+    if node.kind != NodeKind::StringLiteral {
         return false;
     }
 
@@ -418,19 +420,21 @@ fn is_namespace_string_argument(text: &str, node: tree_sitter::Node) -> bool {
 /// operators (`h#"key"`, `h#?"key"`). The value on the right of `=>` keeps its
 /// own classification, and symbol keys to `#` stay value references (they are
 /// evaluated, not quoted).
-fn is_hash_key_string(text: &str, node: tree_sitter::Node) -> bool {
-    if node.kind() != "string_literal" {
+fn is_hash_key_string(text: &str, node: M2Node<'_>) -> bool {
+    if node.kind != NodeKind::StringLiteral {
         return false;
     }
     node.parent().is_some_and(|parent| {
-        let is_assignment_key = is_option_assignment_expression(parent, text)
+        let is_assignment_key = is_option_assignment_expression(parent.inner(), text)
             && parent
                 .child_by_field_name("left")
                 .is_some_and(|left| left.id() == node.id());
-        let is_lookup_key = matches!(binary_expression_operator(parent, text), Some("#" | "#?"))
-            && parent
-                .child_by_field_name("right")
-                .is_some_and(|right| right.id() == node.id());
+        let is_lookup_key = matches!(
+            binary_expression_operator(parent.inner(), text),
+            Some("#" | "#?")
+        ) && parent
+            .child_by_field_name("right")
+            .is_some_and(|right| right.id() == node.id());
         is_assignment_key || is_lookup_key
     })
 }
@@ -438,25 +442,27 @@ fn is_hash_key_string(text: &str, node: tree_sitter::Node) -> bool {
 /// A symbol read as a quoted global key: the right operand of the `.` or `.?`
 /// member operator (`R.name`, `R.?name`). M2 quotes the right side as a global
 /// symbol used as a hash key, so it is a property rather than a value reference.
-fn is_quoted_global_key_access(text: &str, node: tree_sitter::Node) -> bool {
-    if !matches!(node.kind(), "symbol" | "identifier" | "resolved_symbol") {
+fn is_quoted_global_key_access(text: &str, node: M2Node<'_>) -> bool {
+    if !matches!(node.kind, NodeKind::Symbol | NodeKind::ResolvedSymbol) {
         return false;
     }
     node.parent().is_some_and(|parent| {
-        matches!(binary_expression_operator(parent, text), Some("." | ".?"))
-            && parent
-                .child_by_field_name("right")
-                .is_some_and(|right| right.id() == node.id())
+        matches!(
+            binary_expression_operator(parent.inner(), text),
+            Some("." | ".?")
+        ) && parent
+            .child_by_field_name("right")
+            .is_some_and(|right| right.id() == node.id())
     })
 }
 
 fn call_like_left_symbol_for_argument<'a>(
     text: &'a str,
-    mut node: tree_sitter::Node,
+    mut node: M2Node<'_>,
     allow_list_argument: bool,
 ) -> Option<&'a str> {
     let mut parent = node.parent()?;
-    if parent.kind() == "sequence" && !is_first_named_child(parent, node) {
+    if parent.kind == NodeKind::Sequence && !is_first_named_child(parent, node) {
         return None;
     }
 
@@ -465,11 +471,11 @@ fn call_like_left_symbol_for_argument<'a>(
             return Some(name);
         }
 
-        if parent.kind() == "list" && !allow_list_argument {
+        if parent.kind == NodeKind::List && !allow_list_argument {
             return None;
         }
 
-        if !matches!(parent.kind(), "sequence" | "list") {
+        if !matches!(parent.kind, NodeKind::Sequence | NodeKind::List) {
             return None;
         }
 
@@ -478,25 +484,20 @@ fn call_like_left_symbol_for_argument<'a>(
     }
 }
 
-fn binary_expression_left_symbol<'a>(text: &'a str, node: tree_sitter::Node) -> Option<&'a str> {
-    if node.kind() != "binary_expression" {
+fn binary_expression_left_symbol<'a>(text: &'a str, node: M2Node<'_>) -> Option<&'a str> {
+    if !is_space_operator_expression(node.inner()) {
         return None;
     }
 
     let left = node.child_by_field_name("left")?;
-    if left.kind() != "symbol" {
-        return None;
-    }
-
-    let operator = node.child_by_field_name("operator")?;
-    if operator.kind() != "SPACE" {
+    if left.kind != NodeKind::Symbol {
         return None;
     }
 
     Some(&text[left.start_byte()..left.end_byte()])
 }
 
-fn is_first_named_child(parent: tree_sitter::Node, child: tree_sitter::Node) -> bool {
+fn is_first_named_child(parent: M2Node<'_>, child: M2Node<'_>) -> bool {
     parent
         .named_child(0)
         .is_some_and(|first| first.id() == child.id())
@@ -504,7 +505,7 @@ fn is_first_named_child(parent: tree_sitter::Node, child: tree_sitter::Node) -> 
 
 fn method_installation_type_parameter(
     text: &str,
-    node: tree_sitter::Node,
+    node: M2Node<'_>,
     builtins: &BuiltinData,
 ) -> Option<M2SemanticTokenType> {
     let node_text = &text[node.start_byte()..node.end_byte()];
@@ -535,29 +536,25 @@ fn is_known_type(builtins: &BuiltinData, name: &str) -> bool {
     })
 }
 
-fn is_type_parameter_in_domain(
-    node: tree_sitter::Node,
-    mut ancestor: tree_sitter::Node,
-    text: &str,
-) -> bool {
-    while matches!(ancestor.kind(), "sequence" | "list") {
+fn is_type_parameter_in_domain(node: M2Node<'_>, mut ancestor: M2Node<'_>, text: &str) -> bool {
+    while matches!(ancestor.kind, NodeKind::Sequence | NodeKind::List) {
         ancestor = match ancestor.parent() {
             Some(p) => p,
             None => return false,
         };
     }
 
-    if ancestor.kind() != "binary_expression" {
+    if ancestor.kind != NodeKind::BinaryExpression {
         return false;
     }
-    let op_text = match binary_expression_operator(ancestor, text) {
+    let op_text = match binary_expression_operator(ancestor.inner(), text) {
         Some(op) => op,
         None => return false,
     };
     if matches!(op_text, "=" | ":=" | "<-" | "=>") {
         return false;
     }
-    if !node_is_within(ancestor, node) {
+    if !node_is_within(ancestor.inner(), node.inner()) {
         return false;
     }
 
@@ -565,10 +562,10 @@ fn is_type_parameter_in_domain(
         Some(gp) => gp,
         None => return false,
     };
-    if !is_assignment_expression(grandparent, text) {
+    if !is_assignment_expression(grandparent.inner(), text) {
         return false;
     }
-    let assignment_op = match binary_expression_operator(grandparent, text) {
+    let assignment_op = match binary_expression_operator(grandparent.inner(), text) {
         Some(op) => op,
         None => return false,
     };
@@ -581,12 +578,8 @@ fn is_type_parameter_in_domain(
         .is_some_and(|left| left.id() == ancestor.id())
 }
 
-fn is_type_parameter_in_lambda(
-    node: tree_sitter::Node,
-    lambda: tree_sitter::Node,
-    text: &str,
-) -> bool {
-    if lambda.kind() != "lambda_expression" {
+fn is_type_parameter_in_lambda(node: M2Node<'_>, lambda: M2Node<'_>, text: &str) -> bool {
+    if lambda.kind != NodeKind::LambdaExpression {
         return false;
     }
     if lambda
@@ -603,8 +596,8 @@ fn is_type_parameter_in_lambda(
             None => return false,
         };
 
-        if parent.kind() == "binary_expression" {
-            let op = binary_expression_operator(parent, text);
+        if parent.kind == NodeKind::BinaryExpression {
+            let op = binary_expression_operator(parent.inner(), text);
             if matches!(op, Some("=" | ":=")) {
                 let lhs = match parent.child_by_field_name("left") {
                     Some(l) => l,
@@ -617,7 +610,7 @@ fn is_type_parameter_in_lambda(
                     Some(r) => r,
                     None => return false,
                 };
-                return node_is_within(rhs, lambda);
+                return node_is_within(rhs.inner(), lambda.inner());
             }
             current = parent;
             continue;
@@ -626,26 +619,22 @@ fn is_type_parameter_in_lambda(
     }
 }
 
-fn is_method_installation_lhs(node: tree_sitter::Node, text: &str) -> bool {
-    if node.kind() != "binary_expression" {
+fn is_method_installation_lhs(node: M2Node<'_>, text: &str) -> bool {
+    if node.kind != NodeKind::BinaryExpression {
         return false;
     }
-    let op = match binary_expression_operator(node, text) {
+    let op = match binary_expression_operator(node.inner(), text) {
         Some(op) => op,
         None => return false,
     };
     !matches!(op, "=" | ":=" | "<-" | "=>")
 }
 
-fn is_type_parameter_in_typical_value(
-    node: tree_sitter::Node,
-    parent: tree_sitter::Node,
-    text: &str,
-) -> bool {
-    if parent.kind() != "binary_expression" {
+fn is_type_parameter_in_typical_value(node: M2Node<'_>, parent: M2Node<'_>, text: &str) -> bool {
+    if parent.kind != NodeKind::BinaryExpression {
         return false;
     }
-    if binary_expression_operator(parent, text) != Some("=>") {
+    if binary_expression_operator(parent.inner(), text) != Some("=>") {
         return false;
     }
     if !parent
@@ -662,14 +651,14 @@ fn is_type_parameter_in_typical_value(
             None => return false,
         };
 
-        if grandparent.kind() == "binary_expression" {
-            let op = binary_expression_operator(grandparent, text);
+        if grandparent.kind == NodeKind::BinaryExpression {
+            let op = binary_expression_operator(grandparent.inner(), text);
             if matches!(op, Some("=" | ":=")) {
                 let rhs = match grandparent.child_by_field_name("right") {
                     Some(r) => r,
                     None => return false,
                 };
-                if !node_is_within(rhs, parent) {
+                if !node_is_within(rhs.inner(), parent.inner()) {
                     return false;
                 }
                 let lhs = match grandparent.child_by_field_name("left") {
@@ -1148,8 +1137,8 @@ mod tests {
         let mut cursor = root.walk();
         let mut reached_root = false;
         while !reached_root {
-            let node = cursor.node();
-            if node.kind() == "symbol" {
+            let node = M2Node::new(cursor.node());
+            if node.kind == NodeKind::Symbol {
                 roles.push((
                     &text[node.start_byte()..node.end_byte()],
                     option_assignment_role(text, node, &builtins),
