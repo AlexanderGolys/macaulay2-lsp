@@ -45,6 +45,7 @@ use capabilities::navigation::{
     ReferenceTarget,
 };
 use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
+use capabilities::signature_help::signature_help_response;
 use capabilities::type_hierarchy::{TypeHierarchyCapabilityService, TYPE_HIERARCHY_METHOD};
 use document::DocumentSnapshot;
 use package_index::SourceResolver;
@@ -275,6 +276,11 @@ impl LanguageServer for Backend {
                     trigger_characters: Some(vec!["$".to_string()]),
                     ..Default::default()
                 }),
+                signature_help_provider: Some(SignatureHelpOptions {
+                    trigger_characters: Some(vec!["(".to_string(), ",".to_string()]),
+                    retrigger_characters: Some(vec![",".to_string()]),
+                    work_done_progress_options: Default::default(),
+                }),
                 definition_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 document_highlight_provider: document_highlight_provider_capability(),
@@ -427,6 +433,21 @@ impl LanguageServer for Backend {
             document.analysis(),
             &scoped,
         ))
+    }
+
+    async fn signature_help(&self, params: SignatureHelpParams) -> Result<Option<SignatureHelp>> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        let document = match self.documents.get(uri) {
+            Some(document) => document,
+            None => return Ok(None),
+        };
+        let loaded = LoadedPackages::from_parts(
+            self.partitioned.default_loaded(),
+            document.imported_packages(),
+        );
+        let scoped = self.partitioned.scoped(&loaded);
+        Ok(signature_help_response(&document, position, &scoped))
     }
 
     async fn semantic_tokens_full(

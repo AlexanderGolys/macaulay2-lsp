@@ -487,8 +487,7 @@ impl Analysis {
             .get(&SpanKey::from_node(text, node))
     }
 
-    #[cfg(test)]
-    pub fn function(&self, name: &str) -> Option<&FunctionInfo> {
+    pub(crate) fn function(&self, name: &str) -> Option<&FunctionInfo> {
         let symbol = self.registry.resolve_symbol(name)?;
         self.registry.functions.get(&symbol)
     }
