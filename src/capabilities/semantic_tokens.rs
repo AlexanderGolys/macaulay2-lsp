@@ -5,6 +5,7 @@ use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::typesystem::{BuiltinData, M2SemanticTokenType};
 use crate::util::*;
+use crate::workspace_index::WorkspaceIndex;
 
 pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
     SemanticTokenType::TYPE,           // 0
@@ -39,6 +40,8 @@ pub(crate) const CONSTRUCTOR_MODIFIER: u32 = 1 << 5;
 pub(crate) fn collect_semantic_tokens(
     document: &DocumentSnapshot,
     builtins: &BuiltinData,
+    workspace_index: &WorkspaceIndex,
+    uri: &Url,
     augments_syntax_tokens: bool,
 ) -> Vec<SemanticToken> {
     let text = document.text();
@@ -114,6 +117,14 @@ pub(crate) fn collect_semantic_tokens(
                         modifiers |= builtin_semantic_token_modifiers(&token);
                     }
                 }
+            }
+
+            // A symbol the local analysis and the builtin index both leave
+            // unclassified may be defined at the top level of another workspace
+            // file (M2 globals are workspace-wide once loaded). Highlight it like
+            // its cross-file definition.
+            if token_type.is_none() {
+                token_type = workspace_index.semantic_token_type(node_text, uri);
             }
 
             if token_type.is_none()
@@ -693,13 +704,68 @@ mod tests {
         DocumentSnapshot::from_text(text.to_string(), builtins).expect("fixture should parse")
     }
 
+    /// Collect tokens for a single isolated document — no other workspace files,
+    /// so the cross-file classification step contributes nothing.
+    fn collect_tokens(
+        document: &DocumentSnapshot,
+        builtins: &BuiltinData,
+        augments_syntax_tokens: bool,
+    ) -> Vec<SemanticToken> {
+        let workspace_index = WorkspaceIndex::default();
+        let uri = Url::parse("file:///fixture.m2").expect("valid fixture uri");
+        collect_semantic_tokens(
+            document,
+            builtins,
+            &workspace_index,
+            &uri,
+            augments_syntax_tokens,
+        )
+    }
+
+    #[test]
+    fn cross_file_type_reference_is_highlighted_as_a_type() {
+        // A type defined at the top level of another workspace file highlights
+        // as a TYPE where it is referenced, even though it is neither a local
+        // binding nor a builtin in the referencing file.
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let workspace_index = WorkspaceIndex::default();
+        let defs_uri = Url::parse("file:///defs.m2").expect("valid uri");
+        workspace_index.index_file(&defs_uri, "TokenStream = new Type of List\n", &builtins);
+
+        let main_uri = Url::parse("file:///main.m2").expect("valid uri");
+        let text = "TokenStream\n";
+        let document = document(text, &builtins);
+        let tokens =
+            collect_semantic_tokens(&document, &builtins, &workspace_index, &main_uri, false);
+
+        let type_token = M2SemanticTokenType::Type as u32;
+        assert!(
+            tokens.iter().any(|token| token.token_type == type_token),
+            "expected a TYPE token for the cross-file type reference, got {tokens:?}"
+        );
+    }
+
+    #[test]
+    fn cross_file_lookup_excludes_the_current_file() {
+        // The current file's own definitions come from its live analysis, not the
+        // workspace index, so a self-reference must not be sourced cross-file.
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let workspace_index = WorkspaceIndex::default();
+        let main_uri = Url::parse("file:///main.m2").expect("valid uri");
+        workspace_index.index_file(&main_uri, "TokenStream = new Type of List\n", &builtins);
+        // Excluding main.m2 leaves no other definition, so nothing is contributed.
+        assert!(workspace_index
+            .semantic_token_type("TokenStream", &main_uri)
+            .is_none());
+    }
+
     #[test]
     fn semantic_tokens_classify_parameter_body_references_as_parameters() {
         let text = "f := x -> x";
         let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
 
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         assert_eq!(
             tokens
@@ -727,7 +793,7 @@ mod tests {
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
 
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         assert_eq!(
             tokens
@@ -756,7 +822,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         assert_eq!(
             tokens
@@ -783,7 +849,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         assert_eq!(
             tokens
@@ -806,7 +872,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         assert_eq!(
             tokens
@@ -827,7 +893,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         assert_eq!(
             tokens
@@ -864,7 +930,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         assert_eq!(
             tokens
@@ -904,7 +970,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         assert_eq!(
             tokens
@@ -940,7 +1006,7 @@ mod tests {
         );
         let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         assert_eq!(
             tokens
@@ -967,7 +1033,7 @@ mod tests {
         let text = "a = h#\"first\"\nb = h#?\"second\"\nc = \"plain\"\n";
         let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         assert_eq!(
             tokens
@@ -993,7 +1059,7 @@ mod tests {
         let text = "name = 5\nx = R.name\ny = R.?name\n";
         let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
 
         let property_count = tokens
             .iter()
@@ -1009,7 +1075,7 @@ mod tests {
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
 
-        let tokens = collect_semantic_tokens(&document, &builtins, true);
+        let tokens = collect_tokens(&document, &builtins, true);
 
         assert_eq!(
             tokens
@@ -1026,7 +1092,7 @@ mod tests {
         let text = "saveClearAll := clearAll\nclearAll = new Command from { () -> () }\nprotect symbol clearAll";
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, true);
+        let tokens = collect_tokens(&document, &builtins, true);
 
         assert_eq!(
             tokens
@@ -1191,7 +1257,7 @@ mod tests {
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
 
         let document = document(text, &builtins);
-        let tokens = collect_semantic_tokens(&document, &builtins, false);
+        let tokens = collect_tokens(&document, &builtins, false);
         let token_types: Vec<u32> = tokens.iter().map(|t| t.token_type).collect();
 
         let type_param = M2SemanticTokenType::Type as u32;

@@ -460,7 +460,13 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
         let augments_syntax_tokens = self.semantic_tokens_augment_syntax.load(Ordering::Relaxed);
-        let tokens = collect_semantic_tokens(&document, &self.builtins, augments_syntax_tokens);
+        let tokens = collect_semantic_tokens(
+            &document,
+            &self.builtins,
+            &self.workspace_index,
+            &uri,
+            augments_syntax_tokens,
+        );
         Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
             result_id: None,
             data: tokens,

@@ -12,6 +12,7 @@ use std::sync::RwLock;
 use dashmap::DashMap;
 use tower_lsp::lsp_types::{Location, Range, Url};
 
+use crate::capabilities::semantic_tokens::local_symbol_semantic_token_type;
 use crate::document::DocumentSnapshot;
 use crate::typesystem::BuiltinData;
 
@@ -19,6 +20,10 @@ use crate::typesystem::BuiltinData;
 struct DefLocation {
     uri: Url,
     range: Range,
+    /// The semantic-token type this definition would carry in its own file
+    /// (legend index), so a cross-file reference can be highlighted like the
+    /// definition. Computed once at index time from the definition's symbol info.
+    token_type: u32,
 }
 
 /// Global definition index, keyed by symbol name, kept in sync with edits and
@@ -77,13 +82,14 @@ impl WorkspaceIndex {
             return;
         }
         let mut names = Vec::with_capacity(definitions.len());
-        for (name, range) in definitions {
+        for (name, range, token_type) in definitions {
             self.by_name
                 .entry(name.clone())
                 .or_default()
                 .push(DefLocation {
                     uri: uri.clone(),
                     range,
+                    token_type,
                 });
             names.push(name);
         }
@@ -132,6 +138,19 @@ impl WorkspaceIndex {
         self.by_name.contains_key(name)
     }
 
+    /// The semantic-token type for a cross-file reference to `name`, taken from
+    /// its first top-level definition outside `exclude`. Lets a symbol defined in
+    /// another workspace file be highlighted where the local analysis and the
+    /// builtin index both come up empty.
+    pub(crate) fn semantic_token_type(&self, name: &str, exclude: &Url) -> Option<u32> {
+        self.by_name.get(name).and_then(|locations| {
+            locations
+                .iter()
+                .find(|location| &location.uri != exclude)
+                .map(|location| location.token_type)
+        })
+    }
+
     /// Every `.m2` file under the project roots, as URIs. Walks the filesystem,
     /// so callers should keep it off the hot path.
     pub(crate) fn workspace_file_uris(&self) -> Vec<Url> {
@@ -172,7 +191,7 @@ fn collect_m2_files(dir: &Path, out: &mut Vec<PathBuf>) {
 /// Parse `text` and return its global-scope definitions as `(name, range)`,
 /// where `range` is the definition site — the same range go-to-definition
 /// returns for an in-file symbol.
-fn top_level_definitions(text: &str, builtins: &BuiltinData) -> Vec<(String, Range)> {
+fn top_level_definitions(text: &str, builtins: &BuiltinData) -> Vec<(String, Range, u32)> {
     let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), builtins) else {
         return Vec::new();
     };
@@ -182,7 +201,15 @@ fn top_level_definitions(text: &str, builtins: &BuiltinData) -> Vec<(String, Ran
     global_scope
         .symbols
         .iter()
-        .flat_map(|(name, infos)| infos.iter().map(move |info| (name.clone(), info.range)))
+        .flat_map(|(name, infos)| {
+            infos.iter().map(move |info| {
+                // Position is unused by the classifier; the definition's own
+                // start serves as a stable placeholder.
+                let token_type =
+                    local_symbol_semantic_token_type(info, info.range.start, builtins) as u32;
+                (name.clone(), info.range, token_type)
+            })
+        })
         .collect()
 }
 
