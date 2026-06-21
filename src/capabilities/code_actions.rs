@@ -261,65 +261,14 @@ fn simplify_condition(node: tree_sitter::Node, text: &str) -> Option<String> {
         }
     }
 
-    if let Some((left_not, negated_op, right)) = not_dominated_binary(node, text) {
-        let left_operand = expression_operand_of_not(left_not, text);
-        let simplified = format!(
-            "{} {} {}",
-            &text[left_operand.start_byte()..left_operand.end_byte()],
-            negated_op,
-            &text[right.start_byte()..right.end_byte()],
-        );
-        if simplified != original {
-            return Some(simplified);
-        }
-    }
-
+    // Note: there is deliberately no `(not a) <op> b` => `a <neg-op> b` rule.
+    // M2's `not` binds looser than every comparison, so `not a == b` parses as
+    // `not (a == b)` (handled above), and the only way to get a comparison whose
+    // operand is a `not` is to parenthesize it — `(not a) == b` — which the
+    // grammar wraps in a `parenthesized_expression`, not a bare prefix. That
+    // rewrite would also be unsound in general (it holds only for the boolean XOR
+    // case), so it is intentionally absent rather than dead/unsound code.
     None
-}
-
-fn not_dominated_binary<'tree>(
-    node: tree_sitter::Node<'tree>,
-    text: &str,
-) -> Option<(
-    tree_sitter::Node<'tree>,
-    &'static str,
-    tree_sitter::Node<'tree>,
-)> {
-    let operator = binary_expression_operator(node, text)?;
-    let negated_operator = negated_binary_operator(operator)?;
-    let left = node.child_by_field_name("left")?;
-    let right = node.child_by_field_name("right")?;
-
-    if is_prefix_not(left, text) {
-        return Some((left, negated_operator, right));
-    }
-    if is_prefix_not(right, text) {
-        return Some((right, negated_operator, left));
-    }
-    None
-}
-
-fn is_prefix_not(node: tree_sitter::Node, text: &str) -> bool {
-    M2Node::new(node).kind == NodeKind::PrefixExpression
-        && node
-            .child_by_field_name("operator")
-            .is_some_and(|op| &text[op.start_byte()..op.end_byte()] == "not")
-}
-
-fn expression_operand_of_not<'tree>(
-    not_node: tree_sitter::Node<'tree>,
-    text: &str,
-) -> tree_sitter::Node<'tree> {
-    let mut cursor = not_node.walk();
-    let operator = not_node
-        .child_by_field_name("operator")
-        .expect("prefix expression should have operator");
-    for child in not_node.named_children(&mut cursor) {
-        if child.id() != operator.id() {
-            return unwrap_parentheses(child, text);
-        }
-    }
-    unreachable!("not prefix expression should have an operand")
 }
 
 fn unwrap_parentheses<'a>(node: tree_sitter::Node<'a>, text: &str) -> tree_sitter::Node<'a> {
@@ -435,7 +384,11 @@ fn unescape_string_literal_content(content: &str) -> Option<String> {
             'n' => result.push('\n'),
             'r' => result.push('\r'),
             't' => result.push('\t'),
-            other => result.push(other),
+            // Any escape we do not faithfully decode (octal \NNN, hex \xNN,
+            // \a \b \f \v, ...) aborts the conversion. A raw string ///...///
+            // is verbatim, so pushing the bare trailing character would silently
+            // change the string's value (e.g. "\134" is one backslash, not "134").
+            _ => return None,
         }
     }
     Some(result)
@@ -704,6 +657,22 @@ mod tests {
         let document = document(text);
 
         assert!(convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7)).is_none());
+    }
+
+    #[test]
+    fn convert_to_raw_string_rejects_unsupported_escapes() {
+        // Octal escapes (and hex / \a \b \f \v) are not faithfully reproducible
+        // verbatim in a raw string. The action must NOT be offered rather than
+        // silently dropping the backslash and corrupting the value: M2 source
+        // `"\101\102\103"` is the string "ABC", not "101102103".
+        let text = "x := \"\\101\\102\\103\"\n";
+        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
+        let document = document(text);
+
+        assert!(
+            convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7)).is_none(),
+            "raw-string conversion must not be offered for unsupported escapes"
+        );
     }
 
     #[test]
