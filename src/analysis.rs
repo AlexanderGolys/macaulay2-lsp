@@ -655,8 +655,9 @@ impl Analysis {
                         Some(right) if right.kind == NodeKind::LambdaExpression => {
                             SymbolKind::FUNCTION
                         }
-                        Some(right) if method_declaration_typical_value(right).is_some()
-                            || is_method_call(right) =>
+                        Some(right)
+                            if method_declaration_typical_value(right).is_some()
+                                || is_method_call(right) =>
                         {
                             SymbolKind::FUNCTION
                         }
@@ -1593,8 +1594,7 @@ impl Analysis {
             // (a `FunctionClosure` is not a method function).
             NodeKind::LambdaExpression => InferredType::of("FunctionClosure"),
             NodeKind::BinaryExpression
-                if method_declaration_typical_value(node).is_some()
-                    || is_method_call(node) =>
+                if method_declaration_typical_value(node).is_some() || is_method_call(node) =>
             {
                 InferredType::of("MethodFunction")
             }

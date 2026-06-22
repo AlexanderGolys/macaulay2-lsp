@@ -45,6 +45,11 @@ pub struct Record {
     pub type_info: Option<TypeInfo>,
     #[serde(default)]
     pub relation_info: Option<RelationInfo>,
+    /// Whether a `Symbol`-class object is `protect`ed. `None` ⇒ the corpus did
+    /// not record it; the classifier then falls back to the class-is-`Symbol`
+    /// proxy (see [`BuiltinData::is_protected_symbol`]).
+    #[serde(default)]
+    pub protected: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -572,9 +577,24 @@ impl BuiltinData {
             .collect()
     }
 
+    // Superseded for semantic-token key classification by `is_protected_symbol`
+    // (the user's model is protected-based, not option-role-based); kept for
+    // option-key completion/diagnostics, which still need documented-key-ness.
+    #[allow(dead_code)]
     pub fn is_option_name(&self, name: &str) -> bool {
         self.get_record(&InstanceID::new(name))
             .is_some_and(|record| record.option_role() == Some("key"))
+    }
+
+    /// Whether `name` resolves to a protected object whose class is *exactly*
+    /// `Symbol` (not merely an instance of it) — M2's nominal enum members. The
+    /// `protected` flag is authoritative when the corpus records it; when it does
+    /// not (`None`), default to `true`, since every builtin class-`Symbol` object
+    /// is in fact protected, keeping the absent-data case at the prior behaviour.
+    pub fn is_protected_symbol(&self, name: &str) -> bool {
+        let symbol_type = InstanceID::new("Symbol");
+        self.get_record(&InstanceID::new(name))
+            .is_some_and(|record| record.class == symbol_type && record.protected.unwrap_or(true))
     }
 
     #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
@@ -1011,6 +1031,7 @@ impl Record {
             operator_info: None,
             type_info: None,
             relation_info: None,
+            protected: None,
         }
     }
 
@@ -1185,6 +1206,7 @@ fn record_from_callable(entry: &crate::builtin_index::CallableEntry) -> Record {
 fn record_from_object(entry: &crate::builtin_index::ObjectEntry) -> Record {
     let mut record = Record::unknown(InstanceID::new(&entry.name));
     record.class = InstanceID::new(entry.class.as_deref().unwrap_or("Thing"));
+    record.protected = entry.protected;
     if let Some(package) = &entry.package {
         record
             .extra
@@ -1345,10 +1367,16 @@ impl BuiltinData {
             && !self.is_subtype(data_type, &keyword_type)
             && !self.is_subtype(data_type, &operator_type)
         {
-            let token_type = if is_file {
-                M2SemanticTokenType::Variable
-            } else {
+            // A nominal enum member is an object whose class is *exactly*
+            // `Symbol` (not merely an instance of it) and that is `protect`ed; an
+            // unprotected symbol is just a name (a variable). When the corpus
+            // omits `protected` (None), default to enum-member, since every
+            // builtin class-`Symbol` object is in fact protected.
+            let is_symbol_class = *data_type == symbol_type;
+            let token_type = if is_symbol_class && record.protected.unwrap_or(true) {
                 M2SemanticTokenType::EnumMember
+            } else {
+                M2SemanticTokenType::Variable
             };
 
             Some(M2SemanticToken {

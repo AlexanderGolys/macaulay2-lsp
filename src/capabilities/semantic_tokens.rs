@@ -225,12 +225,17 @@ pub(crate) fn option_assignment_role(
     }
 
     let node_text = node.text();
+    // The KEY of a `k => v` pair. A protected symbol key is a nominal enum
+    // member (`Strategy`, `Hilbert`); every other key — an unprotected symbol or
+    // a string used as a dictionary key — is a field/property.
     if parent
         .child_by_field_name("left")
         .is_some_and(|left| left.id() == node.id())
-        && builtins.is_option_name(node_text)
     {
-        return Some(M2SemanticTokenType::EnumMember);
+        if node.kind == NodeKind::Symbol && builtins.is_protected_symbol(node_text) {
+            return Some(M2SemanticTokenType::EnumMember);
+        }
+        return Some(M2SemanticTokenType::Property);
     }
 
     if parent
@@ -1224,8 +1229,12 @@ mod tests {
     }
 
     #[test]
-    fn option_assignment_roles_require_metadata() {
-        let text = "f(x, notAnOption => notAnOptionValue)";
+    fn option_keys_classify_by_protected_symbol() {
+        // The key of a `k => v` pair is classified by whether it is a protected
+        // symbol: `Strategy` (a protected class-`Symbol` builtin) is a nominal
+        // enum member, while `myKey` (an unprotected user name) is a field. The
+        // value `7` is not a symbol, so it is not classified here.
+        let text = "f(x, Strategy => 4, myKey => 7)";
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let mut parser = Parser::new();
         parser
@@ -1260,8 +1269,8 @@ mod tests {
             }
         }
 
-        assert!(roles.contains(&("notAnOption", None)));
-        assert!(roles.contains(&("notAnOptionValue", None)));
+        assert!(roles.contains(&("Strategy", Some(M2SemanticTokenType::EnumMember))));
+        assert!(roles.contains(&("myKey", Some(M2SemanticTokenType::Property))));
     }
 
     #[test]
