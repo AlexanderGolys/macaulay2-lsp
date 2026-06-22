@@ -462,6 +462,12 @@ impl Analysis {
         let symbol = self.registry.resolve_symbol(name)?;
         let mut curr = Some(scope_idx);
         while let Some(idx) = curr {
+            // In the use's own scope a binding governs only from its definition
+            // onward: a use textually before a local `:=` sees the outer binding,
+            // not the not-yet-declared local. Ancestor scopes are closures
+            // evaluated at call time, after the file is fully read, so a forward
+            // reference to an outer name defined later still resolves to it.
+            let constrain_to_prior = idx == scope_idx;
             let binding = self
                 .registry
                 .bindings_by_symbol
@@ -469,7 +475,9 @@ impl Analysis {
                 .into_iter()
                 .flatten()
                 .filter_map(|binding_idx| self.registry.bindings.get(*binding_idx))
-                .filter(|binding| binding.scope_idx == idx && binding.range.start <= pos)
+                .filter(|binding| {
+                    binding.scope_idx == idx && (!constrain_to_prior || binding.range.start <= pos)
+                })
                 .max_by_key(|binding| (binding.range.start.line, binding.range.start.character));
             if binding.is_some() {
                 return binding;
@@ -647,13 +655,17 @@ impl Analysis {
                         Some(right) if right.kind == NodeKind::LambdaExpression => {
                             SymbolKind::FUNCTION
                         }
-                        Some(right) if method_declaration_typical_value(right).is_some() => {
+                        Some(right) if method_declaration_typical_value(right).is_some()
+                            || is_method_call(right) =>
+                        {
                             SymbolKind::FUNCTION
                         }
                         _ => SymbolKind::VARIABLE,
                     };
                     let type_name = right.and_then(|right| {
-                        if method_declaration_typical_value(right).is_some() {
+                        if method_declaration_typical_value(right).is_some()
+                            || is_method_call(right)
+                        {
                             Some("MethodFunction".to_string())
                         } else {
                             self.type_of(right, text, current_scope_idx, builtins)
@@ -1580,7 +1592,10 @@ impl Analysis {
             // `Function` — this distinction drives the method-install no-effect rule
             // (a `FunctionClosure` is not a method function).
             NodeKind::LambdaExpression => InferredType::of("FunctionClosure"),
-            NodeKind::BinaryExpression if method_declaration_typical_value(node).is_some() => {
+            NodeKind::BinaryExpression
+                if method_declaration_typical_value(node).is_some()
+                    || is_method_call(node) =>
+            {
                 InferredType::of("MethodFunction")
             }
             NodeKind::List => InferredType::of("List"),
@@ -2187,6 +2202,17 @@ fn method_declaration_typical_value(node: M2Node) -> Option<Option<String>> {
     Some(find_option_value(node, "TypicalValue"))
 }
 
+/// Check if a binary expression is a call to the `method` function, catching
+/// cases where the tree structure doesn't perfectly match a space_application.
+fn is_method_call(node: M2Node) -> bool {
+    if node.kind != NodeKind::BinaryExpression {
+        return false;
+    }
+    node.child_by_field_name("left")
+        .and_then(|left| symbol_node_text(left))
+        == Some("method")
+}
+
 fn find_option_value(node: M2Node, option_name: &str) -> Option<String> {
     if node.is_option_assignment() {
         let left = node.child_by_field_name("left")?;
@@ -2364,9 +2390,22 @@ fn parenthesized_value(node: M2Node) -> Option<M2Node> {
 pub(crate) fn method_installation_domain(node: M2Node) -> Option<Vec<String>> {
     let node = parenthesized_value(node)?;
     if matches!(node.kind, NodeKind::Sequence | NodeKind::List) {
+        // Each element is one dispatch position, so the arity is the count of
+        // them — that must be preserved exactly. A non-symbol element is still a
+        // real position: `f(ZZ, a.b) := …` installs at arity 2, because `a.b`
+        // evaluates to a type at install time. We just cannot resolve its type
+        // name statically, so we keep the position under its source text (which
+        // will not match any known type → an unresolved parameter type) rather
+        // than dropping it and under-counting the arity. Comments ride along as
+        // named children and are not dispatch positions.
         let domain = node
             .named_children()
-            .filter_map(|child| symbol_node_text(child).map(ToString::to_string))
+            .filter(|child| child.kind != NodeKind::Comment)
+            .map(|child| {
+                symbol_node_text(child)
+                    .unwrap_or_else(|| child.text())
+                    .to_string()
+            })
             .collect::<Vec<_>>();
         return (!domain.is_empty()).then_some(domain);
     }
@@ -3209,6 +3248,19 @@ mod tests {
                 .and_then(|symbol| symbol.type_name.as_deref()),
             Some("List")
         );
+    }
+
+    #[test]
+    fn method_installation_preserves_arity_for_non_symbol_domain_positions() {
+        // `a.b` evaluates to a type at install time, so `f(ZZ, a.b) := …`
+        // installs at arity 2. The member-access position is kept even though its
+        // type name is not statically resolvable — dropping it would corrupt the
+        // recorded arity (and with it every downstream check).
+        let analysis = analyze("f = method()\nf(ZZ, a.b) := (x, y) -> x\n");
+        let method = analysis.function("f").expect("method should be tracked");
+
+        assert_eq!(method.methods[0].domain.len(), 2);
+        assert_eq!(method.methods[0].domain[0], "ZZ");
     }
 
     #[test]

@@ -37,6 +37,44 @@ pub(crate) const DECLARATION_MODIFIER: u32 = 1 << 4;
 #[allow(dead_code)]
 pub(crate) const CONSTRUCTOR_MODIFIER: u32 = 1 << 5;
 
+/// The LSP semantic-tokens protocol forbids a single token from spanning more
+/// than one line. A multi-line string or comment therefore has to be emitted as
+/// one token per line it covers. Split a node's byte span into `(row,
+/// start_char, length)` triples — all columns in UTF-16 units, the protocol's
+/// unit — taking the precomputed `start_char` for the first line and column 0
+/// for every continuation line. The newline (and any `\r`) is excluded so a
+/// token never reaches past the visible end of its line.
+fn token_line_spans(
+    text: &str,
+    start_byte: usize,
+    end_byte: usize,
+    start_row: u32,
+    start_char: u32,
+) -> Vec<(u32, u32, u32)> {
+    let span = &text[start_byte..end_byte];
+    if !span.contains('\n') {
+        return vec![(
+            start_row,
+            start_char,
+            utf16_len_for_byte_span(text, start_byte, end_byte),
+        )];
+    }
+    let mut spans = Vec::new();
+    let mut row = start_row;
+    for (index, line) in span.split_inclusive('\n').enumerate() {
+        let content = line.trim_end_matches('\n').trim_end_matches('\r');
+        let column = if index == 0 { start_char } else { 0 };
+        let length = content.encode_utf16().count() as u32;
+        if length > 0 {
+            spans.push((row, column, length));
+        }
+        if line.ends_with('\n') {
+            row += 1;
+        }
+    }
+    spans
+}
+
 pub(crate) fn collect_semantic_tokens(
     document: &DocumentSnapshot,
     builtins: &BuiltinData,
@@ -132,27 +170,28 @@ pub(crate) fn collect_semantic_tokens(
             }
 
             if let Some(token_type) = token_type {
-                let line = start_pos.row as u32;
-                let length = utf16_len_for_byte_span(text, start_byte, end_byte);
+                for (line, line_start_char, length) in
+                    token_line_spans(text, start_byte, end_byte, start_pos.row as u32, start_char)
+                {
+                    let delta_line = line - prev_line;
+                    let delta_start = if delta_line == 0 {
+                        line_start_char - prev_start
+                    } else {
+                        line_start_char
+                    };
 
-                let delta_line = line - prev_line;
-                let delta_start = if delta_line == 0 {
-                    start_char - prev_start
-                } else {
-                    start_char
-                };
+                    tokens.push(SemanticToken {
+                        delta_line,
+                        delta_start,
+                        length,
+                        token_type,
+                        token_modifiers_bitset: modifiers,
+                    });
 
-                tokens.push(SemanticToken {
-                    delta_line,
-                    delta_start,
-                    length,
-                    token_type,
-                    token_modifiers_bitset: modifiers,
-                });
-
-                prev_line = line;
-                prev_start = start_char;
-                emitted_token = true;
+                    prev_line = line;
+                    prev_start = line_start_char;
+                    emitted_token = true;
+                }
             }
         }
 
@@ -664,6 +703,49 @@ mod tests {
             &uri,
             augments_syntax_tokens,
         )
+    }
+
+    #[test]
+    fn multi_line_string_token_is_split_per_line() {
+        // A raw string spans two lines. The LSP protocol forbids a token from
+        // crossing a line boundary, so it must be emitted as one token per line.
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let text = "x := ///alpha\nbeta///\n";
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        let line_lengths: Vec<u32> = text
+            .split('\n')
+            .map(|line| line.encode_utf16().count() as u32)
+            .collect();
+
+        // Decode the delta-encoded stream to absolute positions and assert every
+        // token fits within its own source line.
+        let mut line = 0u32;
+        let mut start = 0u32;
+        for token in &tokens {
+            if token.delta_line > 0 {
+                line += token.delta_line;
+                start = token.delta_start;
+            } else {
+                start += token.delta_start;
+            }
+            assert!(
+                start + token.length <= line_lengths[line as usize],
+                "token at line {line} col {start} len {} runs past the {}-wide line",
+                token.length,
+                line_lengths[line as usize]
+            );
+        }
+
+        let string_tokens = tokens
+            .iter()
+            .filter(|token| token.token_type == M2SemanticTokenType::String as u32)
+            .count();
+        assert!(
+            string_tokens >= 2,
+            "the two-line raw string must yield a token per line, got {string_tokens}"
+        );
     }
 
     #[test]

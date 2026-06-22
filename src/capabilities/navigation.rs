@@ -484,6 +484,27 @@ mod tests {
     }
 
     #[test]
+    fn collect_reference_ranges_finds_forward_references_through_closures() {
+        // `h` is used in `g`'s body before `h` is defined. M2 closures are
+        // late-bound, so the use binds to the later top-level `h`; rename and
+        // highlight must include it.
+        let text = "g := x -> h x\nh := y -> y\n";
+        let document = document(text);
+
+        // Resolve from the declaration of `h` (line 1).
+        let ranges = collect_reference_ranges(&document, Position::new(1, 0), true);
+
+        assert!(
+            ranges.contains(&Range::new(Position::new(0, 10), Position::new(0, 11))),
+            "forward reference to `h` in g's body must be collected, got {ranges:?}"
+        );
+        assert!(
+            ranges.contains(&Range::new(Position::new(1, 0), Position::new(1, 1))),
+            "the declaration of `h` must be collected, got {ranges:?}"
+        );
+    }
+
+    #[test]
     fn reference_ranges_use_lsp_utf16_columns() {
         let text = "f := x -> (\"😀\"; x + x)";
         let document = document(text);

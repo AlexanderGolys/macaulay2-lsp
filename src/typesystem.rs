@@ -256,11 +256,13 @@ impl TypeLattice {
         }
         let ancestors_a = self.ancestors.get(a)?;
         let ancestors_b = self.ancestors.get(b)?;
+        // `a` is a supertype of `b` → `a` is already an upper bound of both.
         if ancestors_b.binary_search(a).is_ok() {
-            return Some(b.clone());
-        }
-        if ancestors_a.binary_search(b).is_ok() {
             return Some(a.clone());
+        }
+        // `b` is a supertype of `a` → `b` is already an upper bound of both.
+        if ancestors_a.binary_search(b).is_ok() {
+            return Some(b.clone());
         }
         let common: Vec<_> = ancestors_a
             .iter()
@@ -1508,6 +1510,29 @@ mod tests {
         assert_eq!(
             facts.resolve_codomain(&lattice, "gb", &["Ideal"]),
             Some("GroebnerBasis")
+        );
+    }
+
+    #[test]
+    fn least_upper_bound_returns_the_common_supertype() {
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
+
+        // Array <: VisibleList: the join of a type and its own supertype is the
+        // supertype, not the subtype. (Regression: the ancestor shortcut used to
+        // return the operand that was lower in the order.)
+        assert_eq!(
+            builtins.least_upper_bound(&InstanceID::new("Array"), &InstanceID::new("VisibleList")),
+            Some(InstanceID::new("VisibleList"))
+        );
+        assert_eq!(
+            builtins.least_upper_bound(&InstanceID::new("VisibleList"), &InstanceID::new("Array")),
+            Some(InstanceID::new("VisibleList"))
+        );
+        // Array and List are siblings under VisibleList; their join is the most
+        // specific common ancestor, VisibleList — not BasicList or Thing.
+        assert_eq!(
+            builtins.least_upper_bound(&InstanceID::new("Array"), &InstanceID::new("List")),
+            Some(InstanceID::new("VisibleList"))
         );
     }
 

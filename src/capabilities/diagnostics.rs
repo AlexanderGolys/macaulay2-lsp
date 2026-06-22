@@ -244,17 +244,18 @@ fn single_line_range(text: &str, start: tree_sitter::Point, start_byte: usize) -
 /// Decide whether an `=>` pair is a *function/method option* (convention applies)
 /// versus a *hashtable / dictionary entry* (lowercase keys are legitimate).
 fn is_function_option_context(option: M2Node<'_>) -> bool {
-    // PENDING (parked — resume as a learn-by-doing): return true only when this
-    // `=>` pair is a function option, and false when it is a hashtable/list entry.
+    // `option` is the `=>` `binary_expression`. It is a function/method option —
+    // where the uppercase-key convention applies — when its nearest enclosing
+    // collection is a call's argument `Sequence`, e.g. `gb(I, Strategy => 4)`. It
+    // is an ordinary dictionary/list entry — where lowercase keys are legitimate
+    // and the hint must stay silent — when that collection is a `List`/`Array`
+    // literal, e.g. `hashTable {a => 1, b => 2}`.
     //
-    // `option` is the `binary_expression` whose operator is `=>`. Walk its
-    // ancestors via `option.parent()` and inspect `.kind`:
-    //   - call arguments / option lists live in a `NodeKind::Sequence` (the `(...)`
-    //     after a function), e.g. `gb(I, Strategy => 4)`
-    //   - hashtable & list literals are `NodeKind::List` (`{...}`) or
-    //     `NodeKind::Array` (`[...]`), e.g. `hashTable {a => 1, b => 2}`
-    // Decide which enclosing collection the pair belongs to. Returning `false`
-    // here (the current default) makes the hint fire on nothing — safe but inert.
+    // TODO(human): walk upward from `option` with `node.parent()` and return
+    // `true` iff the first enclosing collection node is a `NodeKind::Sequence`,
+    // and `false` if it is a `NodeKind::List` or `NodeKind::Array`. With no
+    // enclosing collection, return `false`. Replace the inert default below,
+    // which currently makes the E06 hint fire on nothing.
     let _ = option;
     false
 }
