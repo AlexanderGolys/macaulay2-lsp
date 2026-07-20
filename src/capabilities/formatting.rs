@@ -597,7 +597,6 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
         }
 
         if let Some(operator) = node.child_by_field_name("operator") {
-            let operator_text = operator.text();
             if is_parenthesized_call(node) {
                 // A call `f(...)` that is the head of a `:=` install reads as
                 // installation syntax, so it is spaced (`f (Types) := …`); an
@@ -607,19 +606,27 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
                 } else {
                     push_call_gap_whitespace_edit(node, text, edits, "");
                 }
-            } else if should_space_factor_operator_with_adjacency_factor(node, operator_text) {
-                push_operator_whitespace_edits(text, operator, edits);
-            } else if should_compact_prefix_operator(node.kind, operator_text) {
-                push_prefix_operator_whitespace_edits(text, operator, edits);
-            } else if should_compact_operator(node.kind, operator_text) {
-                push_compact_operator_whitespace_edits(text, operator, edits);
-            } else if should_space_operator(node.kind, operator_text) {
-                push_operator_whitespace_edits(text, operator, edits);
+            } else {
+                match operator_spacing(node.kind, operator.text()) {
+                    OperatorSpacing::Spaced => {
+                        push_operator_whitespace_edits(text, operator, edits)
+                    }
+                    OperatorSpacing::Compact => {
+                        push_compact_operator_whitespace_edits(text, operator, edits)
+                    }
+                    OperatorSpacing::Factor => {
+                        if binary_operator_all_factors(node) {
+                            push_compact_operator_whitespace_edits(text, operator, edits);
+                        } else {
+                            push_operator_whitespace_edits(text, operator, edits);
+                        }
+                    }
+                    OperatorSpacing::Prefix => {
+                        push_prefix_operator_whitespace_edits(text, operator, edits)
+                    }
+                    OperatorSpacing::None => {}
+                }
             }
-        }
-
-        if node.is(NodeKind::LambdaExpression) {
-            push_lambda_operator_whitespace_edits(node, text, edits);
         }
     }
 
@@ -628,60 +635,85 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
     }
 }
 
-fn should_space_operator(parent_kind: NodeKind, operator: &str) -> bool {
+/// Per-operator spacing rule. Single source of truth consumed by the spacing
+/// walk (`collect_format_edits`) and the indent continuation check
+/// (`is_right_operand_first_token`). Folding the previously separate
+/// `should_space_*`/`is_compact_*`/`is_spaced_line_final_*` tables into one
+/// place removes the drift risk where the spaced and line-final tables forgot
+/// to track each other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OperatorSpacing {
+    /// Always surround with a space on each side (`a + b`, `x := y`).
+    Spaced,
+    /// Always collapse adjacent whitespace (`x^y`, `a#b`).
+    Compact,
+    /// Factor operator (`*`, `/`, `%`, `**`): compact when both operands are
+    /// adjacent factors (`a*b*c`), spaced when a non-factor or continuation
+    /// needs air (`a * f(b)`).
+    Factor,
+    /// Unary prefix form (`-x`, `#x`): collapse only the trailing space.
+    Prefix,
+    /// Not a spacing-relevant operator; leave its surrounding whitespace as-is.
+    None,
+}
+
+/// Spacing rule for the operator `node` carries, keyed by the parent's kind so
+/// the same spelling can route differently in binary vs prefix context
+/// (`-` in `BinaryExpression` is `Spaced`, in `PrefixExpression` is `Prefix`).
+/// `LambdaExpression` shares the binary table: its `->` operator reads as a
+/// spaced binary operator.
+fn operator_spacing(parent_kind: NodeKind, operator: &str) -> OperatorSpacing {
     match parent_kind {
-        // Assignments (`=`, `:=`, `<-`), options (`=>`), and arrows (`->`) are all
-        // `binary_expression` in this grammar; their operators are listed below.
-        NodeKind::BinaryExpression => matches!(
-            operator,
-            "==" | "!="
-                | "==="
-                | "=!="
-                | "<<"
-                | "<"
-                | ">"
-                | "<="
-                | ">="
-                | "or"
-                | "??"
-                | "xor"
-                | "and"
-                | "||"
-                | "|"
-                | "^^"
-                | "&"
-                | "++"
-                | "+"
-                | "-"
-                | "⊠"
-                | "⧢"
-                | "\\"
-                | "\\\\"
-                | "%"
-                | "//"
-                | ":="
-                | "="
-                | "<-"
-                | "=>"
-                | "->"
-        ),
-        _ => false,
+        NodeKind::BinaryExpression | NodeKind::LambdaExpression => {
+            binary_operator_spacing(operator)
+        }
+        NodeKind::PrefixExpression => prefix_operator_spacing(operator),
+        _ => OperatorSpacing::None,
     }
 }
 
-fn should_compact_operator(parent_kind: NodeKind, operator: &str) -> bool {
-    parent_kind == NodeKind::BinaryExpression && is_compact_operator(operator)
-}
-
-fn is_compact_operator(operator: &str) -> bool {
-    matches!(
+fn binary_operator_spacing(operator: &str) -> OperatorSpacing {
+    // Factor operators participate in the adjacency rule before the static
+    // spaced/compact tables.
+    if matches!(operator, "*" | "/" | "%" | "**") {
+        return OperatorSpacing::Factor;
+    }
+    if matches!(
         operator,
-        "·" | "**"
-            | "⊠"
+        "==" | "!="
+            | "==="
+            | "=!="
+            | "<<"
+            | "<"
+            | ">"
+            | "<="
+            | ">="
+            | "or"
+            | "??"
+            | "xor"
+            | "and"
+            | "||"
+            | "|"
+            | "^^"
+            | "&"
+            | "++"
+            | "+"
+            | "-"
+            | "\\"
+            | "\\\\"
+            | ":="
+            | "="
+            | "<-"
+            | "=>"
+            | "->"
+            | "//"
+    ) {
+        return OperatorSpacing::Spaced;
+    }
+    if matches!(
+        operator,
+        "·" | "⊠"
             | "⧢"
-            | "%"
-            | "/"
-            | "*"
             | "@"
             | "@@"
             | "@@?"
@@ -699,66 +731,45 @@ fn is_compact_operator(operator: &str) -> bool {
             | "_>="
             | "#"
             | "#?"
-    )
+    ) {
+        return OperatorSpacing::Compact;
+    }
+    OperatorSpacing::None
 }
 
-fn should_compact_prefix_operator(parent_kind: NodeKind, operator: &str) -> bool {
-    parent_kind == NodeKind::PrefixExpression
-        && matches!(
-            operator,
-            "+" | "-"
-                | "*"
-                | "#"
-                | "<"
-                | "<="
-                | ">"
-                | ">="
-                | "?"
-                | "<<"
-                | "|-"
-                | "<==="
-                | "<=="
-                | "??"
-        )
+fn prefix_operator_spacing(operator: &str) -> OperatorSpacing {
+    if matches!(
+        operator,
+        "+" | "-" | "*" | "#" | "<" | "<=" | ">" | ">=" | "?" | "<<" | "|-" | "<===" | "<==" | "??"
+    ) {
+        return OperatorSpacing::Prefix;
+    }
+    OperatorSpacing::None
+}
+
+/// Whether a `Factor`-classified binary operator collapses to compact form:
+/// `true` iff both operands are adjacent factors (atoms or sub-expressions),
+/// in which case spacing (`a * b`) would visually break a tight product such as
+/// `2*x*y`. Otherwise a space is required to separate the operands.
+fn binary_operator_all_factors(node: M2Node<'_>) -> bool {
+    let Some(left) = node.child_by_field_name("left") else {
+        return false;
+    };
+    let Some(right) = node.child_by_field_name("right") else {
+        return false;
+    };
+    is_adjacent_factor(left) && is_adjacent_factor(right)
 }
 
 /// Whether `operator`, when it dangles at the end of a line, takes a trailing
-/// space and so signals that the following row is an indented continuation. Used
-/// by the tree-driven indenter to decide right-operand continuation indentation.
+/// space and so signals that the following row is an indented continuation.
+/// Used by the tree-driven indenter to decide right-operand indentation. The
+/// line-final set is exactly the binary operators classified `Spaced` above
+/// (Factor operators are excluded: a compact `*` left at line-end `a*\nb` does
+/// not indent). Derived from `binary_operator_spacing` so a new spaced operator
+/// cannot be added to one table and forgotten in the other.
 fn is_spaced_line_final_operator(operator: &str) -> bool {
-    matches!(
-        operator,
-        "==" | "!="
-            | "==="
-            | "=!="
-            | "<"
-            | ">"
-            | "<="
-            | ">="
-            | "or"
-            | "??"
-            | "xor"
-            | "and"
-            | "||"
-            | "|"
-            | "^^"
-            | "&"
-            | "++"
-            | "<<"
-            | "+"
-            | "-"
-            | "=>"
-            | "->"
-            | "="
-            | ":="
-            | "<-"
-            | "\\"
-            | "\\\\"
-            | "then"
-            | "else"
-            | "do"
-            | "list"
-    )
+    binary_operator_spacing(operator) == OperatorSpacing::Spaced
 }
 
 fn is_parenthesized_call(node: M2Node<'_>) -> bool {
@@ -826,22 +837,6 @@ fn push_call_gap_whitespace_edit(
     });
 }
 
-fn should_space_factor_operator_with_adjacency_factor(
-    node: M2Node<'_>,
-    operator_text: &str,
-) -> bool {
-    if !matches!(operator_text, "*" | "/" | "%" | "**" | "//") {
-        return false;
-    }
-    let Some(left) = node.child_by_field_name("left") else {
-        return false;
-    };
-    let Some(right) = node.child_by_field_name("right") else {
-        return false;
-    };
-    !is_adjacent_factor(left) || !is_adjacent_factor(right)
-}
-
 fn is_adjacent_factor(node: M2Node<'_>) -> bool {
     matches!(
         node.kind,
@@ -858,17 +853,6 @@ fn is_adjacent_factor(node: M2Node<'_>) -> bool {
             | NodeKind::PostfixExpression
             | NodeKind::BinaryExpression
     )
-}
-
-fn push_lambda_operator_whitespace_edits(
-    node: M2Node<'_>,
-    text: &str,
-    edits: &mut Vec<FormatEdit>,
-) {
-    let Some(operator) = node.child_by_field_name("operator") else {
-        return;
-    };
-    push_operator_whitespace_edits(text, operator, edits);
 }
 
 fn push_operator_whitespace_edits(text: &str, operator: M2Node<'_>, edits: &mut Vec<FormatEdit>) {
