@@ -4,7 +4,7 @@ use tree_sitter::{InputEdit, Parser, Point, Tree};
 
 #[cfg(test)]
 use crate::analysis::ExpressionFact;
-use crate::analysis::{Analysis, BindingInfo, FunctionInfo};
+use crate::analysis::{Analysis, BindingInfo, FunctionInfo, SymbolInfo};
 use crate::package_index::collect_imported_packages_in_tree;
 use crate::typesystem::BuiltinData;
 use crate::util::{
@@ -22,6 +22,16 @@ pub(crate) struct DocumentSnapshot {
     /// owned by the partitioned index, so the snapshot stores only its own
     /// contribution to the loaded set.
     imported_packages: Vec<String>,
+}
+
+/// The common first step of every reference / highlight / rename request: the
+/// tree-sitter symbol node under the cursor together with its scope-aware
+/// `SymbolInfo`. Resolved once per request and threaded through the downstream
+/// reference collection so the target lookup is not repeated.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TargetSymbol<'a> {
+    pub node: M2Node<'a>,
+    pub symbol: &'a SymbolInfo,
 }
 
 impl DocumentSnapshot {
@@ -81,6 +91,17 @@ impl DocumentSnapshot {
     pub(crate) fn binding_at_position(&self, position: Position) -> Option<&BindingInfo> {
         let node = self.symbol_node_at_position(position)?;
         self.analysis.get_binding_at(node.text(), position)
+    }
+
+    /// Resolve the user symbol under `position`: its tree-sitter node plus the
+    /// scope-aware `SymbolInfo` for the same site. Returns `None` when the
+    /// cursor is not on a renameable / referenceable symbol (builtins, keywords,
+    /// punctuation, or whitespace). The single entry point shared by reference,
+    /// highlight, and rename requests.
+    pub(crate) fn target_symbol_at(&self, position: Position) -> Option<TargetSymbol<'_>> {
+        let node = self.symbol_node_at_position(position)?;
+        let symbol = self.analysis.get_symbol_at(node.text(), position)?;
+        Some(TargetSymbol { node, symbol })
     }
 
     #[cfg(test)]

@@ -10,8 +10,12 @@ use crate::util::position_in_range;
 
 /// A code action producer. Every action is funneled through this signature so
 /// the dispatcher can iterate a single registry instead of listing each by
-/// hand. Producers that do not consult diagnostics simply ignore the slice.
-type ActionProducer = fn(&DocumentSnapshot, &Url, Position, &[Diagnostic]) -> Option<CodeAction>;
+/// hand. `cursor` is the deepest CST node covering `position`, precomputed
+/// once by `available_code_actions` so the tree-sitter descent is not repeated
+/// per producer. Producers that do not consult diagnostics simply ignore the
+/// slice.
+type ActionProducer =
+    fn(&DocumentSnapshot, &Url, Position, M2Node<'_>, &[Diagnostic]) -> Option<CodeAction>;
 
 /// The action registry: ordered as quickfixes first, then refactors. A new
 /// action is appended here and `available_code_actions` picks it up with no
@@ -25,16 +29,19 @@ const ACTION_PRODUCERS: &[ActionProducer] = &[
 ];
 
 /// The code actions offered at `position`: every action from the registry
-/// whose producer returns `Some`.
+/// whose producer returns `Some`. The deepest CST node covering `position` is
+/// resolved a single time here and threaded through the registry, so the
+/// tree-sitter descent happens once per request instead of once per producer.
 pub(crate) fn available_code_actions(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
     diagnostics: &[Diagnostic],
 ) -> Option<CodeActionResponse> {
+    let cursor = document.node_at_position_minimal(position)?;
     let actions: Vec<_> = ACTION_PRODUCERS
         .iter()
-        .filter_map(|producer| producer(document, uri, position, diagnostics))
+        .filter_map(|producer| producer(document, uri, position, cursor, diagnostics))
         .map(CodeActionOrCommand::CodeAction)
         .collect();
     (!actions.is_empty()).then_some(actions)
@@ -79,10 +86,11 @@ impl CodeActionSpec {
 pub(crate) fn convert_to_raw_string_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
-    position: Position,
+    _position: Position,
+    cursor: M2Node<'_>,
     _diagnostics: &[Diagnostic],
 ) -> Option<CodeAction> {
-    let string_node = string_literal_at_position(document, position)?;
+    let string_node = document.enclosing_node_of_kind(cursor, NodeKind::StringLiteral)?;
     let replacement = raw_string_replacement(string_node)?;
 
     Some(
@@ -102,6 +110,7 @@ pub(crate) fn ambiguous_float_member_access_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
+    cursor: M2Node<'_>,
     diagnostics: &[Diagnostic],
 ) -> Option<CodeAction> {
     let diagnostic = diagnostics
@@ -111,7 +120,7 @@ pub(crate) fn ambiguous_float_member_access_code_action(
                 && position_in_range(position, diagnostic.range)
         })?
         .clone();
-    let expression = ambiguous_float_member_access_node_at_position(document, position)?;
+    let expression = document.enclosing_node_of_kind(cursor, NodeKind::BinaryExpression)?;
     let replacement = ambiguous_float_member_access_rewrite(expression)?;
 
     Some(
@@ -130,10 +139,11 @@ pub(crate) fn ambiguous_float_member_access_code_action(
 pub(crate) fn conditional_null_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
-    position: Position,
+    _position: Position,
+    cursor: M2Node<'_>,
     _diagnostics: &[Diagnostic],
 ) -> Option<CodeAction> {
-    let if_node = if_statement_at_position(document, position)?;
+    let if_node = document.enclosing_node_of_kind(cursor, NodeKind::IfStatement)?;
     let replacement = refactor_if_null_branch(if_node)?;
 
     Some(
@@ -152,10 +162,11 @@ pub(crate) fn conditional_null_code_action(
 pub(crate) fn simplify_try_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
-    position: Position,
+    _position: Position,
+    cursor: M2Node<'_>,
     _diagnostics: &[Diagnostic],
 ) -> Option<CodeAction> {
-    let try_node = try_statement_at_position(document, position)?;
+    let try_node = document.enclosing_node_of_kind(cursor, NodeKind::TryStatement)?;
     let replacement = refactor_try_statement(try_node)?;
 
     Some(
@@ -174,10 +185,11 @@ pub(crate) fn simplify_try_code_action(
 pub(crate) fn simplify_if_condition_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
-    position: Position,
+    _position: Position,
+    cursor: M2Node<'_>,
     _diagnostics: &[Diagnostic],
 ) -> Option<CodeAction> {
-    let if_node = if_statement_at_position(document, position)?;
+    let if_node = document.enclosing_node_of_kind(cursor, NodeKind::IfStatement)?;
     let condition = if_node.child_by_field_name("condition")?;
     let simplified = simplify_condition(condition)?;
 
@@ -245,36 +257,6 @@ fn clause_child<'tree>(parent: M2Node<'tree>, kind: NodeKind) -> Option<M2Node<'
 
 fn expression_of_clause(clause: M2Node<'_>) -> Option<M2Node<'_>> {
     clause.named_children().next()
-}
-
-fn if_statement_at_position(document: &DocumentSnapshot, position: Position) -> Option<M2Node<'_>> {
-    let node = document.node_at_position_minimal(position)?;
-    document.enclosing_node_of_kind(node, NodeKind::IfStatement)
-}
-
-fn try_statement_at_position(
-    document: &DocumentSnapshot,
-    position: Position,
-) -> Option<M2Node<'_>> {
-    let node = document.node_at_position_minimal(position)?;
-    document.enclosing_node_of_kind(node, NodeKind::TryStatement)
-}
-
-fn string_literal_at_position(
-    document: &DocumentSnapshot,
-    position: Position,
-) -> Option<M2Node<'_>> {
-    let node = document.node_at_position_minimal(position)?;
-    document.enclosing_node_of_kind(node, NodeKind::StringLiteral)
-}
-
-fn ambiguous_float_member_access_node_at_position(
-    document: &DocumentSnapshot,
-    position: Position,
-) -> Option<M2Node<'_>> {
-    let node = document.node_at_position_minimal(position)?;
-    let binary = document.enclosing_node_of_kind(node, NodeKind::BinaryExpression)?;
-    ambiguous_float_member_access_rewrite(binary).map(|_| binary)
 }
 
 fn raw_string_replacement(string_node: M2Node<'_>) -> Option<String> {
@@ -462,14 +444,26 @@ mod tests {
             .expect("fixture should parse")
     }
 
+    fn cursor_at(document: &DocumentSnapshot, position: Position) -> M2Node<'_> {
+        document
+            .node_at_position_minimal(position)
+            .expect("cursor position should resolve to a node")
+    }
+
     #[test]
     fn conditional_null_else_refactor_drops_else_branch() {
         let text = "if ready then value else null";
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("conditional null refactor should be available");
+        let action = conditional_null_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("conditional null refactor should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -492,8 +486,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("conditional null refactor should be available for both-null branches");
+        let action = conditional_null_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("conditional null refactor should be available for both-null branches");
         let change = &action
             .edit
             .expect("code action should carry an edit")
@@ -520,6 +520,7 @@ mod tests {
             &document,
             &uri,
             Position::new(0, 1),
+            cursor_at(&document, Position::new(0, 1)),
             std::slice::from_ref(&diagnostic),
         )
         .expect("ambiguous member access quickfix should be available");
@@ -546,8 +547,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7), &[])
-            .expect("raw string conversion should be available");
+        let action = convert_to_raw_string_code_action(
+            &document,
+            &uri,
+            Position::new(0, 7),
+            cursor_at(&document, Position::new(0, 7)),
+            &[],
+        )
+        .expect("raw string conversion should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -564,9 +571,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        assert!(
-            convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7), &[]).is_none()
-        );
+        assert!(convert_to_raw_string_code_action(
+            &document,
+            &uri,
+            Position::new(0, 7),
+            cursor_at(&document, Position::new(0, 7)),
+            &[]
+        )
+        .is_none());
     }
 
     #[test]
@@ -575,9 +587,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        assert!(
-            convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7), &[]).is_none()
-        );
+        assert!(convert_to_raw_string_code_action(
+            &document,
+            &uri,
+            Position::new(0, 7),
+            cursor_at(&document, Position::new(0, 7)),
+            &[]
+        )
+        .is_none());
     }
 
     #[test]
@@ -591,7 +608,14 @@ mod tests {
         let document = document(text);
 
         assert!(
-            convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7), &[]).is_none(),
+            convert_to_raw_string_code_action(
+                &document,
+                &uri,
+                Position::new(0, 7),
+                cursor_at(&document, Position::new(0, 7)),
+                &[]
+            )
+            .is_none(),
             "raw-string conversion must not be offered for unsupported escapes"
         );
     }
@@ -602,8 +626,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("conditional null refactor should be available");
+        let action = conditional_null_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("conditional null refactor should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -620,8 +650,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("conditional null refactor should be available");
+        let action = conditional_null_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("conditional null refactor should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -638,8 +674,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("conditional null refactor should be available");
+        let action = conditional_null_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("conditional null refactor should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -656,8 +698,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("conditional null refactor should be available");
+        let action = conditional_null_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("conditional null refactor should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -674,8 +722,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("conditional null refactor should be available");
+        let action = conditional_null_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("conditional null refactor should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -692,8 +746,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_try_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("try simplification should be available");
+        let action = simplify_try_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("try simplification should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -710,8 +770,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_try_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("try simplification should be available");
+        let action = simplify_try_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("try simplification should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -728,8 +794,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_try_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("try simplification should be available");
+        let action = simplify_try_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("try simplification should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -747,7 +819,14 @@ mod tests {
         let document = document(text);
 
         assert!(
-            simplify_try_code_action(&document, &uri, Position::new(0, 4), &[]).is_none(),
+            simplify_try_code_action(
+                &document,
+                &uri,
+                Position::new(0, 4),
+                cursor_at(&document, Position::new(0, 4)),
+                &[]
+            )
+            .is_none(),
             "except branches should not be simplified by the else-null rewrite"
         );
     }
@@ -758,8 +837,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("simplify if condition should be available");
+        let action = simplify_if_condition_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("simplify if condition should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -776,8 +861,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("simplify if condition should be available");
+        let action = simplify_if_condition_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("simplify if condition should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -794,8 +885,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("simplify if condition should be available");
+        let action = simplify_if_condition_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("simplify if condition should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -812,8 +909,14 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4), &[])
-            .expect("simplify if condition should be available");
+        let action = simplify_if_condition_code_action(
+            &document,
+            &uri,
+            Position::new(0, 4),
+            cursor_at(&document, Position::new(0, 4)),
+            &[],
+        )
+        .expect("simplify if condition should be available");
         let edit = action
             .edit
             .expect("code action should carry an edit")
@@ -831,7 +934,14 @@ mod tests {
         let document = document(text);
 
         assert!(
-            simplify_if_condition_code_action(&document, &uri, Position::new(0, 4), &[]).is_none(),
+            simplify_if_condition_code_action(
+                &document,
+                &uri,
+                Position::new(0, 4),
+                cursor_at(&document, Position::new(0, 4)),
+                &[]
+            )
+            .is_none(),
             "simple conditions should not offer simplification"
         );
     }

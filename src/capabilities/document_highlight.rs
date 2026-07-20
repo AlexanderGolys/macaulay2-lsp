@@ -1,4 +1,4 @@
-use crate::capabilities::navigation::collect_reference_ranges;
+use crate::capabilities::navigation::reference_ranges_resolved;
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
 use tower_lsp::lsp_types::{
@@ -31,13 +31,9 @@ fn symbol_reference_highlights(
     document: &DocumentSnapshot,
     position: Position,
 ) -> Option<Vec<DocumentHighlight>> {
-    let target_node = document.symbol_node_at_position(position)?;
-    let target_name = target_node.text();
-    let declaration = document
-        .analysis()
-        .get_symbol_at(target_name, position)?
-        .range;
-    let ranges = collect_reference_ranges(document, position, true);
+    let target = document.target_symbol_at(position)?;
+    let declaration = target.symbol.range;
+    let ranges = reference_ranges_resolved(target, document, true);
     if ranges.is_empty() {
         return None;
     }

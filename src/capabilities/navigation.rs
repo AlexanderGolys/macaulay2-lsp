@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use tower_lsp::lsp_types::*;
 
-use crate::document::DocumentSnapshot;
+use crate::document::{DocumentSnapshot, TargetSymbol};
 use crate::node_metadata::NodeKind;
 use crate::package_index::SourceResolver;
 use crate::partitioned_index::ScopedIndex;
@@ -218,16 +218,25 @@ pub(crate) fn collect_reference_ranges(
     position: Position,
     include_declaration: bool,
 ) -> Vec<Range> {
+    let Some(target) = document.target_symbol_at(position) else {
+        return Vec::new();
+    };
+    reference_ranges_resolved(target, document, include_declaration)
+}
+
+/// The reference-range collection step, given a pre-resolved target. Split out
+/// of [`collect_reference_ranges`] so a caller that has already resolved the
+/// target (e.g. document highlight, which also needs the declaration range) can
+/// reuse it instead of resolving a second time.
+pub(crate) fn reference_ranges_resolved(
+    target: TargetSymbol<'_>,
+    document: &DocumentSnapshot,
+    include_declaration: bool,
+) -> Vec<Range> {
     let analysis = document.analysis();
     let root_node = document.root_node();
-    let Some(target_node) = document.symbol_node_at_position(position) else {
-        return Vec::new();
-    };
-    let target_name = target_node.text();
-    let Some(target_symbol) = analysis.get_symbol_at(target_name, position) else {
-        return Vec::new();
-    };
-    let target_range = target_symbol.range;
+    let target_name = target.node.text();
+    let target_range = target.symbol.range;
 
     let mut references = Vec::new();
     for node in root_node.descendants() {
@@ -257,10 +266,8 @@ pub(crate) fn prepare_rename_range(
     document: &DocumentSnapshot,
     position: Position,
 ) -> Option<Range> {
-    let node = document.symbol_node_at_position(position)?;
-    let name = node.text();
-    document.analysis().get_symbol_at(name, position)?;
-    Some(document.range_for(node))
+    let target = document.target_symbol_at(position)?;
+    Some(document.range_for(target.node))
 }
 
 /// A workspace edit renaming every in-file reference of the symbol at `position`
