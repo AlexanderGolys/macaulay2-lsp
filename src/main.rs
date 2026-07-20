@@ -46,15 +46,15 @@ use capabilities::navigation::{
 };
 use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
 use capabilities::signature_help::signature_help_response;
-use capabilities::type_hierarchy::{TypeHierarchyCapabilityService, TYPE_HIERARCHY_METHOD};
+use capabilities::type_hierarchy::{
+    TypeHierarchyCapabilityService, TypeHierarchyContext, TYPE_HIERARCHY_METHOD,
+};
 use document::DocumentSnapshot;
 use package_index::SourceResolver;
 #[cfg(test)]
 use package_index::{collect_imported_packages, package_source_string};
-use record_lsp::{record_source_file, record_source_line, record_symbol_kind};
 
-use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
-use crate::typesystem::{InstanceID, Record};
+use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex, ScopedIndex};
 use crate::workspace_index::WorkspaceIndex;
 
 #[derive(Debug)]
@@ -111,88 +111,51 @@ impl Backend {
         }
     }
 
-    fn record_location(&self, record: &Record) -> Option<Location> {
-        let source_file = record_source_file(record)?;
-        let path = self.source_resolver.resolve_source_file(source_file)?;
-        let uri = Url::from_file_path(path).ok()?;
-        let position = Position::new(record_source_line(record), 0);
-        Some(Location {
-            uri,
-            range: Range::new(position, position),
-        })
+    /// The scoped-index prologue every per-document request shares: combine the
+    /// corpus baseline with the document's imports and build the borrowing
+    /// `ScopedIndex` view. Five handlers route through this so the package
+    /// scoping rule lives in one place.
+    fn scoped_index_for<'a>(&'a self, document: &'a DocumentSnapshot) -> ScopedIndex<'a> {
+        let loaded = LoadedPackages::from_parts(
+            self.partitioned.default_loaded(),
+            document.imported_packages(),
+        );
+        self.partitioned.scoped(&loaded)
     }
 
-    fn type_hierarchy_package(item: &TypeHierarchyItem) -> Option<&str> {
-        item.data
-            .as_ref()
-            .and_then(|data| data.get("package"))
-            .and_then(|package| package.as_str())
+    /// Collect occurrences of a global symbol across every workspace file
+    /// other than `exclude`. Prefers a live open buffer (so unsaved edits are
+    /// reflected) and falls back to parsing the on-disk file. Used by both
+    /// `references` and `rename` so the cross-file scan lives in one place.
+    fn cross_file_global_references<'a>(
+        &'a self,
+        name: &'a str,
+        exclude: &'a Url,
+    ) -> impl Iterator<Item = (Url, Range)> + 'a {
+        self.workspace_index
+            .workspace_file_uris()
+            .into_iter()
+            .filter(move |file_uri| file_uri != exclude)
+            .flat_map(move |file_uri| {
+                let ranges = if let Some(open) = self.documents.get(&file_uri) {
+                    global_reference_ranges(open.value(), name)
+                } else if let Ok(path) = file_uri.to_file_path() {
+                    fs::read_to_string(path)
+                        .ok()
+                        .and_then(|text| DocumentSnapshot::from_text(text, &self.builtins))
+                        .map(|snapshot| global_reference_ranges(&snapshot, name))
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                ranges
+                    .into_iter()
+                    .map(move |range| (file_uri.clone(), range))
+            })
     }
 
-    fn type_hierarchy_record(&self, package: Option<&str>, name: &str) -> Option<(String, Record)> {
-        let package = package.unwrap_or("Core");
-        let index = self.partitioned.partition(package)?;
-        let record = index.get_record(&InstanceID::new(name))?;
-        record.type_info.as_ref()?;
-        Some((package.to_string(), record))
-    }
-
-    /// Resolve a related type (parent/subtype) record, preferring the originating
-    /// package's partition and falling back to Core (cross-package edges into the
-    /// Core lattice resolve there).
-    fn type_hierarchy_related_record(
-        &self,
-        package: &str,
-        name: &InstanceID,
-    ) -> Option<(String, Record)> {
-        if let Some(record) = self
-            .partitioned
-            .partition(package)
-            .and_then(|index| index.get_record(name))
-        {
-            return Some((package.to_string(), record));
-        }
-
-        self.partitioned
-            .partition("Core")
-            .and_then(|core| core.get_record(name))
-            .map(|record| ("Core".to_string(), record))
-    }
-
-    fn type_hierarchy_item(
-        &self,
-        package: &str,
-        record: &Record,
-        occurrence_uri: Option<Url>,
-        occurrence_range: Option<Range>,
-    ) -> TypeHierarchyItem {
-        let location = self.record_location(record);
-        let uri = occurrence_uri
-            .or_else(|| location.as_ref().map(|location| location.uri.clone()))
-            .unwrap_or_else(|| Url::parse("macaulay2:/builtins").expect("valid builtin URI"));
-        let range = occurrence_range
-            .or_else(|| location.as_ref().map(|location| location.range))
-            .unwrap_or_else(|| Range::new(Position::new(0, 0), Position::new(0, 0)));
-        let detail = record
-            .type_info
-            .as_ref()
-            .and_then(|type_info| type_info.parent_type.as_ref())
-            .filter(|parent| parent != &&record.name)
-            .map(|parent| format!("Parent: {parent}"));
-
-        TypeHierarchyItem {
-            name: record.name.0.clone(),
-            kind: record_symbol_kind(record),
-            tags: None,
-            detail,
-            uri,
-            range,
-            selection_range: range,
-            data: Some(serde_json::json!({
-                "name": record.name.0.clone(),
-                "package": package,
-            })),
-        }
+    fn type_hierarchy_context(&self) -> TypeHierarchyContext<'_> {
+        TypeHierarchyContext::new(&self.partitioned, &self.source_resolver)
     }
 
     async fn on_open(&self, params: TextDocumentItem) {
@@ -430,11 +393,7 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let loaded = LoadedPackages::from_parts(
-            self.partitioned.default_loaded(),
-            document.imported_packages(),
-        );
-        let scoped = self.partitioned.scoped(&loaded);
+        let scoped = self.scoped_index_for(&document);
         Ok(hover_response(document.value(), position, &scoped))
     }
 
@@ -445,11 +404,7 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let loaded = LoadedPackages::from_parts(
-            self.partitioned.default_loaded(),
-            document.imported_packages(),
-        );
-        let scoped = self.partitioned.scoped(&loaded);
+        let scoped = self.scoped_index_for(&document);
         Ok(completion_response(
             document.text(),
             position,
@@ -465,11 +420,7 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let loaded = LoadedPackages::from_parts(
-            self.partitioned.default_loaded(),
-            document.imported_packages(),
-        );
-        let scoped = self.partitioned.scoped(&loaded);
+        let scoped = self.scoped_index_for(&document);
         Ok(signature_help_response(&document, position, &scoped))
     }
 
@@ -593,26 +544,10 @@ impl LanguageServer for Backend {
 
         // Global symbol: collect uses from every other workspace file, preferring
         // a live buffer over the on-disk copy.
-        for file_uri in self.workspace_index.workspace_file_uris() {
-            if &file_uri == uri {
-                continue;
-            }
-            let ranges = if let Some(open) = self.documents.get(&file_uri) {
-                global_reference_ranges(open.value(), &name)
-            } else if let Ok(path) = file_uri.to_file_path() {
-                fs::read_to_string(path)
-                    .ok()
-                    .and_then(|text| DocumentSnapshot::from_text(text, &self.builtins))
-                    .map(|snapshot| global_reference_ranges(&snapshot, &name))
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            };
-            locations.extend(ranges.into_iter().map(|range| Location {
-                uri: file_uri.clone(),
-                range,
-            }));
-        }
+        locations.extend(
+            self.cross_file_global_references(&name, uri)
+                .map(|(uri, range)| Location { uri, range }),
+        );
 
         Ok(Some(locations))
     }
@@ -669,32 +604,11 @@ impl LanguageServer for Backend {
         // Global symbol: rename its uses in every other workspace file too, so a
         // top-level rename never leaves stale references behind in the files that
         // import it.
-        for file_uri in self.workspace_index.workspace_file_uris() {
-            if &file_uri == uri {
-                continue;
-            }
-            let ranges = if let Some(open) = self.documents.get(&file_uri) {
-                global_reference_ranges(open.value(), &name)
-            } else if let Ok(path) = file_uri.to_file_path() {
-                fs::read_to_string(path)
-                    .ok()
-                    .and_then(|text| DocumentSnapshot::from_text(text, &self.builtins))
-                    .map(|snapshot| global_reference_ranges(&snapshot, &name))
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            };
-            if ranges.is_empty() {
-                continue;
-            }
-            let edits = ranges
-                .into_iter()
-                .map(|range| TextEdit {
-                    range,
-                    new_text: new_name.to_string(),
-                })
-                .collect::<Vec<_>>();
-            changes.insert(file_uri, edits);
+        for (file_uri, range) in self.cross_file_global_references(&name, uri) {
+            changes.entry(file_uri).or_default().push(TextEdit {
+                range,
+                new_text: new_name.to_string(),
+            });
         }
 
         Ok(Some(WorkspaceEdit {
@@ -714,93 +628,24 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let Some(node) = document.symbol_node_at_position(position) else {
-            return Ok(None);
-        };
-        let name = node.text();
-        let range = document.range_for(node);
-
-        let loaded = LoadedPackages::from_parts(
-            self.partitioned.default_loaded(),
-            document.imported_packages(),
-        );
-        let scoped = self.partitioned.scoped(&loaded);
-        let Some((package, record)) = scoped.get_record_with_package(&InstanceID::new(name)) else {
-            return Ok(None);
-        };
-        if record.type_info.is_none() {
-            return Ok(None);
-        }
-
-        Ok(Some(vec![self.type_hierarchy_item(
-            package,
-            &record,
-            Some(uri.clone()),
-            Some(range),
-        )]))
+        let scoped = self.scoped_index_for(&document);
+        Ok(self
+            .type_hierarchy_context()
+            .prepare(document.value(), &scoped, &uri, position))
     }
 
     async fn supertypes(
         &self,
         params: TypeHierarchySupertypesParams,
     ) -> Result<Option<Vec<TypeHierarchyItem>>> {
-        let package = Self::type_hierarchy_package(&params.item);
-        let Some((package, record)) = self.type_hierarchy_record(package, &params.item.name) else {
-            return Ok(None);
-        };
-
-        let Some(parent_name) = record
-            .type_info
-            .as_ref()
-            .and_then(|type_info| type_info.parent_type.as_ref())
-            .filter(|parent| parent != &&record.name)
-        else {
-            return Ok(Some(Vec::new()));
-        };
-
-        let Some((parent_package, parent_record)) =
-            self.type_hierarchy_related_record(&package, parent_name)
-        else {
-            return Ok(Some(Vec::new()));
-        };
-
-        Ok(Some(vec![self.type_hierarchy_item(
-            &parent_package,
-            &parent_record,
-            None,
-            None,
-        )]))
+        Ok(self.type_hierarchy_context().supertypes(&params.item))
     }
 
     async fn subtypes(
         &self,
         params: TypeHierarchySubtypesParams,
     ) -> Result<Option<Vec<TypeHierarchyItem>>> {
-        let package = Self::type_hierarchy_package(&params.item);
-        let Some((package, record)) = self.type_hierarchy_record(package, &params.item.name) else {
-            return Ok(None);
-        };
-
-        let mut items = Vec::new();
-        if let Some(type_info) = &record.type_info {
-            for subtype in &type_info.subtypes {
-                if subtype == &record.name {
-                    continue;
-                }
-                if let Some((subtype_package, subtype_record)) =
-                    self.type_hierarchy_related_record(&package, subtype)
-                {
-                    items.push(self.type_hierarchy_item(
-                        &subtype_package,
-                        &subtype_record,
-                        None,
-                        None,
-                    ));
-                }
-            }
-        }
-
-        Ok(Some(items))
+        Ok(self.type_hierarchy_context().subtypes(&params.item))
     }
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
@@ -840,7 +685,7 @@ impl LanguageServer for Backend {
         let loaded = LoadedPackages::resolve(self.partitioned.default_loaded(), "");
         let scoped = self.partitioned.scoped(&loaded);
         Ok(Some(workspace_symbols_response(query, &scoped, |record| {
-            self.record_location(record)
+            self.source_resolver.record_location(record)
         })))
     }
 
@@ -855,11 +700,7 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let loaded = LoadedPackages::from_parts(
-            self.partitioned.default_loaded(),
-            document.imported_packages(),
-        );
-        let scoped = self.partitioned.scoped(&loaded);
+        let scoped = self.scoped_index_for(&document);
         Ok(goto_definition_response(
             document.value(),
             uri,
@@ -867,7 +708,7 @@ impl LanguageServer for Backend {
             &scoped,
             &self.source_resolver,
             &self.workspace_index,
-            |record| self.record_location(record),
+            |record| self.source_resolver.record_location(record),
         ))
     }
 }

@@ -61,14 +61,18 @@ impl PackagePartitionedIndex {
 
     /// A non-materializing view over the partitions loaded for a document, in
     /// resolution order (baseline/Core-first, then import order). Imports with no
-    /// partition in the corpus are skipped. Borrows the partitions — nothing is
-    /// copied or rebuilt; importing/removing a package only changes which
-    /// references the view holds.
-    pub fn scoped<'a>(&'a self, loaded: &'a LoadedPackages) -> ScopedIndex<'a> {
+    /// partition in the corpus are skipped. Borrows only the partitions —
+    /// `loaded` is consumed for membership/order and is not retained, so the
+    /// returned `ScopedIndex` is free to outlive it.
+    pub fn scoped<'a>(&'a self, loaded: &LoadedPackages) -> ScopedIndex<'a> {
         let partitions = loaded
             .as_slice()
             .iter()
-            .filter_map(|package| self.partition(package).map(|data| (package.as_str(), data)))
+            .filter_map(|package| {
+                self.partitions
+                    .get_key_value(package)
+                    .map(|(key, data)| (key.as_str(), data))
+            })
             .collect();
         ScopedIndex { partitions }
     }

@@ -1,9 +1,12 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use tower_lsp::lsp_types::{Location, Position, Range, Url};
 use tree_sitter::Parser;
 
 use crate::node_metadata::{M2Node, NodeKind};
+use crate::record_lsp::{record_source_file, record_source_line};
+use crate::typesystem::Record;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SourceResolver {
@@ -57,6 +60,21 @@ impl SourceResolver {
     pub(crate) fn resolve_package_file(&self, package_name: &str) -> Option<PathBuf> {
         let source_file = format!("{package_name}.m2");
         self.resolve_source_file(&source_file)
+    }
+
+    /// The LSP location of a builtin/package record's source definition, when
+    /// the resolver can find the file on disk. Shared by the hover/index views
+    /// and type-hierarchy plumbing, so it lives on the resolver rather than the
+    /// backend to keep `capabilities/type_hierarchy` self-contained.
+    pub(crate) fn record_location(&self, record: &Record) -> Option<Location> {
+        let source_file = record_source_file(record)?;
+        let path = self.resolve_source_file(source_file)?;
+        let uri = Url::from_file_path(path).ok()?;
+        let position = Position::new(record_source_line(record), 0);
+        Some(Location {
+            uri,
+            range: Range::new(position, position),
+        })
     }
 }
 
