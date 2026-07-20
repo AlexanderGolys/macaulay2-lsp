@@ -6,6 +6,8 @@ use tree_sitter::Parser;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::util::full_document_range;
 
+/// Formatting style derived from the client's `FormatOptions` (`tab_size` /
+/// `insert_spaces`): the indent unit used for every depth level.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatOptions {
     indent: String,
@@ -83,6 +85,8 @@ pub fn format_document_text(text: &str) -> String {
     format_document_text_with_options(text, &FormatOptions::default())
 }
 
+/// Format the whole document: whitespace normalization around operators and
+/// punctuation, then tree-derived re-indentation with `options`.
 pub fn format_document_text_with_options(text: &str, options: &FormatOptions) -> String {
     // Basic spacing only, and provably string/comment-safe: every edit either
     // adjusts whitespace adjacent to a real operator/punctuation node
@@ -136,6 +140,7 @@ fn reindent_from_tree(text: &str, options: &FormatOptions, newline: &str) -> Str
         .join(newline)
 }
 
+/// The document's fold ranges, derived from tree-based indentation depths.
 pub fn folding_ranges_for_text(text: &str) -> Vec<FormatFoldRange> {
     let layout = TreeIndentLayout::build(text);
     let indented_lines = text
@@ -489,6 +494,8 @@ fn if_statement_is_standalone(node: M2Node<'_>, line_leads: &[usize]) -> bool {
     line_leads.get(row).copied().unwrap_or(0) >= column
 }
 
+/// A foldable block of consecutive lines (0-based, both bounds inclusive as
+/// produced; the LSP conversion maps them onto `FoldingRange`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FormatFoldRange {
     pub start_line: u32,
@@ -560,9 +567,12 @@ fn close_fold_range(
 
 fn normalize_whitespace(text: &str) -> String {
     let mut parser = Parser::new();
-    parser
+    if parser
         .set_language(&tree_sitter_macaulay2::language())
-        .unwrap();
+        .is_err()
+    {
+        return text.to_string();
+    }
     let Some(tree) = parser.parse(text, None) else {
         return text.to_string();
     };
@@ -595,7 +605,7 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
                 if is_method_installation_call_head(node) {
                     push_call_gap_whitespace_edit(node, text, edits, " ");
                 } else {
-                    push_call_whitespace_edits(node, text, edits);
+                    push_call_gap_whitespace_edit(node, text, edits, "");
                 }
             } else if should_space_factor_operator_with_adjacency_factor(node, operator_text) {
                 push_operator_whitespace_edits(text, operator, edits);
@@ -848,25 +858,6 @@ fn is_adjacent_factor(node: M2Node<'_>) -> bool {
             | NodeKind::PostfixExpression
             | NodeKind::BinaryExpression
     )
-}
-
-fn push_call_whitespace_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit>) {
-    let Some(left) = node.child_by_field_name("left") else {
-        return;
-    };
-    let Some(right) = node.child_by_field_name("right") else {
-        return;
-    };
-    let gap = &text[left.end_byte()..right.start_byte()];
-    if !gap.bytes().all(|byte| matches!(byte, b' ' | b'\t')) {
-        return;
-    }
-
-    edits.push(FormatEdit {
-        start_byte: left.end_byte(),
-        end_byte: right.start_byte(),
-        replacement: "",
-    });
 }
 
 fn push_lambda_operator_whitespace_edits(

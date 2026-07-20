@@ -40,9 +40,9 @@ use capabilities::formatting::{
 use capabilities::hover::hover_response;
 use capabilities::inlay_hints::{inlay_hint_provider_capability, inlay_hints_response};
 use capabilities::navigation::{
-    completion_response, global_reference_ranges, goto_definition_response, prepare_rename_range,
-    reference_target, references_response, rename_edits, workspace_symbols_response,
-    ReferenceTarget,
+    completion_response, global_reference_ranges, goto_definition_response, is_valid_m2_identifier,
+    prepare_rename_range, reference_target, references_response, rename_edits,
+    workspace_symbols_response, ReferenceTarget,
 };
 use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
 use capabilities::signature_help::signature_help_response;
@@ -231,12 +231,17 @@ fn append_debug_log(message: &str) {
     let _ = writeln!(file, "{message}");
 }
 
+/// Install the crash hook: a panic always logs its backtrace to
+/// `/tmp/m2-ls.log` (crash diagnostics are worth the write). Routine chatter
+/// is opt-in via the `M2_LS_LOG` environment variable.
 fn install_panic_logging() {
     panic::set_hook(Box::new(|panic_info| {
         let backtrace = Backtrace::force_capture();
         append_debug_log(&format!("panic: {panic_info}\n{backtrace}"));
     }));
-    append_debug_log("m2-ls starting");
+    if std::env::var_os("M2_LS_LOG").is_some() {
+        append_debug_log("m2-ls starting");
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -629,7 +634,9 @@ impl LanguageServer for Backend {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let new_name = params.new_name.trim();
-        if new_name.is_empty() {
+        if !is_valid_m2_identifier(new_name) {
+            // Renaming to an invalid identifier would silently produce
+            // unparsable code; refuse instead.
             return Ok(None);
         }
 
@@ -946,31 +953,12 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let root = tree.root_node();
+        let root = crate::node_metadata::M2Node::new(tree.root_node(), text);
         let mut packages = Vec::new();
-        let mut cursor = root.walk();
-        let mut reached_root = false;
-        while !reached_root {
-            let node = crate::node_metadata::M2Node::new(cursor.node(), text);
+        for node in root.descendants() {
             if node.kind == crate::node_metadata::NodeKind::StringLiteral {
                 if let Some(package_name) = package_source_string(node) {
                     packages.push(package_name);
-                }
-            }
-
-            if cursor.goto_first_child() {
-                continue;
-            }
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-            loop {
-                if !cursor.goto_parent() {
-                    reached_root = true;
-                    break;
-                }
-                if cursor.goto_next_sibling() {
-                    break;
                 }
             }
         }

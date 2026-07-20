@@ -73,7 +73,7 @@ fn keyword_sequence_highlights(
     let statement = enclosing_keyword_statement(node)?;
     let keywords = statement_keyword_tokens(statement);
 
-    if !keywords.iter().any(|keyword| node_contains(*keyword, node)) {
+    if !keywords.iter().any(|keyword| keyword.contains(node)) {
         return None;
     }
 
@@ -154,10 +154,6 @@ fn statement_keyword_tokens(statement: M2Node<'_>) -> Vec<M2Node<'_>> {
         return statement_keyword_tokens(st);
     }
     Vec::new()
-}
-
-fn node_contains(outer: M2Node<'_>, inner: M2Node<'_>) -> bool {
-    inner.start_byte() >= outer.start_byte() && inner.end_byte() <= outer.end_byte()
 }
 
 #[cfg(test)]

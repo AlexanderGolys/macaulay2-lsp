@@ -50,6 +50,9 @@ where
     }
 }
 
+/// Whether the client's `initialize` params advertise dynamic registration for
+/// type hierarchy. When false (or absent), the server must declare the
+/// capability statically in its `InitializeResult` instead.
 pub(crate) fn request_type_hierarchy_dynamic_registration(params: Option<&Value>) -> bool {
     params
         .and_then(|params| params.get("capabilities"))
@@ -60,6 +63,9 @@ pub(crate) fn request_type_hierarchy_dynamic_registration(params: Option<&Value>
         .unwrap_or(false)
 }
 
+/// Inject `typeHierarchyProvider: true` into a successful `initialize` response.
+/// Used when the client does not support dynamic registration, so the capability
+/// is advertised statically (tower-lsp has no typed field for it).
 pub(crate) fn advertise_type_hierarchy_capability(response: Response) -> Response {
     if !response.is_ok() {
         return response;

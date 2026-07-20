@@ -69,9 +69,9 @@ pub(crate) fn tree_sitter_point_from_byte_index(
     tree_sitter::Point::new(row, byte_index.saturating_sub(line_start))
 }
 
-pub(crate) fn node_range(node: M2Node<'_>) -> Range {
-    let text = node.source();
-    let range = node.range();
+/// The LSP range of a tree-sitter range, converting byte columns to the
+/// protocol's UTF-16 units.
+pub(crate) fn to_lsp_range(text: &str, range: tree_sitter::Range) -> Range {
     let start_line_byte = range.start_byte.saturating_sub(range.start_point.column);
     let end_line_byte = range.end_byte.saturating_sub(range.end_point.column);
 
@@ -85,6 +85,29 @@ pub(crate) fn node_range(node: M2Node<'_>) -> Range {
             utf16_len_for_byte_span(text, end_line_byte, range.end_byte),
         ),
     )
+}
+
+pub(crate) fn node_range(node: M2Node<'_>) -> Range {
+    to_lsp_range(node.source(), node.range())
+}
+
+/// The LSP position where `node` starts.
+pub(crate) fn node_position(text: &str, node: M2Node) -> Position {
+    to_lsp_range(text, node.range()).start
+}
+
+/// Whether `position` lies in `range` (start-inclusive, end-exclusive).
+pub(crate) fn position_in_range(position: Position, range: Range) -> bool {
+    if position.line < range.start.line || position.line > range.end.line {
+        return false;
+    }
+    if position.line == range.start.line && position.character < range.start.character {
+        return false;
+    }
+    if position.line == range.end.line && position.character >= range.end.character {
+        return false;
+    }
+    true
 }
 
 pub(crate) fn full_document_range(text: &str) -> Range {

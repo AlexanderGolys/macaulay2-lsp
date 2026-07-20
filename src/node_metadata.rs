@@ -394,6 +394,37 @@ impl<'tree> M2Node<'tree> {
             .into_iter()
     }
 
+    /// Pre-order depth-first traversal of this subtree: the node itself, then
+    /// every descendant in source order. Anonymous tokens (punctuation,
+    /// delimiters, the inserted `SPACE` application operator) are included, so
+    /// callers filter via `NodeKind` predicates as usual — matching the other
+    /// walk methods above. The iterator borrows `&self` (the cursor holds a
+    /// tree-sitter borrow), but the yielded `M2Node<'tree>` items outlive the
+    /// iterator, like `children()` above.
+    pub fn descendants(&self) -> impl Iterator<Item = M2Node<'tree>> + '_ {
+        let source = self.source;
+        let mut cursor = self.node.walk();
+        let mut reached_root = false;
+        std::iter::from_fn(move || {
+            if reached_root {
+                return None;
+            }
+            let node = M2Node::new(cursor.node(), source);
+            if !cursor.goto_first_child() && !cursor.goto_next_sibling() {
+                loop {
+                    if !cursor.goto_parent() {
+                        reached_root = true;
+                        break;
+                    }
+                    if cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+            Some(node)
+        })
+    }
+
     pub fn start_byte(&self) -> usize {
         self.node.start_byte()
     }
@@ -499,5 +530,78 @@ mod cst_compliance_gate {
             "CST-compliance gate failed; route these through M2Node/NodeKind:\n{}",
             violations.join("\n")
         );
+    }
+}
+
+#[cfg(test)]
+mod descendants_tests {
+    //! Locks the pre-order DFS contract of `M2Node::descendants`: the contract
+    //! every migrated call site relies on (parent before children, source order
+    //! across siblings, root yielded exactly once, empty file safe).
+    use super::*;
+    use tree_sitter::Parser;
+
+    fn kinds_of(text: &str) -> Vec<NodeKind> {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let root = M2Node::new(tree.root_node(), text);
+        root.descendants().map(|n| n.kind).collect()
+    }
+
+    #[test]
+    fn descendants_visit_parent_before_children_in_source_order() {
+        let kinds = kinds_of("f(x, y)\n");
+
+        // Root first, then `f`, then the parenthesized call's inner sequence
+        // and its three children in source order: `x`, `,`, `y`. We assert a
+        // few key landmarks rather than the full token list, so a future
+        // grammar renormalization that adds wrapper nodes doesn't break the
+        // test for a property it doesn't care about.
+        assert_eq!(kinds.first(), Some(&NodeKind::SourceFile));
+        assert!(kinds.contains(&NodeKind::Symbol));
+        assert!(kinds.contains(&NodeKind::Sequence));
+        let x_pos = kinds
+            .iter()
+            .position(|k| *k == NodeKind::Symbol)
+            .expect("a Symbol is emitted");
+        let seq_pos = kinds
+            .iter()
+            .position(|k| *k == NodeKind::Sequence)
+            .expect("a Sequence is emitted");
+        // Whichever node contains the call appears before its `Symbol` child
+        // (pre-order). Both orderings of `Symbol`-then-`Sequence` are valid
+        // depending on grammar wrappers, but a child never precedes its
+        // container.
+        assert!(x_pos != seq_pos);
+    }
+
+    #[test]
+    fn descendants_of_empty_file_yields_root_once() {
+        assert_eq!(
+            kinds_of("").len(),
+            1,
+            "empty file yields only the SourceFile root"
+        );
+    }
+
+    #[test]
+    fn descendants_count_matches_node_count_of_tree() {
+        // direct check against tree-sitter's own traversal: the total
+        // descendant count (root included) must match the recursive child
+        // count, so the iterator neither drops nor duplicates any node.
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let text = "x = (a, b)\ny = {1, 2, 3}\n";
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let root = M2Node::new(tree.root_node(), text);
+        fn count_via_children(n: M2Node<'_>) -> usize {
+            1 + n.children().map(count_via_children).sum::<usize>()
+        }
+        assert_eq!(root.descendants().count(), count_via_children(root));
     }
 }

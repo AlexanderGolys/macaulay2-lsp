@@ -7,12 +7,36 @@ use crate::node_metadata::{M2Node, NodeKind};
 use crate::typesystem::BuiltinData;
 use crate::util::*;
 
+/// The outline view of a document: assignment bindings (functions nested under
+/// their body), method installations, indexed variables, and option keys
+/// introduced here (not ones defined by an indexed package).
 pub(crate) fn collect_document_symbols(
     document: &DocumentSnapshot,
     builtins: &BuiltinData,
 ) -> Vec<DocumentSymbol> {
     let mut scopes = DocumentSymbolScopes::new();
     collect_document_symbols_from(document.root_node(), builtins, &mut scopes)
+}
+
+#[allow(deprecated)]
+fn document_symbol(
+    name: String,
+    detail: Option<String>,
+    kind: SymbolKind,
+    range: Range,
+    selection_range: Range,
+    children: Option<Vec<DocumentSymbol>>,
+) -> DocumentSymbol {
+    DocumentSymbol {
+        name,
+        detail,
+        kind,
+        tags: None,
+        deprecated: None,
+        range,
+        selection_range,
+        children,
+    }
 }
 
 #[derive(Debug)]
@@ -112,17 +136,14 @@ fn collect_property_document_symbols(
             if builtins.contains_name(name) || !scopes.introduce_option(name) {
                 return None;
             }
-            Some(DocumentSymbol {
-                name: name.to_string(),
-                detail: Some("option".to_string()),
-                kind: SymbolKind::PROPERTY,
-                tags: None,
-                #[allow(deprecated)]
-                deprecated: None,
-                range: node_range(node),
-                selection_range: node_range(symbol),
-                children: None,
-            })
+            Some(document_symbol(
+                name.to_string(),
+                Some("option".to_string()),
+                SymbolKind::PROPERTY,
+                node_range(node),
+                node_range(symbol),
+                None,
+            ))
         })
         .collect()
 }
@@ -158,16 +179,15 @@ fn collect_assignment_document_symbols(
                     AssignmentOperator::LeftArrow | AssignmentOperator::Other => false,
                 }
             })
-            .map(|symbol| DocumentSymbol {
-                name: symbol.text().to_string(),
-                detail: None,
-                kind: assignment_symbol_kind(node),
-                tags: None,
-                #[allow(deprecated)]
-                deprecated: None,
-                range: node_range(node),
-                selection_range: node_range(symbol),
-                children: children.clone(),
+            .map(|symbol| {
+                document_symbol(
+                    symbol.text().to_string(),
+                    None,
+                    assignment_symbol_kind(node),
+                    node_range(node),
+                    node_range(symbol),
+                    children.clone(),
+                )
             })
             .collect();
     }
@@ -176,46 +196,37 @@ fn collect_assignment_document_symbols(
 
     match (operator, left.binary_operator()) {
         (AssignmentOperator::ColonEqual, _) if is_method_installation_left => {
-            vec![DocumentSymbol {
-                name: left.text().to_string(),
-                detail: Some("method".to_string()),
-                kind: SymbolKind::METHOD,
-                tags: None,
-                #[allow(deprecated)]
-                deprecated: None,
-                range: node_range(node),
-                selection_range: node_range(left),
+            vec![document_symbol(
+                left.text().to_string(),
+                Some("method".to_string()),
+                SymbolKind::METHOD,
+                node_range(node),
+                node_range(left),
                 children,
-            }]
+            )]
         }
-        (AssignmentOperator::Equal, Some("_")) => vec![DocumentSymbol {
-            name: left.text().to_string(),
-            detail: Some("indexed variable".to_string()),
-            kind: SymbolKind::VARIABLE,
-            tags: None,
-            #[allow(deprecated)]
-            deprecated: None,
-            range: node_range(node),
-            selection_range: node_range(left),
-            children: None,
-        }],
+        (AssignmentOperator::Equal, Some("_")) => vec![document_symbol(
+            left.text().to_string(),
+            Some("indexed variable".to_string()),
+            SymbolKind::VARIABLE,
+            node_range(node),
+            node_range(left),
+            None,
+        )],
         (AssignmentOperator::Equal, Some(_))
             if node
                 .child_by_field_name("right")
                 .is_some_and(|right| right.is(NodeKind::LambdaExpression))
                 && is_method_installation_left =>
         {
-            vec![DocumentSymbol {
-                name: left.text().to_string(),
-                detail: Some("assignment method".to_string()),
-                kind: SymbolKind::METHOD,
-                tags: None,
-                #[allow(deprecated)]
-                deprecated: None,
-                range: node_range(node),
-                selection_range: node_range(left),
+            vec![document_symbol(
+                left.text().to_string(),
+                Some("assignment method".to_string()),
+                SymbolKind::METHOD,
+                node_range(node),
+                node_range(left),
                 children,
-            }]
+            )]
         }
         _ => Vec::new(),
     }
@@ -246,7 +257,7 @@ fn collect_function_body_document_symbols(
 fn collect_left_symbol_nodes<'tree>(node: M2Node<'tree>, symbols: &mut Vec<M2Node<'tree>>) {
     match node.kind {
         NodeKind::Symbol => symbols.push(node),
-        NodeKind::Sequence | NodeKind::List => {
+        kind if kind.is_collection_expression() => {
             for child in node.children() {
                 collect_left_symbol_nodes(child, symbols);
             }
@@ -255,14 +266,14 @@ fn collect_left_symbol_nodes<'tree>(node: M2Node<'tree>, symbols: &mut Vec<M2Nod
     }
 }
 
+/// Every symbol bound by a destructuring target, recursing through nested
+/// collections (`[x, [y, z]] := …` binds all three).
 fn collect_binding_target_nodes<'tree>(node: M2Node<'tree>, symbols: &mut Vec<M2Node<'tree>>) {
     match node.kind {
         NodeKind::Symbol => symbols.push(node),
-        NodeKind::Sequence | NodeKind::List => {
+        kind if kind.is_collection_expression() => {
             for child in node.named_children() {
-                if child.is(NodeKind::Symbol) {
-                    symbols.push(child);
-                }
+                collect_binding_target_nodes(child, symbols);
             }
         }
         _ => {}
@@ -272,7 +283,8 @@ fn collect_binding_target_nodes<'tree>(node: M2Node<'tree>, symbols: &mut Vec<M2
 fn collect_parameter_names(node: M2Node, names: &mut Vec<String>) {
     match node.kind {
         NodeKind::Symbol => names.push(node.text().to_string()),
-        NodeKind::Sequence | NodeKind::List => {
+        // `(x,y)` is a `sequence`; a single `(x)` is a `parenthesized_expression`.
+        kind if kind.is_collection_expression() || kind == NodeKind::ParenthesizedExpression => {
             for child in node.children() {
                 collect_parameter_names(child, names);
             }
@@ -290,14 +302,12 @@ enum AssignmentOperator {
 }
 
 fn assignment_operator(node: M2Node) -> AssignmentOperator {
-    node.child_by_field_name("operator")
-        .map(|operator| match operator.text() {
-            "=" => AssignmentOperator::Equal,
-            ":=" => AssignmentOperator::ColonEqual,
-            "<-" => AssignmentOperator::LeftArrow,
-            _ => AssignmentOperator::Other,
-        })
-        .unwrap_or(AssignmentOperator::Other)
+    match node.binary_operator() {
+        Some("=") => AssignmentOperator::Equal,
+        Some(":=") => AssignmentOperator::ColonEqual,
+        Some("<-") => AssignmentOperator::LeftArrow,
+        _ => AssignmentOperator::Other,
+    }
 }
 
 fn assignment_symbol_kind(node: M2Node) -> SymbolKind {
@@ -577,6 +587,20 @@ String ^~ := peek
                 ("String ^~", Some("method"), SymbolKind::METHOD),
             ]
         );
+    }
+
+    #[test]
+    fn document_symbols_cover_bracket_and_nested_destructuring_targets() {
+        // `[x, y] := …` and nested `[p, [q, r]] := …` bind exactly like the
+        // sequence form — the outline must list every bound name.
+        let text = "[x, y] := {1, 2}\n[p, [q, r]] := [1, [2, 3]]\n";
+        let builtins = BuiltinData::empty();
+
+        let document = document(text, &builtins);
+        let symbols = collect_document_symbols(&document, &builtins);
+        let names: Vec<_> = symbols.iter().map(|symbol| symbol.name.as_str()).collect();
+
+        assert_eq!(names, vec!["x", "y", "p", "q", "r"]);
     }
 
     #[test]

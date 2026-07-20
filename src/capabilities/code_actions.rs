@@ -3,11 +3,13 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::*;
 
 use crate::capabilities::diagnostics::ambiguous_float_member_access_rewrite;
-use crate::capabilities::formatting::document_formatting_text_edits;
 use crate::diagnostic_registry::{diagnostic_has_kind, M2Diagnostic};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
+use crate::util::position_in_range;
 
+/// The code actions offered at `position`: the quickfix for a diagnostic under
+/// the cursor, plus any applicable refactors.
 pub(crate) fn available_code_actions(
     document: &DocumentSnapshot,
     uri: &Url,
@@ -16,9 +18,6 @@ pub(crate) fn available_code_actions(
 ) -> Option<CodeActionResponse> {
     let mut actions = Vec::new();
 
-    if let Some(action) = format_file_code_action(document, uri) {
-        actions.push(CodeActionOrCommand::CodeAction(action));
-    }
     if let Some(action) =
         ambiguous_float_member_access_code_action(document, uri, position, diagnostics)
     {
@@ -40,31 +39,8 @@ pub(crate) fn available_code_actions(
     (!actions.is_empty()).then_some(actions)
 }
 
-pub(crate) fn format_file_code_action(
-    document: &DocumentSnapshot,
-    uri: &Url,
-) -> Option<CodeAction> {
-    let edits = document_formatting_text_edits(document.text(), 4, true);
-    if edits.is_empty() {
-        return None;
-    }
-
-    Some(CodeAction {
-        title: "Format file".to_string(),
-        kind: Some(CodeActionKind::SOURCE),
-        diagnostics: None,
-        edit: Some(WorkspaceEdit {
-            changes: Some(HashMap::from([(uri.clone(), edits)])),
-            document_changes: None,
-            change_annotations: None,
-        }),
-        command: None,
-        is_preferred: Some(true),
-        disabled: None,
-        data: None,
-    })
-}
-
+/// Refactor: rewrite a heavily-escaped string literal as a raw `///…///` string
+/// when the value survives verbatim (no unsupported escapes, no `///` inside).
 pub(crate) fn convert_to_raw_string_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
@@ -89,12 +65,14 @@ pub(crate) fn convert_to_raw_string_code_action(
             change_annotations: None,
         }),
         command: None,
-        is_preferred: Some(true),
+        is_preferred: None,
         disabled: None,
         data: None,
     })
 }
 
+/// Quickfix for the ambiguous-float diagnostic (`x.3` parses as `x SPACE .3`):
+/// rewrite to the member access the user almost certainly meant (`x#3`).
 pub(crate) fn ambiguous_float_member_access_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
@@ -133,6 +111,8 @@ pub(crate) fn ambiguous_float_member_access_code_action(
     })
 }
 
+/// Refactor: drop a redundant `else null` (or `then null`, negating the
+/// condition) from an `if` statement.
 pub(crate) fn conditional_null_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
@@ -157,12 +137,14 @@ pub(crate) fn conditional_null_code_action(
             change_annotations: None,
         }),
         command: None,
-        is_preferred: Some(true),
+        is_preferred: None,
         disabled: None,
         data: None,
     })
 }
 
+/// Refactor: simplify a `try` statement — drop a redundant `then` echo or a
+/// redundant `else null`.
 pub(crate) fn simplify_try_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
@@ -187,12 +169,14 @@ pub(crate) fn simplify_try_code_action(
             change_annotations: None,
         }),
         command: None,
-        is_preferred: Some(true),
+        is_preferred: None,
         disabled: None,
         data: None,
     })
 }
 
+/// Refactor: push a leading `not` through a parenthesized comparison
+/// (`if not (a == b) then x` → `if a != b then x`).
 pub(crate) fn simplify_if_condition_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
@@ -227,7 +211,7 @@ pub(crate) fn simplify_if_condition_code_action(
             change_annotations: None,
         }),
         command: None,
-        is_preferred: Some(true),
+        is_preferred: None,
         disabled: None,
         data: None,
     })
@@ -263,14 +247,9 @@ fn simplify_condition(node: M2Node<'_>) -> Option<String> {
 }
 
 fn unwrap_parentheses(node: M2Node<'_>) -> M2Node<'_> {
-    if node.child_count() == 3 {
-        let children: Vec<_> = node.children().collect();
-        if let (Some(first), Some(middle), Some(last)) =
-            (children.first(), children.get(1), children.get(2))
-        {
-            if first.text() == "(" && last.text() == ")" {
-                return *middle;
-            }
+    if node.kind == NodeKind::ParenthesizedExpression && node.child_count() == 3 {
+        if let Some(inner) = node.child(1) {
+            return inner;
         }
     }
     node
@@ -367,13 +346,6 @@ fn unescape_string_literal_content(content: &str) -> Option<String> {
     Some(result)
 }
 
-fn position_in_range(position: Position, range: Range) -> bool {
-    position.line >= range.start.line
-        && position.line <= range.end.line
-        && (position.line != range.start.line || position.character >= range.start.character)
-        && (position.line != range.end.line || position.character < range.end.character)
-}
-
 fn is_null_literal(node: M2Node<'_>) -> bool {
     node.kind == NodeKind::Symbol && node.text() == "null"
 }
@@ -411,13 +383,14 @@ fn negated_condition_text(node: M2Node<'_>) -> String {
 
     if let Some(operator) = node.binary_operator() {
         if let Some(negated_operator) = negated_binary_operator(operator) {
-            let left = node
-                .child_by_field_name("left")
-                .expect("binary expressions should have a left operand");
-            let right = node
-                .child_by_field_name("right")
-                .expect("binary expressions should have a right operand");
-            return format!("{} {} {}", left.text(), negated_operator, right.text());
+            // A malformed binary expression (a MISSING operand in broken code)
+            // cannot be negated; fall through to the `not …` wrap instead.
+            if let (Some(left), Some(right)) = (
+                node.child_by_field_name("left"),
+                node.child_by_field_name("right"),
+            ) {
+                return format!("{} {} {}", left.text(), negated_operator, right.text());
+            }
         }
     }
 
@@ -453,10 +426,6 @@ pub(crate) fn refactor_if_null_branch(if_node: M2Node<'_>) -> Option<String> {
     None
 }
 
-fn try_alternative_is_else(try_node: M2Node<'_>) -> bool {
-    clause_child(try_node, NodeKind::ElseClause).is_some()
-}
-
 fn try_condition(try_node: M2Node<'_>) -> Option<M2Node<'_>> {
     try_node.named_children().find(|child| {
         !matches!(
@@ -485,7 +454,7 @@ pub(crate) fn refactor_try_statement(try_node: M2Node<'_>) -> Option<String> {
 
     if let Some(else_clause) = else_clause {
         let alternative = expression_of_clause(else_clause)?;
-        if is_null_literal(alternative) && try_alternative_is_else(try_node) {
+        if is_null_literal(alternative) {
             let mut simplified = format!("try {condition_text}");
             if let Some(consequence_text) = consequence_text {
                 simplified.push_str(" then ");
@@ -503,7 +472,6 @@ mod tests {
     use super::*;
     use crate::document::DocumentSnapshot;
     use crate::typesystem::BuiltinData;
-    use crate::util::full_document_range;
 
     fn document(text: &str) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
@@ -585,7 +553,7 @@ mod tests {
             change.range,
             Range::new(Position::new(0, 0), Position::new(0, 3))
         );
-        assert_eq!(change.new_text, "x#0");
+        assert_eq!(change.new_text, "x#3");
     }
 
     #[test]
@@ -637,32 +605,6 @@ mod tests {
         assert!(
             convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7)).is_none(),
             "raw-string conversion must not be offered for unsupported escapes"
-        );
-    }
-
-    #[test]
-    fn format_file_code_action_formats_whole_document() {
-        let text = "if ready then value else null\nf := (i=0;j=0;)\n";
-        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
-        let document = document(text);
-
-        let action = format_file_code_action(&document, &uri)
-            .expect("format action should be available for unformatted text");
-        let edit = action
-            .edit
-            .expect("code action should carry an edit")
-            .changes
-            .expect("edit should use simple changes");
-        let changes = &edit[&uri];
-
-        assert_eq!(action.kind, Some(CodeActionKind::SOURCE));
-        assert_eq!(changes.len(), 1);
-        assert_eq!(changes[0].range, full_document_range(text));
-        // "Format file" only normalizes trivia now; branch simplification
-        // (dropping the redundant `else null`) is a separate code-action.
-        assert_eq!(
-            changes[0].new_text,
-            "if ready then value else null\nf := (i = 0;\n    j = 0;\n)\n"
         );
     }
 

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::*;
 
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::NodeKind;
 use crate::package_index::SourceResolver;
 use crate::partitioned_index::ScopedIndex;
 use crate::record_lsp::record_symbol_kind;
@@ -104,6 +104,7 @@ fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
     }
 }
 
+/// The in-file references of the symbol at `position` as LSP locations.
 pub(crate) fn references_response(
     document: &DocumentSnapshot,
     uri: &Url,
@@ -129,7 +130,7 @@ pub(crate) fn workspace_symbols_response(
     let mut seen = std::collections::HashSet::new();
 
     for (package, name) in scoped.matching_names(query, 120) {
-        if package == "Core" && !should_include_workspace_symbol("Core", name) {
+        if !should_include_workspace_symbol(package, name) {
             continue;
         }
         let Some(record) = scoped.get_record(&InstanceID(name.to_string())) else {
@@ -153,6 +154,9 @@ pub(crate) fn workspace_symbols_response(
     symbols
 }
 
+/// Go-to-definition at `position`: package-source jump for an import string,
+/// else local binding, else a cross-file workspace definition, else the
+/// builtin/package record's source location.
 pub(crate) fn goto_definition_response(
     document: &DocumentSnapshot,
     uri: &Url,
@@ -207,12 +211,13 @@ pub(crate) fn goto_definition_response(
     None
 }
 
+/// Every in-file range referring to the same binding as the symbol at
+/// `position` (scope-aware: shadowed names in other scopes are excluded).
 pub(crate) fn collect_reference_ranges(
     document: &DocumentSnapshot,
     position: Position,
     include_declaration: bool,
 ) -> Vec<Range> {
-    let text = document.text();
     let analysis = document.analysis();
     let root_node = document.root_node();
     let Some(target_node) = document.symbol_node_at_position(position) else {
@@ -225,38 +230,18 @@ pub(crate) fn collect_reference_ranges(
     let target_range = target_symbol.range;
 
     let mut references = Vec::new();
-    let mut cursor = root_node.walk();
-    let mut reached_root = false;
-    while !reached_root {
-        let node = M2Node::new(cursor.node(), text);
+    for node in root_node.descendants() {
         if node.kind.is_symbol_like() {
             let node_text = node.text();
             if node_text == target_name {
-                let position = document.range_for(node).start;
-                if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
-                    let range = document.range_for(node);
+                let range = document.range_for(node);
+                if let Some(symbol) = analysis.get_symbol_at(node_text, range.start) {
                     if symbol.range == target_range
                         && (include_declaration || range != target_range)
                     {
                         references.push(range);
                     }
                 }
-            }
-        }
-
-        if cursor.goto_first_child() {
-            continue;
-        }
-        if cursor.goto_next_sibling() {
-            continue;
-        }
-        loop {
-            if !cursor.goto_parent() {
-                reached_root = true;
-                break;
-            }
-            if cursor.goto_next_sibling() {
-                break;
             }
         }
     }
@@ -340,14 +325,10 @@ pub(crate) fn reference_target(
 /// definition — i.e. one not shadowed by a local binding at that point. Used to
 /// gather a workspace-global symbol's references file by file.
 pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<Range> {
-    let text = document.text();
     let analysis = document.analysis();
     let root_node = document.root_node();
     let mut references = Vec::new();
-    let mut cursor = root_node.walk();
-    let mut reached_root = false;
-    while !reached_root {
-        let node = M2Node::new(cursor.node(), text);
+    for node in root_node.descendants() {
         if node.kind.is_symbol_like() && node.text() == name {
             let position = document.range_for(node).start;
             // A use is global unless a local binding shadows the name here.
@@ -356,22 +337,6 @@ pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -
                 .is_some_and(|binding| binding.scope_idx != 0);
             if !shadowed {
                 references.push(document.range_for(node));
-            }
-        }
-
-        if cursor.goto_first_child() {
-            continue;
-        }
-        if cursor.goto_next_sibling() {
-            continue;
-        }
-        loop {
-            if !cursor.goto_parent() {
-                reached_root = true;
-                break;
-            }
-            if cursor.goto_next_sibling() {
-                break;
             }
         }
     }
@@ -404,6 +369,17 @@ pub(crate) fn should_include_workspace_symbol(package: &str, name: &str) -> bool
     !(package == "Core" && name.starts_with("Core$"))
 }
 
+/// Whether `name` is a valid M2 identifier (a letter followed by letters and
+/// digits). A rename target failing this would silently produce unparsable
+/// code, so the rename request must reject it instead of editing.
+pub(crate) fn is_valid_m2_identifier(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic())
+        && chars.all(|ch| ch.is_ascii_alphanumeric())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -413,6 +389,15 @@ mod tests {
     fn document(text: &str) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), &crate::typesystem::BuiltinData::empty())
             .expect("fixture should parse")
+    }
+
+    #[test]
+    fn m2_identifier_validation_accepts_plain_identifiers_only() {
+        assert!(is_valid_m2_identifier("foo"));
+        assert!(is_valid_m2_identifier("foo42"));
+        assert!(!is_valid_m2_identifier("42foo"));
+        assert!(!is_valid_m2_identifier("a b"));
+        assert!(!is_valid_m2_identifier(""));
     }
 
     fn completion_labels(text: &str, position: Position) -> Vec<String> {

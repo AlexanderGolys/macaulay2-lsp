@@ -4,14 +4,13 @@ use tower_lsp::lsp_types::Url;
 use tower_lsp::lsp_types::{Position, Range as LspRange, SymbolKind};
 use tower_lsp::Client;
 
-use crate::analysis::{
-    node_position, symbol_node_text, to_lsp_range, utf16_len_for_byte_span, Analysis, BindingRole,
-};
+use crate::analysis::{symbol_node_text, Analysis, BindingRole};
 use crate::diagnostic_registry::M2Diagnostic;
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
+use crate::util::{node_position, to_lsp_range, utf16_len_for_byte_span};
 
-pub const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
+pub(crate) const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
     "This is parsed like function call: dot followed immediately by digits are always parsed
     as literal floats with the high precedence, following only cobinding specifiers (like `symbol`)
     and merging dots into range operators. This makes the member access `.` operator
@@ -28,6 +27,9 @@ pub(crate) async fn publish_diagnostics(client: &Client, uri: Url, document: &Do
 }
 
 impl Analysis {
+    /// Collect the structural diagnostics for the whole tree: syntax/missing-node
+    /// errors, ambiguous float member access, assignment-form validation, and the
+    /// option-key convention hint. Runs after the semantic passes, which it consumes.
     pub(crate) fn collect_diagnostics(&mut self, node: M2Node, text: &str) {
         if node.is_error() {
             self.diagnostics.push(M2Diagnostic::SyntaxError.at(
@@ -157,12 +159,12 @@ impl Analysis {
         }
     }
 
+    /// Warn about non-global bindings (variables and functions) that are never
+    /// referenced outside their own definition site. Top-level bindings are
+    /// potential exports and stay silent, as do `_`-prefixed names.
     pub(crate) fn collect_unused_binding_diagnostics(&mut self, root: M2Node, text: &str) {
         let mut used_bindings = HashSet::new();
-        let mut cursor = root.walk();
-        let mut reached_root = false;
-        while !reached_root {
-            let node = M2Node::new(cursor.node(), text);
+        for node in root.descendants() {
             if node.kind.is_symbol_like() {
                 let name = node.text();
                 let position = node_position(text, node);
@@ -173,22 +175,6 @@ impl Analysis {
                             used_bindings.insert(binding_idx);
                         }
                     }
-                }
-            }
-
-            if cursor.goto_first_child() {
-                continue;
-            }
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-            loop {
-                if !cursor.goto_parent() {
-                    reached_root = true;
-                    break;
-                }
-                if cursor.goto_next_sibling() {
-                    break;
                 }
             }
         }
@@ -251,12 +237,14 @@ fn is_function_option_context(option: M2Node<'_>) -> bool {
     // and the hint must stay silent — when that collection is a `List`/`Array`
     // literal, e.g. `hashTable {a => 1, b => 2}`.
     //
-    // TODO(human): walk upward from `option` with `node.parent()` and return
-    // `true` iff the first enclosing collection node is a `NodeKind::Sequence`,
-    // and `false` if it is a `NodeKind::List` or `NodeKind::Array`. With no
-    // enclosing collection, return `false`. Replace the inert default below,
-    // which currently makes the E06 hint fire on nothing.
-    let _ = option;
+    let mut current = option;
+    while let Some(parent) = current.parent() {
+        match parent.kind {
+            NodeKind::Sequence => return true,
+            NodeKind::List | NodeKind::Array | NodeKind::AngleBarList => return false,
+            _ => current = parent,
+        }
+    }
     false
 }
 
@@ -316,7 +304,7 @@ pub(crate) fn member_index_for_ambiguous_float_literal(float_text: &str) -> Opti
 
     let fractional_part = &float_text[1..];
     (!fractional_part.is_empty() && fractional_part.chars().all(|ch| ch.is_ascii_digit()))
-        .then(|| "0".to_string())
+        .then(|| fractional_part.to_string())
 }
 
 fn ambiguous_float_member_access_range(node: M2Node<'_>, text: &str) -> Option<LspRange> {

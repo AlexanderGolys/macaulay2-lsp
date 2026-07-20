@@ -33,9 +33,6 @@ pub(crate) const COMMAND_MODIFIER: u32 = 1 << 1;
 pub(crate) const FILE_MODIFIER: u32 = 1 << 2;
 pub(crate) const MANIPULATOR_MODIFIER: u32 = 1 << 3;
 pub(crate) const DECLARATION_MODIFIER: u32 = 1 << 4;
-// Referenced only by tests today; the modifier scheme is slated for a rewrite.
-#[allow(dead_code)]
-pub(crate) const CONSTRUCTOR_MODIFIER: u32 = 1 << 5;
 
 /// The LSP semantic-tokens protocol forbids a single token from spanning more
 /// than one line. A multi-line string or comment therefore has to be emitted as
@@ -94,9 +91,10 @@ pub(crate) fn collect_semantic_tokens(
 
     while !reached_root {
         let node = M2Node::new(cursor.node(), text);
+        let syntax_token_type = syntax_semantic_token_type(node);
 
         let mut emitted_token = false;
-        if node.kind.is_symbol_like() || syntax_semantic_token_type(node).is_some() {
+        if node.kind.is_symbol_like() || syntax_token_type.is_some() {
             let start_byte = node.start_byte();
             let end_byte = node.end_byte();
             let node_text = node.text();
@@ -130,8 +128,7 @@ pub(crate) fn collect_semantic_tokens(
 
             if token_type.is_none() {
                 if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
-                    token_type =
-                        Some(local_symbol_semantic_token_type(symbol, position, builtins) as u32);
+                    token_type = Some(local_symbol_semantic_token_type(symbol, builtins) as u32);
                     if let Some(type_name) = &symbol.type_name {
                         if let Some(token) =
                             static_type_semantic_token_for_local_symbol(symbol, type_name, builtins)
@@ -164,9 +161,10 @@ pub(crate) fn collect_semantic_tokens(
             }
 
             if token_type.is_none()
-                && (!augments_syntax_tokens || should_emit_syntax_token_when_augmenting(node))
+                && (!augments_syntax_tokens
+                    || should_emit_syntax_token_when_augmenting(syntax_token_type))
             {
-                token_type = syntax_semantic_token_type(node).map(|token_type| token_type as u32);
+                token_type = syntax_token_type.map(|token_type| token_type as u32);
             }
 
             if let Some(token_type) = token_type {
@@ -256,7 +254,6 @@ pub(crate) fn option_assignment_role(
 
 pub(crate) fn local_symbol_semantic_token_type(
     symbol: &SymbolInfo,
-    _position: Position,
     builtins: &BuiltinData,
 ) -> M2SemanticTokenType {
     if symbol.role == BindingRole::Parameter {
@@ -342,9 +339,9 @@ fn syntax_semantic_token_type(node: M2Node<'_>) -> Option<M2SemanticTokenType> {
     }
 }
 
-fn should_emit_syntax_token_when_augmenting(node: M2Node<'_>) -> bool {
+fn should_emit_syntax_token_when_augmenting(token_type: Option<M2SemanticTokenType>) -> bool {
     matches!(
-        syntax_semantic_token_type(node),
+        token_type,
         Some(M2SemanticTokenType::Modifier)
             | Some(M2SemanticTokenType::Regexp)
             | Some(M2SemanticTokenType::EnumMember)
@@ -515,7 +512,7 @@ fn method_installation_type_parameter(
     let node_text = node.text();
     let parent = node.parent()?;
 
-    if is_type_parameter_in_domain(node, parent) && is_known_type(builtins, node_text) {
+    if is_type_parameter_in_domain(parent) && is_known_type(builtins, node_text) {
         return Some(M2SemanticTokenType::Type);
     }
 
@@ -539,7 +536,7 @@ fn is_known_type(builtins: &BuiltinData, name: &str) -> bool {
     })
 }
 
-fn is_type_parameter_in_domain(node: M2Node<'_>, mut ancestor: M2Node<'_>) -> bool {
+fn is_type_parameter_in_domain(mut ancestor: M2Node<'_>) -> bool {
     // A domain type sits inside `(T1, T2)` (sequence) or, for a single-type domain
     // `f(T) := …`, a `parenthesized_expression`; climb through either.
     while matches!(
@@ -560,9 +557,6 @@ fn is_type_parameter_in_domain(node: M2Node<'_>, mut ancestor: M2Node<'_>) -> bo
         None => return false,
     };
     if matches!(op_text, "=" | ":=" | "<-" | "=>") {
-        return false;
-    }
-    if !ancestor.contains(node) {
         return false;
     }
 
@@ -1160,11 +1154,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         assert_eq!(
-            local_symbol_semantic_token_type(&symbol, Position::new(0, 5), &builtins),
-            M2SemanticTokenType::Parameter
-        );
-        assert_eq!(
-            local_symbol_semantic_token_type(&symbol, Position::new(0, 10), &builtins),
+            local_symbol_semantic_token_type(&symbol, &builtins),
             M2SemanticTokenType::Parameter
         );
     }
@@ -1222,10 +1212,7 @@ mod tests {
             .expect("toString should have builtin metadata");
 
         assert_eq!(token.token_type, M2SemanticTokenType::Method);
-        assert_eq!(
-            builtin_semantic_token_modifiers(&token) & CONSTRUCTOR_MODIFIER,
-            0
-        );
+        assert_eq!(builtin_semantic_token_modifiers(&token), 0);
     }
 
     #[test]
@@ -1241,31 +1228,12 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let root = tree.root_node();
+        let root = M2Node::new(tree.root_node(), text);
 
         let mut roles = Vec::new();
-        let mut cursor = root.walk();
-        let mut reached_root = false;
-        while !reached_root {
-            let node = M2Node::new(cursor.node(), text);
+        for node in root.descendants() {
             if node.kind == NodeKind::Symbol {
                 roles.push((node.text(), option_assignment_role(node, &builtins)));
-            }
-
-            if cursor.goto_first_child() {
-                continue;
-            }
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-            loop {
-                if !cursor.goto_parent() {
-                    reached_root = true;
-                    break;
-                }
-                if cursor.goto_next_sibling() {
-                    break;
-                }
             }
         }
 
@@ -1280,7 +1248,6 @@ mod tests {
         assert_eq!(FILE_MODIFIER, 1 << 2);
         assert_eq!(MANIPULATOR_MODIFIER, 1 << 3);
         assert_eq!(DECLARATION_MODIFIER, 1 << 4);
-        assert_eq!(CONSTRUCTOR_MODIFIER, 1 << 5);
     }
 
     #[test]

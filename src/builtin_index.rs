@@ -7,8 +7,8 @@
 //! codomain means *unknown*, never `Thing`. See the `Static Typecheck Index`
 //! decision.
 
-// Forward-looking API: the lattice/signature queries are consumed by the type
-// propagation stage; allow the unused-method warnings until then.
+// The lattice/signature tables are consumed by `typesystem.rs`; some accessors
+// are exercised only by tests so far — allow the unused-method warnings.
 #![allow(dead_code)]
 
 use std::collections::HashMap;

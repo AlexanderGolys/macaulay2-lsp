@@ -60,7 +60,7 @@ fn enclosing_application<'tree>(
 ) -> Option<(M2Node<'tree>, M2Node<'tree>)> {
     let mut current = Some(node);
     while let Some(node) = current {
-        if node.kind == NodeKind::BinaryExpression && node.is_space_application() {
+        if node.is_space_application() {
             if let (Some(left), Some(right)) = (
                 node.child_by_field_name("left"),
                 node.child_by_field_name("right"),

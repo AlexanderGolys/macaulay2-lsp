@@ -1,9 +1,10 @@
 //! In-memory partition of the builtin corpus by home package, plus the
-//! `LoadedPackages` tracker. These are the substrate for loaded-package scoping
-//! (P3): they are built at startup but not yet consulted by any query — the
-//! inference/hover/navigation paths still read `self.builtins` directly.
+//! `LoadedPackages` tracker — the substrate for loaded-package scoping. Every
+//! request builds a [`ScopedIndex`] from the document's imports and queries it
+//! instead of a single merged index; parse-time analysis stays Core-scoped via
+//! the `Core` partition clone held by the backend.
 
-// Forward-looking API consumed in P3 (scoped query routing); allow until then.
+// Some query forms are consumed only by tests so far; allow until they land.
 #![allow(dead_code)]
 
 use std::collections::HashMap;

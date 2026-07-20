@@ -116,34 +116,15 @@ pub(crate) fn collect_imported_packages_in_tree(
     text: &str,
     tree: &tree_sitter::Tree,
 ) -> Vec<String> {
-    let root = tree.root_node();
+    let root = M2Node::new(tree.root_node(), text);
     let mut packages = Vec::new();
     let mut seen = HashSet::new();
-    let mut cursor = root.walk();
-    let mut reached_root = false;
-    while !reached_root {
-        let node = M2Node::new(cursor.node(), text);
+    for node in root.descendants() {
         if node.kind == NodeKind::StringLiteral {
             if let Some(package_name) = package_source_string(node) {
                 if seen.insert(package_name.to_string()) {
                     packages.push(package_name.to_string());
                 }
-            }
-        }
-
-        if cursor.goto_first_child() {
-            continue;
-        }
-        if cursor.goto_next_sibling() {
-            continue;
-        }
-        loop {
-            if !cursor.goto_parent() {
-                reached_root = true;
-                break;
-            }
-            if cursor.goto_next_sibling() {
-                break;
             }
         }
     }

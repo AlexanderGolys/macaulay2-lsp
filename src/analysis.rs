@@ -6,6 +6,7 @@ use tree_sitter::Tree;
 use crate::diagnostic_registry::M2Diagnostic;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::typesystem::{BuiltinData, InstanceID};
+use crate::util::{node_position, position_in_range, to_lsp_range};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BindingRole {
@@ -520,16 +521,12 @@ impl Analysis {
             .filter(|binding| matches!(binding.kind, SymbolKind::VARIABLE | SymbolKind::FUNCTION))
             .filter(|binding| {
                 let position = binding.range.end;
-                is_pos_in_range(position, range)
+                position_in_range(position, range)
             })
             .collect()
     }
 
     pub fn typed_expression_facts_in_range(&self, range: LspRange) -> Vec<&ExpressionFact> {
-        // Debugging readout: every expression fact carries an inferred type now
-        // (the floor is `Thing`), so we surface them all — literals, names,
-        // collections, operators, assignments, control forms — not just the
-        // `Expr` kind. This is intentionally maximal while we tune the rules.
         self.registry
             .expressions
             .values()
@@ -562,7 +559,7 @@ impl Analysis {
         let mut best_range: Option<LspRange> = None;
 
         for (idx, scope) in self.scopes.iter().enumerate() {
-            if is_pos_in_range(pos, scope.range) {
+            if position_in_range(pos, scope.range) {
                 match best_range {
                     None => {
                         best_idx = Some(idx);
@@ -2348,10 +2345,6 @@ fn method_installation_expression_for_callable_node<'tree>(
     None
 }
 
-/// The value a node denotes, peeling parenthesized grouping: `(a)` → `a`,
-/// `((a))` → `a`. A trailing-`;` parenthesized expression (`(a;)`) denotes null,
-/// so it has no value node — returns `None`. A non-parenthesized node is its own
-/// value. `()` and `(a, b)` are `Sequence` nodes (real values), left untouched.
 /// The first direct clause of `node` of the given kind (`then`/`else`/`do`/…).
 fn clause_of(node: M2Node, kind: NodeKind) -> Option<M2Node> {
     node.named_children().find(|child| child.kind == kind)
@@ -2375,6 +2368,10 @@ fn is_try_clause(kind: NodeKind) -> bool {
     )
 }
 
+/// The value a node denotes, peeling parenthesized grouping: `(a)` → `a`,
+/// `((a))` → `a`. A trailing-`;` parenthesized expression (`(a;)`) denotes null,
+/// so it has no value node — returns `None`. A non-parenthesized node is its own
+/// value. `()` and `(a, b)` are `Sequence` nodes (real values), left untouched.
 fn parenthesized_value(node: M2Node) -> Option<M2Node> {
     let mut current = node;
     while current.kind == NodeKind::ParenthesizedExpression {
@@ -2457,53 +2454,6 @@ fn signature_matches_domain(
                         })
                 })
             })
-}
-
-pub(crate) fn to_lsp_range(text: &str, range: tree_sitter::Range) -> LspRange {
-    let start_line_byte = range.start_byte.saturating_sub(range.start_point.column);
-    let end_line_byte = range.end_byte.saturating_sub(range.end_point.column);
-
-    LspRange::new(
-        Position::new(
-            range.start_point.row as u32,
-            utf16_len_for_byte_span(text, start_line_byte, range.start_byte),
-        ),
-        Position::new(
-            range.end_point.row as u32,
-            utf16_len_for_byte_span(text, end_line_byte, range.end_byte),
-        ),
-    )
-}
-
-pub(crate) fn node_position(text: &str, node: M2Node) -> Position {
-    to_lsp_range(text, node.range()).start
-}
-
-pub(crate) fn floor_char_boundary(text: &str, byte_index: usize) -> usize {
-    let mut byte_index = byte_index.min(text.len());
-    while byte_index > 0 && !text.is_char_boundary(byte_index) {
-        byte_index -= 1;
-    }
-    byte_index
-}
-
-pub(crate) fn utf16_len_for_byte_span(text: &str, start_byte: usize, end_byte: usize) -> u32 {
-    let start_byte = floor_char_boundary(text, start_byte);
-    let end_byte = floor_char_boundary(text, end_byte.max(start_byte));
-    text[start_byte..end_byte].encode_utf16().count() as u32
-}
-
-fn is_pos_in_range(pos: Position, range: LspRange) -> bool {
-    if pos.line < range.start.line || pos.line > range.end.line {
-        return false;
-    }
-    if pos.line == range.start.line && pos.character < range.start.character {
-        return false;
-    }
-    if pos.line == range.end.line && pos.character >= range.end.character {
-        return false;
-    }
-    true
 }
 
 fn is_range_within_range(inner: LspRange, outer: LspRange) -> bool {
@@ -3635,9 +3585,30 @@ mod tests {
     fn ambiguous_member_access_helper_requires_dot_prefixed_float() {
         assert_eq!(
             member_index_for_ambiguous_float_literal(".3"),
-            Some("0".to_string())
+            Some("3".to_string())
+        );
+        assert_eq!(
+            member_index_for_ambiguous_float_literal(".33"),
+            Some("33".to_string())
         );
         assert_eq!(member_index_for_ambiguous_float_literal("3.0"), None);
+    }
+
+    #[test]
+    fn option_key_convention_fires_in_call_arguments() {
+        // A lowercase option key in a call's argument sequence gets the Hint.
+        let analysis = analyze("gb(I, strategy => 4)\n");
+        assert!(has_diagnostic(&analysis, M2Diagnostic::OptionKeyConvention));
+    }
+
+    #[test]
+    fn option_key_convention_silent_in_collection_literals() {
+        // Lowercase keys are legitimate hashtable entries — the hint stays out.
+        let analysis = analyze("hashTable {a => 1, b => 2}\n");
+        assert!(!has_diagnostic(
+            &analysis,
+            M2Diagnostic::OptionKeyConvention
+        ));
     }
 
     #[test]
