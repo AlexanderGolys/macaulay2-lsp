@@ -8,35 +8,70 @@ use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::util::position_in_range;
 
-/// The code actions offered at `position`: the quickfix for a diagnostic under
-/// the cursor, plus any applicable refactors.
+/// A code action producer. Every action is funneled through this signature so
+/// the dispatcher can iterate a single registry instead of listing each by
+/// hand. Producers that do not consult diagnostics simply ignore the slice.
+type ActionProducer = fn(&DocumentSnapshot, &Url, Position, &[Diagnostic]) -> Option<CodeAction>;
+
+/// The action registry: ordered as quickfixes first, then refactors. A new
+/// action is appended here and `available_code_actions` picks it up with no
+/// further wiring.
+const ACTION_PRODUCERS: &[ActionProducer] = &[
+    ambiguous_float_member_access_code_action,
+    convert_to_raw_string_code_action,
+    conditional_null_code_action,
+    simplify_try_code_action,
+    simplify_if_condition_code_action,
+];
+
+/// The code actions offered at `position`: every action from the registry
+/// whose producer returns `Some`.
 pub(crate) fn available_code_actions(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
     diagnostics: &[Diagnostic],
 ) -> Option<CodeActionResponse> {
-    let mut actions = Vec::new();
-
-    if let Some(action) =
-        ambiguous_float_member_access_code_action(document, uri, position, diagnostics)
-    {
-        actions.push(CodeActionOrCommand::CodeAction(action));
-    }
-    if let Some(action) = convert_to_raw_string_code_action(document, uri, position) {
-        actions.push(CodeActionOrCommand::CodeAction(action));
-    }
-    if let Some(action) = conditional_null_code_action(document, uri, position) {
-        actions.push(CodeActionOrCommand::CodeAction(action));
-    }
-    if let Some(action) = simplify_try_code_action(document, uri, position) {
-        actions.push(CodeActionOrCommand::CodeAction(action));
-    }
-    if let Some(action) = simplify_if_condition_code_action(document, uri, position) {
-        actions.push(CodeActionOrCommand::CodeAction(action));
-    }
-
+    let actions: Vec<_> = ACTION_PRODUCERS
+        .iter()
+        .filter_map(|producer| producer(document, uri, position, diagnostics))
+        .map(CodeActionOrCommand::CodeAction)
+        .collect();
     (!actions.is_empty()).then_some(actions)
+}
+
+/// The shared shape of every action this module emits: a title, a kind, and
+/// the optional LSP flags (`is_preferred`, `diagnostics`) — plus a single
+/// text edit applied to `uri`. Bundling them here collapses the ~15-line
+/// `WorkspaceEdit`/`CodeAction` boilerplate that every per-action producer
+/// would otherwise repeat.
+struct CodeActionSpec {
+    title: &'static str,
+    kind: CodeActionKind,
+    is_preferred: Option<bool>,
+    diagnostics: Option<Vec<Diagnostic>>,
+}
+
+impl CodeActionSpec {
+    fn build(self, uri: &Url, range: Range, new_text: String) -> CodeAction {
+        CodeAction {
+            title: self.title.to_string(),
+            kind: Some(self.kind),
+            diagnostics: self.diagnostics,
+            edit: Some(WorkspaceEdit {
+                changes: Some(HashMap::from([(
+                    uri.clone(),
+                    vec![TextEdit { range, new_text }],
+                )])),
+                document_changes: None,
+                change_annotations: None,
+            }),
+            command: None,
+            is_preferred: self.is_preferred,
+            disabled: None,
+            data: None,
+        }
+    }
 }
 
 /// Refactor: rewrite a heavily-escaped string literal as a raw `///…///` string
@@ -45,30 +80,20 @@ pub(crate) fn convert_to_raw_string_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
+    _diagnostics: &[Diagnostic],
 ) -> Option<CodeAction> {
     let string_node = string_literal_at_position(document, position)?;
     let replacement = raw_string_replacement(string_node)?;
 
-    Some(CodeAction {
-        title: "Convert to raw string".to_string(),
-        kind: Some(CodeActionKind::REFACTOR_REWRITE),
-        diagnostics: None,
-        edit: Some(WorkspaceEdit {
-            changes: Some(HashMap::from([(
-                uri.clone(),
-                vec![TextEdit {
-                    range: document.range_for(string_node),
-                    new_text: replacement,
-                }],
-            )])),
-            document_changes: None,
-            change_annotations: None,
-        }),
-        command: None,
-        is_preferred: None,
-        disabled: None,
-        data: None,
-    })
+    Some(
+        CodeActionSpec {
+            title: "Convert to raw string",
+            kind: CodeActionKind::REFACTOR_REWRITE,
+            is_preferred: None,
+            diagnostics: None,
+        }
+        .build(uri, document.range_for(string_node), replacement),
+    )
 }
 
 /// Quickfix for the ambiguous-float diagnostic (`x.3` parses as `x SPACE .3`):
@@ -89,26 +114,15 @@ pub(crate) fn ambiguous_float_member_access_code_action(
     let expression = ambiguous_float_member_access_node_at_position(document, position)?;
     let replacement = ambiguous_float_member_access_rewrite(expression)?;
 
-    Some(CodeAction {
-        title: "Rewrite as member access".to_string(),
-        kind: Some(CodeActionKind::QUICKFIX),
-        diagnostics: Some(vec![diagnostic]),
-        edit: Some(WorkspaceEdit {
-            changes: Some(HashMap::from([(
-                uri.clone(),
-                vec![TextEdit {
-                    range: document.range_for(expression),
-                    new_text: replacement,
-                }],
-            )])),
-            document_changes: None,
-            change_annotations: None,
-        }),
-        command: None,
-        is_preferred: Some(true),
-        disabled: None,
-        data: None,
-    })
+    Some(
+        CodeActionSpec {
+            title: "Rewrite as member access",
+            kind: CodeActionKind::QUICKFIX,
+            is_preferred: Some(true),
+            diagnostics: Some(vec![diagnostic]),
+        }
+        .build(uri, document.range_for(expression), replacement),
+    )
 }
 
 /// Refactor: drop a redundant `else null` (or `then null`, negating the
@@ -117,30 +131,20 @@ pub(crate) fn conditional_null_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
+    _diagnostics: &[Diagnostic],
 ) -> Option<CodeAction> {
     let if_node = if_statement_at_position(document, position)?;
     let replacement = refactor_if_null_branch(if_node)?;
 
-    Some(CodeAction {
-        title: "Simplify unnecessary null branch".to_string(),
-        kind: Some(CodeActionKind::REFACTOR_REWRITE),
-        diagnostics: None,
-        edit: Some(WorkspaceEdit {
-            changes: Some(HashMap::from([(
-                uri.clone(),
-                vec![TextEdit {
-                    range: document.range_for(if_node),
-                    new_text: replacement,
-                }],
-            )])),
-            document_changes: None,
-            change_annotations: None,
-        }),
-        command: None,
-        is_preferred: None,
-        disabled: None,
-        data: None,
-    })
+    Some(
+        CodeActionSpec {
+            title: "Simplify unnecessary null branch",
+            kind: CodeActionKind::REFACTOR_REWRITE,
+            is_preferred: None,
+            diagnostics: None,
+        }
+        .build(uri, document.range_for(if_node), replacement),
+    )
 }
 
 /// Refactor: simplify a `try` statement — drop a redundant `then` echo or a
@@ -149,30 +153,20 @@ pub(crate) fn simplify_try_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
+    _diagnostics: &[Diagnostic],
 ) -> Option<CodeAction> {
     let try_node = try_statement_at_position(document, position)?;
     let replacement = refactor_try_statement(try_node)?;
 
-    Some(CodeAction {
-        title: "Simplify try".to_string(),
-        kind: Some(CodeActionKind::REFACTOR_REWRITE),
-        diagnostics: None,
-        edit: Some(WorkspaceEdit {
-            changes: Some(HashMap::from([(
-                uri.clone(),
-                vec![TextEdit {
-                    range: document.range_for(try_node),
-                    new_text: replacement,
-                }],
-            )])),
-            document_changes: None,
-            change_annotations: None,
-        }),
-        command: None,
-        is_preferred: None,
-        disabled: None,
-        data: None,
-    })
+    Some(
+        CodeActionSpec {
+            title: "Simplify try",
+            kind: CodeActionKind::REFACTOR_REWRITE,
+            is_preferred: None,
+            diagnostics: None,
+        }
+        .build(uri, document.range_for(try_node), replacement),
+    )
 }
 
 /// Refactor: push a leading `not` through a parenthesized comparison
@@ -181,6 +175,7 @@ pub(crate) fn simplify_if_condition_code_action(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
+    _diagnostics: &[Diagnostic],
 ) -> Option<CodeAction> {
     let if_node = if_statement_at_position(document, position)?;
     let condition = if_node.child_by_field_name("condition")?;
@@ -195,26 +190,15 @@ pub(crate) fn simplify_if_condition_code_action(
         replacement.push_str(else_clause.text());
     }
 
-    Some(CodeAction {
-        title: "Simplify if condition".to_string(),
-        kind: Some(CodeActionKind::REFACTOR_REWRITE),
-        diagnostics: None,
-        edit: Some(WorkspaceEdit {
-            changes: Some(HashMap::from([(
-                uri.clone(),
-                vec![TextEdit {
-                    range: document.range_for(if_node),
-                    new_text: replacement,
-                }],
-            )])),
-            document_changes: None,
-            change_annotations: None,
-        }),
-        command: None,
-        is_preferred: None,
-        disabled: None,
-        data: None,
-    })
+    Some(
+        CodeActionSpec {
+            title: "Simplify if condition",
+            kind: CodeActionKind::REFACTOR_REWRITE,
+            is_preferred: None,
+            diagnostics: None,
+        }
+        .build(uri, document.range_for(if_node), replacement),
+    )
 }
 
 fn simplify_condition(node: M2Node<'_>) -> Option<String> {
@@ -484,7 +468,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4))
+        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("conditional null refactor should be available");
         let edit = action
             .edit
@@ -508,7 +492,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4))
+        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("conditional null refactor should be available for both-null branches");
         let change = &action
             .edit
@@ -562,7 +546,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7))
+        let action = convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7), &[])
             .expect("raw string conversion should be available");
         let edit = action
             .edit
@@ -580,7 +564,9 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        assert!(convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7)).is_none());
+        assert!(
+            convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7), &[]).is_none()
+        );
     }
 
     #[test]
@@ -589,7 +575,9 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        assert!(convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7)).is_none());
+        assert!(
+            convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7), &[]).is_none()
+        );
     }
 
     #[test]
@@ -603,7 +591,7 @@ mod tests {
         let document = document(text);
 
         assert!(
-            convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7)).is_none(),
+            convert_to_raw_string_code_action(&document, &uri, Position::new(0, 7), &[]).is_none(),
             "raw-string conversion must not be offered for unsupported escapes"
         );
     }
@@ -614,7 +602,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4))
+        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("conditional null refactor should be available");
         let edit = action
             .edit
@@ -632,7 +620,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4))
+        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("conditional null refactor should be available");
         let edit = action
             .edit
@@ -650,7 +638,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4))
+        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("conditional null refactor should be available");
         let edit = action
             .edit
@@ -668,7 +656,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4))
+        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("conditional null refactor should be available");
         let edit = action
             .edit
@@ -686,7 +674,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4))
+        let action = conditional_null_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("conditional null refactor should be available");
         let edit = action
             .edit
@@ -704,7 +692,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_try_code_action(&document, &uri, Position::new(0, 4))
+        let action = simplify_try_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("try simplification should be available");
         let edit = action
             .edit
@@ -722,7 +710,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_try_code_action(&document, &uri, Position::new(0, 4))
+        let action = simplify_try_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("try simplification should be available");
         let edit = action
             .edit
@@ -740,7 +728,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_try_code_action(&document, &uri, Position::new(0, 4))
+        let action = simplify_try_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("try simplification should be available");
         let edit = action
             .edit
@@ -759,7 +747,7 @@ mod tests {
         let document = document(text);
 
         assert!(
-            simplify_try_code_action(&document, &uri, Position::new(0, 4)).is_none(),
+            simplify_try_code_action(&document, &uri, Position::new(0, 4), &[]).is_none(),
             "except branches should not be simplified by the else-null rewrite"
         );
     }
@@ -770,7 +758,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4))
+        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("simplify if condition should be available");
         let edit = action
             .edit
@@ -788,7 +776,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4))
+        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("simplify if condition should be available");
         let edit = action
             .edit
@@ -806,7 +794,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4))
+        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("simplify if condition should be available");
         let edit = action
             .edit
@@ -824,7 +812,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
 
-        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4))
+        let action = simplify_if_condition_code_action(&document, &uri, Position::new(0, 4), &[])
             .expect("simplify if condition should be available");
         let edit = action
             .edit
@@ -843,7 +831,7 @@ mod tests {
         let document = document(text);
 
         assert!(
-            simplify_if_condition_code_action(&document, &uri, Position::new(0, 4)).is_none(),
+            simplify_if_condition_code_action(&document, &uri, Position::new(0, 4), &[]).is_none(),
             "simple conditions should not offer simplification"
         );
     }
