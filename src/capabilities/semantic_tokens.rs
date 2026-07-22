@@ -314,10 +314,6 @@ fn static_type_semantic_token_for_local_symbol(
 }
 
 fn syntax_semantic_token_type(node: M2Node<'_>) -> Option<M2SemanticTokenType> {
-    if is_cobinding_operator_node(node) {
-        return Some(M2SemanticTokenType::Modifier);
-    }
-
     if node.is_operator() {
         return Some(M2SemanticTokenType::Operator);
     }
@@ -363,21 +359,6 @@ fn should_emit_builtin_token_when_augmenting(token: &crate::typesystem::M2Semant
         || token.is_file
         || token.is_manipulator
         || token.is_constructor
-}
-
-fn is_cobinding_operator_node(node: M2Node<'_>) -> bool {
-    let Some(parent) = node.parent() else {
-        return false;
-    };
-    matches!(
-        parent.kind,
-        NodeKind::Cobinding
-            | NodeKind::GlobalCobinding
-            | NodeKind::LocalCobinding
-            | NodeKind::ThreadCobinding
-    ) && parent
-        .child_by_field_name("operator")
-        .is_some_and(|operator| operator.id() == node.id())
 }
 
 fn is_regexp_string_argument(node: M2Node<'_>) -> bool {
@@ -887,6 +868,28 @@ mod tests {
                 M2SemanticTokenType::Modifier as u32,
                 M2SemanticTokenType::Modifier as u32,
                 M2SemanticTokenType::Modifier as u32,
+            ]
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_classify_grammar_v3_debug_keywords() {
+        let text = "step 1\nfinish 2";
+        let builtins = BuiltinData::empty();
+        let document = document(text, &builtins);
+
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .collect::<Vec<_>>(),
+            vec![
+                M2SemanticTokenType::Keyword as u32,
+                M2SemanticTokenType::Number as u32,
+                M2SemanticTokenType::Keyword as u32,
+                M2SemanticTokenType::Number as u32,
             ]
         );
     }

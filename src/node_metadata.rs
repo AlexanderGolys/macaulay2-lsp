@@ -5,12 +5,9 @@ pub enum NodeKind {
     SourceFile,
     Cell,
     Symbol,
-    // The `symbol`-field aliases a cobinding names (`symbol +`, `symbol and`): an
-    // operator/keyword/punctuation token standing in for an identifier. Treated as
-    // symbol-like so cobinding names resolve and highlight like plain symbols.
-    CobindingKeyword,
-    CobindingOperator,
-    CobindingPunctuation,
+    // The `symbol` field of a quote expression can be a reserved word. It is
+    // symbol-like so `symbol if` resolves and highlights like `symbol x`.
+    QuotedKeyword,
     IntegerLiteral,
     FloatLiteral,
     StringLiteral,
@@ -30,7 +27,6 @@ pub enum NodeKind {
     WhileStatement,
     NewStatement,
     TryStatement,
-    StepStatement,
     DebugClause,
     BreakStatement,
     ContinueStatement,
@@ -38,10 +34,7 @@ pub enum NodeKind {
     CatchStatement,
     ThrowStatement,
     TrapStatement,
-    Cobinding,
-    LocalCobinding,
-    GlobalCobinding,
-    ThreadCobinding,
+    QuoteExpression,
     FromClause,
     ToClause,
     OfClause,
@@ -52,7 +45,6 @@ pub enum NodeKind {
     ThenClause,
     ElseClause,
     ExceptClause,
-    SilencedExpression,
     // Both `line_comment` and `block_comment` fold to one kind: nothing
     // downstream distinguishes them. String escapes (`escape_sequence`,
     // `raw_string_escape`) are deliberately not modelled at all.
@@ -66,9 +58,7 @@ impl NodeKind {
             "source_file" => Self::SourceFile,
             "cell" => Self::Cell,
             "symbol" => Self::Symbol,
-            "keyword" => Self::CobindingKeyword,
-            "operator" => Self::CobindingOperator,
-            "punctuation" => Self::CobindingPunctuation,
+            "keyword" => Self::QuotedKeyword,
             "integer_literal" => Self::IntegerLiteral,
             "float_literal" => Self::FloatLiteral,
             "string_literal" => Self::StringLiteral,
@@ -86,7 +76,6 @@ impl NodeKind {
             "while_statement" => Self::WhileStatement,
             "new_statement" => Self::NewStatement,
             "try_statement" => Self::TryStatement,
-            "step_statement" => Self::StepStatement,
             "debug_clause" => Self::DebugClause,
             "break_statement" => Self::BreakStatement,
             "continue_statement" => Self::ContinueStatement,
@@ -94,10 +83,7 @@ impl NodeKind {
             "catch_statement" => Self::CatchStatement,
             "throw_statement" => Self::ThrowStatement,
             "trap_statement" => Self::TrapStatement,
-            "cobinding" => Self::Cobinding,
-            "local_cobinding" => Self::LocalCobinding,
-            "global_cobinding" => Self::GlobalCobinding,
-            "thread_cobinding" => Self::ThreadCobinding,
+            "quote_expression" => Self::QuoteExpression,
             "from_clause" => Self::FromClause,
             "to_clause" => Self::ToClause,
             "of_clause" => Self::OfClause,
@@ -108,20 +94,13 @@ impl NodeKind {
             "then_clause" => Self::ThenClause,
             "else_clause" => Self::ElseClause,
             "except_clause" => Self::ExceptClause,
-            "silenced_expression" => Self::SilencedExpression,
             "line_comment" | "block_comment" => Self::Comment,
             _ => Self::Unknown,
         }
     }
 
     pub fn is_symbol_like(self) -> bool {
-        matches!(
-            self,
-            Self::Symbol
-                | Self::CobindingKeyword
-                | Self::CobindingOperator
-                | Self::CobindingPunctuation
-        )
+        matches!(self, Self::Symbol | Self::QuotedKeyword)
     }
 
     pub fn is_literal(self) -> bool {
@@ -221,6 +200,16 @@ impl<'tree> M2Node<'tree> {
         self.raw_kind() == ";"
     }
 
+    /// Whether this parsed expression is explicitly silenced with a trailing
+    /// semicolon. Grammar 3 models that separator as an anonymous child instead
+    /// of a named wrapper node.
+    pub fn has_trailing_semicolon(&self) -> bool {
+        self.children()
+            .filter(|child| !child.is_closing_delimiter())
+            .last()
+            .is_some_and(|child| child.is_semicolon())
+    }
+
     /// The implicit-application operator: the `SPACE` token tree-sitter inserts
     /// between a function and its juxtaposed argument (`sin x`, `f(x)`).
     pub fn is_implicit_application(&self) -> bool {
@@ -269,7 +258,9 @@ impl<'tree> M2Node<'tree> {
                     | "shield"
                     | "TEST"
                     | "breakpoint"
+                    | "finish"
                     | "new"
+                    | "step"
             )
     }
 
@@ -603,5 +594,46 @@ mod descendants_tests {
             1 + n.children().map(count_via_children).sum::<usize>()
         }
         assert_eq!(root.descendants().count(), count_via_children(root));
+    }
+
+    #[test]
+    fn grammar_v3_quote_debug_and_semicolon_shapes_are_modelled() {
+        let text = "local if\nstep 1\nfinish\n(x;)\n";
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let root = M2Node::new(tree.root_node(), text);
+
+        let quote = root
+            .descendants()
+            .find(|node| node.kind == NodeKind::QuoteExpression)
+            .expect("`local if` is a quote expression");
+        assert_eq!(
+            quote
+                .child_by_field_name("symbol")
+                .expect("quote has a symbol field")
+                .kind,
+            NodeKind::QuotedKeyword
+        );
+        assert!(quote
+            .child_by_field_name("specifier")
+            .expect("quote has a specifier field")
+            .is_modifier_token());
+
+        assert_eq!(
+            root.descendants()
+                .filter(|node| node.kind == NodeKind::DebugClause)
+                .count(),
+            2,
+            "both `step` and `finish` are debug clauses"
+        );
+
+        let parens = root
+            .descendants()
+            .find(|node| node.kind == NodeKind::ParenthesizedExpression)
+            .expect("parenthesized expression is present");
+        assert!(parens.has_trailing_semicolon());
     }
 }

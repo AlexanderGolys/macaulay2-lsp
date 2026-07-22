@@ -845,13 +845,13 @@ impl Analysis {
     ) -> Option<(MethodHead, Vec<TypeRef>)> {
         // A parenthesized expression is identified with its inner value, so
         // `(T op S) := f` installs exactly like `T op S := f`. The value is the
-        // final expression; a trailing `;` (only silenced expressions) makes the
-        // value null, which is not an installation target.
+        // final expression; a trailing `;` makes the value null, which is not an
+        // installation target.
         if node.kind == NodeKind::ParenthesizedExpression {
-            let inner = node.named_children().last()?;
-            if inner.kind == NodeKind::SilencedExpression {
+            if node.has_trailing_semicolon() {
                 return None;
             }
+            let inner = node.named_children().last()?;
             return self.installation_shape(inner, builtins);
         }
         match node.kind {
@@ -1610,12 +1610,9 @@ impl Analysis {
             NodeKind::StringLiteral => InferredType::of("String"),
             NodeKind::IntegerLiteral => InferredType::of("ZZ"),
             NodeKind::FloatLiteral => InferredType::of("RR"),
-            // A cobinding (`symbol +`, `local x`, `global y`, `threadLocal z`)
-            // evaluates to the Symbol it names.
-            NodeKind::Cobinding
-            | NodeKind::LocalCobinding
-            | NodeKind::GlobalCobinding
-            | NodeKind::ThreadCobinding => InferredType::of("Symbol"),
+            // A quote expression (`symbol +`, `local x`, `global y`,
+            // `threadLocal z`) evaluates to the Symbol it names.
+            NodeKind::QuoteExpression => InferredType::of("Symbol"),
             NodeKind::Symbol => self.symbol_type(node, text, scope_idx, builtins),
             // An assignment evaluates to its right-hand side: `a = b` / `a := b`
             // (and destructuring `{x,y} := …`) take the type of the RHS.
@@ -2375,10 +2372,10 @@ fn is_try_clause(kind: NodeKind) -> bool {
 fn parenthesized_value(node: M2Node) -> Option<M2Node> {
     let mut current = node;
     while current.kind == NodeKind::ParenthesizedExpression {
-        let inner = current.named_children().last()?;
-        if inner.kind == NodeKind::SilencedExpression {
+        if current.has_trailing_semicolon() {
             return None;
         }
+        let inner = current.named_children().last()?;
         current = inner;
     }
     Some(current)

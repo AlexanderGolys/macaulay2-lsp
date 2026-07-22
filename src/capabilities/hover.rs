@@ -141,10 +141,7 @@ fn call_signature_usage_for_hover(
 /// Whether a hover over this node is meaningful: a symbol-like leaf or an
 /// operator token of an expression.
 fn hoverable_symbol_or_operator_node(node: M2Node) -> bool {
-    if matches!(
-        node.kind,
-        NodeKind::Symbol | NodeKind::CobindingKeyword | NodeKind::CobindingOperator
-    ) {
+    if matches!(node.kind, NodeKind::Symbol | NodeKind::QuotedKeyword) {
         return true;
     }
 
