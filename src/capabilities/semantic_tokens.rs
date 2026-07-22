@@ -33,9 +33,44 @@ pub(crate) const COMMAND_MODIFIER: u32 = 1 << 1;
 pub(crate) const FILE_MODIFIER: u32 = 1 << 2;
 pub(crate) const MANIPULATOR_MODIFIER: u32 = 1 << 3;
 pub(crate) const DECLARATION_MODIFIER: u32 = 1 << 4;
-// Referenced only by tests today; the modifier scheme is slated for a rewrite.
-#[allow(dead_code)]
-pub(crate) const CONSTRUCTOR_MODIFIER: u32 = 1 << 5;
+
+/// The LSP semantic-tokens protocol forbids a single token from spanning more
+/// than one line. A multi-line string or comment therefore has to be emitted as
+/// one token per line it covers. Split a node's byte span into `(row,
+/// start_char, length)` triples — all columns in UTF-16 units, the protocol's
+/// unit — taking the precomputed `start_char` for the first line and column 0
+/// for every continuation line. The newline (and any `\r`) is excluded so a
+/// token never reaches past the visible end of its line.
+fn token_line_spans(
+    text: &str,
+    start_byte: usize,
+    end_byte: usize,
+    start_row: u32,
+    start_char: u32,
+) -> Vec<(u32, u32, u32)> {
+    let span = &text[start_byte..end_byte];
+    if !span.contains('\n') {
+        return vec![(
+            start_row,
+            start_char,
+            utf16_len_for_byte_span(text, start_byte, end_byte),
+        )];
+    }
+    let mut spans = Vec::new();
+    let mut row = start_row;
+    for (index, line) in span.split_inclusive('\n').enumerate() {
+        let content = line.trim_end_matches('\n').trim_end_matches('\r');
+        let column = if index == 0 { start_char } else { 0 };
+        let length = content.encode_utf16().count() as u32;
+        if length > 0 {
+            spans.push((row, column, length));
+        }
+        if line.ends_with('\n') {
+            row += 1;
+        }
+    }
+    spans
+}
 
 pub(crate) fn collect_semantic_tokens(
     document: &DocumentSnapshot,
@@ -55,13 +90,14 @@ pub(crate) fn collect_semantic_tokens(
     let mut reached_root = false;
 
     while !reached_root {
-        let node = M2Node::new(cursor.node());
+        let node = M2Node::new(cursor.node(), text);
+        let syntax_token_type = syntax_semantic_token_type(node);
 
         let mut emitted_token = false;
-        if node.kind.is_symbol_like() || syntax_semantic_token_type(text, node).is_some() {
+        if node.kind.is_symbol_like() || syntax_token_type.is_some() {
             let start_byte = node.start_byte();
             let end_byte = node.end_byte();
-            let node_text = &text[start_byte..end_byte];
+            let node_text = node.text();
             let start_pos = node.start_position();
             let line_start_byte = start_byte.saturating_sub(start_pos.column);
             let start_char = utf16_len_for_byte_span(text, line_start_byte, start_byte);
@@ -73,29 +109,26 @@ pub(crate) fn collect_semantic_tokens(
             // A symbol read as a quoted global key (`R.name`, `R.?name`) is a
             // property access and outranks every other classification it might
             // otherwise receive (local variable, builtin function, ...).
-            if is_quoted_global_key_access(text, node) {
+            if is_quoted_global_key_access(node) {
                 token_type = Some(M2SemanticTokenType::Property as u32);
             }
 
             if token_type.is_none() {
-                if let Some(role) = option_assignment_role(text, node, builtins) {
+                if let Some(role) = option_assignment_role(node, builtins) {
                     token_type = Some(role as u32);
                     modifiers |= OPTION_MODIFIER;
                 }
             }
 
             if token_type.is_none() {
-                if let Some(type_param_role) =
-                    method_installation_type_parameter(text, node, builtins)
-                {
+                if let Some(type_param_role) = method_installation_type_parameter(node, builtins) {
                     token_type = Some(type_param_role as u32);
                 }
             }
 
             if token_type.is_none() {
                 if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
-                    token_type =
-                        Some(local_symbol_semantic_token_type(symbol, position, builtins) as u32);
+                    token_type = Some(local_symbol_semantic_token_type(symbol, builtins) as u32);
                     if let Some(type_name) = &symbol.type_name {
                         if let Some(token) =
                             static_type_semantic_token_for_local_symbol(symbol, type_name, builtins)
@@ -128,34 +161,35 @@ pub(crate) fn collect_semantic_tokens(
             }
 
             if token_type.is_none()
-                && (!augments_syntax_tokens || should_emit_syntax_token_when_augmenting(text, node))
+                && (!augments_syntax_tokens
+                    || should_emit_syntax_token_when_augmenting(syntax_token_type))
             {
-                token_type =
-                    syntax_semantic_token_type(text, node).map(|token_type| token_type as u32);
+                token_type = syntax_token_type.map(|token_type| token_type as u32);
             }
 
             if let Some(token_type) = token_type {
-                let line = start_pos.row as u32;
-                let length = utf16_len_for_byte_span(text, start_byte, end_byte);
+                for (line, line_start_char, length) in
+                    token_line_spans(text, start_byte, end_byte, start_pos.row as u32, start_char)
+                {
+                    let delta_line = line - prev_line;
+                    let delta_start = if delta_line == 0 {
+                        line_start_char - prev_start
+                    } else {
+                        line_start_char
+                    };
 
-                let delta_line = line - prev_line;
-                let delta_start = if delta_line == 0 {
-                    start_char - prev_start
-                } else {
-                    start_char
-                };
+                    tokens.push(SemanticToken {
+                        delta_line,
+                        delta_start,
+                        length,
+                        token_type,
+                        token_modifiers_bitset: modifiers,
+                    });
 
-                tokens.push(SemanticToken {
-                    delta_line,
-                    delta_start,
-                    length,
-                    token_type,
-                    token_modifiers_bitset: modifiers,
-                });
-
-                prev_line = line;
-                prev_start = start_char;
-                emitted_token = true;
+                    prev_line = line;
+                    prev_start = line_start_char;
+                    emitted_token = true;
+                }
             }
         }
 
@@ -180,22 +214,26 @@ pub(crate) fn collect_semantic_tokens(
 }
 
 pub(crate) fn option_assignment_role(
-    text: &str,
     node: M2Node<'_>,
     builtins: &BuiltinData,
 ) -> Option<M2SemanticTokenType> {
     let parent = node.parent()?;
-    if !is_option_assignment_expression(parent.inner(), text) {
+    if !parent.is_option_assignment() {
         return None;
     }
 
-    let node_text = &text[node.start_byte()..node.end_byte()];
+    let node_text = node.text();
+    // The KEY of a `k => v` pair. A protected symbol key is a nominal enum
+    // member (`Strategy`, `Hilbert`); every other key — an unprotected symbol or
+    // a string used as a dictionary key — is a field/property.
     if parent
         .child_by_field_name("left")
         .is_some_and(|left| left.id() == node.id())
-        && builtins.is_option_name(node_text)
     {
-        return Some(M2SemanticTokenType::EnumMember);
+        if node.kind == NodeKind::Symbol && builtins.is_protected_symbol(node_text) {
+            return Some(M2SemanticTokenType::EnumMember);
+        }
+        return Some(M2SemanticTokenType::Property);
     }
 
     if parent
@@ -205,7 +243,7 @@ pub(crate) fn option_assignment_role(
         let option_key = parent
             .child_by_field_name("left")
             .filter(|left| left.kind.is_symbol_like())
-            .map(|left| &text[left.start_byte()..left.end_byte()])?;
+            .map(|left| left.text())?;
         if builtins.is_option_value_for_key(option_key, node_text) {
             return Some(M2SemanticTokenType::EnumMember);
         }
@@ -216,7 +254,6 @@ pub(crate) fn option_assignment_role(
 
 pub(crate) fn local_symbol_semantic_token_type(
     symbol: &SymbolInfo,
-    _position: Position,
     builtins: &BuiltinData,
 ) -> M2SemanticTokenType {
     if symbol.role == BindingRole::Parameter {
@@ -276,41 +313,31 @@ fn static_type_semantic_token_for_local_symbol(
     }
 }
 
-fn syntax_semantic_token_type(text: &str, node: M2Node<'_>) -> Option<M2SemanticTokenType> {
-    if is_cobinding_operator_node(node) {
-        return Some(M2SemanticTokenType::Modifier);
-    }
-
-    if is_operator_node(node.inner()) {
+fn syntax_semantic_token_type(node: M2Node<'_>) -> Option<M2SemanticTokenType> {
+    if node.is_operator() {
         return Some(M2SemanticTokenType::Operator);
     }
 
     match node.kind {
         NodeKind::IntegerLiteral | NodeKind::FloatLiteral => Some(M2SemanticTokenType::Number),
-        NodeKind::StringLiteral if is_regexp_string_argument(text, node) => {
+        NodeKind::StringLiteral if is_regexp_string_argument(node) => {
             Some(M2SemanticTokenType::Regexp)
         }
-        NodeKind::StringLiteral if is_namespace_string_argument(text, node) => {
+        NodeKind::StringLiteral if is_namespace_string_argument(node) => {
             Some(M2SemanticTokenType::Namespace)
         }
-        NodeKind::StringLiteral if is_hash_key_string(text, node) => {
-            Some(M2SemanticTokenType::Property)
-        }
+        NodeKind::StringLiteral if is_hash_key_string(node) => Some(M2SemanticTokenType::Property),
         NodeKind::StringLiteral => Some(M2SemanticTokenType::String),
         NodeKind::Comment => Some(M2SemanticTokenType::Comment),
-        _ if !node.is_named() && is_modifier_node_kind(node.raw_kind()) => {
-            Some(M2SemanticTokenType::Modifier)
-        }
-        _ if !node.is_named() && is_keyword_node_kind(node.raw_kind()) => {
-            Some(M2SemanticTokenType::Keyword)
-        }
+        _ if node.is_modifier_token() => Some(M2SemanticTokenType::Modifier),
+        _ if node.is_keyword_token() => Some(M2SemanticTokenType::Keyword),
         _ => None,
     }
 }
 
-fn should_emit_syntax_token_when_augmenting(text: &str, node: M2Node<'_>) -> bool {
+fn should_emit_syntax_token_when_augmenting(token_type: Option<M2SemanticTokenType>) -> bool {
     matches!(
-        syntax_semantic_token_type(text, node),
+        token_type,
         Some(M2SemanticTokenType::Modifier)
             | Some(M2SemanticTokenType::Regexp)
             | Some(M2SemanticTokenType::EnumMember)
@@ -334,70 +361,16 @@ fn should_emit_builtin_token_when_augmenting(token: &crate::typesystem::M2Semant
         || token.is_constructor
 }
 
-fn is_keyword_node_kind(kind: &str) -> bool {
-    matches!(
-        kind,
-        "if" | "then"
-            | "else"
-            | "from"
-            | "to"
-            | "when"
-            | "do"
-            | "in"
-            | "of"
-            | "list"
-            | "for"
-            | "while"
-            | "break"
-            | "continue"
-            | "return"
-            | "try"
-            | "catch"
-            | "throw"
-            | "time"
-            | "timing"
-            | "elapsedTime"
-            | "elapsedTiming"
-            | "profile"
-            | "shield"
-            | "TEST"
-            | "breakpoint"
-            | "new"
-    )
-}
-
-fn is_modifier_node_kind(kind: &str) -> bool {
-    matches!(
-        kind,
-        "global" | "local" | "symbol" | "threadVariable" | "threadLocal"
-    )
-}
-
-fn is_cobinding_operator_node(node: M2Node<'_>) -> bool {
-    let Some(parent) = node.parent() else {
-        return false;
-    };
-    matches!(
-        parent.kind,
-        NodeKind::Cobinding
-            | NodeKind::GlobalCobinding
-            | NodeKind::LocalCobinding
-            | NodeKind::ThreadCobinding
-    ) && parent
-        .child_by_field_name("operator")
-        .is_some_and(|operator| operator.id() == node.id())
-}
-
-fn is_regexp_string_argument(text: &str, node: M2Node<'_>) -> bool {
+fn is_regexp_string_argument(node: M2Node<'_>) -> bool {
     if node.kind != NodeKind::StringLiteral {
         return false;
     }
 
-    call_like_left_symbol_for_argument(text, node, false)
+    call_like_left_symbol_for_argument(node, false)
         .is_some_and(|name| matches!(name, "match" | "regex" | "select" | "replace" | "separate"))
 }
 
-fn is_namespace_string_argument(text: &str, node: M2Node<'_>) -> bool {
+fn is_namespace_string_argument(node: M2Node<'_>) -> bool {
     if node.kind != NodeKind::StringLiteral {
         return false;
     }
@@ -409,7 +382,7 @@ fn is_namespace_string_argument(text: &str, node: M2Node<'_>) -> bool {
     // `export {"foo"}` or the imported names in `importFrom("Pkg", {"foo"})` stay
     // plain strings. `export`/`exportMutable` are absent entirely: their arguments
     // name symbols defined in this package, not modules.
-    call_like_left_symbol_for_argument(text, node, false).is_some_and(|name| {
+    call_like_left_symbol_for_argument(node, false).is_some_and(|name| {
         matches!(
             name,
             "loadPackage"
@@ -429,21 +402,19 @@ fn is_namespace_string_argument(text: &str, node: M2Node<'_>) -> bool {
 /// operators (`h#"key"`, `h#?"key"`). The value on the right of `=>` keeps its
 /// own classification, and symbol keys to `#` stay value references (they are
 /// evaluated, not quoted).
-fn is_hash_key_string(text: &str, node: M2Node<'_>) -> bool {
+fn is_hash_key_string(node: M2Node<'_>) -> bool {
     if node.kind != NodeKind::StringLiteral {
         return false;
     }
     node.parent().is_some_and(|parent| {
-        let is_assignment_key = is_option_assignment_expression(parent.inner(), text)
+        let is_assignment_key = parent.is_option_assignment()
             && parent
                 .child_by_field_name("left")
                 .is_some_and(|left| left.id() == node.id());
-        let is_lookup_key = matches!(
-            binary_expression_operator(parent.inner(), text),
-            Some("#" | "#?")
-        ) && parent
-            .child_by_field_name("right")
-            .is_some_and(|right| right.id() == node.id());
+        let is_lookup_key = matches!(parent.binary_operator(), Some("#" | "#?"))
+            && parent
+                .child_by_field_name("right")
+                .is_some_and(|right| right.id() == node.id());
         is_assignment_key || is_lookup_key
     })
 }
@@ -451,32 +422,29 @@ fn is_hash_key_string(text: &str, node: M2Node<'_>) -> bool {
 /// A symbol read as a quoted global key: the right operand of the `.` or `.?`
 /// member operator (`R.name`, `R.?name`). M2 quotes the right side as a global
 /// symbol used as a hash key, so it is a property rather than a value reference.
-fn is_quoted_global_key_access(text: &str, node: M2Node<'_>) -> bool {
+fn is_quoted_global_key_access(node: M2Node<'_>) -> bool {
     if !node.kind.is_symbol_like() {
         return false;
     }
     node.parent().is_some_and(|parent| {
-        matches!(
-            binary_expression_operator(parent.inner(), text),
-            Some("." | ".?")
-        ) && parent
-            .child_by_field_name("right")
-            .is_some_and(|right| right.id() == node.id())
+        matches!(parent.binary_operator(), Some("." | ".?"))
+            && parent
+                .child_by_field_name("right")
+                .is_some_and(|right| right.id() == node.id())
     })
 }
 
-fn call_like_left_symbol_for_argument<'a>(
-    text: &'a str,
-    mut node: M2Node<'_>,
+fn call_like_left_symbol_for_argument<'tree>(
+    mut node: M2Node<'tree>,
     allow_list_argument: bool,
-) -> Option<&'a str> {
+) -> Option<&'tree str> {
     let mut parent = node.parent()?;
     if parent.kind == NodeKind::Sequence && !is_first_named_child(parent, node) {
         return None;
     }
 
     loop {
-        if let Some(name) = binary_expression_left_symbol(text, parent) {
+        if let Some(name) = binary_expression_left_symbol(parent) {
             return Some(name);
         }
 
@@ -499,8 +467,8 @@ fn call_like_left_symbol_for_argument<'a>(
     }
 }
 
-fn binary_expression_left_symbol<'a>(text: &'a str, node: M2Node<'_>) -> Option<&'a str> {
-    if !is_space_operator_expression(node.inner()) {
+fn binary_expression_left_symbol(node: M2Node<'_>) -> Option<&str> {
+    if !node.is_space_application() {
         return None;
     }
 
@@ -509,7 +477,7 @@ fn binary_expression_left_symbol<'a>(text: &'a str, node: M2Node<'_>) -> Option<
         return None;
     }
 
-    Some(&text[left.start_byte()..left.end_byte()])
+    Some(left.text())
 }
 
 fn is_first_named_child(parent: M2Node<'_>, child: M2Node<'_>) -> bool {
@@ -519,23 +487,21 @@ fn is_first_named_child(parent: M2Node<'_>, child: M2Node<'_>) -> bool {
 }
 
 fn method_installation_type_parameter(
-    text: &str,
     node: M2Node<'_>,
     builtins: &BuiltinData,
 ) -> Option<M2SemanticTokenType> {
-    let node_text = &text[node.start_byte()..node.end_byte()];
+    let node_text = node.text();
     let parent = node.parent()?;
 
-    if is_type_parameter_in_domain(node, parent, text) && is_known_type(builtins, node_text) {
+    if is_type_parameter_in_domain(parent) && is_known_type(builtins, node_text) {
         return Some(M2SemanticTokenType::Type);
     }
 
-    if is_type_parameter_in_lambda(node, parent, text) && is_known_type(builtins, node_text) {
+    if is_type_parameter_in_lambda(node, parent) && is_known_type(builtins, node_text) {
         return Some(M2SemanticTokenType::Type);
     }
 
-    if is_type_parameter_in_typical_value(node, parent, text) && is_known_type(builtins, node_text)
-    {
+    if is_type_parameter_in_typical_value(node, parent) && is_known_type(builtins, node_text) {
         return Some(M2SemanticTokenType::Type);
     }
 
@@ -551,7 +517,7 @@ fn is_known_type(builtins: &BuiltinData, name: &str) -> bool {
     })
 }
 
-fn is_type_parameter_in_domain(node: M2Node<'_>, mut ancestor: M2Node<'_>, text: &str) -> bool {
+fn is_type_parameter_in_domain(mut ancestor: M2Node<'_>) -> bool {
     // A domain type sits inside `(T1, T2)` (sequence) or, for a single-type domain
     // `f(T) := …`, a `parenthesized_expression`; climb through either.
     while matches!(
@@ -567,14 +533,11 @@ fn is_type_parameter_in_domain(node: M2Node<'_>, mut ancestor: M2Node<'_>, text:
     if ancestor.kind != NodeKind::BinaryExpression {
         return false;
     }
-    let op_text = match binary_expression_operator(ancestor.inner(), text) {
+    let op_text = match ancestor.binary_operator() {
         Some(op) => op,
         None => return false,
     };
     if matches!(op_text, "=" | ":=" | "<-" | "=>") {
-        return false;
-    }
-    if !node_is_within(ancestor.inner(), node.inner()) {
         return false;
     }
 
@@ -582,10 +545,10 @@ fn is_type_parameter_in_domain(node: M2Node<'_>, mut ancestor: M2Node<'_>, text:
         Some(gp) => gp,
         None => return false,
     };
-    if !is_assignment_expression(grandparent.inner(), text) {
+    if !grandparent.is_assignment() {
         return false;
     }
-    let assignment_op = match binary_expression_operator(grandparent.inner(), text) {
+    let assignment_op = match grandparent.binary_operator() {
         Some(op) => op,
         None => return false,
     };
@@ -598,7 +561,7 @@ fn is_type_parameter_in_domain(node: M2Node<'_>, mut ancestor: M2Node<'_>, text:
         .is_some_and(|left| left.id() == ancestor.id())
 }
 
-fn is_type_parameter_in_lambda(node: M2Node<'_>, lambda: M2Node<'_>, text: &str) -> bool {
+fn is_type_parameter_in_lambda(node: M2Node<'_>, lambda: M2Node<'_>) -> bool {
     if lambda.kind != NodeKind::LambdaExpression {
         return false;
     }
@@ -617,20 +580,20 @@ fn is_type_parameter_in_lambda(node: M2Node<'_>, lambda: M2Node<'_>, text: &str)
         };
 
         if parent.kind == NodeKind::BinaryExpression {
-            let op = binary_expression_operator(parent.inner(), text);
+            let op = parent.binary_operator();
             if matches!(op, Some("=" | ":=")) {
                 let lhs = match parent.child_by_field_name("left") {
                     Some(l) => l,
                     None => return false,
                 };
-                if !is_method_installation_lhs(lhs, text) {
+                if !is_method_installation_lhs(lhs) {
                     return false;
                 }
                 let rhs = match parent.child_by_field_name("right") {
                     Some(r) => r,
                     None => return false,
                 };
-                return node_is_within(rhs.inner(), lambda.inner());
+                return rhs.contains(lambda);
             }
             current = parent;
             continue;
@@ -639,22 +602,22 @@ fn is_type_parameter_in_lambda(node: M2Node<'_>, lambda: M2Node<'_>, text: &str)
     }
 }
 
-fn is_method_installation_lhs(node: M2Node<'_>, text: &str) -> bool {
+fn is_method_installation_lhs(node: M2Node<'_>) -> bool {
     if node.kind != NodeKind::BinaryExpression {
         return false;
     }
-    let op = match binary_expression_operator(node.inner(), text) {
+    let op = match node.binary_operator() {
         Some(op) => op,
         None => return false,
     };
     !matches!(op, "=" | ":=" | "<-" | "=>")
 }
 
-fn is_type_parameter_in_typical_value(node: M2Node<'_>, parent: M2Node<'_>, text: &str) -> bool {
+fn is_type_parameter_in_typical_value(node: M2Node<'_>, parent: M2Node<'_>) -> bool {
     if parent.kind != NodeKind::BinaryExpression {
         return false;
     }
-    if binary_expression_operator(parent.inner(), text) != Some("=>") {
+    if parent.binary_operator() != Some("=>") {
         return false;
     }
     if parent
@@ -672,20 +635,20 @@ fn is_type_parameter_in_typical_value(node: M2Node<'_>, parent: M2Node<'_>, text
         };
 
         if grandparent.kind == NodeKind::BinaryExpression {
-            let op = binary_expression_operator(grandparent.inner(), text);
+            let op = grandparent.binary_operator();
             if matches!(op, Some("=" | ":=")) {
                 let rhs = match grandparent.child_by_field_name("right") {
                     Some(r) => r,
                     None => return false,
                 };
-                if !node_is_within(rhs.inner(), parent.inner()) {
+                if !rhs.contains(parent) {
                     return false;
                 }
                 let lhs = match grandparent.child_by_field_name("left") {
                     Some(l) => l,
                     None => return false,
                 };
-                return is_method_installation_lhs(lhs, text);
+                return is_method_installation_lhs(lhs);
             }
             return false;
         }
@@ -720,6 +683,49 @@ mod tests {
             &uri,
             augments_syntax_tokens,
         )
+    }
+
+    #[test]
+    fn multi_line_string_token_is_split_per_line() {
+        // A raw string spans two lines. The LSP protocol forbids a token from
+        // crossing a line boundary, so it must be emitted as one token per line.
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let text = "x := ///alpha\nbeta///\n";
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        let line_lengths: Vec<u32> = text
+            .split('\n')
+            .map(|line| line.encode_utf16().count() as u32)
+            .collect();
+
+        // Decode the delta-encoded stream to absolute positions and assert every
+        // token fits within its own source line.
+        let mut line = 0u32;
+        let mut start = 0u32;
+        for token in &tokens {
+            if token.delta_line > 0 {
+                line += token.delta_line;
+                start = token.delta_start;
+            } else {
+                start += token.delta_start;
+            }
+            assert!(
+                start + token.length <= line_lengths[line as usize],
+                "token at line {line} col {start} len {} runs past the {}-wide line",
+                token.length,
+                line_lengths[line as usize]
+            );
+        }
+
+        let string_tokens = tokens
+            .iter()
+            .filter(|token| token.token_type == M2SemanticTokenType::String as u32)
+            .count();
+        assert!(
+            string_tokens >= 2,
+            "the two-line raw string must yield a token per line, got {string_tokens}"
+        );
     }
 
     #[test]
@@ -862,6 +868,28 @@ mod tests {
                 M2SemanticTokenType::Modifier as u32,
                 M2SemanticTokenType::Modifier as u32,
                 M2SemanticTokenType::Modifier as u32,
+            ]
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_classify_grammar_v3_debug_keywords() {
+        let text = "step 1\nfinish 2";
+        let builtins = BuiltinData::empty();
+        let document = document(text, &builtins);
+
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .collect::<Vec<_>>(),
+            vec![
+                M2SemanticTokenType::Keyword as u32,
+                M2SemanticTokenType::Number as u32,
+                M2SemanticTokenType::Keyword as u32,
+                M2SemanticTokenType::Number as u32,
             ]
         );
     }
@@ -1129,11 +1157,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         assert_eq!(
-            local_symbol_semantic_token_type(&symbol, Position::new(0, 5), &builtins),
-            M2SemanticTokenType::Parameter
-        );
-        assert_eq!(
-            local_symbol_semantic_token_type(&symbol, Position::new(0, 10), &builtins),
+            local_symbol_semantic_token_type(&symbol, &builtins),
             M2SemanticTokenType::Parameter
         );
     }
@@ -1191,54 +1215,33 @@ mod tests {
             .expect("toString should have builtin metadata");
 
         assert_eq!(token.token_type, M2SemanticTokenType::Method);
-        assert_eq!(
-            builtin_semantic_token_modifiers(&token) & CONSTRUCTOR_MODIFIER,
-            0
-        );
+        assert_eq!(builtin_semantic_token_modifiers(&token), 0);
     }
 
     #[test]
-    fn option_assignment_roles_require_metadata() {
-        let text = "f(x, notAnOption => notAnOptionValue)";
+    fn option_keys_classify_by_protected_symbol() {
+        // The key of a `k => v` pair is classified by whether it is a protected
+        // symbol: `Strategy` (a protected class-`Symbol` builtin) is a nominal
+        // enum member, while `myKey` (an unprotected user name) is a field. The
+        // value `7` is not a symbol, so it is not classified here.
+        let text = "f(x, Strategy => 4, myKey => 7)";
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let root = tree.root_node();
+        let root = M2Node::new(tree.root_node(), text);
 
         let mut roles = Vec::new();
-        let mut cursor = root.walk();
-        let mut reached_root = false;
-        while !reached_root {
-            let node = M2Node::new(cursor.node());
+        for node in root.descendants() {
             if node.kind == NodeKind::Symbol {
-                roles.push((
-                    &text[node.start_byte()..node.end_byte()],
-                    option_assignment_role(text, node, &builtins),
-                ));
-            }
-
-            if cursor.goto_first_child() {
-                continue;
-            }
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-            loop {
-                if !cursor.goto_parent() {
-                    reached_root = true;
-                    break;
-                }
-                if cursor.goto_next_sibling() {
-                    break;
-                }
+                roles.push((node.text(), option_assignment_role(node, &builtins)));
             }
         }
 
-        assert!(roles.contains(&("notAnOption", None)));
-        assert!(roles.contains(&("notAnOptionValue", None)));
+        assert!(roles.contains(&("Strategy", Some(M2SemanticTokenType::EnumMember))));
+        assert!(roles.contains(&("myKey", Some(M2SemanticTokenType::Property))));
     }
 
     #[test]
@@ -1248,7 +1251,6 @@ mod tests {
         assert_eq!(FILE_MODIFIER, 1 << 2);
         assert_eq!(MANIPULATOR_MODIFIER, 1 << 3);
         assert_eq!(DECLARATION_MODIFIER, 1 << 4);
-        assert_eq!(CONSTRUCTOR_MODIFIER, 1 << 5);
     }
 
     #[test]

@@ -7,8 +7,8 @@
 //! codomain means *unknown*, never `Thing`. See the `Static Typecheck Index`
 //! decision.
 
-// Forward-looking API: the lattice/signature queries are consumed by the type
-// propagation stage; allow the unused-method warnings until then.
+// The lattice/signature tables are consumed by `typesystem.rs`; some accessors
+// are exercised only by tests so far — allow the unused-method warnings.
 #![allow(dead_code)]
 
 use std::collections::HashMap;
@@ -59,6 +59,10 @@ pub struct ObjectEntry {
     pub aliases: Vec<String>,
     pub package: Option<String>,
     pub class: Option<String>,
+    /// Whether the symbol is `protect`ed (cannot be reassigned). `None` ⇒ the
+    /// corpus did not record it; consumers fall back to the class-is-`Symbol`
+    /// proxy so the absent-data case keeps today's behaviour.
+    pub protected: Option<bool>,
     /// Rendered hover markdown, folded into the record. `None` ⇒ undocumented.
     pub markdown: Option<String>,
 }
@@ -199,6 +203,7 @@ impl BuiltinIndex {
                         aliases: keys,
                         package: raw.package.as_deref().map(deref_ref),
                         class: raw.class.as_deref().map(deref_ref),
+                        protected: raw.protected,
                         markdown,
                     });
                 }
@@ -354,6 +359,8 @@ struct RawRecord {
     operator: Option<RawOperator>,
     #[serde(default)]
     default_loaded: Vec<String>,
+    #[serde(default)]
+    protected: Option<bool>,
     #[serde(default)]
     markdown: Option<String>,
 }

@@ -6,6 +6,8 @@ use tree_sitter::Parser;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::util::full_document_range;
 
+/// Formatting style derived from the client's `FormatOptions` (`tab_size` /
+/// `insert_spaces`): the indent unit used for every depth level.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatOptions {
     indent: String,
@@ -83,20 +85,34 @@ pub fn format_document_text(text: &str) -> String {
     format_document_text_with_options(text, &FormatOptions::default())
 }
 
+/// Format the whole document: whitespace normalization around operators and
+/// punctuation, then tree-derived re-indentation with `options`.
 pub fn format_document_text_with_options(text: &str, options: &FormatOptions) -> String {
     // Basic spacing only, and provably string/comment-safe: every edit either
     // adjusts whitespace adjacent to a real operator/punctuation node
     // (`normalize_whitespace`) or rebuilds a line's leading indentation
     // (`reindent_from_tree`). Neither rewrites token text, so string and comment
     // contents are never modified. No reflow/line-breaking, no byte-scanning.
+    let newline = detect_line_ending(text);
     let formatted = normalize_whitespace(text);
-    let mut formatted = reindent_from_tree(&formatted, options);
+    let mut formatted = reindent_from_tree(&formatted, options, newline);
 
     if text.ends_with('\n') {
-        formatted.push('\n');
+        formatted.push_str(newline);
     }
 
     formatted
+}
+
+/// The line terminator the document already uses, so re-indentation preserves it
+/// instead of silently rewriting every CRLF line ending to LF (the trap behind
+/// `str::lines()` + `join("\n")`). A document with any `\r\n` is treated as CRLF.
+fn detect_line_ending(text: &str) -> &'static str {
+    if text.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    }
 }
 
 /// Re-indent every line of already-normalized `text` from a fresh parse: parse #2
@@ -104,7 +120,7 @@ pub fn format_document_text_with_options(text: &str, options: &FormatOptions) ->
 /// leading whitespace is rebuilt as `options.indent.repeat(depth)` from the
 /// tree-derived depth; lines inside a multiline string/raw-string are emitted
 /// verbatim so their interior spacing is preserved.
-fn reindent_from_tree(text: &str, options: &FormatOptions) -> String {
+fn reindent_from_tree(text: &str, options: &FormatOptions, newline: &str) -> String {
     let layout = TreeIndentLayout::build(text);
     text.lines()
         .enumerate()
@@ -121,9 +137,10 @@ fn reindent_from_tree(text: &str, options: &FormatOptions) -> String {
             indented
         })
         .collect::<Vec<_>>()
-        .join("\n")
+        .join(newline)
 }
 
+/// The document's fold ranges, derived from tree-based indentation depths.
 pub fn folding_ranges_for_text(text: &str) -> Vec<FormatFoldRange> {
     let layout = TreeIndentLayout::build(text);
     let indented_lines = text
@@ -168,7 +185,7 @@ impl TreeIndentLayout {
             };
         };
 
-        let root = M2Node::new(tree.root_node());
+        let root = M2Node::new(tree.root_node(), text);
         let brackets = collect_bracket_groups(root, line_count);
         let literal_rows = collect_literal_rows(root, line_count);
         let line_leads = line_leading_blank(text, line_count);
@@ -176,7 +193,7 @@ impl TreeIndentLayout {
         let depths = (0..line_count)
             .map(|row| {
                 bracket_depth(row, &brackets, &line_leads)
-                    + line_continuation(row, root, text, &line_leads)
+                    + line_continuation(row, root, &line_leads)
             })
             .collect();
 
@@ -332,14 +349,14 @@ fn bracket_depth(row: usize, brackets: &[BracketGroup], line_leads: &[usize]) ->
 
 /// `continuation(row)` is a flat +1 for a line that continues an expression or a
 /// clause body broken onto a later line (see the rule cases inline).
-fn line_continuation(row: usize, root: M2Node<'_>, text: &str, line_leads: &[usize]) -> usize {
+fn line_continuation(row: usize, root: M2Node<'_>, line_leads: &[usize]) -> usize {
     let Some(first) = first_leaf_on_row(root, row) else {
         return 0;
     };
 
     // (a) The first token is the start of the right operand of a binary
     // expression whose operator dangled on an earlier row (`a +\nb`).
-    if is_right_operand_first_token(first, row, text) {
+    if is_right_operand_first_token(first, row) {
         return 1;
     }
 
@@ -352,7 +369,7 @@ fn line_continuation(row: usize, root: M2Node<'_>, text: &str, line_leads: &[usi
     // (c) The first token is an `else`/`then` keyword whose controlling `if` is
     // not standalone (a ternary `x := if … then\n … else …`); a standalone `if`
     // aligns its `else` via bracket_depth instead.
-    if is_dangling_clause_keyword(first, row, text, line_leads) {
+    if is_dangling_clause_keyword(first, row, line_leads) {
         return 1;
     }
 
@@ -383,7 +400,7 @@ fn first_leaf_on_row(root: M2Node<'_>, row: usize) -> Option<M2Node<'_>> {
 /// whose operator dangled on a row before `row`. Only spaced operators carry a
 /// continuation: a compact operator like `*` left at line end (`a*\nb`) does not
 /// indent its continuation, matching the line-final-operator spacing pass.
-fn is_right_operand_first_token(node: M2Node<'_>, row: usize, text: &str) -> bool {
+fn is_right_operand_first_token(node: M2Node<'_>, row: usize) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
         if parent.is(NodeKind::BinaryExpression) {
@@ -391,10 +408,9 @@ fn is_right_operand_first_token(node: M2Node<'_>, row: usize, text: &str) -> boo
                 parent.child_by_field_name("operator"),
                 parent.child_by_field_name("right"),
             ) {
-                let operator_text = &text[operator.start_byte()..operator.end_byte()];
                 if right.start_byte() == node.start_byte()
                     && operator.start_position().row < row
-                    && is_spaced_line_final_operator(operator_text)
+                    && is_spaced_line_final_operator(operator.text())
                 {
                     return true;
                 }
@@ -433,13 +449,8 @@ fn is_clause_body_first_token(node: M2Node<'_>, row: usize) -> bool {
 ///   * An orphaned keyword that tree-sitter, recovering a line-broken ternary,
 ///     demotes to a leading `symbol` with no enclosing `if` — always the
 ///     continuation of the ternary begun on an earlier line.
-fn is_dangling_clause_keyword(
-    node: M2Node<'_>,
-    row: usize,
-    text: &str,
-    line_leads: &[usize],
-) -> bool {
-    if !is_clause_keyword_leaf(node, text) {
+fn is_dangling_clause_keyword(node: M2Node<'_>, row: usize, line_leads: &[usize]) -> bool {
+    if !is_clause_keyword_leaf(node) {
         return false;
     }
     if node.start_position().row != row {
@@ -455,12 +466,11 @@ fn is_dangling_clause_keyword(
 /// keyword token kinds, but when a line-broken ternary is parsed the keyword is
 /// demoted to a bare `symbol`; since `else`/`then` are reserved words no real
 /// identifier carries that text, so a symbol spelled so is the misparsed keyword.
-fn is_clause_keyword_leaf(node: M2Node<'_>, text: &str) -> bool {
-    if matches!(node.raw_kind(), "then" | "else") {
+fn is_clause_keyword_leaf(node: M2Node<'_>) -> bool {
+    if node.is_then_or_else_keyword() {
         return true;
     }
-    node.is(NodeKind::Symbol)
-        && matches!(&text[node.start_byte()..node.end_byte()], "else" | "then")
+    node.is(NodeKind::Symbol) && matches!(node.text(), "else" | "then")
 }
 
 /// The nearest enclosing `if_statement` of a clause keyword, walking up through
@@ -484,6 +494,8 @@ fn if_statement_is_standalone(node: M2Node<'_>, line_leads: &[usize]) -> bool {
     line_leads.get(row).copied().unwrap_or(0) >= column
 }
 
+/// A foldable block of consecutive lines (0-based, both bounds inclusive as
+/// produced; the LSP conversion maps them onto `FoldingRange`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FormatFoldRange {
     pub start_line: u32,
@@ -555,15 +567,18 @@ fn close_fold_range(
 
 fn normalize_whitespace(text: &str) -> String {
     let mut parser = Parser::new();
-    parser
+    if parser
         .set_language(&tree_sitter_macaulay2::language())
-        .unwrap();
+        .is_err()
+    {
+        return text.to_string();
+    }
     let Some(tree) = parser.parse(text, None) else {
         return text.to_string();
     };
 
     let mut edits = Vec::new();
-    collect_format_edits(M2Node::new(tree.root_node()), text, &mut edits);
+    collect_format_edits(M2Node::new(tree.root_node(), text), text, &mut edits);
     apply_format_edits(text, edits)
 }
 
@@ -582,29 +597,36 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
         }
 
         if let Some(operator) = node.child_by_field_name("operator") {
-            let operator_text = &text[operator.start_byte()..operator.end_byte()];
             if is_parenthesized_call(node) {
                 // A call `f(...)` that is the head of a `:=` install reads as
                 // installation syntax, so it is spaced (`f (Types) := …`); an
                 // ordinary call is compacted (`f(x)`).
-                if is_method_installation_call_head(node, text) {
+                if is_method_installation_call_head(node) {
                     push_call_gap_whitespace_edit(node, text, edits, " ");
                 } else {
-                    push_call_whitespace_edits(node, text, edits);
+                    push_call_gap_whitespace_edit(node, text, edits, "");
                 }
-            } else if should_space_factor_operator_with_adjacency_factor(node, operator_text) {
-                push_operator_whitespace_edits(text, operator, edits);
-            } else if should_compact_prefix_operator(node.kind, operator_text) {
-                push_prefix_operator_whitespace_edits(text, operator, edits);
-            } else if should_compact_operator(node.kind, operator_text) {
-                push_compact_operator_whitespace_edits(text, operator, edits);
-            } else if should_space_operator(node.kind, operator_text) {
-                push_operator_whitespace_edits(text, operator, edits);
+            } else {
+                match operator_spacing(node.kind, operator.text()) {
+                    OperatorSpacing::Spaced => {
+                        push_operator_whitespace_edits(text, operator, edits)
+                    }
+                    OperatorSpacing::Compact => {
+                        push_compact_operator_whitespace_edits(text, operator, edits)
+                    }
+                    OperatorSpacing::Factor => {
+                        if binary_operator_all_factors(node) {
+                            push_compact_operator_whitespace_edits(text, operator, edits);
+                        } else {
+                            push_operator_whitespace_edits(text, operator, edits);
+                        }
+                    }
+                    OperatorSpacing::Prefix => {
+                        push_prefix_operator_whitespace_edits(text, operator, edits)
+                    }
+                    OperatorSpacing::None => {}
+                }
             }
-        }
-
-        if node.is(NodeKind::LambdaExpression) {
-            push_lambda_operator_whitespace_edits(node, text, edits);
         }
     }
 
@@ -613,60 +635,85 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
     }
 }
 
-fn should_space_operator(parent_kind: NodeKind, operator: &str) -> bool {
+/// Per-operator spacing rule. Single source of truth consumed by the spacing
+/// walk (`collect_format_edits`) and the indent continuation check
+/// (`is_right_operand_first_token`). Folding the previously separate
+/// `should_space_*`/`is_compact_*`/`is_spaced_line_final_*` tables into one
+/// place removes the drift risk where the spaced and line-final tables forgot
+/// to track each other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OperatorSpacing {
+    /// Always surround with a space on each side (`a + b`, `x := y`).
+    Spaced,
+    /// Always collapse adjacent whitespace (`x^y`, `a#b`).
+    Compact,
+    /// Factor operator (`*`, `/`, `%`, `**`): compact when both operands are
+    /// adjacent factors (`a*b*c`), spaced when a non-factor or continuation
+    /// needs air (`a * f(b)`).
+    Factor,
+    /// Unary prefix form (`-x`, `#x`): collapse only the trailing space.
+    Prefix,
+    /// Not a spacing-relevant operator; leave its surrounding whitespace as-is.
+    None,
+}
+
+/// Spacing rule for the operator `node` carries, keyed by the parent's kind so
+/// the same spelling can route differently in binary vs prefix context
+/// (`-` in `BinaryExpression` is `Spaced`, in `PrefixExpression` is `Prefix`).
+/// `LambdaExpression` shares the binary table: its `->` operator reads as a
+/// spaced binary operator.
+fn operator_spacing(parent_kind: NodeKind, operator: &str) -> OperatorSpacing {
     match parent_kind {
-        // Assignments (`=`, `:=`, `<-`), options (`=>`), and arrows (`->`) are all
-        // `binary_expression` in this grammar; their operators are listed below.
-        NodeKind::BinaryExpression => matches!(
-            operator,
-            "==" | "!="
-                | "==="
-                | "=!="
-                | "<<"
-                | "<"
-                | ">"
-                | "<="
-                | ">="
-                | "or"
-                | "??"
-                | "xor"
-                | "and"
-                | "||"
-                | "|"
-                | "^^"
-                | "&"
-                | "++"
-                | "+"
-                | "-"
-                | "⊠"
-                | "⧢"
-                | "\\"
-                | "\\\\"
-                | "%"
-                | "//"
-                | ":="
-                | "="
-                | "<-"
-                | "=>"
-                | "->"
-        ),
-        _ => false,
+        NodeKind::BinaryExpression | NodeKind::LambdaExpression => {
+            binary_operator_spacing(operator)
+        }
+        NodeKind::PrefixExpression => prefix_operator_spacing(operator),
+        _ => OperatorSpacing::None,
     }
 }
 
-fn should_compact_operator(parent_kind: NodeKind, operator: &str) -> bool {
-    parent_kind == NodeKind::BinaryExpression && is_compact_operator(operator)
-}
-
-fn is_compact_operator(operator: &str) -> bool {
-    matches!(
+fn binary_operator_spacing(operator: &str) -> OperatorSpacing {
+    // Factor operators participate in the adjacency rule before the static
+    // spaced/compact tables.
+    if matches!(operator, "*" | "/" | "%" | "**") {
+        return OperatorSpacing::Factor;
+    }
+    if matches!(
         operator,
-        "·" | "**"
-            | "⊠"
+        "==" | "!="
+            | "==="
+            | "=!="
+            | "<<"
+            | "<"
+            | ">"
+            | "<="
+            | ">="
+            | "or"
+            | "??"
+            | "xor"
+            | "and"
+            | "||"
+            | "|"
+            | "^^"
+            | "&"
+            | "++"
+            | "+"
+            | "-"
+            | "\\"
+            | "\\\\"
+            | ":="
+            | "="
+            | "<-"
+            | "=>"
+            | "->"
+            | "//"
+    ) {
+        return OperatorSpacing::Spaced;
+    }
+    if matches!(
+        operator,
+        "·" | "⊠"
             | "⧢"
-            | "%"
-            | "/"
-            | "*"
             | "@"
             | "@@"
             | "@@?"
@@ -684,66 +731,45 @@ fn is_compact_operator(operator: &str) -> bool {
             | "_>="
             | "#"
             | "#?"
-    )
+    ) {
+        return OperatorSpacing::Compact;
+    }
+    OperatorSpacing::None
 }
 
-fn should_compact_prefix_operator(parent_kind: NodeKind, operator: &str) -> bool {
-    parent_kind == NodeKind::PrefixExpression
-        && matches!(
-            operator,
-            "+" | "-"
-                | "*"
-                | "#"
-                | "<"
-                | "<="
-                | ">"
-                | ">="
-                | "?"
-                | "<<"
-                | "|-"
-                | "<==="
-                | "<=="
-                | "??"
-        )
+fn prefix_operator_spacing(operator: &str) -> OperatorSpacing {
+    if matches!(
+        operator,
+        "+" | "-" | "*" | "#" | "<" | "<=" | ">" | ">=" | "?" | "<<" | "|-" | "<===" | "<==" | "??"
+    ) {
+        return OperatorSpacing::Prefix;
+    }
+    OperatorSpacing::None
+}
+
+/// Whether a `Factor`-classified binary operator collapses to compact form:
+/// `true` iff both operands are adjacent factors (atoms or sub-expressions),
+/// in which case spacing (`a * b`) would visually break a tight product such as
+/// `2*x*y`. Otherwise a space is required to separate the operands.
+fn binary_operator_all_factors(node: M2Node<'_>) -> bool {
+    let Some(left) = node.child_by_field_name("left") else {
+        return false;
+    };
+    let Some(right) = node.child_by_field_name("right") else {
+        return false;
+    };
+    is_adjacent_factor(left) && is_adjacent_factor(right)
 }
 
 /// Whether `operator`, when it dangles at the end of a line, takes a trailing
-/// space and so signals that the following row is an indented continuation. Used
-/// by the tree-driven indenter to decide right-operand continuation indentation.
+/// space and so signals that the following row is an indented continuation.
+/// Used by the tree-driven indenter to decide right-operand indentation. The
+/// line-final set is exactly the binary operators classified `Spaced` above
+/// (Factor operators are excluded: a compact `*` left at line-end `a*\nb` does
+/// not indent). Derived from `binary_operator_spacing` so a new spaced operator
+/// cannot be added to one table and forgotten in the other.
 fn is_spaced_line_final_operator(operator: &str) -> bool {
-    matches!(
-        operator,
-        "==" | "!="
-            | "==="
-            | "=!="
-            | "<"
-            | ">"
-            | "<="
-            | ">="
-            | "or"
-            | "??"
-            | "xor"
-            | "and"
-            | "||"
-            | "|"
-            | "^^"
-            | "&"
-            | "++"
-            | "<<"
-            | "+"
-            | "-"
-            | "=>"
-            | "->"
-            | "="
-            | ":="
-            | "<-"
-            | "\\"
-            | "\\\\"
-            | "then"
-            | "else"
-            | "do"
-            | "list"
-    )
+    binary_operator_spacing(operator) == OperatorSpacing::Spaced
 }
 
 fn is_parenthesized_call(node: M2Node<'_>) -> bool {
@@ -770,7 +796,7 @@ fn is_parenthesized_call(node: M2Node<'_>) -> bool {
 /// Whether a parenthesized call `f(...)` is the head of a `:=` method install
 /// (`f(Types) := fn`) — i.e. it is the left operand of an enclosing `:=`. Such a
 /// head is installation syntax and is spaced rather than compacted.
-fn is_method_installation_call_head(node: M2Node<'_>, text: &str) -> bool {
+fn is_method_installation_call_head(node: M2Node<'_>) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
@@ -780,7 +806,7 @@ fn is_method_installation_call_head(node: M2Node<'_>, text: &str) -> bool {
     let Some(operator) = parent.child_by_field_name("operator") else {
         return false;
     };
-    if &text[operator.start_byte()..operator.end_byte()] != ":=" {
+    if operator.text() != ":=" {
         return false;
     }
     parent.child_by_field_name("left").is_some_and(|left| {
@@ -811,22 +837,6 @@ fn push_call_gap_whitespace_edit(
     });
 }
 
-fn should_space_factor_operator_with_adjacency_factor(
-    node: M2Node<'_>,
-    operator_text: &str,
-) -> bool {
-    if !matches!(operator_text, "*" | "/" | "%" | "**" | "//") {
-        return false;
-    }
-    let Some(left) = node.child_by_field_name("left") else {
-        return false;
-    };
-    let Some(right) = node.child_by_field_name("right") else {
-        return false;
-    };
-    !is_adjacent_factor(left) || !is_adjacent_factor(right)
-}
-
 fn is_adjacent_factor(node: M2Node<'_>) -> bool {
     matches!(
         node.kind,
@@ -843,36 +853,6 @@ fn is_adjacent_factor(node: M2Node<'_>) -> bool {
             | NodeKind::PostfixExpression
             | NodeKind::BinaryExpression
     )
-}
-
-fn push_call_whitespace_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit>) {
-    let Some(left) = node.child_by_field_name("left") else {
-        return;
-    };
-    let Some(right) = node.child_by_field_name("right") else {
-        return;
-    };
-    let gap = &text[left.end_byte()..right.start_byte()];
-    if !gap.bytes().all(|byte| matches!(byte, b' ' | b'\t')) {
-        return;
-    }
-
-    edits.push(FormatEdit {
-        start_byte: left.end_byte(),
-        end_byte: right.start_byte(),
-        replacement: "",
-    });
-}
-
-fn push_lambda_operator_whitespace_edits(
-    node: M2Node<'_>,
-    text: &str,
-    edits: &mut Vec<FormatEdit>,
-) {
-    let Some(operator) = node.child_by_field_name("operator") else {
-        return;
-    };
-    push_operator_whitespace_edits(text, operator, edits);
 }
 
 fn push_operator_whitespace_edits(text: &str, operator: M2Node<'_>, edits: &mut Vec<FormatEdit>) {
@@ -1198,6 +1178,18 @@ mod tests {
         assert_eq!(
             format_document_text("x=\"first\n  keep spaces  \nlast\"\ny=1\n"),
             "x = \"first\n  keep spaces  \nlast\"\ny = 1\n"
+        );
+    }
+
+    #[test]
+    fn preserves_crlf_line_endings() {
+        // A CRLF document must keep CRLF: the formatter must not silently rewrite
+        // every line ending to LF (which would churn the whole file on save).
+        assert_eq!(format_document_text("x=1\r\ny=2\r\n"), "x = 1\r\ny = 2\r\n");
+        // Verbatim multiline-string content keeps its CRLF too.
+        assert_eq!(
+            format_document_text("x=///\r\n  keep  \r\n///\r\n"),
+            "x = ///\r\n  keep  \r\n///\r\n"
         );
     }
 

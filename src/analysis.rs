@@ -6,7 +6,7 @@ use tree_sitter::Tree;
 use crate::diagnostic_registry::M2Diagnostic;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::typesystem::{BuiltinData, InstanceID};
-use crate::util::binary_expression_operator_kind;
+use crate::util::{node_position, position_in_range, to_lsp_range};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BindingRole {
@@ -463,6 +463,12 @@ impl Analysis {
         let symbol = self.registry.resolve_symbol(name)?;
         let mut curr = Some(scope_idx);
         while let Some(idx) = curr {
+            // In the use's own scope a binding governs only from its definition
+            // onward: a use textually before a local `:=` sees the outer binding,
+            // not the not-yet-declared local. Ancestor scopes are closures
+            // evaluated at call time, after the file is fully read, so a forward
+            // reference to an outer name defined later still resolves to it.
+            let constrain_to_prior = idx == scope_idx;
             let binding = self
                 .registry
                 .bindings_by_symbol
@@ -470,7 +476,9 @@ impl Analysis {
                 .into_iter()
                 .flatten()
                 .filter_map(|binding_idx| self.registry.bindings.get(*binding_idx))
-                .filter(|binding| binding.scope_idx == idx && binding.range.start <= pos)
+                .filter(|binding| {
+                    binding.scope_idx == idx && (!constrain_to_prior || binding.range.start <= pos)
+                })
                 .max_by_key(|binding| (binding.range.start.line, binding.range.start.character));
             if binding.is_some() {
                 return binding;
@@ -513,16 +521,12 @@ impl Analysis {
             .filter(|binding| matches!(binding.kind, SymbolKind::VARIABLE | SymbolKind::FUNCTION))
             .filter(|binding| {
                 let position = binding.range.end;
-                is_pos_in_range(position, range)
+                position_in_range(position, range)
             })
             .collect()
     }
 
     pub fn typed_expression_facts_in_range(&self, range: LspRange) -> Vec<&ExpressionFact> {
-        // Debugging readout: every expression fact carries an inferred type now
-        // (the floor is `Thing`), so we surface them all — literals, names,
-        // collections, operators, assignments, control forms — not just the
-        // `Expr` kind. This is intentionally maximal while we tune the rules.
         self.registry
             .expressions
             .values()
@@ -555,7 +559,7 @@ impl Analysis {
         let mut best_range: Option<LspRange> = None;
 
         for (idx, scope) in self.scopes.iter().enumerate() {
-            if is_pos_in_range(pos, scope.range) {
+            if position_in_range(pos, scope.range) {
                 match best_range {
                     None => {
                         best_idx = Some(idx);
@@ -600,13 +604,14 @@ impl Analysis {
         // Analysis-first: derive the semantic metadata (scopes, expression facts,
         // method installations) BEFORE running diagnostics, which are almost
         // entirely semantic and consume that metadata rather than re-deriving it.
-        analysis.build_scopes(M2Node::new(tree.root_node()), text, 0, builtins);
-        analysis.collect_expression_facts(M2Node::new(tree.root_node()), text, builtins);
-        analysis.collect_installations(M2Node::new(tree.root_node()), text, builtins);
+        let root = M2Node::new(tree.root_node(), text);
+        analysis.build_scopes(root, text, 0, builtins);
+        analysis.collect_expression_facts(root, text, builtins);
+        analysis.collect_installations(root, text, builtins);
         analysis.collect_installation_diagnostics(builtins);
-        analysis.collect_install_form_diagnostics(M2Node::new(tree.root_node()), text, builtins);
-        analysis.collect_diagnostics(tree.root_node(), text);
-        analysis.collect_unused_binding_diagnostics(tree.root_node(), text);
+        analysis.collect_install_form_diagnostics(root, text, builtins);
+        analysis.collect_diagnostics(root, text);
+        analysis.collect_unused_binding_diagnostics(root, text);
         analysis
     }
 
@@ -624,8 +629,7 @@ impl Analysis {
                 next_scope_idx = self.push_scope(node, text, Some(current_scope_idx));
 
                 if let Some(params_node) = node.child_by_field_name("parameters") {
-                    let parameter_types =
-                        method_installation_parameter_types_for_function(node, text);
+                    let parameter_types = method_installation_parameter_types_for_function(node);
                     self.collect_parameters(
                         params_node,
                         text,
@@ -634,13 +638,13 @@ impl Analysis {
                     );
                 }
             }
-            _ if is_assignment_expression(node, text) => {
+            _ if node.is_assignment() => {
                 let left = node.child_by_field_name("left");
                 let op = node.child_by_field_name("operator");
                 let right = node.child_by_field_name("right");
 
                 if let (Some(left), Some(op)) = (left, op) {
-                    let op_text = &text[op.start_byte()..op.end_byte()];
+                    let op_text = op.text();
                     if op_text == ":=" {
                         self.collect_local_method_installation(left, right, text, builtins);
                     }
@@ -648,13 +652,18 @@ impl Analysis {
                         Some(right) if right.kind == NodeKind::LambdaExpression => {
                             SymbolKind::FUNCTION
                         }
-                        Some(right) if method_declaration_typical_value(right, text).is_some() => {
+                        Some(right)
+                            if method_declaration_typical_value(right).is_some()
+                                || is_method_call(right) =>
+                        {
                             SymbolKind::FUNCTION
                         }
                         _ => SymbolKind::VARIABLE,
                     };
                     let type_name = right.and_then(|right| {
-                        if method_declaration_typical_value(right, text).is_some() {
+                        if method_declaration_typical_value(right).is_some()
+                            || is_method_call(right)
+                        {
                             Some("MethodFunction".to_string())
                         } else {
                             self.type_of(right, text, current_scope_idx, builtins)
@@ -663,9 +672,9 @@ impl Analysis {
                     });
 
                     if let (Some(right), Some(name)) =
-                        (right, single_symbol_assignment_target(left, text))
+                        (right, single_symbol_assignment_target(left))
                     {
-                        if let Some(typical_value) = method_declaration_typical_value(right, text) {
+                        if let Some(typical_value) = method_declaration_typical_value(right) {
                             self.record_local_method_declaration(name, typical_value, left, text);
                         } else if right.kind == NodeKind::LambdaExpression {
                             if let Some(dispatch) = function_dispatch(right) {
@@ -727,7 +736,7 @@ impl Analysis {
     /// `self.installations`. This is the only place the install-vs-call decision
     /// is made; capabilities read the result.
     fn collect_installations(&mut self, node: M2Node, text: &str, builtins: Option<&BuiltinData>) {
-        if is_assignment_expression(node, text) {
+        if node.is_assignment() {
             if let Some(installation) = self.classify_installation(node, text, builtins) {
                 self.installations.push(installation);
             }
@@ -756,12 +765,12 @@ impl Analysis {
         text: &str,
         builtins: Option<&BuiltinData>,
     ) -> Option<M2Node<'tree>> {
-        if !is_assignment_expression(node, text) {
+        if !node.is_assignment() {
             return None;
         }
         self.classify_installation(node, text, builtins)?;
         let right = node.child_by_field_name("right")?;
-        Some(if is_option_assignment_expression(right, text) {
+        Some(if right.is_option_assignment() {
             right.child_by_field_name("right").unwrap_or(right)
         } else {
             right
@@ -784,9 +793,9 @@ impl Analysis {
         text: &str,
         builtins: Option<&BuiltinData>,
     ) -> Option<MethodInstallation> {
-        let operator = binary_expression_operator(node, text)?;
+        let operator = node.binary_operator()?;
         let left = node.child_by_field_name("left")?;
-        let (head, domain) = self.installation_shape(left, text, builtins)?;
+        let (head, domain) = self.installation_shape(left, builtins)?;
         let range = to_lsp_range(text, node.range());
         // The RHS function shape, read once here so the arity diagnostic need not
         // re-walk the tree. Only a plain lambda RHS carries a checkable arity.
@@ -832,31 +841,30 @@ impl Analysis {
     fn installation_shape(
         &self,
         node: M2Node,
-        text: &str,
         builtins: Option<&BuiltinData>,
     ) -> Option<(MethodHead, Vec<TypeRef>)> {
         // A parenthesized expression is identified with its inner value, so
         // `(T op S) := f` installs exactly like `T op S := f`. The value is the
-        // final expression; a trailing `;` (only silenced expressions) makes the
-        // value null, which is not an installation target.
+        // final expression; a trailing `;` makes the value null, which is not an
+        // installation target.
         if node.kind == NodeKind::ParenthesizedExpression {
-            let inner = node.named_children().last()?;
-            if inner.kind == NodeKind::SilencedExpression {
+            if node.has_trailing_semicolon() {
                 return None;
             }
-            return self.installation_shape(inner, text, builtins);
+            let inner = node.named_children().last()?;
+            return self.installation_shape(inner, builtins);
         }
         match node.kind {
             NodeKind::BinaryExpression => {
                 let left = node.child_by_field_name("left")?;
                 let right = node.child_by_field_name("right")?;
-                if is_space_operator_expression(node) {
+                if node.is_space_application() {
                     // `A B` (juxtaposition = the SPACE operator): a method on the
                     // named function `A` when `A` is a function, or a SPACE
                     // operator method on the type pair when `A` is a type.
-                    let left_name = symbol_node_text(left, text)?;
+                    let left_name = symbol_node_text(left)?;
                     if self.operand_is_type(left_name, builtins) {
-                        let right_name = symbol_node_text(right, text)?;
+                        let right_name = symbol_node_text(right)?;
                         Some((
                             MethodHead::Operator(Operator {
                                 token: SPACE_OPERATOR.to_string(),
@@ -867,7 +875,7 @@ impl Analysis {
                     } else {
                         Some((
                             MethodHead::Function(left_name.to_string()),
-                            method_installation_domain(right, text)?
+                            method_installation_domain(right)?
                                 .into_iter()
                                 .map(TypeRef::new)
                                 .collect(),
@@ -875,7 +883,7 @@ impl Analysis {
                     }
                 } else {
                     // `X op Y`: an explicit binary-operator method.
-                    let operator = binary_expression_operator(node, text)?;
+                    let operator = node.binary_operator()?;
                     if matches!(operator, "=" | ":=" | "<-" | "=>") {
                         return None;
                     }
@@ -885,30 +893,28 @@ impl Analysis {
                             fixity: Fixity::Binary,
                         }),
                         vec![
-                            TypeRef::new(symbol_node_text(left, text)?),
-                            TypeRef::new(symbol_node_text(right, text)?),
+                            TypeRef::new(symbol_node_text(left)?),
+                            TypeRef::new(symbol_node_text(right)?),
                         ],
                     ))
                 }
             }
             NodeKind::PrefixExpression => Some((
                 MethodHead::Operator(Operator {
-                    token: operator_text(node, text)?.to_string(),
+                    token: operator_text(node)?.to_string(),
                     fixity: Fixity::Prefix,
                 }),
                 vec![TypeRef::new(symbol_node_text(
                     node.child_by_field_name("operand")?,
-                    text,
                 )?)],
             )),
             NodeKind::PostfixExpression => Some((
                 MethodHead::Operator(Operator {
-                    token: operator_text(node, text)?.to_string(),
+                    token: operator_text(node)?.to_string(),
                     fixity: Fixity::Postfix,
                 }),
                 vec![TypeRef::new(symbol_node_text(
                     node.child_by_field_name("operand")?,
-                    text,
                 )?)],
             )),
             _ => None,
@@ -985,7 +991,7 @@ impl Analysis {
         builtins: Option<&BuiltinData>,
         out: &mut Vec<Diagnostic>,
     ) {
-        if let Some(name) = self.illegal_equals_install_head(node, text, builtins) {
+        if let Some(name) = self.illegal_equals_install_head(node, builtins) {
             out.push(M2Diagnostic::InstallNeedsColonEquals.at(
                 to_lsp_range(text, node.range()),
                 format!(
@@ -1006,12 +1012,9 @@ impl Analysis {
     fn illegal_equals_install_head(
         &self,
         node: M2Node,
-        text: &str,
         builtins: Option<&BuiltinData>,
     ) -> Option<String> {
-        if !is_assignment_expression(node, text)
-            || binary_expression_operator(node, text) != Some("=")
-        {
+        if !node.is_assignment() || node.binary_operator() != Some("=") {
             return None;
         }
         let right = node.child_by_field_name("right")?;
@@ -1019,7 +1022,7 @@ impl Analysis {
             return None;
         }
         let left = node.child_by_field_name("left")?;
-        let (MethodHead::Function(name), _) = self.installation_shape(left, text, builtins)? else {
+        let (MethodHead::Function(name), _) = self.installation_shape(left, builtins)? else {
             return None;
         };
         // M2 rejects `f Domain = fn` for ANY function head, method function or
@@ -1143,7 +1146,7 @@ impl Analysis {
         collect_parameter_nodes(node, &mut parameter_nodes);
         let typed_parameters = parameter_types.filter(|types| types.len() == parameter_nodes.len());
         for (idx, parameter_node) in parameter_nodes.into_iter().enumerate() {
-            let name = &text[parameter_node.start_byte()..parameter_node.end_byte()];
+            let name = parameter_node.text();
             let type_name = typed_parameters
                 .and_then(|types| types.get(idx))
                 .map(String::as_str);
@@ -1172,7 +1175,7 @@ impl Analysis {
     ) {
         match node.kind {
             NodeKind::Symbol => {
-                let name = &text[node.start_byte()..node.end_byte()];
+                let name = node.text();
                 match definition_scope {
                     DefinitionScope::Local => self.add_symbol(
                         name,
@@ -1267,8 +1270,8 @@ impl Analysis {
         node: M2Node,
         text: &str,
     ) -> Option<(&'a FunctionInfo, &'a MethodInfo)> {
-        let installation = method_installation_expression_for_callable_node(node, text)?;
-        let (name, domain) = method_installation_signature(installation, text)?;
+        let installation = method_installation_expression_for_callable_node(node)?;
+        let (name, domain) = method_installation_signature(installation)?;
         let symbol = self.registry.resolve_symbol(&name)?;
         let method = self.registry.functions.get(&symbol)?;
         let installation_range = to_lsp_range(text, installation.range());
@@ -1366,7 +1369,7 @@ impl Analysis {
         text: &str,
         builtins: Option<&BuiltinData>,
     ) {
-        let Some((name, domain)) = method_installation_signature(node, text) else {
+        let Some((name, domain)) = method_installation_signature(node) else {
             return;
         };
         // An install on a non-method-function compiles but has no effect, so it
@@ -1388,7 +1391,7 @@ impl Analysis {
                 dispatch: None,
             });
         let codomain = right
-            .and_then(|right| explicit_method_installation_codomain(right, text))
+            .and_then(explicit_method_installation_codomain)
             .or_else(|| method.typical_value.clone());
         method.methods.push(MethodInfo {
             domain: domain.clone(),
@@ -1443,7 +1446,7 @@ impl Analysis {
         // function and descend only into the function body, so the install syntax
         // (the LHS and the `Codomain =>` wrapper) gets no misleading value hints.
         if let Some(function) = self.installed_function(node, text, builtins) {
-            if let Some(kind) = expression_kind(node, text) {
+            if let Some(kind) = expression_kind(node) {
                 let result_type = self.type_of(function, text, scope_idx, builtins);
                 self.registry.expressions.insert(
                     key.clone(),
@@ -1461,13 +1464,13 @@ impl Analysis {
             return;
         }
 
-        if let Some(kind) = expression_kind(node, text) {
+        if let Some(kind) = expression_kind(node) {
             let result_type = self.type_of(node, text, scope_idx, builtins);
             let input_nodes = expression_inputs(node)
                 .into_iter()
                 .map(|child| SpanKey::from_node(text, child))
                 .collect();
-            let operator = expression_operator_text(node, text).map(ToString::to_string);
+            let operator = expression_operator_text(node).map(ToString::to_string);
             self.registry.expressions.insert(
                 key.clone(),
                 ExpressionFact {
@@ -1508,14 +1511,14 @@ impl Analysis {
             return None;
         }
 
-        if is_assignment_expression(node, text) || is_option_assignment_expression(node, text) {
+        if node.is_assignment() || node.is_option_assignment() {
             return None;
         }
 
-        if is_space_operator_expression(node) {
+        if node.is_space_application() {
             let callable = node.child_by_field_name("left")?;
             let argument = node.child_by_field_name("right")?;
-            let callable_name = symbol_node_text(callable, text).map(ToString::to_string);
+            let callable_name = symbol_node_text(callable).map(ToString::to_string);
             let facts = self.infer_call_facts(argument, text, scope_idx, builtins);
             let candidate_methods = callable_name
                 .as_deref()
@@ -1545,7 +1548,7 @@ impl Analysis {
             });
         }
 
-        let operator = expression_operator_text(node, text)?;
+        let operator = expression_operator_text(node)?;
         let left = node.child_by_field_name("left");
         let right = node.child_by_field_name("right");
         let operand = node.child_by_field_name("operand");
@@ -1588,7 +1591,7 @@ impl Analysis {
             // (a `FunctionClosure` is not a method function).
             NodeKind::LambdaExpression => InferredType::of("FunctionClosure"),
             NodeKind::BinaryExpression
-                if method_declaration_typical_value(node, text).is_some() =>
+                if method_declaration_typical_value(node).is_some() || is_method_call(node) =>
             {
                 InferredType::of("MethodFunction")
             }
@@ -1607,21 +1610,18 @@ impl Analysis {
             NodeKind::StringLiteral => InferredType::of("String"),
             NodeKind::IntegerLiteral => InferredType::of("ZZ"),
             NodeKind::FloatLiteral => InferredType::of("RR"),
-            // A cobinding (`symbol +`, `local x`, `global y`, `threadLocal z`)
-            // evaluates to the Symbol it names.
-            NodeKind::Cobinding
-            | NodeKind::LocalCobinding
-            | NodeKind::GlobalCobinding
-            | NodeKind::ThreadCobinding => InferredType::of("Symbol"),
+            // A quote expression (`symbol +`, `local x`, `global y`,
+            // `threadLocal z`) evaluates to the Symbol it names.
+            NodeKind::QuoteExpression => InferredType::of("Symbol"),
             NodeKind::Symbol => self.symbol_type(node, text, scope_idx, builtins),
             // An assignment evaluates to its right-hand side: `a = b` / `a := b`
             // (and destructuring `{x,y} := …`) take the type of the RHS.
-            _ if is_assignment_expression(node, text) => match node.child_by_field_name("right") {
+            _ if node.is_assignment() => match node.child_by_field_name("right") {
                 Some(right) => self.type_of(right, text, scope_idx, builtins),
                 None => InferredType::unknown(),
             },
             // `x => y` builds an `Option` object, whatever the operand types.
-            _ if is_option_assignment_expression(node, text) => InferredType::of("Option"),
+            _ if node.is_option_assignment() => InferredType::of("Option"),
             NodeKind::BinaryExpression => {
                 self.binary_expression_type(node, text, scope_idx, builtins)
             }
@@ -1631,9 +1631,7 @@ impl Analysis {
             NodeKind::NewStatement => node
                 .child_by_field_name("type")
                 .filter(|type_node| type_node.kind == NodeKind::Symbol)
-                .map(|type_node| {
-                    InferredType::of(&text[type_node.start_byte()..type_node.end_byte()])
-                })
+                .map(|type_node| InferredType::of(type_node.text()))
                 .unwrap_or_else(InferredType::unknown),
             // `if c then A [else B]` is whichever branch runs; with no `else`,
             // a false condition yields `null` (`Nothing`). The static type is the
@@ -1748,7 +1746,7 @@ impl Analysis {
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) -> InferredType {
-        let name = &text[node.start_byte()..node.end_byte()];
+        let name = node.text();
         if let Some(symbol) =
             self.lookup_symbol_from_scope(name, scope_idx, node_position(text, node))
         {
@@ -1794,11 +1792,11 @@ impl Analysis {
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) -> InferredType {
-        if is_space_operator_expression(node) {
+        if node.is_space_application() {
             return self.application_type(node, text, scope_idx, builtins);
         }
 
-        let operator = binary_expression_operator(node, text);
+        let operator = node.binary_operator();
         let left = node.child_by_field_name("left");
         let right = node.child_by_field_name("right");
 
@@ -1864,7 +1862,7 @@ impl Analysis {
             return InferredType::unknown();
         };
         let call_facts = self.infer_call_facts(argument_node, text, scope_idx, builtins);
-        let callable_name = symbol_node_text(callable_node, text);
+        let callable_name = symbol_node_text(callable_node);
 
         // A locally-defined function is known to be a function from the registry
         // alone, so its application resolves without the builtin lattice: its
@@ -1933,7 +1931,7 @@ impl Analysis {
     ) -> InferredType {
         let (Some(builtins), Some(operator), Some(operand)) = (
             builtins,
-            operator_text(node, text),
+            operator_text(node),
             node.child_by_field_name("operand"),
         ) else {
             return InferredType::unknown();
@@ -1977,7 +1975,7 @@ impl Analysis {
         if node.kind == NodeKind::Sequence {
             let mut facts = CallStaticFacts::default();
             for child in node.named_children() {
-                if let Some(option) = literal_option_assignment(child, text) {
+                if let Some(option) = literal_option_assignment(child) {
                     facts.literal_options.push(option);
                 } else {
                     facts
@@ -1988,7 +1986,7 @@ impl Analysis {
             return facts;
         }
 
-        if let Some(option) = literal_option_assignment(node, text) {
+        if let Some(option) = literal_option_assignment(node) {
             return CallStaticFacts {
                 argument_types: Vec::new(),
                 literal_options: vec![option],
@@ -2107,7 +2105,7 @@ struct SymbolRegistration<'a> {
     scope_idx: usize,
 }
 
-fn expression_kind(node: M2Node<'_>, text: &str) -> Option<ExpressionKind> {
+fn expression_kind(node: M2Node<'_>) -> Option<ExpressionKind> {
     match node.kind {
         NodeKind::StringLiteral | NodeKind::IntegerLiteral | NodeKind::FloatLiteral => {
             Some(ExpressionKind::Literal)
@@ -2120,9 +2118,7 @@ fn expression_kind(node: M2Node<'_>, text: &str) -> Option<ExpressionKind> {
         | NodeKind::Cell => Some(ExpressionKind::ScopeExpr),
         // A parenthesized expression is its inner value, so it takes the inner
         // value's kind (`(a+b)` is an `Expr`, `(x)` a `Name`); a null `(a;)` skips.
-        NodeKind::ParenthesizedExpression => {
-            parenthesized_value(node).and_then(|inner| expression_kind(inner, text))
-        }
+        NodeKind::ParenthesizedExpression => parenthesized_value(node).and_then(expression_kind),
         NodeKind::IfStatement
         | NodeKind::WhileStatement
         | NodeKind::ForStatement
@@ -2136,7 +2132,7 @@ fn expression_kind(node: M2Node<'_>, text: &str) -> Option<ExpressionKind> {
         | NodeKind::BinaryExpression
         | NodeKind::PrefixExpression
         | NodeKind::PostfixExpression => {
-            if is_assignment_expression(node, text) {
+            if node.is_assignment() {
                 Some(ExpressionKind::Assign)
             } else {
                 Some(ExpressionKind::Expr)
@@ -2160,9 +2156,9 @@ fn expression_inputs(node: M2Node<'_>) -> Vec<M2Node<'_>> {
     .collect()
 }
 
-fn expression_operator_text<'a>(node: M2Node<'_>, text: &'a str) -> Option<&'a str> {
+fn expression_operator_text(node: M2Node<'_>) -> Option<&str> {
     node.child_by_field_name("operator")
-        .map(|operator| &text[operator.start_byte()..operator.end_byte()])
+        .map(|operator| operator.text())
 }
 
 fn collect_parameter_nodes<'tree>(node: M2Node<'tree>, parameters: &mut Vec<M2Node<'tree>>) {
@@ -2179,81 +2175,64 @@ fn collect_parameter_nodes<'tree>(node: M2Node<'tree>, parameters: &mut Vec<M2No
     }
 }
 
-fn single_symbol_assignment_target<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
-    (node.kind == NodeKind::Symbol).then(|| &text[node.start_byte()..node.end_byte()])
+fn single_symbol_assignment_target<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
+    (node.kind == NodeKind::Symbol).then(|| node.text())
 }
 
-pub(crate) fn binary_expression_operator<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
-    if node.kind != NodeKind::BinaryExpression {
-        return None;
-    }
-
-    node.child_by_field_name("operator")
-        .map(|operator| &text[operator.start_byte()..operator.end_byte()])
+pub(crate) fn symbol_node_text<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
+    node.kind.is_symbol_like().then(|| node.text())
 }
 
-pub(crate) fn is_space_operator_expression(node: M2Node<'_>) -> bool {
-    node.kind == NodeKind::BinaryExpression
-        && binary_expression_operator_kind(node.inner()) == Some("SPACE")
-}
-
-pub(crate) fn is_assignment_expression(node: M2Node<'_>, text: &str) -> bool {
-    node.kind == NodeKind::BinaryExpression
-        && matches!(
-            binary_expression_operator(node, text),
-            Some("=" | ":=" | "<-")
-        )
-}
-
-pub(crate) fn is_option_assignment_expression(node: M2Node<'_>, text: &str) -> bool {
-    node.kind == NodeKind::BinaryExpression && binary_expression_operator(node, text) == Some("=>")
-}
-
-pub(crate) fn symbol_node_text<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
-    node.kind
-        .is_symbol_like()
-        .then(|| &text[node.start_byte()..node.end_byte()])
-}
-
-fn method_declaration_typical_value(node: M2Node, text: &str) -> Option<Option<String>> {
-    if !is_space_operator_expression(node) {
+fn method_declaration_typical_value(node: M2Node) -> Option<Option<String>> {
+    if !node.is_space_application() {
         return None;
     }
 
     let left = node.child_by_field_name("left")?;
-    if symbol_node_text(left, text) != Some("method") {
+    if symbol_node_text(left) != Some("method") {
         return None;
     }
 
-    Some(find_option_value(node, text, "TypicalValue"))
+    Some(find_option_value(node, "TypicalValue"))
 }
 
-fn find_option_value(node: M2Node, text: &str, option_name: &str) -> Option<String> {
-    if is_option_assignment_expression(node, text) {
+/// Check if a binary expression is a call to the `method` function, catching
+/// cases where the tree structure doesn't perfectly match a space_application.
+fn is_method_call(node: M2Node) -> bool {
+    if node.kind != NodeKind::BinaryExpression {
+        return false;
+    }
+    node.child_by_field_name("left")
+        .and_then(|left| symbol_node_text(left))
+        == Some("method")
+}
+
+fn find_option_value(node: M2Node, option_name: &str) -> Option<String> {
+    if node.is_option_assignment() {
         let left = node.child_by_field_name("left")?;
         let right = node.child_by_field_name("right")?;
-        if symbol_node_text(left, text) == Some(option_name) {
-            return symbol_node_text(right, text).map(ToString::to_string);
+        if symbol_node_text(left) == Some(option_name) {
+            return symbol_node_text(right).map(ToString::to_string);
         }
     }
 
     for child in node.named_children() {
-        if let Some(value) = find_option_value(child, text, option_name) {
+        if let Some(value) = find_option_value(child, option_name) {
             return Some(value);
         }
     }
     None
 }
 
-fn literal_option_assignment(node: M2Node, text: &str) -> Option<(String, String)> {
-    if !is_option_assignment_expression(node, text) {
+fn literal_option_assignment(node: M2Node) -> Option<(String, String)> {
+    if !node.is_option_assignment() {
         return None;
     }
 
     let left = node.child_by_field_name("left")?;
     let right = node.child_by_field_name("right")?;
-    let key = symbol_node_text(left, text)?;
-    let value = literal_option_value(right, text)?;
+    let key = symbol_node_text(left)?;
+    let value = literal_option_value(right)?;
     Some((key.to_string(), value.to_string()))
 }
 
@@ -2268,27 +2247,27 @@ fn enclosing_definition_range(node: M2Node<'_>, text: &str) -> LspRange {
     to_lsp_range(text, node.range())
 }
 
-fn literal_option_value<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
+fn literal_option_value(node: M2Node<'_>) -> Option<&str> {
     if node.kind.is_symbol_like() || node.kind.is_literal() {
-        Some(&text[node.start_byte()..node.end_byte()])
+        Some(node.text())
     } else {
         None
     }
 }
 
-fn explicit_method_installation_codomain(node: M2Node, text: &str) -> Option<String> {
-    if !is_option_assignment_expression(node, text) {
+fn explicit_method_installation_codomain(node: M2Node) -> Option<String> {
+    if !node.is_option_assignment() {
         return None;
     }
 
     let codomain = node.child_by_field_name("left")?;
-    symbol_node_text(codomain, text).map(ToString::to_string)
+    symbol_node_text(codomain).map(ToString::to_string)
 }
 
 /// The operator token of a prefix/postfix expression, e.g. `-` in `-X` / `X-`.
-fn operator_text<'a>(node: M2Node, text: &'a str) -> Option<&'a str> {
+fn operator_text(node: M2Node<'_>) -> Option<&str> {
     let operator = node.child_by_field_name("operator")?;
-    Some(&text[operator.start_byte()..operator.end_byte()])
+    Some(operator.text())
 }
 
 /// Whether `type_name` (an inferred static class or a referenced name) denotes a
@@ -2301,42 +2280,36 @@ fn type_name_denotes_type(type_name: &str, builtins: Option<&BuiltinData>) -> bo
         })
 }
 
-pub(crate) fn method_installation_signature(
-    node: M2Node,
-    text: &str,
-) -> Option<(String, Vec<String>)> {
-    if !is_space_operator_expression(node) {
+pub(crate) fn method_installation_signature(node: M2Node) -> Option<(String, Vec<String>)> {
+    if !node.is_space_application() {
         return None;
     }
 
     let callable = node.child_by_field_name("left")?;
     let arguments = node.child_by_field_name("right")?;
-    let callable = symbol_node_text(callable, text)?;
-    let domain = method_installation_domain(arguments, text)?;
+    let callable = symbol_node_text(callable)?;
+    let domain = method_installation_domain(arguments)?;
     Some((callable.to_string(), domain))
 }
 
-fn method_installation_parameter_types_for_function(
-    function_node: M2Node,
-    text: &str,
-) -> Option<Vec<String>> {
+fn method_installation_parameter_types_for_function(function_node: M2Node) -> Option<Vec<String>> {
     let mut current = function_node;
     while let Some(parent) = current.parent() {
         if parent.kind == NodeKind::LambdaExpression {
             return None;
         }
 
-        if is_assignment_expression(parent, text) {
+        if parent.is_assignment() {
             let left = parent.child_by_field_name("left")?;
             let right = parent.child_by_field_name("right")?;
             let operator = parent.child_by_field_name("operator")?;
-            if &text[operator.start_byte()..operator.end_byte()] != ":=" {
+            if operator.text() != ":=" {
                 return None;
             }
-            if !node_is_within(right, function_node) {
+            if !right.contains(function_node) {
                 return None;
             }
-            return method_installation_signature(left, text).map(|(_, domain)| domain);
+            return method_installation_signature(left).map(|(_, domain)| domain);
         }
 
         current = parent;
@@ -2347,22 +2320,21 @@ fn method_installation_parameter_types_for_function(
 
 fn method_installation_expression_for_callable_node<'tree>(
     node: M2Node<'tree>,
-    text: &str,
 ) -> Option<M2Node<'tree>> {
     let mut current = node;
     while let Some(parent) = current.parent() {
         current = parent;
 
-        if !is_space_operator_expression(current) {
+        if !current.is_space_application() {
             continue;
         }
 
         let callable = current.child_by_field_name("left")?;
-        if !node_is_within(callable, node) {
+        if !callable.contains(node) {
             continue;
         }
 
-        if is_colon_equal_assignment_left(current, text) {
+        if is_colon_equal_assignment_left(current) {
             return Some(current);
         }
     }
@@ -2370,10 +2342,6 @@ fn method_installation_expression_for_callable_node<'tree>(
     None
 }
 
-/// The value a node denotes, peeling parenthesized grouping: `(a)` → `a`,
-/// `((a))` → `a`. A trailing-`;` parenthesized expression (`(a;)`) denotes null,
-/// so it has no value node — returns `None`. A non-parenthesized node is its own
-/// value. `()` and `(a, b)` are `Sequence` nodes (real values), left untouched.
 /// The first direct clause of `node` of the given kind (`then`/`else`/`do`/…).
 fn clause_of(node: M2Node, kind: NodeKind) -> Option<M2Node> {
     node.named_children().find(|child| child.kind == kind)
@@ -2397,40 +2365,53 @@ fn is_try_clause(kind: NodeKind) -> bool {
     )
 }
 
+/// The value a node denotes, peeling parenthesized grouping: `(a)` → `a`,
+/// `((a))` → `a`. A trailing-`;` parenthesized expression (`(a;)`) denotes null,
+/// so it has no value node — returns `None`. A non-parenthesized node is its own
+/// value. `()` and `(a, b)` are `Sequence` nodes (real values), left untouched.
 fn parenthesized_value(node: M2Node) -> Option<M2Node> {
     let mut current = node;
     while current.kind == NodeKind::ParenthesizedExpression {
-        let inner = current.named_children().last()?;
-        if inner.kind == NodeKind::SilencedExpression {
+        if current.has_trailing_semicolon() {
             return None;
         }
+        let inner = current.named_children().last()?;
         current = inner;
     }
     Some(current)
 }
 
-pub(crate) fn method_installation_domain(node: M2Node, text: &str) -> Option<Vec<String>> {
+pub(crate) fn method_installation_domain(node: M2Node) -> Option<Vec<String>> {
     let node = parenthesized_value(node)?;
     if matches!(node.kind, NodeKind::Sequence | NodeKind::List) {
+        // Each element is one dispatch position, so the arity is the count of
+        // them — that must be preserved exactly. A non-symbol element is still a
+        // real position: `f(ZZ, a.b) := …` installs at arity 2, because `a.b`
+        // evaluates to a type at install time. We just cannot resolve its type
+        // name statically, so we keep the position under its source text (which
+        // will not match any known type → an unresolved parameter type) rather
+        // than dropping it and under-counting the arity. Comments ride along as
+        // named children and are not dispatch positions.
         let domain = node
             .named_children()
-            .filter_map(|child| symbol_node_text(child, text).map(ToString::to_string))
+            .filter(|child| child.kind != NodeKind::Comment)
+            .map(|child| {
+                symbol_node_text(child)
+                    .unwrap_or_else(|| child.text())
+                    .to_string()
+            })
             .collect::<Vec<_>>();
         return (!domain.is_empty()).then_some(domain);
     }
 
-    symbol_node_text(node, text).map(|name| vec![name.to_string()])
+    symbol_node_text(node).map(|name| vec![name.to_string()])
 }
 
-fn node_is_within(ancestor: M2Node, node: M2Node) -> bool {
-    ancestor.start_byte() <= node.start_byte() && node.end_byte() <= ancestor.end_byte()
-}
-
-fn is_colon_equal_assignment_left(node: M2Node, text: &str) -> bool {
+fn is_colon_equal_assignment_left(node: M2Node) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
-    if !is_assignment_expression(parent, text) {
+    if !parent.is_assignment() {
         return false;
     }
     if parent
@@ -2442,7 +2423,7 @@ fn is_colon_equal_assignment_left(node: M2Node, text: &str) -> bool {
 
     parent
         .child_by_field_name("operator")
-        .is_some_and(|operator| &text[operator.start_byte()..operator.end_byte()] == ":=")
+        .is_some_and(|operator| operator.text() == ":=")
 }
 
 fn signature_matches(
@@ -2470,53 +2451,6 @@ fn signature_matches_domain(
                         })
                 })
             })
-}
-
-pub(crate) fn to_lsp_range(text: &str, range: tree_sitter::Range) -> LspRange {
-    let start_line_byte = range.start_byte.saturating_sub(range.start_point.column);
-    let end_line_byte = range.end_byte.saturating_sub(range.end_point.column);
-
-    LspRange::new(
-        Position::new(
-            range.start_point.row as u32,
-            utf16_len_for_byte_span(text, start_line_byte, range.start_byte),
-        ),
-        Position::new(
-            range.end_point.row as u32,
-            utf16_len_for_byte_span(text, end_line_byte, range.end_byte),
-        ),
-    )
-}
-
-pub(crate) fn node_position(text: &str, node: M2Node) -> Position {
-    to_lsp_range(text, node.range()).start
-}
-
-pub(crate) fn floor_char_boundary(text: &str, byte_index: usize) -> usize {
-    let mut byte_index = byte_index.min(text.len());
-    while byte_index > 0 && !text.is_char_boundary(byte_index) {
-        byte_index -= 1;
-    }
-    byte_index
-}
-
-pub(crate) fn utf16_len_for_byte_span(text: &str, start_byte: usize, end_byte: usize) -> u32 {
-    let start_byte = floor_char_boundary(text, start_byte);
-    let end_byte = floor_char_boundary(text, end_byte.max(start_byte));
-    text[start_byte..end_byte].encode_utf16().count() as u32
-}
-
-fn is_pos_in_range(pos: Position, range: LspRange) -> bool {
-    if pos.line < range.start.line || pos.line > range.end.line {
-        return false;
-    }
-    if pos.line == range.start.line && pos.character < range.start.character {
-        return false;
-    }
-    if pos.line == range.end.line && pos.character >= range.end.character {
-        return false;
-    }
-    true
 }
 
 fn is_range_within_range(inner: LspRange, outer: LspRange) -> bool {
@@ -2582,7 +2516,7 @@ mod tests {
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
         let analysis = Analysis::new_with_builtins(&tree, text, Some(builtins));
-        let node = find(M2Node::new(tree.root_node()), kind)?;
+        let node = find(M2Node::new(tree.root_node(), text), kind)?;
         analysis
             .expression_fact(text, node)
             .and_then(|fact| fact.result_type.label())
@@ -2713,7 +2647,7 @@ mod tests {
             }
             node.named_children().find_map(first_lambda)
         }
-        function_dispatch(first_lambda(M2Node::new(tree.root_node()))?)
+        function_dispatch(first_lambda(M2Node::new(tree.root_node(), src))?)
     }
 
     #[test]
@@ -3264,6 +3198,19 @@ mod tests {
     }
 
     #[test]
+    fn method_installation_preserves_arity_for_non_symbol_domain_positions() {
+        // `a.b` evaluates to a type at install time, so `f(ZZ, a.b) := …`
+        // installs at arity 2. The member-access position is kept even though its
+        // type name is not statically resolvable — dropping it would corrupt the
+        // recorded arity (and with it every downstream check).
+        let analysis = analyze("f = method()\nf(ZZ, a.b) := (x, y) -> x\n");
+        let method = analysis.function("f").expect("method should be tracked");
+
+        assert_eq!(method.methods[0].domain.len(), 2);
+        assert_eq!(method.methods[0].domain[0], "ZZ");
+    }
+
+    #[test]
     fn method_installation_domains_type_function_parameters() {
         let analysis = analyze("f ZZ := d -> (\n  a := d\n)\n");
 
@@ -3476,6 +3423,7 @@ mod tests {
             assignment
                 .child_by_field_name("right")
                 .expect("assignment should have right-hand expression"),
+            text,
         );
         let fact = analysis
             .expression_fact(text, binary)
@@ -3524,23 +3472,25 @@ mod tests {
 
     #[test]
     fn parallel_assignment_expression_has_right_hand_side_type() {
-        let analysis = analyze("{a, b} = [1, 2]\n");
+        let text = "{a, b} = [1, 2]\n";
+        let analysis = analyze(text);
         let tree = {
             let mut parser = Parser::new();
             parser
                 .set_language(&tree_sitter_macaulay2::language())
                 .expect("macaulay2 parser should load");
-            parser.parse("{a, b} = [1, 2]\n", None).expect("parse")
+            parser.parse(text, None).expect("parse")
         };
         let assignment = M2Node::new(
             tree.root_node()
                 .descendant_for_byte_range(0, 15)
                 .expect("assignment node"),
+            text,
         );
         // The assignment evaluates to its right-hand side, so its expression
         // type is Array even though the target is written with `{}`.
         assert_eq!(
-            analysis.infer_expression_static_type_name(assignment, "{a, b} = [1, 2]\n", None),
+            analysis.infer_expression_static_type_name(assignment, text, None),
             Some("Array".to_string())
         );
     }
@@ -3632,9 +3582,30 @@ mod tests {
     fn ambiguous_member_access_helper_requires_dot_prefixed_float() {
         assert_eq!(
             member_index_for_ambiguous_float_literal(".3"),
-            Some("0".to_string())
+            Some("3".to_string())
+        );
+        assert_eq!(
+            member_index_for_ambiguous_float_literal(".33"),
+            Some("33".to_string())
         );
         assert_eq!(member_index_for_ambiguous_float_literal("3.0"), None);
+    }
+
+    #[test]
+    fn option_key_convention_fires_in_call_arguments() {
+        // A lowercase option key in a call's argument sequence gets the Hint.
+        let analysis = analyze("gb(I, strategy => 4)\n");
+        assert!(has_diagnostic(&analysis, M2Diagnostic::OptionKeyConvention));
+    }
+
+    #[test]
+    fn option_key_convention_silent_in_collection_literals() {
+        // Lowercase keys are legitimate hashtable entries — the hint stays out.
+        let analysis = analyze("hashTable {a => 1, b => 2}\n");
+        assert!(!has_diagnostic(
+            &analysis,
+            M2Diagnostic::OptionKeyConvention
+        ));
     }
 
     #[test]

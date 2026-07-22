@@ -1,9 +1,10 @@
 //! In-memory partition of the builtin corpus by home package, plus the
-//! `LoadedPackages` tracker. These are the substrate for loaded-package scoping
-//! (P3): they are built at startup but not yet consulted by any query — the
-//! inference/hover/navigation paths still read `self.builtins` directly.
+//! `LoadedPackages` tracker — the substrate for loaded-package scoping. Every
+//! request builds a [`ScopedIndex`] from the document's imports and queries it
+//! instead of a single merged index; parse-time analysis stays Core-scoped via
+//! the `Core` partition clone held by the backend.
 
-// Forward-looking API consumed in P3 (scoped query routing); allow until then.
+// Some query forms are consumed only by tests so far; allow until they land.
 #![allow(dead_code)]
 
 use std::collections::HashMap;
@@ -60,14 +61,18 @@ impl PackagePartitionedIndex {
 
     /// A non-materializing view over the partitions loaded for a document, in
     /// resolution order (baseline/Core-first, then import order). Imports with no
-    /// partition in the corpus are skipped. Borrows the partitions — nothing is
-    /// copied or rebuilt; importing/removing a package only changes which
-    /// references the view holds.
-    pub fn scoped<'a>(&'a self, loaded: &'a LoadedPackages) -> ScopedIndex<'a> {
+    /// partition in the corpus are skipped. Borrows only the partitions —
+    /// `loaded` is consumed for membership/order and is not retained, so the
+    /// returned `ScopedIndex` is free to outlive it.
+    pub fn scoped<'a>(&'a self, loaded: &LoadedPackages) -> ScopedIndex<'a> {
         let partitions = loaded
             .as_slice()
             .iter()
-            .filter_map(|package| self.partition(package).map(|data| (package.as_str(), data)))
+            .filter_map(|package| {
+                self.partitions
+                    .get_key_value(package)
+                    .map(|(key, data)| (key.as_str(), data))
+            })
             .collect();
         ScopedIndex { partitions }
     }

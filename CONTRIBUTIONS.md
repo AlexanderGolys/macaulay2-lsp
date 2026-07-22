@@ -8,7 +8,7 @@ This repository contains an experimental Rust language server for Macaulay2. The
 - `src/analysis.rs`: syntax and scope analysis over Tree-sitter parse trees.
 - `src/typesystem.rs`: builtin metadata loading, type hierarchy helpers, and token classification.
 - `src/capabilities/`: per-feature LSP handlers (hover, formatting, navigation, diagnostics, …).
-- `src/data/m2-types.jsonl`, `src/data/m2-docs.jsonl`: line-aligned builtin records used for hover and classification.
+- `src/data/m2-index.jsonl`: the checked-in builtin corpus — one JSON record per builtin object (types, callables, objects, option keys), used for hover, classification, and type inference.
 
 Treat every `target/` directory as build output.
 
@@ -38,20 +38,12 @@ For LSP behavior changes, also test through an editor client when practical. Non
 
 ## Builtin Metadata
 
-Regenerate the checked-in builtin database from the repository root:
-
-```sh
-M2 --script scripts/extract_builtins.m2 src/data/builtins.details.jsonl
-```
-
-The generated `.names` and `.details.jsonl` files are line-aligned. Do not sort one without regenerating or updating the other consistently.
-
-For extractor experiments, write to `/tmp`:
-
-```sh
-M2 --script scripts/extract_builtins.m2 /tmp/builtins-debug.details.jsonl + % Ring
-M2 --script scripts/extract_builtins.m2 --rich /tmp/builtins-rich.details.jsonl + % Ring
-```
+`src/data/m2-index.jsonl` is a generated artifact: one JSON record per line,
+produced from an installed Macaulay2's documentation and runtime metadata by the
+extractor pipeline. The extractor is not yet shipped in this repository, so do
+not hand-edit the corpus — regenerate it wholesale instead. The leading
+`{"kind":"meta", ...}` record (the default-loaded package baseline) is
+mandatory; the server fails fast at startup without it.
 
 ## Documentation Notes
 

@@ -3,6 +3,12 @@
 
 # Agent-local tooling
 .claude/
+.opencode/
+opencode.json
+
+# Agent planning docs
+docs/
+example_m2_code/
 
 # Root-level .md files are agent scratch (AGENTS/BUGS/TODO/TOTEST/...),
 # except the real project docs:

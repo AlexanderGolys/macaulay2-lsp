@@ -1,7 +1,12 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use tower_lsp::lsp_types::{Location, Position, Range, Url};
 use tree_sitter::Parser;
+
+use crate::node_metadata::{M2Node, NodeKind};
+use crate::record_lsp::{record_source_file, record_source_line};
+use crate::typesystem::Record;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SourceResolver {
@@ -56,53 +61,55 @@ impl SourceResolver {
         let source_file = format!("{package_name}.m2");
         self.resolve_source_file(&source_file)
     }
-}
 
-fn unquoted_string_literal<'a>(text: &'a str, node: tree_sitter::Node<'_>) -> Option<&'a str> {
-    if node.kind() != "string_literal" {
-        return None;
+    /// The LSP location of a builtin/package record's source definition, when
+    /// the resolver can find the file on disk. Shared by the hover/index views
+    /// and type-hierarchy plumbing, so it lives on the resolver rather than the
+    /// backend to keep `capabilities/type_hierarchy` self-contained.
+    pub(crate) fn record_location(&self, record: &Record) -> Option<Location> {
+        let source_file = record_source_file(record)?;
+        let path = self.resolve_source_file(source_file)?;
+        let uri = Url::from_file_path(path).ok()?;
+        let position = Position::new(record_source_line(record), 0);
+        Some(Location {
+            uri,
+            range: Range::new(position, position),
+        })
     }
-
-    let value = &text[node.start_byte()..node.end_byte()];
-    value
-        .strip_prefix('"')
-        .and_then(|value| value.strip_suffix('"'))
 }
 
-pub(crate) fn package_source_string<'a>(
-    text: &'a str,
-    node: tree_sitter::Node<'_>,
-) -> Option<&'a str> {
-    let package_name = unquoted_string_literal(text, node)?;
+/// The function names whose string argument names a package to import.
+fn is_package_import_trigger(name: &str) -> bool {
+    matches!(
+        name,
+        "needsPackage" | "loadPackage" | "debug" | "importFrom"
+    )
+}
+
+pub(crate) fn package_source_string(node: M2Node<'_>) -> Option<&str> {
+    let package_name = node.string_literal_inner_text()?;
     let parent = node.parent()?;
 
     // A single parenthesized argument `loadPackage("Pkg")` is a
     // `parenthesized_expression`; a multi-argument call wraps them in a
     // `sequence`. Both sit between the string and the `callee ARG` application.
-    if parent.kind() == "sequence" || parent.kind() == "parenthesized_expression" {
-        if parent.kind() == "sequence" && !is_first_named_child(parent, node) {
+    if matches!(
+        parent.kind,
+        NodeKind::Sequence | NodeKind::ParenthesizedExpression
+    ) {
+        if parent.kind == NodeKind::Sequence && !is_first_named_child(parent, node) {
             return None;
         }
 
         return parent
             .parent()
-            .and_then(|call| binary_expression_left_symbol(text, call))
-            .filter(|name| {
-                matches!(
-                    *name,
-                    "needsPackage" | "loadPackage" | "debug" | "importFrom"
-                )
-            })
+            .and_then(binary_expression_left_symbol)
+            .filter(|name| is_package_import_trigger(name))
             .map(|_| package_name);
     }
 
-    binary_expression_left_symbol(text, parent)
-        .filter(|name| {
-            matches!(
-                *name,
-                "needsPackage" | "loadPackage" | "debug" | "importFrom"
-            )
-        })
+    binary_expression_left_symbol(parent)
+        .filter(|name| is_package_import_trigger(name))
         .map(|_| package_name)
 }
 
@@ -127,34 +134,15 @@ pub(crate) fn collect_imported_packages_in_tree(
     text: &str,
     tree: &tree_sitter::Tree,
 ) -> Vec<String> {
-    let root = tree.root_node();
+    let root = M2Node::new(tree.root_node(), text);
     let mut packages = Vec::new();
     let mut seen = HashSet::new();
-    let mut cursor = root.walk();
-    let mut reached_root = false;
-    while !reached_root {
-        let node = cursor.node();
-        if node.kind() == "string_literal" {
-            if let Some(package_name) = package_source_string(text, node) {
+    for node in root.descendants() {
+        if node.kind == NodeKind::StringLiteral {
+            if let Some(package_name) = package_source_string(node) {
                 if seen.insert(package_name.to_string()) {
                     packages.push(package_name.to_string());
                 }
-            }
-        }
-
-        if cursor.goto_first_child() {
-            continue;
-        }
-        if cursor.goto_next_sibling() {
-            continue;
-        }
-        loop {
-            if !cursor.goto_parent() {
-                reached_root = true;
-                break;
-            }
-            if cursor.goto_next_sibling() {
-                break;
             }
         }
     }
@@ -162,28 +150,26 @@ pub(crate) fn collect_imported_packages_in_tree(
     packages
 }
 
-fn is_first_named_child(parent: tree_sitter::Node, child: tree_sitter::Node) -> bool {
+fn is_first_named_child(parent: M2Node<'_>, child: M2Node<'_>) -> bool {
     parent
         .named_child(0)
         .is_some_and(|first| first.id() == child.id())
 }
 
-fn binary_expression_left_symbol<'a>(text: &'a str, node: tree_sitter::Node) -> Option<&'a str> {
-    if node.kind() != "binary_expression" {
+/// The left symbol of an application `callee ARG` (`needsPackage "Pkg"`): the
+/// callee name, when `node` is a `SPACE` application whose left operand is a
+/// bare symbol.
+fn binary_expression_left_symbol(node: M2Node<'_>) -> Option<&str> {
+    if !node.is_space_application() {
         return None;
     }
 
     let left = node.child_by_field_name("left")?;
-    if left.kind() != "symbol" {
+    if left.kind != NodeKind::Symbol {
         return None;
     }
 
-    let operator = node.child_by_field_name("operator")?;
-    if operator.kind() != "SPACE" {
-        return None;
-    }
-
-    Some(&text[left.start_byte()..left.end_byte()])
+    Some(left.text())
 }
 
 #[cfg(test)]

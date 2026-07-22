@@ -1,5 +1,7 @@
 use tower_lsp::lsp_types::*;
 
+use crate::node_metadata::M2Node;
+
 pub(crate) fn utf16_col_to_byte(line: &str, utf16_col: u32) -> usize {
     let mut current_col = 0;
 
@@ -67,8 +69,9 @@ pub(crate) fn tree_sitter_point_from_byte_index(
     tree_sitter::Point::new(row, byte_index.saturating_sub(line_start))
 }
 
-pub(crate) fn node_range(text: &str, node: tree_sitter::Node) -> Range {
-    let range = node.range();
+/// The LSP range of a tree-sitter range, converting byte columns to the
+/// protocol's UTF-16 units.
+pub(crate) fn to_lsp_range(text: &str, range: tree_sitter::Range) -> Range {
     let start_line_byte = range.start_byte.saturating_sub(range.start_point.column);
     let end_line_byte = range.end_byte.saturating_sub(range.end_point.column);
 
@@ -82,6 +85,29 @@ pub(crate) fn node_range(text: &str, node: tree_sitter::Node) -> Range {
             utf16_len_for_byte_span(text, end_line_byte, range.end_byte),
         ),
     )
+}
+
+pub(crate) fn node_range(node: M2Node<'_>) -> Range {
+    to_lsp_range(node.source(), node.range())
+}
+
+/// The LSP position where `node` starts.
+pub(crate) fn node_position(text: &str, node: M2Node) -> Position {
+    to_lsp_range(text, node.range()).start
+}
+
+/// Whether `position` lies in `range` (start-inclusive, end-exclusive).
+pub(crate) fn position_in_range(position: Position, range: Range) -> bool {
+    if position.line < range.start.line || position.line > range.end.line {
+        return false;
+    }
+    if position.line == range.start.line && position.character < range.start.character {
+        return false;
+    }
+    if position.line == range.end.line && position.character >= range.end.character {
+        return false;
+    }
+    true
 }
 
 pub(crate) fn full_document_range(text: &str) -> Range {
@@ -104,56 +130,6 @@ pub(crate) fn full_document_range(text: &str) -> Range {
             Position::new(line_count - 1, last_line.encode_utf16().count() as u32),
         )
     }
-}
-
-pub(crate) fn binary_expression_operator_kind(node: tree_sitter::Node<'_>) -> Option<&str> {
-    if !matches!(node.kind(), "binary_expression" | "comparison_expression") {
-        return None;
-    }
-
-    node.child_by_field_name("operator")
-        .map(|operator| operator.kind())
-}
-
-pub(crate) fn binary_expression_operator<'a>(
-    node: tree_sitter::Node,
-    text: &'a str,
-) -> Option<&'a str> {
-    if !matches!(node.kind(), "binary_expression" | "comparison_expression") {
-        return None;
-    }
-
-    node.child_by_field_name("operator")
-        .map(|operator| &text[operator.start_byte()..operator.end_byte()])
-}
-
-pub(crate) fn is_assignment_expression(node: tree_sitter::Node<'_>, text: &str) -> bool {
-    node.kind() == "binary_expression"
-        && matches!(
-            binary_expression_operator(node, text),
-            Some("=" | ":=" | "<-")
-        )
-}
-
-pub(crate) fn is_option_assignment_expression(node: tree_sitter::Node<'_>, text: &str) -> bool {
-    node.kind() == "binary_expression" && binary_expression_operator(node, text) == Some("=>")
-}
-
-pub(crate) fn is_space_operator_expression(node: tree_sitter::Node<'_>) -> bool {
-    node.kind() == "binary_expression" && binary_expression_operator_kind(node) == Some("SPACE")
-}
-
-pub(crate) fn is_operator_node(node: tree_sitter::Node) -> bool {
-    let Some(parent) = node.parent() else {
-        return false;
-    };
-    parent
-        .child_by_field_name("operator")
-        .is_some_and(|operator| operator.id() == node.id())
-}
-
-pub(crate) fn node_is_within(ancestor: tree_sitter::Node, node: tree_sitter::Node) -> bool {
-    ancestor.start_byte() <= node.start_byte() && node.end_byte() <= ancestor.end_byte()
 }
 
 #[cfg(test)]

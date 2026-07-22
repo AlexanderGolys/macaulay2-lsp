@@ -1,10 +1,10 @@
-use crate::node_metadata::M2Node;
+use crate::node_metadata::{M2Node, NodeKind};
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
-use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
+use tree_sitter::{InputEdit, Parser, Point, Tree};
 
 #[cfg(test)]
 use crate::analysis::ExpressionFact;
-use crate::analysis::{Analysis, BindingInfo, FunctionInfo};
+use crate::analysis::{Analysis, BindingInfo, FunctionInfo, SymbolInfo};
 use crate::package_index::collect_imported_packages_in_tree;
 use crate::typesystem::BuiltinData;
 use crate::util::{
@@ -22,6 +22,16 @@ pub(crate) struct DocumentSnapshot {
     /// owned by the partitioned index, so the snapshot stores only its own
     /// contribution to the loaded set.
     imported_packages: Vec<String>,
+}
+
+/// The common first step of every reference / highlight / rename request: the
+/// tree-sitter symbol node under the cursor together with its scope-aware
+/// `SymbolInfo`. Resolved once per request and threaded through the downstream
+/// reference collection so the target lookup is not repeated.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TargetSymbol<'a> {
+    pub node: M2Node<'a>,
+    pub symbol: &'a SymbolInfo,
 }
 
 impl DocumentSnapshot {
@@ -80,8 +90,18 @@ impl DocumentSnapshot {
 
     pub(crate) fn binding_at_position(&self, position: Position) -> Option<&BindingInfo> {
         let node = self.symbol_node_at_position(position)?;
-        let name = self.text_for(node);
-        self.analysis.get_binding_at(name, position)
+        self.analysis.get_binding_at(node.text(), position)
+    }
+
+    /// Resolve the user symbol under `position`: its tree-sitter node plus the
+    /// scope-aware `SymbolInfo` for the same site. Returns `None` when the
+    /// cursor is not on a renameable / referenceable symbol (builtins, keywords,
+    /// punctuation, or whitespace). The single entry point shared by reference,
+    /// highlight, and rename requests.
+    pub(crate) fn target_symbol_at(&self, position: Position) -> Option<TargetSymbol<'_>> {
+        let node = self.symbol_node_at_position(position)?;
+        let symbol = self.analysis.get_symbol_at(node.text(), position)?;
+        Some(TargetSymbol { node, symbol })
     }
 
     #[cfg(test)]
@@ -90,7 +110,7 @@ impl DocumentSnapshot {
         position: Position,
     ) -> Option<&ExpressionFact> {
         let node = self.node_at_position_minimal(position)?;
-        self.analysis.expression_fact(&self.text, M2Node::new(node))
+        self.analysis.expression_fact(&self.text, node)
     }
 
     pub(crate) fn callable_at_position(&self, position: Position) -> Option<&FunctionInfo> {
@@ -98,24 +118,26 @@ impl DocumentSnapshot {
         self.analysis.function_by_symbol(binding.symbol)
     }
 
-    pub(crate) fn root_node(&self) -> Node<'_> {
-        self.tree.root_node()
+    pub(crate) fn root_node(&self) -> M2Node<'_> {
+        M2Node::new(self.tree.root_node(), &self.text)
     }
 
-    pub(crate) fn range_for(&self, node: Node<'_>) -> Range {
-        node_range(&self.text, node)
+    pub(crate) fn range_for(&self, node: M2Node<'_>) -> Range {
+        node_range(node)
     }
 
     pub(crate) fn point_for_position(&self, position: Position) -> Option<Point> {
         tree_sitter_point_from_lsp_position(&self.text, position)
     }
 
-    pub(crate) fn node_at_position_minimal(&self, position: Position) -> Option<Node<'_>> {
+    pub(crate) fn node_at_position_minimal(&self, position: Position) -> Option<M2Node<'_>> {
         let point = self.point_for_position(position)?;
-        self.root_node().descendant_for_point_range(point, point)
+        self.root_node()
+            .descendant_for_point_range(point, point)
+            .map(|node| M2Node::new(node, &self.text))
     }
 
-    pub(crate) fn symbol_node_at_position(&self, position: Position) -> Option<Node<'_>> {
+    pub(crate) fn symbol_node_at_position(&self, position: Position) -> Option<M2Node<'_>> {
         let point = self.point_for_position(position)?;
         let root = self.root_node();
         // When the cursor sits on the boundary between the anonymous SPACE
@@ -131,9 +153,9 @@ impl DocumentSnapshot {
             root.descendant_for_point_range(point, next),
         ];
         for start in starts.into_iter().flatten() {
-            let mut node = start;
+            let mut node = M2Node::new(start, &self.text);
             loop {
-                if M2Node::new(node).kind.is_symbol_like() {
+                if node.kind.is_symbol_like() {
                     return Some(node);
                 }
                 match node.parent() {
@@ -145,17 +167,13 @@ impl DocumentSnapshot {
         None
     }
 
-    pub(crate) fn text_for<'a>(&'a self, node: Node<'_>) -> &'a str {
-        &self.text[node.start_byte()..node.end_byte()]
-    }
-
     pub(crate) fn enclosing_node_of_kind<'a>(
         &self,
-        mut node: Node<'a>,
-        kind: &str,
-    ) -> Option<Node<'a>> {
+        mut node: M2Node<'a>,
+        kind: NodeKind,
+    ) -> Option<M2Node<'a>> {
         loop {
-            if node.kind() == kind {
+            if node.kind == kind {
                 return Some(node);
             }
             node = node.parent()?;
@@ -245,7 +263,7 @@ mod tests {
         let node = doc
             .symbol_node_at_position(Position::new(1, trailing_m as u32))
             .expect("trailing application operand should resolve to its symbol");
-        assert_eq!(doc.text_for(node), "M");
+        assert_eq!(node.text(), "M");
     }
 
     #[test]

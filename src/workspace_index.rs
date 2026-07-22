@@ -203,10 +203,7 @@ fn top_level_definitions(text: &str, builtins: &BuiltinData) -> Vec<(String, Ran
         .iter()
         .flat_map(|(name, infos)| {
             infos.iter().map(move |info| {
-                // Position is unused by the classifier; the definition's own
-                // start serves as a stable placeholder.
-                let token_type =
-                    local_symbol_semantic_token_type(info, info.range.start, builtins) as u32;
+                let token_type = local_symbol_semantic_token_type(info, builtins) as u32;
                 (name.clone(), info.range, token_type)
             })
         })

@@ -1,4 +1,4 @@
-use crate::capabilities::navigation::collect_reference_ranges;
+use crate::capabilities::navigation::reference_ranges_resolved;
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
 use tower_lsp::lsp_types::{
@@ -31,13 +31,9 @@ fn symbol_reference_highlights(
     document: &DocumentSnapshot,
     position: Position,
 ) -> Option<Vec<DocumentHighlight>> {
-    let target_node = document.symbol_node_at_position(position)?;
-    let target_name = document.text_for(target_node);
-    let declaration = document
-        .analysis()
-        .get_symbol_at(target_name, position)?
-        .range;
-    let ranges = collect_reference_ranges(document, position, true);
+    let target = document.target_symbol_at(position)?;
+    let declaration = target.symbol.range;
+    let ranges = reference_ranges_resolved(target, document, true);
     if ranges.is_empty() {
         return None;
     }
@@ -69,11 +65,11 @@ fn keyword_sequence_highlights(
     document: &DocumentSnapshot,
     position: Position,
 ) -> Option<Vec<DocumentHighlight>> {
-    let node = M2Node::new(document.node_at_position_minimal(position)?);
+    let node = document.node_at_position_minimal(position)?;
     let statement = enclosing_keyword_statement(node)?;
     let keywords = statement_keyword_tokens(statement);
 
-    if !keywords.iter().any(|keyword| node_contains(*keyword, node)) {
+    if !keywords.iter().any(|keyword| keyword.contains(node)) {
         return None;
     }
 
@@ -81,7 +77,7 @@ fn keyword_sequence_highlights(
         keywords
             .into_iter()
             .map(|keyword| DocumentHighlight {
-                range: document.range_for(keyword.inner()),
+                range: document.range_for(keyword),
                 kind: Some(DocumentHighlightKind::TEXT),
             })
             .collect(),
@@ -154,10 +150,6 @@ fn statement_keyword_tokens(statement: M2Node<'_>) -> Vec<M2Node<'_>> {
         return statement_keyword_tokens(st);
     }
     Vec::new()
-}
-
-fn node_contains(outer: M2Node<'_>, inner: M2Node<'_>) -> bool {
-    inner.start_byte() >= outer.start_byte() && inner.end_byte() <= outer.end_byte()
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use tower_lsp::lsp_types::{
-    InlayHint, InlayHintKind, InlayHintLabel, InlayHintServerCapabilities, OneOf, Range,
+    InlayHint, InlayHintKind, InlayHintLabel, InlayHintServerCapabilities, OneOf, Position, Range,
 };
 
 use crate::document::DocumentSnapshot;
@@ -10,6 +10,8 @@ pub(crate) fn inlay_hint_provider_capability() -> Option<OneOf<bool, InlayHintSe
     Some(OneOf::Left(true))
 }
 
+/// The inlay type hints for `range`: one per typed binding by default, plus
+/// per-expression hints when `expression_types` is opted in.
 pub(crate) fn inlay_hints_response(
     document: &DocumentSnapshot,
     range: Range,
@@ -25,12 +27,17 @@ pub(crate) fn inlay_hints_response(
     if expression_types {
         hints.extend(expression_type_hints(document, &range));
     }
-    hints.sort_by_key(|hint| {
+    hints.sort_by(|left, right| {
         (
-            hint.position.line,
-            hint.position.character,
-            label_text(&hint.label).to_string(),
+            left.position.line,
+            left.position.character,
+            label_text(&left.label),
         )
+            .cmp(&(
+                right.position.line,
+                right.position.character,
+                label_text(&right.label),
+            ))
     });
 
     hints
@@ -39,10 +46,22 @@ pub(crate) fn inlay_hints_response(
 fn label_text(label: &InlayHintLabel) -> &str {
     match label {
         InlayHintLabel::String(text) => text,
-        InlayHintLabel::LabelParts(parts) => parts
-            .first()
-            .map(|part| part.value.as_str())
-            .expect("inlay hint labels should not be empty"),
+        InlayHintLabel::LabelParts(parts) => {
+            parts.first().map(|part| part.value.as_str()).unwrap_or("")
+        }
+    }
+}
+
+fn type_hint(position: Position, type_name: &str) -> InlayHint {
+    InlayHint {
+        position,
+        label: InlayHintLabel::from(format!(": {type_name}")),
+        kind: Some(InlayHintKind::TYPE),
+        text_edits: None,
+        tooltip: None,
+        padding_left: Some(true),
+        padding_right: None,
+        data: None,
     }
 }
 
@@ -62,16 +81,7 @@ fn binding_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<InlayHi
                 .value_range
                 .map(|value_range| value_range.end)
                 .unwrap_or(binding.range.end);
-            Some(InlayHint {
-                position,
-                label: InlayHintLabel::from(format!(": {type_name}")),
-                kind: Some(InlayHintKind::TYPE),
-                text_edits: None,
-                tooltip: None,
-                padding_left: Some(true),
-                padding_right: None,
-                data: None,
-            })
+            Some(type_hint(position, type_name))
         })
         .collect()
 }
@@ -100,16 +110,7 @@ fn expression_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<Inla
             if binding_value_types.contains(&(end.line, end.character, type_name.clone())) {
                 return None;
             }
-            Some(InlayHint {
-                position: fact.span.range.end,
-                label: InlayHintLabel::from(format!(": {type_name}")),
-                kind: Some(InlayHintKind::TYPE),
-                text_edits: None,
-                tooltip: None,
-                padding_left: Some(true),
-                padding_right: None,
-                data: None,
-            })
+            Some(type_hint(fact.span.range.end, &type_name))
         })
         .collect()
 }
