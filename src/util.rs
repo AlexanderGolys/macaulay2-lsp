@@ -1,3 +1,5 @@
+//! Shared UTF-16 position conversion and parse-tree range utilities.
+
 use tower_lsp::lsp_types::*;
 
 use crate::node_metadata::M2Node;

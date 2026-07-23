@@ -7,10 +7,6 @@
 //! codomain means *unknown*, never `Thing`. See the `Static Typecheck Index`
 //! decision.
 
-// The lattice/signature tables are consumed by `typesystem.rs`; some accessors
-// are exercised only by tests so far — allow the unused-method warnings.
-#![allow(dead_code)]
-
 use std::collections::HashMap;
 
 use serde::Deserialize;
@@ -42,12 +38,6 @@ pub struct Signature {
     pub domain: Vec<String>,
     /// `None` ⇒ codomain undocumented; the checker stays silent rather than guess.
     pub codomain: Option<String>,
-    /// Whether the codomain is the value's *exact* type rather than an upper
-    /// bound. M2 cannot tell, so this is `false` everywhere unless we hand-mark
-    /// it; when `true` it collapses the result from `codomain`'s subtree to the
-    /// single type.
-    pub exact: bool,
-    pub options: Vec<OptionSpec>,
 }
 
 /// A named runtime value that is neither a type nor a callable — option keys
@@ -99,10 +89,6 @@ pub struct OptionSpec {
     pub default: Option<String>,
     #[serde(default, rename = "possibleValues")]
     pub possible_values: Vec<String>,
-    #[serde(default, rename = "valueType")]
-    pub value_type: Option<String>,
-    #[serde(default)]
-    pub description: String,
 }
 
 /// Each record is keyed by its name *and* every alias (e.g. `gb`, `Core$gb`;
@@ -177,8 +163,6 @@ impl BuiltinIndex {
                         .map(|method| Signature {
                             domain: method.domain.iter().map(|d| deref_ref(d)).collect(),
                             codomain: concrete_codomain(method.typical_value.as_deref()),
-                            exact: method.exact,
-                            options: method.options,
                         })
                         .collect();
                     index.callables.push(CallableEntry {
@@ -218,10 +202,12 @@ impl BuiltinIndex {
         index
     }
 
+    #[cfg(test)]
     pub fn type_entry(&self, name: &str) -> Option<&TypeEntry> {
         self.type_keys.get(name).map(|&id| &self.types[id])
     }
 
+    #[cfg(test)]
     pub fn callable(&self, name: &str) -> Option<&CallableEntry> {
         self.callable_keys.get(name).map(|&id| &self.callables[id])
     }
@@ -237,10 +223,6 @@ impl BuiltinIndex {
         &self.callables
     }
 
-    pub fn object(&self, name: &str) -> Option<&ObjectEntry> {
-        self.object_keys.get(name).map(|&id| &self.objects[id])
-    }
-
     /// The pooled object records (option keys, constants, …). They carry no
     /// typecheck facts but are surfaced as `Record`s for hover/classification.
     pub fn objects(&self) -> &[ObjectEntry] {
@@ -254,10 +236,12 @@ impl BuiltinIndex {
         &self.default_loaded
     }
 
+    #[cfg(test)]
     pub fn type_count(&self) -> usize {
         self.types.len()
     }
 
+    #[cfg(test)]
     pub fn callable_count(&self) -> usize {
         self.callables.len()
     }
@@ -371,10 +355,6 @@ struct RawMethod {
     domain: Vec<String>,
     #[serde(default, rename = "typicalValue")]
     typical_value: Option<String>,
-    #[serde(default)]
-    exact: bool,
-    #[serde(default)]
-    options: Vec<OptionSpec>,
 }
 
 /// Operator syntactic metadata: forms are lowercase in the corpus

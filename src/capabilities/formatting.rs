@@ -1,3 +1,5 @@
+//! Tree-sitter-guided formatting and folding ranges for Macaulay2 source.
+
 use tower_lsp::lsp_types::{
     DocumentFormattingOptions, FoldingRange, FoldingRangeProviderCapability, OneOf, TextEdit,
 };

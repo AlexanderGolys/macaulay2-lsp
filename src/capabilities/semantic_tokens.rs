@@ -1,3 +1,5 @@
+//! Semantic-token extraction from syntax, static analysis, and builtin metadata.
+
 use tower_lsp::lsp_types::*;
 
 use crate::analysis::{BindingRole, SymbolInfo};
@@ -729,10 +731,10 @@ mod tests {
     }
 
     #[test]
-    fn cross_file_type_reference_is_highlighted_as_a_type() {
-        // A type defined at the top level of another workspace file highlights
-        // as a TYPE where it is referenced, even though it is neither a local
-        // binding nor a builtin in the referencing file.
+    fn cross_file_class_reference_is_highlighted_as_a_class() {
+        // An M2 class defined at the top level of another workspace file
+        // highlights as CLASS where it is referenced, even though it is neither
+        // a local binding nor a builtin in the referencing file.
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let workspace_index = WorkspaceIndex::default();
         let defs_uri = Url::parse("file:///defs.m2").expect("valid uri");
@@ -744,10 +746,10 @@ mod tests {
         let tokens =
             collect_semantic_tokens(&document, &builtins, &workspace_index, &main_uri, false);
 
-        let type_token = M2SemanticTokenType::Type as u32;
+        let class_token = M2SemanticTokenType::Class as u32;
         assert!(
-            tokens.iter().any(|token| token.token_type == type_token),
-            "expected a TYPE token for the cross-file type reference, got {tokens:?}"
+            tokens.iter().any(|token| token.token_type == class_token),
+            "expected a CLASS token for the cross-file class reference, got {tokens:?}"
         );
     }
 

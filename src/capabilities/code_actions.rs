@@ -1,3 +1,5 @@
+//! Diagnostic quick fixes and syntax-preserving refactors offered by the LSP.
+
 use std::collections::HashMap;
 
 use tower_lsp::lsp_types::*;

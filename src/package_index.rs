@@ -1,3 +1,5 @@
+//! Imported-package discovery and configured source-file resolution.
+
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 

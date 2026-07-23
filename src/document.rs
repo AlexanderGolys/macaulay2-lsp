@@ -1,3 +1,6 @@
+//! Versioned document snapshots that combine source text, parse tree, and
+//! analysis for LSP requests.
+
 use crate::node_metadata::{M2Node, NodeKind};
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Parser, Point, Tree};

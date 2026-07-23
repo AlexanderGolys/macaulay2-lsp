@@ -1,3 +1,5 @@
+//! Hover rendering for local analysis results and indexed builtin records.
+
 use tower_lsp::lsp_types::*;
 
 use crate::analysis::{BindingRole, FunctionInfo, MethodInfo, SymbolInfo};

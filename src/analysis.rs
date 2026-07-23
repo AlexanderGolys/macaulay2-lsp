@@ -1,3 +1,6 @@
+//! Parse-tree analysis that records lexical bindings, static type facts, and
+//! diagnostics for one document snapshot.
+
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use tower_lsp::lsp_types::{Diagnostic, Position, Range as LspRange, SymbolKind};
@@ -37,8 +40,6 @@ pub struct Analysis {
     pub scopes: Vec<Scope>,
     pub diagnostics: Vec<Diagnostic>,
     pub registry: SemanticRegistry,
-    /// Method installations characterized once (with type info) and consumed by
-    /// capabilities; see [`MethodInstallation`].
     pub installations: Vec<MethodInstallation>,
 }
 

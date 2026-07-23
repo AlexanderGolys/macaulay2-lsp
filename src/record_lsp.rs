@@ -1,3 +1,5 @@
+//! Conversion of indexed builtin records into LSP-facing hover and symbol data.
+
 use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, SymbolKind};
 
 use crate::typesystem::{BuiltinData, OperatorInfo, Record, ResolvedSignature, SignatureUsage};
@@ -43,17 +45,6 @@ pub(crate) fn record_symbol_kind(record: &Record) -> SymbolKind {
         "Option" => SymbolKind::PROPERTY,
         _ => SymbolKind::VARIABLE,
     }
-}
-
-// Thin no-usage wrapper, now only exercised by record-hover unit tests; the
-// production hover path always routes through `record_hover_with_package_and_usage`.
-#[allow(dead_code)]
-pub(crate) fn record_hover_with_package(
-    record: &Record,
-    package: Option<&str>,
-    builtins: &BuiltinData,
-) -> Hover {
-    record_hover_with_package_and_usage(record, package, builtins, None)
 }
 
 pub(crate) fn record_hover_with_package_and_usage(

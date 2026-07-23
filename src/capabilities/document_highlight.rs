@@ -1,3 +1,5 @@
+//! In-document highlighting for resolved symbols and compound-statement words.
+
 use crate::capabilities::navigation::reference_ranges_resolved;
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};

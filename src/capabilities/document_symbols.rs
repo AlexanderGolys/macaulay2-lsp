@@ -1,3 +1,10 @@
+//! Document-symbol extraction for Macaulay2 source files.
+//!
+//! The outline is intentionally static: it reports bindings introduced by the
+//! document, nesting bindings created in function bodies beneath their
+//! function. Runtime values and names supplied by indexed packages are not
+//! treated as document definitions.
+
 use std::collections::HashSet;
 
 use tower_lsp::lsp_types::*;
@@ -18,6 +25,8 @@ pub(crate) fn collect_document_symbols(
     collect_document_symbols_from(document.root_node(), builtins, &mut scopes)
 }
 
+/// Build a `DocumentSymbol` while keeping the deprecated LSP field isolated in
+/// one compatibility boundary.
 #[allow(deprecated)]
 fn document_symbol(
     name: String,
@@ -40,12 +49,16 @@ fn document_symbol(
 }
 
 #[derive(Debug)]
+/// Per-document state used to suppress duplicate outline entries.
 struct DocumentSymbolScopes {
+    /// Names introduced per lexical scope, starting with the document scope.
     names: Vec<HashSet<String>>,
+    /// Option keys already emitted for this document.
     options: HashSet<String>,
 }
 
 impl DocumentSymbolScopes {
+    /// Start with the document's top-level scope.
     fn new() -> Self {
         Self {
             names: vec![HashSet::new()],
@@ -59,20 +72,24 @@ impl DocumentSymbolScopes {
         self.options.insert(name.to_string())
     }
 
+    /// Enter a function body, where `:=` introduces local outline entries.
     fn push(&mut self) {
         self.names.push(HashSet::new());
     }
 
+    /// Leave the current function body.
     fn pop(&mut self) {
         self.names.pop();
     }
 
+    /// Mark an existing name, such as a parameter, as belonging to this scope.
     fn add_current(&mut self, name: &str) {
         if let Some(scope) = self.names.last_mut() {
             scope.insert(name.to_string());
         }
     }
 
+    /// Introduce a local binding, returning whether it was previously absent.
     fn introduce_local(&mut self, name: &str) -> bool {
         let Some(scope) = self.names.last_mut() else {
             return false;
@@ -80,6 +97,8 @@ impl DocumentSymbolScopes {
         scope.insert(name.to_string())
     }
 
+    /// Introduce a top-level binding once; assignments in nested scopes do not
+    /// contribute document-level entries.
     fn introduce_global_if_missing(&mut self, name: &str) -> bool {
         if self.names.len() > 1 {
             return false;
@@ -94,6 +113,8 @@ impl DocumentSymbolScopes {
     }
 }
 
+/// Walk a syntax subtree and collect only constructs which define outline
+/// entries; all other nodes are traversed transparently.
 fn collect_document_symbols_from(
     node: M2Node,
     builtins: &BuiltinData,
@@ -148,6 +169,8 @@ fn collect_property_document_symbols(
         .collect()
 }
 
+/// Convert an assignment into symbols for its newly introduced bindings and,
+/// when its right side is a function, attach the function body's local symbols.
 fn collect_assignment_document_symbols(
     node: M2Node,
     builtins: &BuiltinData,
@@ -232,6 +255,8 @@ fn collect_assignment_document_symbols(
     }
 }
 
+/// Collect nested outline entries for one function body in an isolated lexical
+/// scope. Parameters are pre-recorded so assignments to them are not emitted.
 fn collect_function_body_document_symbols(
     function_node: M2Node,
     builtins: &BuiltinData,
@@ -280,6 +305,7 @@ fn collect_binding_target_nodes<'tree>(node: M2Node<'tree>, symbols: &mut Vec<M2
     }
 }
 
+/// Gather parameter names from nested parameter collections.
 fn collect_parameter_names(node: M2Node, names: &mut Vec<String>) {
     match node.kind {
         NodeKind::Symbol => names.push(node.text().to_string()),
@@ -301,6 +327,7 @@ enum AssignmentOperator {
     Other,
 }
 
+/// Classify the parsed assignment operator for the outline's binding rules.
 fn assignment_operator(node: M2Node) -> AssignmentOperator {
     match node.binary_operator() {
         Some("=") => AssignmentOperator::Equal,
@@ -310,6 +337,8 @@ fn assignment_operator(node: M2Node) -> AssignmentOperator {
     }
 }
 
+/// Select the LSP outline kind from the assigned expression when it conveys a
+/// more specific static declaration than a regular variable.
 fn assignment_symbol_kind(node: M2Node) -> SymbolKind {
     match node.child_by_field_name("right") {
         Some(right)
@@ -323,6 +352,7 @@ fn assignment_symbol_kind(node: M2Node) -> SymbolKind {
     }
 }
 
+/// Return the declared type name from a `new` expression when it is a symbol.
 fn new_statement_type_name<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
     let type_node = node.child_by_field_name("type")?;
     if !type_node.is(NodeKind::Symbol) {

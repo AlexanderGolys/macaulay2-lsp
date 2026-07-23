@@ -4,9 +4,6 @@
 //! instead of a single merged index; parse-time analysis stays Core-scoped via
 //! the `Core` partition clone held by the backend.
 
-// Some query forms are consumed only by tests so far; allow until they land.
-#![allow(dead_code)]
-
 use std::collections::HashMap;
 
 use crate::builtin_index::BuiltinIndex;
@@ -53,10 +50,6 @@ impl PackagePartitionedIndex {
 
     pub fn default_loaded(&self) -> &[String] {
         &self.default_loaded
-    }
-
-    pub fn packages(&self) -> impl Iterator<Item = &str> {
-        self.partitions.keys().map(String::as_str)
     }
 
     /// A non-materializing view over the partitions loaded for a document, in
@@ -152,42 +145,6 @@ impl<'a> ScopedIndex<'a> {
 
     pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
         self.get_record_with_package(name).map(|(_, record)| record)
-    }
-
-    pub fn contains_name(&self, name: &str) -> bool {
-        self.partitions
-            .iter()
-            .any(|(_, data)| data.contains_name(name))
-    }
-
-    pub fn is_subtype(&self, child: &InstanceID, parent: &InstanceID) -> bool {
-        // The partition owning `child` carries its full flattened ancestor chain,
-        // so a single partition answers definitively; others return false (or the
-        // reflexive child == parent). `any` therefore yields the correct edge.
-        self.partitions
-            .iter()
-            .any(|(_, data)| data.is_subtype(child, parent))
-    }
-
-    pub fn resolve_call_return_type(
-        &self,
-        callable: &str,
-        argument_types: &[Option<String>],
-    ) -> Option<String> {
-        self.partitions
-            .iter()
-            .find_map(|(_, data)| data.resolve_call_return_type(callable, argument_types))
-    }
-
-    pub fn resolve_call_return_type_with_options(
-        &self,
-        callable: &str,
-        argument_types: &[Option<String>],
-        literal_options: &[(String, String)],
-    ) -> Option<String> {
-        self.partitions.iter().find_map(|(_, data)| {
-            data.resolve_call_return_type_with_options(callable, argument_types, literal_options)
-        })
     }
 
     pub fn resolve_call_signature_usage(
@@ -364,17 +321,6 @@ mod tests {
             .expect("toJSON resolves once JSON is loaded");
         assert_eq!(pkg, "JSON");
         assert_eq!(record.name.0, "toJSON");
-    }
-
-    #[test]
-    fn scoped_is_subtype_spans_package_to_core() {
-        // A loaded package type whose flattened ancestor chain reaches a Core type
-        // resolves is_subtype without any merged lattice (chain is stored per record).
-        let index = PackagePartitionedIndex::from_corpus(corpus());
-        let loaded = LoadedPackages::resolve(index.default_loaded(), "needsPackage \"JSON\"");
-        let scoped = index.scoped(&loaded);
-        // Every type is a subtype of Thing; reflexive check is the floor.
-        assert!(scoped.is_subtype(&InstanceID::new("ZZ"), &InstanceID::new("Thing")));
     }
 
     #[test]

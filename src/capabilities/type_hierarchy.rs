@@ -1,3 +1,5 @@
+//! Static type-hierarchy requests backed by generated builtin metadata.
+
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};

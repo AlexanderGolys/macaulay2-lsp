@@ -1,3 +1,5 @@
+//! Type inlay hints derived from static document analysis.
+
 use std::collections::HashSet;
 
 use tower_lsp::lsp_types::{

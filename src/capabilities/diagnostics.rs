@@ -1,3 +1,5 @@
+//! Conversion of document analysis facts into published LSP diagnostics.
+
 use std::collections::HashSet;
 
 use tower_lsp::lsp_types::Url;

@@ -1,3 +1,6 @@
+//! Completion and navigation features: definition, references, rename, and
+//! workspace-symbol queries.
+
 use std::collections::HashMap;
 
 use tower_lsp::lsp_types::*;

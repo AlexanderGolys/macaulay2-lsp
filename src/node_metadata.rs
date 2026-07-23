@@ -1,4 +1,8 @@
+//! Typed, grammar-local access to Tree-sitter nodes used throughout the server.
+
 use std::ops::Deref;
+
+use tree_sitter::Node;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NodeKind {
@@ -133,7 +137,7 @@ impl NodeKind {
 
 #[derive(Debug, Clone, Copy)]
 pub struct M2Node<'tree> {
-    node: tree_sitter::Node<'tree>,
+    node: Node<'tree>,
     /// The full source buffer this node was parsed from. Held so `text()` can
     /// return the node's exact span without the caller ever touching the raw
     /// buffer. Carried (not re-derived) so navigations propagate it for free.
@@ -142,7 +146,7 @@ pub struct M2Node<'tree> {
 }
 
 impl<'tree> M2Node<'tree> {
-    pub fn new(node: tree_sitter::Node<'tree>, source: &'tree str) -> Self {
+    pub fn new(node: Node<'tree>, source: &'tree str) -> Self {
         Self {
             kind: NodeKind::from_str(node.kind()),
             node,
@@ -426,7 +430,7 @@ impl<'tree> M2Node<'tree> {
 }
 
 impl<'tree> Deref for M2Node<'tree> {
-    type Target = tree_sitter::Node<'tree>;
+    type Target = Node<'tree>;
 
     fn deref(&self) -> &Self::Target {
         &self.node
@@ -442,7 +446,10 @@ mod cst_compliance_gate {
     //! the anonymous-token predicates in this module; reading raw code re-derives
     //! parser logic (escaped `/////`, `"` in comments, `--` in strings) and is
     //! banned. A violation fails the test run, not just review.
-    use std::path::{Path, PathBuf};
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
 
     /// Substrings that must not appear outside `node_metadata.rs`. Each is a way
     /// to reach the raw tree-sitter node-type name or the unparsed source.
@@ -472,7 +479,7 @@ mod cst_compliance_gate {
     ];
 
     fn rust_sources(dir: &Path, out: &mut Vec<PathBuf>) {
-        for entry in std::fs::read_dir(dir).expect("src dir is readable") {
+        for entry in fs::read_dir(dir).expect("src dir is readable") {
             let path = entry.expect("dir entry").path();
             if path.is_dir() {
                 rust_sources(&path, out);
@@ -497,7 +504,7 @@ mod cst_compliance_gate {
             {
                 continue;
             }
-            let contents = std::fs::read_to_string(&file).expect("source is readable");
+            let contents = fs::read_to_string(&file).expect("source is readable");
             for (line_number, line) in contents.lines().enumerate() {
                 // Skip comments: a doc/line comment may legitimately mention a
                 // banned form while describing the rule.

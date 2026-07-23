@@ -1,27 +1,39 @@
+//! Indexed Macaulay2 builtin metadata, static type relations, and the compact
+//! queries shared by LSP capabilities.
+//!
+//! This module does not evaluate Macaulay2. It combines generated corpus facts
+//! with the type lattice to answer conservative questions about known objects,
+//! method signatures, option values, hover text, and semantic-token roles.
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use std::fmt;
+use std::fmt::{self, Display};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Stable identifier for an indexed M2 object or type.
 pub struct InstanceID(pub String);
 
 impl InstanceID {
+    /// Construct an identifier from an unqualified or package-qualified name.
     pub fn new(name: &str) -> Self {
         InstanceID(name.to_string())
     }
 }
 
-impl fmt::Display for InstanceID {
+impl Display for InstanceID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// One executable example attached to a corpus record or method signature.
 pub struct CodeExample(pub String);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// The normalized metadata known for one builtin object, type, or callable.
+/// @##question Is tha
 pub struct Record {
     pub name: InstanceID,
     pub class: InstanceID,
@@ -53,6 +65,7 @@ pub struct Record {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Callable metadata, separating installed methods from richer documentation.
 pub struct FunctionInfo {
     #[serde(default)]
     pub methods: Vec<MethodSignature>,
@@ -63,12 +76,14 @@ pub struct FunctionInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// The documented options accepted by a callable.
 pub struct OptionInfo {
     #[serde(default)]
     pub options: Vec<MethodOption>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// One option key and, when available, its textual default value.
 pub struct MethodOption {
     pub name: InstanceID,
     #[serde(default)]
@@ -76,6 +91,7 @@ pub struct MethodOption {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Provenance and structured upstream documentation for a corpus record.
 pub struct DocumentationInfo {
     pub status: DocumentationStatus,
     #[serde(default)]
@@ -114,6 +130,7 @@ pub struct DocumentationInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Whether documentation was extracted upstream, synthesized, or unavailable.
 pub enum DocumentationStatus {
     Upstream,
     Missing,
@@ -121,12 +138,14 @@ pub enum DocumentationStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// An installed method domain: callable name followed by its argument types.
 pub struct MethodSignature {
     #[serde(default)]
     pub signature: Vec<InstanceID>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A method signature enriched with codomain, examples, and documentation key.
 pub struct DocumentedMethodSignature {
     #[serde(default)]
     pub signature: Vec<InstanceID>,
@@ -139,6 +158,7 @@ pub struct DocumentedMethodSignature {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Parser and runtime metadata for an operator-backed callable.
 pub struct OperatorInfo {
     pub method_lookup: String,
     pub method_symbol: InstanceID,
@@ -168,6 +188,7 @@ impl OperatorInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Direct hierarchy and instance facts for an indexed M2 type.
 pub struct TypeInfo {
     #[serde(default)]
     pub subtypes: Vec<InstanceID>,
@@ -180,6 +201,7 @@ pub struct TypeInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Object-level relationship facts retained from the generated corpus.
 pub struct RelationInfo {
     pub parent: Option<InstanceID>,
     #[serde(default)]
@@ -201,17 +223,13 @@ pub struct RelationInfo {
 #[derive(Debug, Clone, Default)]
 pub struct TypeLattice {
     ancestors: HashMap<InstanceID, Vec<InstanceID>>,
-    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
-    children: HashMap<InstanceID, Vec<InstanceID>>,
 }
 
 impl TypeLattice {
     /// Build the lattice from the `m2-index.jsonl` type records: each carries its
-    /// full ancestor chain (sorted here for binary search) and its immediate
-    /// subtypes (the children edge).
+    /// full ancestor chain, sorted here for binary search.
     pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
         let mut ancestors: HashMap<InstanceID, Vec<InstanceID>> = HashMap::new();
-        let mut children: HashMap<InstanceID, Vec<InstanceID>> = HashMap::new();
 
         for entry in index.types() {
             let id = InstanceID::new(&entry.name);
@@ -227,23 +245,10 @@ impl TypeLattice {
             }
             chain.sort();
             chain.dedup();
-            ancestors.insert(id.clone(), chain);
-            children.insert(
-                id,
-                entry.subtypes.iter().map(|s| InstanceID::new(s)).collect(),
-            );
+            ancestors.insert(id, chain);
         }
 
-        TypeLattice {
-            ancestors,
-            children,
-        }
-    }
-
-    /// Immediate subtypes of `parent` (the downward edge, for `type_hierarchy`).
-    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
-    pub fn children(&self, parent: &InstanceID) -> &[InstanceID] {
-        self.children.get(parent).map_or(&[], Vec::as_slice)
+        TypeLattice { ancestors }
     }
 
     pub fn is_subtype(&self, child: &InstanceID, parent: &InstanceID) -> bool {
@@ -253,54 +258,10 @@ impl TypeLattice {
                 .get(child)
                 .is_some_and(|chain| chain.binary_search(parent).is_ok())
     }
-
-    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
-    pub fn least_upper_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
-        if a == b {
-            return Some(a.clone());
-        }
-        let ancestors_a = self.ancestors.get(a)?;
-        let ancestors_b = self.ancestors.get(b)?;
-        // `a` is a supertype of `b` → `a` is already an upper bound of both.
-        if ancestors_b.binary_search(a).is_ok() {
-            return Some(a.clone());
-        }
-        // `b` is a supertype of `a` → `b` is already an upper bound of both.
-        if ancestors_a.binary_search(b).is_ok() {
-            return Some(b.clone());
-        }
-        let common: Vec<_> = ancestors_a
-            .iter()
-            .filter(|ancestor| ancestors_b.binary_search(ancestor).is_ok())
-            .collect();
-        common
-            .into_iter()
-            .min_by_key(|candidate| {
-                ancestors_a
-                    .iter()
-                    .filter(|a| {
-                        self.ancestors
-                            .get(a)
-                            .is_some_and(|chain| chain.contains(candidate))
-                    })
-                    .count()
-            })
-            .cloned()
-    }
-
-    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
-    pub fn greatest_lower_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
-        if self.is_subtype(a, b) {
-            return Some(a.clone());
-        }
-        if self.is_subtype(b, a) {
-            return Some(b.clone());
-        }
-        None
-    }
 }
 
 #[derive(Debug, Clone)]
+/// In-memory view of the generated builtin corpus used by one LSP workspace.
 pub struct BuiltinData {
     /// Primary names, one per pooled record (1:1 with `records`).
     names: Vec<InstanceID>,
@@ -319,6 +280,7 @@ pub struct BuiltinData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// One callable signature after documentation and indexed type facts are merged.
 pub struct ResolvedSignature {
     pub signature: Vec<InstanceID>,
     pub output_types: Vec<InstanceID>,
@@ -328,6 +290,7 @@ pub struct ResolvedSignature {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+/// Installed signatures partitioned by their applicability at one call site.
 pub struct SignatureUsage {
     pub pinned: Option<ResolvedSignature>,
     pub possible: Vec<ResolvedSignature>,
@@ -335,46 +298,22 @@ pub struct SignatureUsage {
 }
 
 #[derive(Debug, Clone, Default)]
+/// Compact option-value facts derived from the type index.
 pub struct TypeFacts {
     signature_codomains: HashMap<(String, Vec<String>), String>,
-    /// Installed signatures grouped by method key, for the dispatch lookup —
-    /// each key's domains are scanned once per call, not the whole table.
-    signatures_by_key: HashMap<String, Vec<(Vec<String>, String)>>,
     option_value_usages: HashMap<String, Vec<OptionValueUsage>>,
     option_values_by_slot: HashMap<(String, String), Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// A callable/option slot that admits a particular indexed option value.
 pub struct OptionValueUsage {
     pub callable: String,
     pub option: String,
 }
 
-/// Whether `domain` admits `arguments` componentwise: each argument is the
-/// expected type or a subtype of it.
-#[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
-fn domain_admits(lattice: &TypeLattice, domain: &[String], arguments: &[&str]) -> bool {
-    domain.len() == arguments.len()
-        && domain.iter().zip(arguments).all(|(expected, actual)| {
-            *actual == expected.as_str()
-                || lattice.is_subtype(&InstanceID::new(actual), &InstanceID::new(expected))
-        })
-}
-
-/// Whether domain `a` is at least as specific as `b` componentwise (each part of
-/// `a` is the matching part of `b` or a subtype of it).
-#[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
-fn domain_at_least_as_specific(lattice: &TypeLattice, a: &[String], b: &[String]) -> bool {
-    a.len() == b.len()
-        && a.iter()
-            .zip(b)
-            .all(|(x, y)| x == y || lattice.is_subtype(&InstanceID::new(x), &InstanceID::new(y)))
-}
-
 impl TypeFacts {
     /// Build the typecheck facts from the `m2-index.jsonl` callable records.
-    /// Honours the monotone rule: a method with no codomain (`typicalValue` null)
-    /// contributes no signature — the lookup stays silent rather than guess.
     pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
         let mut facts = TypeFacts::default();
         for callable in index.callables() {
@@ -386,11 +325,6 @@ impl TypeFacts {
                     (callable.name.clone(), signature.domain.clone()),
                     codomain.clone(),
                 );
-                facts
-                    .signatures_by_key
-                    .entry(callable.name.clone())
-                    .or_default()
-                    .push((signature.domain.clone(), codomain.clone()));
             }
             for option in &callable.options {
                 let slot = (callable.name.clone(), option.key.clone());
@@ -425,38 +359,6 @@ impl TypeFacts {
         facts
     }
 
-    /// Standard multiple-dispatch lookup: among the methods installed under
-    /// `key`, pick the most-specific one whose domain componentwise admits the
-    /// argument types (each `actual <: expected`), and return its codomain.
-    /// `None` ⇒ nothing applicable (or undocumented) — the checker stays silent.
-    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
-    pub fn resolve_codomain(
-        &self,
-        lattice: &TypeLattice,
-        key: &str,
-        arguments: &[&str],
-    ) -> Option<&str> {
-        let mut best: Option<&(Vec<String>, String)> = None;
-        for candidate in self.signatures_by_key.get(key)? {
-            let (domain, _) = candidate;
-            if domain.len() != arguments.len() {
-                continue;
-            }
-            if !domain_admits(lattice, domain, arguments) {
-                continue;
-            }
-            best = match best {
-                None => Some(candidate),
-                // Prefer the more-specific domain; first installed wins on a tie.
-                Some(current) if domain_at_least_as_specific(lattice, domain, &current.0) => {
-                    Some(candidate)
-                }
-                Some(current) => Some(current),
-            };
-        }
-        best.map(|(_, codomain)| codomain.as_str())
-    }
-
     fn signature_codomain(&self, signature: &[InstanceID]) -> Option<&str> {
         let callable = signature.first()?.0.as_str();
         let domain = signature
@@ -471,14 +373,17 @@ impl TypeFacts {
 }
 
 impl BuiltinData {
+    /// Number of primary records; aliases do not increase this count.
     pub fn len(&self) -> usize {
         self.names.len()
     }
 
+    /// Whether `name` is a primary corpus name or one of its registered aliases.
     pub fn contains_name(&self, name: &str) -> bool {
         self.name_to_index.contains_key(&InstanceID::new(name))
     }
 
+    /// Primary names beginning with `prefix`, in corpus order and capped at `limit`.
     pub fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<&str> {
         if prefix.is_empty() || limit == 0 {
             return Vec::new();
@@ -492,6 +397,7 @@ impl BuiltinData {
             .collect()
     }
 
+    /// Primary names containing `query` case-insensitively, capped at `limit`.
     pub fn matching_names(&self, query: &str, limit: usize) -> Vec<&str> {
         if query.is_empty() || limit == 0 {
             return Vec::new();
@@ -506,6 +412,8 @@ impl BuiltinData {
             .collect()
     }
 
+    /// Clone the record named by `name`, resolving aliases through the same map
+    /// used for all builtin lookups.
     pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
         let index = *self.name_to_index.get(name)?;
         self.records.get(index).cloned()
@@ -520,6 +428,8 @@ impl BuiltinData {
         self.docs.get(primary).map(String::as_str)
     }
 
+    /// Return callables which document `option_name`, with package qualifiers
+    /// stripped for matching and display.
     pub fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String> {
         if limit == 0 {
             return Vec::new();
@@ -559,6 +469,7 @@ impl BuiltinData {
         usages
     }
 
+    /// Return `callable.option` slots that admit `value_name` in indexed facts.
     pub fn option_value_usage_names(&self, value_name: &str, limit: usize) -> Vec<String> {
         if limit == 0 {
             return Vec::new();
@@ -580,12 +491,6 @@ impl BuiltinData {
     // Superseded for semantic-token key classification by `is_protected_symbol`
     // (the user's model is protected-based, not option-role-based); kept for
     // option-key completion/diagnostics, which still need documented-key-ness.
-    #[allow(dead_code)]
-    pub fn is_option_name(&self, name: &str) -> bool {
-        self.get_record(&InstanceID::new(name))
-            .is_some_and(|record| record.option_role() == Some("key"))
-    }
-
     /// Whether `name` resolves to a protected object whose class is *exactly*
     /// `Symbol` (not merely an instance of it) — M2's nominal enum members. The
     /// `protected` flag is authoritative when the corpus records it; when it does
@@ -597,13 +502,8 @@ impl BuiltinData {
             .is_some_and(|record| record.class == symbol_type && record.protected.unwrap_or(true))
     }
 
-    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
-    pub fn is_option_value_name(&self, name: &str) -> bool {
-        self.get_record(&InstanceID::new(name))
-            .is_some_and(|record| record.option_role() == Some("value"))
-            || self.type_facts.option_value_usages.contains_key(name)
-    }
-
+    /// Whether the indexed facts admit `value_name` for any spelling of
+    /// `option_key`, ignoring package qualification.
     pub fn is_option_value_for_key(&self, option_key: &str, value_name: &str) -> bool {
         let option_key = option_key
             .rsplit_once('$')
@@ -619,6 +519,8 @@ impl BuiltinData {
             .any(|(_, values)| values.iter().any(|value| value == value_name))
     }
 
+    /// Merge installed methods with documentation and static codomain facts.
+    /// Specialized domains win over a general documented signature.
     pub fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
         let Some(function_info) = &record.function_info else {
             return Vec::new();
@@ -688,6 +590,7 @@ impl BuiltinData {
         signatures
     }
 
+    /// Installed method domains not represented by a resolved documented signature.
     pub fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature> {
         let Some(function_info) = &record.function_info else {
             return Vec::new();
@@ -710,14 +613,9 @@ impl BuiltinData {
             .collect()
     }
 
-    pub fn resolve_call_return_type(
-        &self,
-        callable: &str,
-        argument_types: &[Option<String>],
-    ) -> Option<String> {
-        self.resolve_call_return_type_with_options(callable, argument_types, &[])
-    }
-
+    /// Resolve a call to exactly one known return type, or stay silent when the
+    /// available metadata is ambiguous or incomplete. Literal option facts are
+    /// accepted for the option-sensitive dispatch path.
     pub fn resolve_call_return_type_with_options(
         &self,
         callable: &str,
@@ -751,6 +649,8 @@ impl BuiltinData {
         }
     }
 
+    /// Resolve a call only when its known argument types select one signature.
+    /// A specialized candidate is preferred to a general one.
     pub fn resolve_call_signature(
         &self,
         callable: &str,
@@ -833,6 +733,8 @@ impl BuiltinData {
         }
     }
 
+    /// Partition installed signatures into possible and excluded candidates;
+    /// pin one only when every argument type is known and unambiguous.
     pub fn resolve_call_signature_usage(
         &self,
         callable: &str,
@@ -1060,8 +962,8 @@ impl Record {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The LSP-standard token types emitted for M2 syntax and indexed metadata.
 #[repr(u32)]
-#[allow(dead_code)]
 pub enum M2SemanticTokenType {
     Type = 0,
     Function = 1,
@@ -1082,6 +984,7 @@ pub enum M2SemanticTokenType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A semantic-token role plus M2-specific modifier facts for one identifier.
 pub struct M2SemanticToken {
     pub token_type: M2SemanticTokenType,
     pub is_command: bool,
@@ -1272,18 +1175,20 @@ impl BuiltinData {
     /// Build a `BuiltinData` over the whole combined corpus (`m2-index.jsonl`).
     /// Production routes through `PackagePartitionedIndex::from_corpus` and uses
     /// only the Core partition; this whole-corpus convenience is for tests.
-    #[allow(dead_code)] // whole-corpus convenience; production uses from_corpus + Core partition
+    #[cfg(test)]
     pub fn load_from_index(corpus: &str) -> Self {
         Self::from_index(&crate::builtin_index::BuiltinIndex::load(corpus))
     }
 
     /// An empty index — no records, no facts, empty lattice. For tests and
     /// snapshots that need a `BuiltinData` placeholder with no builtin knowledge.
-    #[allow(dead_code)] // test-only placeholder; production builds from the corpus
+    #[cfg(test)]
     pub fn empty() -> Self {
         Self::from_index(&crate::builtin_index::BuiltinIndex::default())
     }
 
+    /// Classify an indexed object by its runtime class and hierarchy for LSP
+    /// semantic tokens. Returns `None` for metadata with no useful token role.
     pub fn get_semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
         let record = self.get_record(&InstanceID::new(name))?;
         let data_type = &record.class;
@@ -1309,15 +1214,17 @@ impl BuiltinData {
         let is_constructor =
             self.is_constructor_name(&record.name.0) && !is_manipulator && !is_command;
 
-        // 1. Every M2 type is the same kind of thing: an object whose own class
-        // is a subtype of `Type`. M2 draws no class-vs-type distinction (`class x`
-        // *is* the type of `x`), so every type-valued symbol gets the one TYPE
-        // role rather than splitting on an inheritance detail that has no meaning
-        // in the language.
+        // 1. An indexed type whose own class is `Type` is an M2 class (for
+        // example `Array`). Other type-valued objects, such as `ZZ` whose class
+        // is `Ring`, keep the standard `type` role.
         if let Some(type_info) = &record.type_info {
             if type_info.parent_type.is_some() {
                 return Some(M2SemanticToken {
-                    token_type: M2SemanticTokenType::Type,
+                    token_type: if *data_type == InstanceID::new("Type") {
+                        M2SemanticTokenType::Class
+                    } else {
+                        M2SemanticTokenType::Type
+                    },
                     is_command: false,
                     is_file: false,
                     is_manipulator: false,
@@ -1391,6 +1298,7 @@ impl BuiltinData {
         }
     }
 
+    /// Classify a known static type when recoloring a local symbol by inference.
     pub fn get_semantic_token_for_static_type(&self, type_name: &str) -> Option<M2SemanticToken> {
         let type_id = InstanceID::new(type_name);
         let function_type = InstanceID::new("Function");
@@ -1414,7 +1322,14 @@ impl BuiltinData {
         } else if self.is_subtype(&type_id, &package_type) {
             M2SemanticTokenType::Namespace
         } else if is_type_valued {
-            M2SemanticTokenType::Type
+            if self
+                .get_record(&type_id)
+                .is_some_and(|record| record.class == type_type)
+            {
+                M2SemanticTokenType::Class
+            } else {
+                M2SemanticTokenType::Type
+            }
         } else if self.is_subtype(&type_id, &function_type)
             || self.is_subtype(&type_id, &scripted_functor_type)
             || is_manipulator
@@ -1444,6 +1359,8 @@ impl BuiltinData {
         })
     }
 
+    /// Whether `name` is a `to<Type>` conversion whose suffix resolves to a
+    /// type-like indexed record.
     pub fn is_constructor_name(&self, name: &str) -> bool {
         let unqualified_name = name.rsplit_once('$').map_or(name, |(_, name)| name);
         let Some(target_name) = unqualified_name.strip_prefix("to") else {
@@ -1478,22 +1395,11 @@ impl BuiltinData {
     pub fn is_subtype(&self, child: &InstanceID, parent: &InstanceID) -> bool {
         self.type_lattice.is_subtype(child, parent)
     }
-
-    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
-    pub fn least_upper_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
-        self.type_lattice.least_upper_bound(a, b)
-    }
-
-    #[allow(dead_code)] // forward-looking: consumed by stage-3 type propagation
-    pub fn greatest_lower_bound(&self, a: &InstanceID, b: &InstanceID) -> Option<InstanceID> {
-        self.type_lattice.greatest_lower_bound(a, b)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtin_index::BuiltinIndex;
 
     #[test]
     fn dispatch_walks_the_lattice_to_the_installed_supertype_method() {
@@ -1507,60 +1413,41 @@ mod tests {
             "\n",
             r#"{"kind":"function","name":"dim","methods":[{"domain":["Ring"],"typicalValue":"ZZ"}],"aliases":[],"extra_keys":[]}"#,
         );
-        let index = BuiltinIndex::load(corpus);
-        let lattice = TypeLattice::from_type_index(&index);
-        let facts = TypeFacts::from_type_index(&index);
+        let builtins = BuiltinData::load_from_index(corpus);
 
         // Exact match.
         assert_eq!(
-            facts.resolve_codomain(&lattice, "dim", &["Ring"]),
-            Some("ZZ")
+            builtins
+                .resolve_call_return_type_with_options("dim", &[Some("Ring".to_string())], &[],),
+            Some("ZZ".to_string())
         );
         // Subtype dispatch: PolynomialRing has no own method, walks up to Ring's.
         assert_eq!(
-            facts.resolve_codomain(&lattice, "dim", &["PolynomialRing"]),
-            Some("ZZ")
+            builtins.resolve_call_return_type_with_options(
+                "dim",
+                &[Some("PolynomialRing".to_string())],
+                &[],
+            ),
+            Some("ZZ".to_string())
         );
         // No applicable method (Thing is a supertype, not a subtype) ⇒ silent.
-        assert_eq!(facts.resolve_codomain(&lattice, "dim", &["Thing"]), None);
-        // Two-sided lattice exposes the downward edge for type_hierarchy.
         assert_eq!(
-            lattice.children(&InstanceID::new("Ring")),
-            &[InstanceID::new("PolynomialRing")]
+            builtins.resolve_call_return_type_with_options(
+                "dim",
+                &[Some("Thing".to_string())],
+                &[],
+            ),
+            None
         );
     }
 
     #[test]
     fn resolves_real_gb_codomain_from_the_type_index() {
-        let index = BuiltinIndex::load(include_str!("./data/m2-index.jsonl"));
-        let lattice = TypeLattice::from_type_index(&index);
-        let facts = TypeFacts::from_type_index(&index);
-        assert_eq!(
-            facts.resolve_codomain(&lattice, "gb", &["Ideal"]),
-            Some("GroebnerBasis")
-        );
-    }
-
-    #[test]
-    fn least_upper_bound_returns_the_common_supertype() {
         let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
-
-        // Array <: VisibleList: the join of a type and its own supertype is the
-        // supertype, not the subtype. (Regression: the ancestor shortcut used to
-        // return the operand that was lower in the order.)
         assert_eq!(
-            builtins.least_upper_bound(&InstanceID::new("Array"), &InstanceID::new("VisibleList")),
-            Some(InstanceID::new("VisibleList"))
-        );
-        assert_eq!(
-            builtins.least_upper_bound(&InstanceID::new("VisibleList"), &InstanceID::new("Array")),
-            Some(InstanceID::new("VisibleList"))
-        );
-        // Array and List are siblings under VisibleList; their join is the most
-        // specific common ancestor, VisibleList — not BasicList or Thing.
-        assert_eq!(
-            builtins.least_upper_bound(&InstanceID::new("Array"), &InstanceID::new("List")),
-            Some(InstanceID::new("VisibleList"))
+            builtins
+                .resolve_call_return_type_with_options("gb", &[Some("Ideal".to_string())], &[],),
+            Some("GroebnerBasis".to_string())
         );
     }
 

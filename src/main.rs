@@ -1,3 +1,5 @@
+//! Macaulay2's stdio language-server entry point and protocol wiring.
+
 use std::backtrace::Backtrace;
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -751,7 +753,7 @@ mod tests {
 
     use super::*;
     use crate::analysis::Analysis;
-    use crate::record_lsp::{record_hover_with_package, record_hover_with_package_and_usage};
+    use crate::record_lsp::record_hover_with_package_and_usage;
     use crate::typesystem::BuiltinData;
     use tree_sitter::Parser;
 
@@ -847,7 +849,7 @@ mod tests {
             .get_record(&typesystem::InstanceID::new("clearAll"))
             .expect("clearAll should have builtin metadata");
 
-        let hover = record_hover_with_package(&record, Some("Core"), &builtins);
+        let hover = record_hover_with_package_and_usage(&record, Some("Core"), &builtins, None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };
@@ -884,7 +886,7 @@ mod tests {
             .get_record(&typesystem::InstanceID::new("kernel"))
             .expect("kernel should deserialize");
 
-        let hover = record_hover_with_package(&record, Some("Core"), &builtins);
+        let hover = record_hover_with_package_and_usage(&record, Some("Core"), &builtins, None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };
@@ -908,7 +910,7 @@ mod tests {
             .get_record(&typesystem::InstanceID::new("method"))
             .expect("method should deserialize");
 
-        let hover = record_hover_with_package(&record, Some("Core"), &builtins);
+        let hover = record_hover_with_package_and_usage(&record, Some("Core"), &builtins, None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };
@@ -925,7 +927,7 @@ mod tests {
             .get_record(&typesystem::InstanceID::new("=>"))
             .expect("=> should have operator metadata");
 
-        let hover = record_hover_with_package(&record, Some("Core"), &builtins);
+        let hover = record_hover_with_package_and_usage(&record, Some("Core"), &builtins, None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };
