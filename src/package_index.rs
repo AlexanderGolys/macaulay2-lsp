@@ -7,7 +7,7 @@ use tower_lsp::lsp_types::{Location, Position, Range, Url};
 use tree_sitter::Parser;
 
 use crate::node_metadata::{M2Node, NodeKind};
-use crate::record_lsp::{record_source_file, record_source_line};
+use crate::record_lsp::record_source_file;
 use crate::typesystem::Record;
 
 #[derive(Debug, Clone)]
@@ -72,7 +72,7 @@ impl SourceResolver {
         let source_file = record_source_file(record)?;
         let path = self.resolve_source_file(source_file)?;
         let uri = Url::from_file_path(path).ok()?;
-        let position = Position::new(record_source_line(record), 0);
+        let position = Position::new(0, 0);
         Some(Location {
             uri,
             range: Range::new(position, position),

@@ -6,10 +6,11 @@ use tower_lsp::lsp_types::Url;
 use tower_lsp::lsp_types::{Position, Range as LspRange, SymbolKind};
 use tower_lsp::Client;
 
-use crate::analysis::{symbol_node_text, Analysis, BindingRole};
+use crate::analysis::{symbol_node_text, Analysis};
 use crate::diagnostic_registry::M2Diagnostic;
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::meta::BindingRole;
+use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::typesystem::{BuiltinData, InstanceID};
 use crate::util::{node_position, to_lsp_range, utf16_len_for_byte_span};
 
@@ -246,37 +247,34 @@ impl Analysis {
             }
         }
 
-        for binding in self
-            .registry
-            .bindings
-            .iter()
-            .filter(|binding| binding.is_definition)
-        {
-            if binding.role != BindingRole::Ordinary {
-                continue;
-            }
-            if binding.scope_idx == 0 {
-                continue;
-            }
-            if !matches!(binding.kind, SymbolKind::VARIABLE | SymbolKind::FUNCTION) {
-                continue;
-            }
-            if used_bindings.contains(&binding.binding_id) {
-                continue;
-            }
-            let name = self.symbol_name(binding.symbol);
-            if name.starts_with('_') {
-                continue;
-            }
-            let noun = if binding.kind == SymbolKind::FUNCTION {
-                "function"
-            } else {
-                "variable"
-            };
-            self.diagnostics.push(
-                M2Diagnostic::UnusedBinding.at(binding.range, format!("Unused {noun} `{name}`")),
-            );
-        }
+        let diagnostics = self
+            .bindings()
+            .filter(|binding| binding.role == BindingRole::Ordinary)
+            .filter(|binding| binding.scope_idx != 0)
+            .filter(|binding| {
+                matches!(
+                    binding.state.kind,
+                    SymbolKind::VARIABLE | SymbolKind::FUNCTION
+                )
+            })
+            .filter(|binding| !used_bindings.contains(&binding.binding_id))
+            .filter_map(|binding| {
+                let name = self.symbol_name(binding.symbol);
+                if name.starts_with('_') {
+                    return None;
+                }
+                let noun = if binding.state.kind == SymbolKind::FUNCTION {
+                    "function"
+                } else {
+                    "variable"
+                };
+                Some(
+                    M2Diagnostic::UnusedBinding
+                        .at(binding.range, format!("Unused {noun} `{name}`")),
+                )
+            })
+            .collect::<Vec<_>>();
+        self.diagnostics.extend(diagnostics);
     }
 }
 

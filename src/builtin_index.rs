@@ -26,7 +26,6 @@ pub struct TypeEntry {
     pub parent: Option<String>,
     pub ancestors: Vec<String>,
     pub subtypes: Vec<String>,
-    pub instances: Vec<String>,
     /// Rendered hover markdown for this entry, folded into the record by the
     /// corpus generator. `None` ⇒ undocumented (monotone: absent, not empty).
     pub markdown: Option<String>,
@@ -85,7 +84,6 @@ pub struct CallableEntry {
 #[derive(Debug, Clone)]
 pub struct OptionSpec {
     pub key: String,
-    pub default: Option<String>,
     pub possible_values: Vec<String>,
 }
 
@@ -138,7 +136,6 @@ impl BuiltinIndex {
                         parent: raw.parent.as_deref().map(deref_ref),
                         ancestors: raw.ancestors.iter().map(|a| deref_ref(a)).collect(),
                         subtypes: raw.subtypes.iter().map(|s| deref_ref(s)).collect(),
-                        instances: raw.instances.iter().map(|i| deref_ref(i)).collect(),
                         markdown,
                     });
                 }
@@ -330,8 +327,6 @@ struct RawRecord {
     #[serde(default)]
     subtypes: Vec<String>,
     #[serde(default)]
-    instances: Vec<String>,
-    #[serde(default)]
     typical_value: Option<String>,
     #[serde(default)]
     options: Vec<RawOptionSpec>,
@@ -360,8 +355,6 @@ struct RawMethod {
 #[derive(Debug, Deserialize)]
 struct RawOptionSpec {
     key: String,
-    #[serde(default)]
-    default: Option<String>,
     #[serde(default, rename = "possibleValues")]
     possible_values: Vec<String>,
 }
@@ -370,7 +363,6 @@ impl From<RawOptionSpec> for OptionSpec {
     fn from(raw: RawOptionSpec) -> Self {
         OptionSpec {
             key: raw.key,
-            default: raw.default,
             possible_values: raw.possible_values,
         }
     }

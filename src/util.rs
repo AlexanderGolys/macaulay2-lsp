@@ -53,18 +53,12 @@ pub(crate) fn byte_index_from_lsp_position(text: &str, position: Position) -> Op
     None
 }
 
-pub(crate) fn tree_sitter_point_from_lsp_position(
-    text: &str,
-    position: Position,
-) -> Option<Point> {
+pub(crate) fn tree_sitter_point_from_lsp_position(text: &str, position: Position) -> Option<Point> {
     let byte_index = byte_index_from_lsp_position(text, position)?;
     Some(tree_sitter_point_from_byte_index(text, byte_index))
 }
 
-pub(crate) fn tree_sitter_point_from_byte_index(
-    text: &str,
-    byte_index: usize,
-) -> Point {
+pub(crate) fn tree_sitter_point_from_byte_index(text: &str, byte_index: usize) -> Point {
     let byte_index = floor_char_boundary(text, byte_index);
     let prefix = &text[..byte_index];
     let row = prefix.bytes().filter(|byte| *byte == b'\n').count();

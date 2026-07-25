@@ -5,7 +5,7 @@ use tower_lsp::lsp_types::{
 };
 use tree_sitter::Parser;
 
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::util::full_document_range;
 
 /// Formatting style derived from the client's `FormatOptions` (`tab_size` /

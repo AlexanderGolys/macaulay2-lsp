@@ -10,24 +10,9 @@ pub(crate) fn record_package(record: &Record) -> Option<&str> {
 
 pub(crate) fn record_source_file(record: &Record) -> Option<&str> {
     record
-        .documentation
-        .as_ref()
-        .and_then(|documentation| documentation.source_file.as_deref())
-        .or_else(|| {
-            record
-                .extra
-                .get("package_source_file")
-                .and_then(|value| value.as_str())
-        })
-}
-
-pub(crate) fn record_source_line(record: &Record) -> u32 {
-    record
-        .documentation
-        .as_ref()
-        .and_then(|documentation| documentation.source_line)
-        .and_then(|line| u32::try_from(line.saturating_sub(1)).ok())
-        .unwrap_or(0)
+        .extra
+        .get("package_source_file")
+        .and_then(|value| value.as_str())
 }
 
 pub(crate) fn record_symbol_kind(record: &Record) -> SymbolKind {

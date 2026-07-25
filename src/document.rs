@@ -1,13 +1,13 @@
 //! Versioned document snapshots that combine source text, parse tree, and
 //! analysis for LSP requests.
 
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Parser, Point, Tree};
 
 #[cfg(test)]
 use crate::analysis::ExpressionFact;
-use crate::analysis::{Analysis, BindingInfo, FunctionInfo, SymbolInfo};
+use crate::analysis::{Analysis, BindingView, FunctionInfo};
 use crate::package_index::collect_imported_packages_in_tree;
 use crate::typesystem::BuiltinData;
 use crate::util::{
@@ -29,12 +29,12 @@ pub(crate) struct DocumentSnapshot {
 
 /// The common first step of every reference / highlight / rename request: the
 /// tree-sitter symbol node under the cursor together with its scope-aware
-/// `SymbolInfo`. Resolved once per request and threaded through the downstream
+/// `BindingInfo`. Resolved once per request and threaded through the downstream
 /// reference collection so the target lookup is not repeated.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TargetSymbol<'a> {
     pub node: M2Node<'a>,
-    pub symbol: &'a SymbolInfo,
+    pub symbol: BindingView<'a>,
 }
 
 impl DocumentSnapshot {
@@ -91,13 +91,13 @@ impl DocumentSnapshot {
         &self.analysis.diagnostics
     }
 
-    pub(crate) fn binding_at_position(&self, position: Position) -> Option<&BindingInfo> {
+    pub(crate) fn binding_at_position(&self, position: Position) -> Option<BindingView<'_>> {
         let node = self.symbol_node_at_position(position)?;
         self.analysis.get_binding_at(node.text(), position)
     }
 
     /// Resolve the user symbol under `position`: its tree-sitter node plus the
-    /// scope-aware `SymbolInfo` for the same site. Returns `None` when the
+    /// scope-aware `BindingInfo` for the same site. Returns `None` when the
     /// cursor is not on a renameable / referenceable symbol (builtins, keywords,
     /// punctuation, or whitespace). The single entry point shared by reference,
     /// highlight, and rename requests.
@@ -357,14 +357,14 @@ mod tests {
             .analysis()
             .get_binding_at("x", Position::new(0, 0))
             .expect("the first assignment should create global x");
-        assert_eq!(first_x.type_name.as_deref(), Some("Symbol"));
+        assert_eq!(first_x.state.type_name.as_deref(), Some("Symbol"));
         for (name, character) in [("z", 0), ("x", 4), ("y", 8)] {
             let binding = document
                 .analysis()
                 .get_binding_at(name, Position::new(2, character))
                 .expect("the chained assignment should resolve the binding");
             assert_eq!(
-                binding.type_name.as_deref(),
+                binding.state.type_name.as_deref(),
                 Some("ZZ"),
                 "{name} should have the source-ordered numeric type"
             );
@@ -402,7 +402,7 @@ mod tests {
                 .get_binding_at(name, Position::new(0, character))
                 .expect("the remaining assignment should create the binding");
             assert_eq!(
-                binding.type_name.as_deref(),
+                binding.state.type_name.as_deref(),
                 Some("Symbol"),
                 "{name} must be retyped from the unresolved y"
             );
@@ -424,22 +424,17 @@ mod tests {
             .expect("the unresolved y should retain an expression fact");
         assert_eq!(y_fact.result_type.label().as_deref(), Some("Symbol"));
         assert_eq!(
-            document.analysis().scopes.len(),
-            1,
-            "only the root scope should remain"
-        );
-        assert_eq!(
             document.analysis().registry().scopes.len(),
             1,
-            "the semantic registry must not retain removed local scopes"
+            "only the root scope should remain"
         );
         assert!(
             document
                 .analysis()
                 .registry()
                 .expressions
-                .values()
-                .all(|fact| fact.span.range.start.line == 0),
+                .keys()
+                .all(|span| span.range.start.line == 0),
             "retained expression facts must shift from line 2 to line 0"
         );
     }
@@ -451,7 +446,6 @@ mod tests {
             DocumentSnapshot::from_text("f := () -> (x := 2; z = 4)\nf\n".to_string(), &builtins)
                 .expect("fixture should parse");
 
-        assert_eq!(document.analysis().scopes.len(), 2);
         assert_eq!(document.analysis().registry().scopes.len(), 2);
 
         document
@@ -471,7 +465,6 @@ mod tests {
             .get_binding_at("f", Position::new(0, 0))
             .is_none());
         assert!(document.analysis().registry().bindings.is_empty());
-        assert_eq!(document.analysis().scopes.len(), 1);
         assert_eq!(document.analysis().registry().scopes.len(), 1);
     }
 
@@ -507,7 +500,7 @@ mod tests {
             .binding_at_position(Position::new(3, 0))
             .expect("binding should resolve");
         assert_eq!(document.analysis().binding_name(binding), "y");
-        assert_eq!(binding.type_name.as_deref(), Some("Ring"));
+        assert_eq!(binding.state.type_name.as_deref(), Some("Ring"));
 
         let callable = document
             .callable_at_position(Position::new(1, 0))

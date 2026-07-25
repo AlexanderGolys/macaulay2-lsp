@@ -252,8 +252,12 @@ mod tests {
 
         // JSON ships as its own partition with its symbols...
         let json = index.partition("JSON").expect("JSON partition present");
-        assert!(json.contains_name("toJSON"));
-        assert!(json.contains_name("fromJSON"));
+        assert!(json
+            .get_record(&crate::typesystem::InstanceID::new("toJSON"))
+            .is_some());
+        assert!(json
+            .get_record(&crate::typesystem::InstanceID::new("fromJSON"))
+            .is_some());
 
         // ...but it is NOT autoloaded: absent from the default-loaded baseline...
         assert!(
@@ -264,7 +268,9 @@ mod tests {
         // ...and absent from the Core partition (so self.builtins won't resolve
         // it until P3 routes imports through loaded partitions).
         let core = index.partition("Core").expect("Core partition present");
-        assert!(!core.contains_name("toJSON"));
+        assert!(core
+            .get_record(&crate::typesystem::InstanceID::new("toJSON"))
+            .is_none());
     }
 
     #[test]

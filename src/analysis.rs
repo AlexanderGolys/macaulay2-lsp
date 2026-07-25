@@ -1,27 +1,43 @@
 //! Parse-tree analysis that records lexical bindings, static type facts, and
 //! diagnostics for one document snapshot.
 
+use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::RwLock;
-use tower_lsp::lsp_types::{Diagnostic, Position, Range as LspRange, SymbolKind};
+use std::sync::{Arc, RwLock};
+use tower_lsp::lsp_types::{Diagnostic, Position, Range, SymbolKind};
 use tree_sitter::Tree;
 
 use crate::diagnostic_registry::M2Diagnostic;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::meta::{BindingRole, Meta, Metadata};
+use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::typesystem::{BuiltinData, InstanceID};
 use crate::util::{node_position, position_in_range, to_lsp_range};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BindingRole {
-    Ordinary,
-    Parameter,
+pub struct SymbolId(u32);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SymbolName(Arc<str>);
+
+impl SymbolName {
+    fn new(name: &str) -> Self {
+        Self(Arc::from(name))
+    }
+
+    fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SymbolId(u32);
+impl Borrow<str> for SymbolName {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BindingId(u32);
@@ -32,24 +48,8 @@ pub struct BindingStateId(u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct NodeFactId(usize);
 
-#[derive(Debug, Clone)]
-pub struct SymbolInfo {
-    pub kind: SymbolKind,
-    pub role: BindingRole,
-    pub range: LspRange,
-    pub type_name: Option<String>,
-}
-
-#[derive(Debug)]
-pub struct Scope {
-    pub range: LspRange,
-    pub symbols: HashMap<String, Vec<SymbolInfo>>,
-    pub parent_idx: Option<usize>,
-}
-
 #[derive(Debug)]
 pub struct Analysis {
-    pub scopes: Vec<Scope>,
     pub diagnostics: Vec<Diagnostic>,
     pub registry: SemanticRegistry,
     pub installations: Vec<MethodInstallation>,
@@ -63,7 +63,7 @@ pub struct Analysis {
 pub struct MethodInfo {
     pub domain: Vec<String>,
     pub codomain: Option<String>,
-    pub range: LspRange,
+    pub range: Range,
 }
 
 /// A lazily-resolved reference to a type in the unified universe (builtins ∪
@@ -122,7 +122,9 @@ pub enum MethodHead {
 pub struct MethodInstallation {
     pub head: MethodHead,
     pub domain: Vec<TypeRef>,
-    pub range: LspRange,
+    pub range: Range,
+    pub target: SpanKey,
+    pub value: Option<SpanKey>,
     /// The argument shape of the right-hand-side function, when it is a lambda.
     /// Lets the arity diagnostic check it against [`expected_rhs_arity`] without
     /// re-walking the tree. `None` when the RHS is not a plain lambda.
@@ -209,12 +211,7 @@ pub enum Dispatch {
 fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
     let parameters = lambda.child_by_field_name("parameters")?;
     Some(match parameters.kind {
-        // A single parenthesized parameter `(x)` is one fixed argument. (Empty `()`
-        // is a `sequence`, handled below as a 0-element collection.)
         NodeKind::ParenthesizedExpression => Dispatch::Fixed(1),
-        // Any collection delimiter fixes the arity at its element count: `(x,y)`,
-        // `{x,y}`, `[x,y]`, `<|x,y|>` all define the same n-ary function. M2 does
-        // not remember which collection was used, so neither do we.
         kind if kind.is_collection_expression() => {
             Dispatch::Fixed(parameters.named_children().count())
         }
@@ -227,12 +224,9 @@ fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionInfo {
     pub symbol: SymbolId,
-    pub range: LspRange,
+    pub range: Range,
     pub typical_value: Option<String>,
     pub methods: Vec<MethodInfo>,
-    /// Argument shape of a lambda-defined function (`f := (x,y) -> …`). `None`
-    /// for method functions (arity comes from their installed method domains)
-    /// and for functions whose shape we can't read.
     pub dispatch: Option<Dispatch>,
 }
 
@@ -252,7 +246,7 @@ impl CallStaticFacts {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpanKey {
-    pub range: LspRange,
+    pub range: Range,
 }
 
 /// The inferred type of a value: an *upward-closed* subset of the type order
@@ -375,37 +369,58 @@ pub enum ExpressionKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingInfo {
     pub binding_id: BindingId,
-    pub state_id: BindingStateId,
     pub symbol: SymbolId,
-    pub kind: SymbolKind,
     pub role: BindingRole,
-    /// The lexical definition selected by references and navigation.
-    pub range: LspRange,
+    pub declaration_kind: SymbolKind,
+    pub range: Range,
     pub scope_idx: usize,
-    /// The type contributed by this particular definition or reassignment.
+    pub declaration_range: Range,
+    pub definition_state: BindingStateId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BindingStateInfo {
+    pub state_id: BindingStateId,
+    pub binding_id: BindingId,
+    pub kind: SymbolKind,
     pub type_name: Option<String>,
-    pub value_range: Option<LspRange>,
-    pub declaration_range: LspRange,
+    pub value_range: Option<Range>,
     pub span: SpanKey,
-    /// The source occurrence that produced this state. For the initial state it
-    /// is the definition itself; for `=` it is the assignment target.
-    pub state_range: LspRange,
-    /// The scope in which this state was written. This can differ from
-    /// `scope_idx` when `=` updates an enclosing binding.
-    pub state_scope_idx: usize,
-    pub is_definition: bool,
+    pub scope_idx: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BindingView<'a> {
+    pub binding: &'a BindingInfo,
+    pub state: &'a BindingStateInfo,
+}
+
+impl Deref for BindingView<'_> {
+    type Target = BindingInfo;
+
+    fn deref(&self) -> &Self::Target {
+        self.binding
+    }
+}
+
+impl Metadata for BindingView<'_> {
+    fn meta(&self) -> Meta<'_> {
+        Meta {
+            symbol_kind: Some(self.state.kind),
+            binding_role: Some(self.role),
+            type_name: self.state.type_name.as_deref(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopeInfo {
-    pub range: LspRange,
+    pub range: Range,
     pub parent_idx: Option<usize>,
-    pub introducer: Option<SpanKey>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionFact {
-    pub span: SpanKey,
     pub kind: ExpressionKind,
     pub input_nodes: Vec<SpanKey>,
     pub operator: Option<String>,
@@ -415,21 +430,19 @@ pub struct ExpressionFact {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallInfo {
-    pub span: SpanKey,
     pub callable_name: Option<String>,
     pub argument_types: Vec<InferredType>,
-    pub result_type: InferredType,
     pub candidate_methods: Vec<MethodInfo>,
 }
 
 #[derive(Debug, Default)]
 pub struct SemanticRegistry {
-    pub symbol_names: Vec<String>,
-    pub symbol_ids: HashMap<String, SymbolId>,
+    pub symbol_names: Vec<SymbolName>,
+    pub symbol_ids: HashMap<SymbolName, SymbolId>,
     pub scopes: Vec<ScopeInfo>,
     pub bindings: Vec<BindingInfo>,
+    pub binding_states: Vec<BindingStateInfo>,
     pub bindings_by_symbol: HashMap<SymbolId, Vec<BindingId>>,
-    pub binding_definitions: HashMap<BindingId, BindingStateId>,
     pub states_by_binding: HashMap<BindingId, Vec<BindingStateId>>,
     pub node_scopes: HashMap<SpanKey, usize>,
     pub expressions: HashMap<SpanKey, ExpressionFact>,
@@ -459,9 +472,10 @@ impl SemanticRegistry {
         if let Some(symbol) = self.symbol_ids.get(name) {
             return *symbol;
         }
+        let name = SymbolName::new(name);
         let symbol = SymbolId(self.symbol_names.len() as u32);
-        self.symbol_names.push(name.to_string());
-        self.symbol_ids.insert(name.to_string(), symbol);
+        self.symbol_names.push(name.clone());
+        self.symbol_ids.insert(name, symbol);
         symbol
     }
 
@@ -470,17 +484,18 @@ impl SemanticRegistry {
     }
 
     fn symbol_name(&self, symbol: SymbolId) -> &str {
-        &self.symbol_names[symbol.0 as usize]
+        self.symbol_names[symbol.0 as usize].as_str()
     }
 }
 
 impl Analysis {
-    pub fn find_definition(&self, name: &str, pos: Position) -> Option<LspRange> {
+    pub fn find_definition(&self, name: &str, pos: Position) -> Option<Range> {
         self.get_symbol_at(name, pos).map(|symbol| symbol.range)
     }
 
-    pub fn get_symbol_at(&self, name: &str, pos: Position) -> Option<&SymbolInfo> {
-        self.lookup_symbol_at(name, pos)
+    pub fn get_symbol_at(&self, name: &str, pos: Position) -> Option<BindingView<'_>> {
+        let state = self.get_binding_at(name, pos)?;
+        self.binding_definition(state.binding_id)
     }
 
     #[cfg(test)]
@@ -501,7 +516,7 @@ impl Analysis {
             .len()
     }
 
-    pub fn get_binding_at(&self, name: &str, pos: Position) -> Option<&BindingInfo> {
+    pub fn get_binding_at(&self, name: &str, pos: Position) -> Option<BindingView<'_>> {
         let scope_idx = self.find_scope_at(pos)?;
         self.get_binding_from_scope(name, scope_idx, pos)
     }
@@ -511,7 +526,7 @@ impl Analysis {
         name: &str,
         scope_idx: usize,
         pos: Position,
-    ) -> Option<&BindingInfo> {
+    ) -> Option<BindingView<'_>> {
         let symbol = self.registry.resolve_symbol(name)?;
         let binding_id = self.binding_id_from_scope(symbol, scope_idx, pos)?;
         self.binding_state_from_scope(binding_id, scope_idx, pos)
@@ -538,7 +553,7 @@ impl Analysis {
                 .into_iter()
                 .flatten()
                 .filter_map(|binding_id| {
-                    self.binding_definition(*binding_id)
+                    self.binding(*binding_id)
                         .map(|binding| (*binding_id, binding))
                 })
                 .filter(|binding| {
@@ -552,18 +567,30 @@ impl Analysis {
             if binding_id.is_some() {
                 return binding_id;
             }
-            curr = self.scopes[idx].parent_idx;
+            curr = self.registry.scopes[idx].parent_idx;
         }
         None
     }
 
-    fn binding_definition(&self, binding_id: BindingId) -> Option<&BindingInfo> {
-        let state_id = self.registry.binding_definitions.get(&binding_id)?;
-        self.binding_state(*state_id)
+    fn binding(&self, binding_id: BindingId) -> Option<&BindingInfo> {
+        self.registry.bindings.get(binding_id.0 as usize)
     }
 
-    fn binding_state(&self, state_id: BindingStateId) -> Option<&BindingInfo> {
-        self.registry.bindings.get(state_id.0 as usize)
+    fn binding_definition(&self, binding_id: BindingId) -> Option<BindingView<'_>> {
+        let binding = self.binding(binding_id)?;
+        let state = self.binding_state(binding.definition_state)?;
+        Some(BindingView { binding, state })
+    }
+
+    fn binding_state(&self, state_id: BindingStateId) -> Option<&BindingStateInfo> {
+        self.registry.binding_states.get(state_id.0 as usize)
+    }
+
+    fn binding_view<'a>(&'a self, state: &'a BindingStateInfo) -> Option<BindingView<'a>> {
+        Some(BindingView {
+            binding: self.binding(state.binding_id)?,
+            state,
+        })
     }
 
     fn binding_state_from_scope(
@@ -571,7 +598,7 @@ impl Analysis {
         binding_id: BindingId,
         scope_idx: usize,
         pos: Position,
-    ) -> Option<&BindingInfo> {
+    ) -> Option<BindingView<'_>> {
         let state_ids = self.registry.states_by_binding.get(&binding_id)?;
         let mut curr = Some(scope_idx);
         while let Some(idx) = curr {
@@ -580,19 +607,18 @@ impl Analysis {
                 .iter()
                 .filter_map(|state_id| self.binding_state(*state_id))
                 .filter(|state| {
-                    state.state_scope_idx == idx
-                        && (!constrain_to_prior || state.state_range.start <= pos)
+                    state.scope_idx == idx && (!constrain_to_prior || state.span.range.start <= pos)
                 })
                 .max_by_key(|state| {
                     (
-                        state.state_range.start.line,
-                        state.state_range.start.character,
+                        state.span.range.start.line,
+                        state.span.range.start.character,
                     )
                 });
             if state.is_some() {
-                return state;
+                return self.binding_view(state?);
             }
-            curr = self.scopes[idx].parent_idx;
+            curr = self.registry.scopes[idx].parent_idx;
         }
         self.binding_definition(binding_id)
     }
@@ -617,18 +643,35 @@ impl Analysis {
         self.registry.symbol_name(symbol)
     }
 
-    #[cfg(test)]
-    pub fn binding_name(&self, binding: &BindingInfo) -> &str {
-        self.symbol_name(binding.symbol)
+    pub fn bindings_in_scope(&self, scope_idx: usize) -> impl Iterator<Item = BindingView<'_>> {
+        self.bindings()
+            .filter(move |binding| binding.scope_idx == scope_idx)
     }
 
-    pub fn typed_bindings_in_range(&self, range: LspRange) -> Vec<&BindingInfo> {
+    pub fn bindings(&self) -> impl Iterator<Item = BindingView<'_>> {
         self.registry
             .bindings
             .iter()
-            .filter(|binding| binding.is_definition)
-            .filter(|binding| binding.type_name.is_some())
-            .filter(|binding| matches!(binding.kind, SymbolKind::VARIABLE | SymbolKind::FUNCTION))
+            .filter_map(|binding| self.binding_definition(binding.binding_id))
+    }
+
+    #[cfg(test)]
+    pub fn binding_name(&self, binding: BindingView<'_>) -> &str {
+        self.symbol_name(binding.symbol)
+    }
+
+    pub fn typed_bindings_in_range(&self, range: Range) -> Vec<BindingView<'_>> {
+        self.registry
+            .bindings
+            .iter()
+            .filter_map(|binding| self.binding_definition(binding.binding_id))
+            .filter(|binding| binding.state.type_name.is_some())
+            .filter(|binding| {
+                matches!(
+                    binding.state.kind,
+                    SymbolKind::VARIABLE | SymbolKind::FUNCTION
+                )
+            })
             .filter(|binding| {
                 let position = binding.range.end;
                 position_in_range(position, range)
@@ -636,11 +679,14 @@ impl Analysis {
             .collect()
     }
 
-    pub fn typed_expression_facts_in_range(&self, range: LspRange) -> Vec<&ExpressionFact> {
+    pub fn typed_expression_facts_in_range(
+        &self,
+        range: Range,
+    ) -> Vec<(&SpanKey, &ExpressionFact)> {
         self.registry
             .expressions
-            .values()
-            .filter(|fact| is_range_within_range(fact.span.range, range))
+            .iter()
+            .filter(|(span, _)| is_range_within_range(span.range, range))
             .collect()
     }
 
@@ -652,23 +698,22 @@ impl Analysis {
         let mut out = Vec::new();
         let mut current = self.find_scope_at(pos);
         while let Some(idx) = current {
-            for (name, infos) in &self.scopes[idx].symbols {
-                if name.starts_with(prefix) && seen.insert(name.clone()) {
-                    if let Some(info) = infos.first() {
-                        out.push((name.clone(), info.kind));
-                    }
+            for binding in self.bindings_in_scope(idx) {
+                let name = self.registry.symbol_name(binding.symbol);
+                if name.starts_with(prefix) && seen.insert(binding.symbol) {
+                    out.push((name.to_string(), binding.state.kind));
                 }
             }
-            current = self.scopes[idx].parent_idx;
+            current = self.registry.scopes[idx].parent_idx;
         }
         out
     }
 
     fn find_scope_at(&self, pos: Position) -> Option<usize> {
         let mut best_idx = None;
-        let mut best_range: Option<LspRange> = None;
+        let mut best_range: Option<Range> = None;
 
-        for (idx, scope) in self.scopes.iter().enumerate() {
+        for (idx, scope) in self.registry.scopes.iter().enumerate() {
             if position_in_range(pos, scope.range) {
                 match best_range {
                     None => {
@@ -695,17 +740,11 @@ impl Analysis {
 
     pub fn new_with_builtins(tree: &Tree, text: &str, builtins: Option<&BuiltinData>) -> Self {
         let mut analysis = Analysis {
-            scopes: vec![Scope {
-                range: LspRange::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
-                symbols: HashMap::new(),
-                parent_idx: None,
-            }],
             diagnostics: Vec::new(),
             registry: SemanticRegistry {
                 scopes: vec![ScopeInfo {
-                    range: LspRange::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+                    range: Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
                     parent_idx: None,
-                    introducer: None,
                 }],
                 ..Default::default()
             },
@@ -934,6 +973,10 @@ impl Analysis {
         let left = node.child_by_field_name("left")?;
         let (head, domain) = self.installation_shape(left, builtins)?;
         let range = to_lsp_range(text, node.range());
+        let target = SpanKey::from_node(text, left);
+        let value = node
+            .child_by_field_name("right")
+            .map(|right| SpanKey::from_node(text, right));
         // The RHS function shape, read once here so the arity diagnostic need not
         // re-walk the tree. Only a plain lambda RHS carries a checkable arity.
         let rhs_dispatch = node
@@ -947,6 +990,8 @@ impl Analysis {
                 head,
                 domain,
                 range,
+                target,
+                value,
                 rhs_dispatch,
             }),
             // `=` installs only the assignment form of a BINARY operator (incl.
@@ -963,6 +1008,8 @@ impl Analysis {
                         head: MethodHead::OperatorAssign(op),
                         domain,
                         range,
+                        target,
+                        value,
                         rhs_dispatch,
                     })
                 }
@@ -1073,16 +1120,22 @@ impl Analysis {
     /// Whether any local binding named `name` is a type — its inferred static
     /// class is `Type` or a `Type` descendant.
     fn local_binding_is_type(&self, name: &str, builtins: Option<&BuiltinData>) -> bool {
-        self.scopes.iter().any(|scope| {
-            scope.symbols.get(name).is_some_and(|bindings| {
-                bindings.iter().any(|binding| {
-                    binding
-                        .type_name
-                        .as_deref()
-                        .is_some_and(|type_name| type_name_denotes_type(type_name, builtins))
-                })
+        let Some(symbol) = self.registry.resolve_symbol(name) else {
+            return false;
+        };
+        self.registry
+            .bindings_by_symbol
+            .get(&symbol)
+            .into_iter()
+            .flatten()
+            .filter_map(|binding_id| self.binding_definition(*binding_id))
+            .any(|binding| {
+                binding
+                    .state
+                    .type_name
+                    .as_deref()
+                    .is_some_and(|type_name| type_name_denotes_type(type_name, builtins))
             })
-        })
     }
 
     /// Emit a diagnostic for every characterized installation that M2 would
@@ -1399,41 +1452,31 @@ impl Analysis {
             value_node,
             scope_idx,
         } = registration;
-        let symbol = SymbolInfo {
-            kind,
-            role,
-            range: to_lsp_range(text, node.range()),
-            type_name: type_name.map(ToString::to_string),
-        };
         let symbol_id = self.registry.intern_symbol(name);
-        self.scopes[scope_idx]
-            .symbols
-            .entry(name.to_string())
-            .or_default()
-            .push(symbol);
-        let binding_id = BindingId(self.registry.binding_definitions.len() as u32);
-        let state_id = BindingStateId(self.registry.bindings.len() as u32);
+        let binding_id = BindingId(self.registry.bindings.len() as u32);
+        let state_id = BindingStateId(self.registry.binding_states.len() as u32);
         let range = to_lsp_range(text, node.range());
         let binding = BindingInfo {
             binding_id,
-            state_id,
             symbol: symbol_id,
-            kind,
             role,
+            declaration_kind: declaration_symbol_kind(kind, value_node),
             range,
             scope_idx,
+            declaration_range: enclosing_definition_range(node, text),
+            definition_state: state_id,
+        };
+        let state = BindingStateInfo {
+            state_id,
+            binding_id,
+            kind,
             type_name: type_name.map(ToString::to_string),
             value_range: value_node.map(|value| to_lsp_range(text, value.range())),
-            declaration_range: enclosing_definition_range(node, text),
             span: SpanKey::from_node(text, node),
-            state_range: range,
-            state_scope_idx: scope_idx,
-            is_definition: true,
+            scope_idx,
         };
         self.registry.bindings.push(binding);
-        self.registry
-            .binding_definitions
-            .insert(binding_id, state_id);
+        self.registry.binding_states.push(state);
         self.registry
             .states_by_binding
             .entry(binding_id)
@@ -1452,28 +1495,20 @@ impl Analysis {
         registration: SymbolRegistration<'_>,
         text: &str,
     ) {
-        let Some(definition) = self.binding_definition(binding_id).cloned() else {
+        if self.binding(binding_id).is_none() {
             return;
-        };
-        let state_id = BindingStateId(self.registry.bindings.len() as u32);
-        let state_range = to_lsp_range(text, registration.node.range());
-        self.registry.bindings.push(BindingInfo {
-            binding_id,
+        }
+        let state_id = BindingStateId(self.registry.binding_states.len() as u32);
+        self.registry.binding_states.push(BindingStateInfo {
             state_id,
-            symbol: definition.symbol,
+            binding_id,
             kind: registration.kind,
-            role: definition.role,
-            range: definition.range,
-            scope_idx: definition.scope_idx,
             type_name: registration.type_name.map(ToString::to_string),
             value_range: registration
                 .value_node
                 .map(|value| to_lsp_range(text, value.range())),
-            declaration_range: definition.declaration_range,
             span: SpanKey::from_node(text, registration.node),
-            state_range,
-            state_scope_idx: registration.scope_idx,
-            is_definition: false,
+            scope_idx: registration.scope_idx,
         });
         self.registry
             .states_by_binding
@@ -1619,31 +1654,12 @@ impl Analysis {
 
     fn push_scope(&mut self, node: M2Node, text: &str, parent_idx: Option<usize>) -> usize {
         let range = to_lsp_range(text, node.range());
-        let new_scope = Scope {
-            range,
-            symbols: HashMap::new(),
-            parent_idx,
-        };
-        self.scopes.push(new_scope);
-        let scope_idx = self.scopes.len() - 1;
-        self.registry.scopes.push(ScopeInfo {
-            range,
-            parent_idx,
-            introducer: Some(SpanKey::from_node(text, node)),
-        });
+        let scope_idx = self.registry.scopes.len();
+        self.registry.scopes.push(ScopeInfo { range, parent_idx });
         self.registry
             .node_scopes
             .insert(SpanKey::from_node(text, node), scope_idx);
         scope_idx
-    }
-
-    fn lookup_symbol_at(&self, name: &str, pos: Position) -> Option<&SymbolInfo> {
-        let binding = self.get_binding_at(name, pos)?;
-        self.scopes[binding.scope_idx]
-            .symbols
-            .get(name)?
-            .iter()
-            .find(|symbol| symbol.range == binding.range)
     }
 
     fn collect_expression_facts(
@@ -1668,7 +1684,6 @@ impl Analysis {
                 self.registry.expressions.insert(
                     key.clone(),
                     ExpressionFact {
-                        span: key.clone(),
                         kind,
                         input_nodes: Vec::new(),
                         operator: None,
@@ -1691,17 +1706,15 @@ impl Analysis {
             self.registry.expressions.insert(
                 key.clone(),
                 ExpressionFact {
-                    span: key.clone(),
                     kind,
                     input_nodes,
-                    operator: operator.clone(),
-                    result_type: result_type.clone(),
+                    operator,
+                    result_type,
                     scope_idx,
                 },
             );
 
-            if let Some(call_info) =
-                self.call_info_for_expression(node, text, scope_idx, builtins, &key, result_type)
+            if let Some(call_info) = self.call_info_for_expression(node, text, scope_idx, builtins)
             {
                 self.registry.calls.insert(key.clone(), call_info);
             }
@@ -1718,8 +1731,6 @@ impl Analysis {
         text: &str,
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
-        key: &SpanKey,
-        result_type: InferredType,
     ) -> Option<CallInfo> {
         if !matches!(
             node.kind,
@@ -1757,10 +1768,8 @@ impl Analysis {
                 })
                 .unwrap_or_default();
             return Some(CallInfo {
-                span: key.clone(),
                 callable_name,
                 argument_types: facts.argument_types,
-                result_type,
                 candidate_methods,
             });
         }
@@ -1783,10 +1792,8 @@ impl Analysis {
         };
 
         Some(CallInfo {
-            span: key.clone(),
             callable_name: Some(operator.to_string()),
             argument_types,
-            result_type,
             candidate_methods: Vec::new(),
         })
     }
@@ -1998,7 +2005,7 @@ impl Analysis {
         if let Some(binding) =
             self.get_binding_from_scope(name, scope_idx, node_position(text, node))
         {
-            if let Some(type_name) = &binding.type_name {
+            if let Some(type_name) = &binding.state.type_name {
                 return InferredType::of(type_name);
             }
         }
@@ -2371,6 +2378,18 @@ fn single_symbol_assignment_target<'tree>(node: M2Node<'tree>) -> Option<&'tree 
     (node.kind == NodeKind::Symbol).then(|| node.text())
 }
 
+fn declaration_symbol_kind(kind: SymbolKind, value: Option<M2Node<'_>>) -> SymbolKind {
+    let declares_class = value
+        .filter(|value| value.kind == NodeKind::NewStatement)
+        .and_then(|value| value.child_by_field_name("type"))
+        .is_some_and(|type_node| type_node.kind == NodeKind::Symbol && type_node.text() == "Type");
+    if declares_class {
+        SymbolKind::CLASS
+    } else {
+        kind
+    }
+}
+
 pub(crate) fn symbol_node_text<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
     node.kind.is_symbol_like().then(|| node.text())
 }
@@ -2428,7 +2447,7 @@ fn literal_option_assignment(node: M2Node) -> Option<(String, String)> {
     Some((key.to_string(), value.to_string()))
 }
 
-fn enclosing_definition_range(node: M2Node<'_>, text: &str) -> LspRange {
+fn enclosing_definition_range(node: M2Node<'_>, text: &str) -> Range {
     let mut current = node;
     while let Some(parent) = current.parent() {
         if parent.kind == NodeKind::Cell {
@@ -2683,7 +2702,7 @@ fn signature_matches_domain(
             })
 }
 
-fn is_range_within_range(inner: LspRange, outer: LspRange) -> bool {
+fn is_range_within_range(inner: Range, outer: Range) -> bool {
     let starts_inside = inner.start.line > outer.start.line
         || (inner.start.line == outer.start.line && inner.start.character >= outer.start.character);
     let ends_inside = inner.end.line < outer.end.line
@@ -2691,7 +2710,7 @@ fn is_range_within_range(inner: LspRange, outer: LspRange) -> bool {
     starts_inside && ends_inside
 }
 
-fn is_range_smaller(a: LspRange, b: LspRange) -> bool {
+fn is_range_smaller(a: Range, b: Range) -> bool {
     // Very simple check: is a contained in b?
     let starts_inside = a.start.line > b.start.line
         || (a.start.line == b.start.line && a.start.character >= b.start.character);
@@ -3238,7 +3257,7 @@ mod tests {
         assert!(analysis
             .get_symbol_at("collectionEqual", Position::new(2, 0))
             .is_some());
-        assert_eq!(analysis.scopes.len(), 1);
+        assert_eq!(analysis.registry().scopes.len(), 1);
     }
 
     #[test]
@@ -3407,7 +3426,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("f", Position::new(1, 0))
-                .map(|symbol| symbol.kind),
+                .map(|symbol| symbol.state.kind),
             Some(SymbolKind::FUNCTION)
         );
         assert_eq!(
@@ -3441,15 +3460,15 @@ mod tests {
             .get_binding_at("x", Position::new(1, 10))
             .expect("the earlier reference should resolve");
         assert_eq!(before.range.start, Position::new(0, 0));
-        assert_eq!(before.type_name.as_deref(), Some("ZZ"));
+        assert_eq!(before.state.type_name.as_deref(), Some("ZZ"));
 
         let after = analysis
             .get_binding_at("x", Position::new(3, 9))
             .expect("the later reference should resolve");
         assert_eq!(after.range.start, Position::new(0, 0));
-        assert_eq!(after.type_name.as_deref(), Some("FunctionClosure"));
+        assert_eq!(after.state.type_name.as_deref(), Some("FunctionClosure"));
         assert_eq!(before.binding_id, after.binding_id);
-        assert_ne!(before.state_id, after.state_id);
+        assert_ne!(before.state.state_id, after.state.state_id);
     }
 
     #[test]
@@ -3470,27 +3489,30 @@ mod tests {
             .get_binding_at("x", Position::new(2, 12))
             .expect("the use before the local definition should see the outer binding");
         assert_eq!(before.range.start, Position::new(0, 0));
-        assert_eq!(before.type_name.as_deref(), Some("ZZ"));
+        assert_eq!(before.state.type_name.as_deref(), Some("ZZ"));
 
         let shadowed = analysis
             .get_binding_at("x", Position::new(4, 17))
             .expect("the use after the local definition should see the local binding");
         assert_eq!(shadowed.range.start, Position::new(3, 2));
-        assert_eq!(shadowed.type_name.as_deref(), Some("String"));
+        assert_eq!(shadowed.state.type_name.as_deref(), Some("String"));
 
         let rewritten = analysis
             .get_binding_at("x", Position::new(6, 16))
             .expect("the use after the local write should see its new state");
         assert_eq!(rewritten.range.start, Position::new(3, 2));
-        assert_eq!(rewritten.type_name.as_deref(), Some("FunctionClosure"));
+        assert_eq!(
+            rewritten.state.type_name.as_deref(),
+            Some("FunctionClosure")
+        );
         assert_eq!(shadowed.binding_id, rewritten.binding_id);
-        assert_ne!(shadowed.state_id, rewritten.state_id);
+        assert_ne!(shadowed.state.state_id, rewritten.state.state_id);
 
         let outside = analysis
             .get_binding_at("x", Position::new(8, 11))
             .expect("the nested shadow must not change the outer binding");
         assert_eq!(outside.range.start, Position::new(0, 0));
-        assert_eq!(outside.type_name.as_deref(), Some("ZZ"));
+        assert_eq!(outside.state.type_name.as_deref(), Some("ZZ"));
     }
 
     #[test]
@@ -3503,7 +3525,7 @@ mod tests {
 
         assert_eq!(
             symbol.range,
-            LspRange::new(Position::new(0, 6), Position::new(0, 7))
+            Range::new(Position::new(0, 6), Position::new(0, 7))
         );
     }
 
@@ -3517,7 +3539,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("clearAll", Position::new(1, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Command")
         );
     }
@@ -3533,13 +3555,13 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("R", Position::new(3, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Ring")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("S", Position::new(4, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Ring")
         );
     }
@@ -3554,7 +3576,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("R", Position::new(2, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Ring")
         );
     }
@@ -3569,7 +3591,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("z", Position::new(3, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("ZZ")
         );
     }
@@ -3602,7 +3624,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("p", Position::new(1, 0))
-                .map(|symbol| symbol.kind),
+                .map(|symbol| symbol.state.kind),
             Some(SymbolKind::FUNCTION)
         );
     }
@@ -3643,7 +3665,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("x", Position::new(3, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("List")
         );
     }
@@ -3668,7 +3690,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("d", Position::new(1, 7))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("ZZ")
         );
     }
@@ -3680,13 +3702,13 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("x", Position::new(2, 4))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("ZZ")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(1, 12))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             None
         );
     }
@@ -3708,7 +3730,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(3, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Thing")
         );
     }
@@ -3722,7 +3744,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(1, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Symbol")
         );
     }
@@ -3743,7 +3765,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(3, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Ring")
         );
     }
@@ -3758,7 +3780,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(1, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("String")
         );
     }
@@ -3785,7 +3807,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("S", Position::new(2, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Ring")
         );
     }
@@ -3799,37 +3821,37 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("l", Position::new(6, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("List")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("a", Position::new(7, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Array")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("b", Position::new(8, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("AngleBarList")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("e", Position::new(9, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Sequence")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("f", Position::new(10, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("ZZ")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("g", Position::new(11, 0))
-                .and_then(|symbol| symbol.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Sequence")
         );
     }
@@ -3843,7 +3865,7 @@ mod tests {
             .get_binding_at("y", Position::new(3, 0))
             .expect("binding should resolve through registry");
         assert_eq!(binding.scope_idx, 0);
-        assert_eq!(binding.type_name.as_deref(), Some("Ring"));
+        assert_eq!(binding.state.type_name.as_deref(), Some("Ring"));
 
         let callable = analysis
             .function("f")

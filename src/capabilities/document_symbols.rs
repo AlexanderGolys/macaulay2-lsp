@@ -5,19 +5,116 @@
 //! function. Runtime values and names supplied by indexed packages are not
 //! treated as document definitions.
 
-use std::collections::HashSet;
-
 use tower_lsp::lsp_types::*;
 
+use crate::analysis::{ExpressionKind, MethodHead, SpanKey};
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind};
-use crate::util::*;
+use crate::meta::BindingRole;
+use crate::util::byte_index_from_lsp_position;
 
 /// The outline view of a document: assignment bindings (functions nested under
 /// their body), method installations, and indexed variables.
 pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<DocumentSymbol> {
-    let mut scopes = DocumentSymbolScopes::new();
-    collect_document_symbols_from(document.root_node(), &mut scopes)
+    let analysis = document.analysis();
+    let registry = &analysis.registry;
+    let mut declarations = Vec::new();
+
+    for binding in analysis
+        .bindings()
+        .filter(|binding| binding.role == BindingRole::Ordinary)
+    {
+        declarations.push(Declaration {
+            name: analysis.symbol_name(binding.symbol).to_string(),
+            detail: None,
+            kind: binding.declaration_kind,
+            range: binding.declaration_range,
+            selection_range: binding.range,
+            scope_idx: binding.scope_idx,
+            child_scope_idx: binding
+                .state
+                .value_range
+                .and_then(|range| scope_with_range(analysis, range)),
+            symbol: Some(binding.symbol),
+        });
+    }
+
+    for installation in &analysis.installations {
+        let Some(name) = text_in_range(document.text(), installation.target.range) else {
+            continue;
+        };
+        let scope_idx = registry
+            .expressions
+            .get(&SpanKey {
+                range: installation.range,
+            })
+            .map_or(0, |fact| fact.scope_idx);
+        declarations.push(Declaration {
+            name: name.to_string(),
+            detail: Some(
+                if matches!(installation.head, MethodHead::OperatorAssign(_)) {
+                    "assignment method"
+                } else {
+                    "method"
+                }
+                .to_string(),
+            ),
+            kind: SymbolKind::METHOD,
+            range: installation.range,
+            selection_range: installation.target.range,
+            scope_idx,
+            child_scope_idx: installation
+                .value
+                .as_ref()
+                .and_then(|value| scope_with_range(analysis, value.range)),
+            symbol: None,
+        });
+    }
+
+    for (span, fact) in &registry.expressions {
+        if fact.kind != ExpressionKind::Assign {
+            continue;
+        }
+        let Some(left_span) = fact.input_nodes.first() else {
+            continue;
+        };
+        let Some(left) = registry.expressions.get(left_span) else {
+            continue;
+        };
+        let child_scope_idx = fact
+            .input_nodes
+            .get(1)
+            .and_then(|right| scope_with_range(analysis, right.range));
+        let (detail, kind) = match (fact.operator.as_deref(), left.operator.as_deref()) {
+            (Some("="), Some("_")) => (Some("indexed variable".to_string()), SymbolKind::VARIABLE),
+            (Some("="), Some(_)) if child_scope_idx.is_some() => {
+                (Some("assignment method".to_string()), SymbolKind::METHOD)
+            }
+            _ => continue,
+        };
+        let Some(name) = text_in_range(document.text(), left_span.range) else {
+            continue;
+        };
+        declarations.push(Declaration {
+            name: name.to_string(),
+            detail,
+            kind,
+            range: span.range,
+            selection_range: left_span.range,
+            scope_idx: fact.scope_idx,
+            child_scope_idx,
+            symbol: None,
+        });
+    }
+
+    declarations.sort_by_key(|declaration| {
+        (
+            declaration.range.start.line,
+            declaration.range.start.character,
+            declaration.selection_range.start.line,
+            declaration.selection_range.start.character,
+        )
+    });
+    build_document_symbol_tree(analysis, declarations)
 }
 
 /// Build a `DocumentSymbol` while keeping the deprecated LSP field isolated in
@@ -44,247 +141,104 @@ fn document_symbol(
 }
 
 #[derive(Debug)]
-/// Per-document state used to suppress duplicate outline entries.
-struct DocumentSymbolScopes {
-    /// Names introduced per lexical scope, starting with the document scope.
-    names: Vec<HashSet<String>>,
+struct Declaration {
+    name: String,
+    detail: Option<String>,
+    kind: SymbolKind,
+    range: Range,
+    selection_range: Range,
+    scope_idx: usize,
+    child_scope_idx: Option<usize>,
+    symbol: Option<crate::analysis::SymbolId>,
 }
 
-impl DocumentSymbolScopes {
-    /// Start with the document's top-level scope.
-    fn new() -> Self {
-        Self {
-            names: vec![HashSet::new()],
+fn scope_with_range(analysis: &crate::analysis::Analysis, range: Range) -> Option<usize> {
+    analysis
+        .registry
+        .scopes
+        .iter()
+        .position(|scope| scope.range == range)
+}
+
+fn text_in_range(text: &str, range: Range) -> Option<&str> {
+    let start = byte_index_from_lsp_position(text, range.start)?;
+    let end = byte_index_from_lsp_position(text, range.end)?;
+    text.get(start..end)
+}
+
+fn build_document_symbol_tree(
+    analysis: &crate::analysis::Analysis,
+    declarations: Vec<Declaration>,
+) -> Vec<DocumentSymbol> {
+    let mut container_scopes = vec![false; analysis.registry.scopes.len()];
+    container_scopes[0] = true;
+    for declaration in &declarations {
+        if let Some(scope_idx) = declaration.child_scope_idx {
+            container_scopes[scope_idx] = true;
         }
     }
 
-    /// Enter a function body, where `:=` introduces local outline entries.
-    fn push(&mut self) {
-        self.names.push(HashSet::new());
-    }
-
-    /// Leave the current function body.
-    fn pop(&mut self) {
-        self.names.pop();
-    }
-
-    /// Mark an existing name, such as a parameter, as belonging to this scope.
-    fn add_current(&mut self, name: &str) {
-        if let Some(scope) = self.names.last_mut() {
-            scope.insert(name.to_string());
+    let mut by_scope: Vec<Vec<Declaration>> = (0..analysis.registry.scopes.len())
+        .map(|_| Vec::new())
+        .collect();
+    let mut seen_symbols: Vec<Vec<crate::analysis::SymbolId>> = (0..analysis.registry.scopes.len())
+        .map(|_| Vec::new())
+        .collect();
+    for declaration in declarations {
+        let scope_idx = nearest_container_scope(analysis, &container_scopes, declaration.scope_idx);
+        if let Some(symbol) = declaration.symbol {
+            if seen_symbols[scope_idx].contains(&symbol) {
+                continue;
+            }
+            seen_symbols[scope_idx].push(symbol);
         }
+        by_scope[scope_idx].push(declaration);
     }
 
-    /// Introduce a local binding, returning whether it was previously absent.
-    fn introduce_local(&mut self, name: &str) -> bool {
-        let Some(scope) = self.names.last_mut() else {
-            return false;
+    build_scope_symbols(0, &mut by_scope)
+}
+
+fn nearest_container_scope(
+    analysis: &crate::analysis::Analysis,
+    container_scopes: &[bool],
+    mut scope_idx: usize,
+) -> usize {
+    loop {
+        if container_scopes[scope_idx] {
+            return scope_idx;
+        }
+        let Some(parent_idx) = analysis.registry.scopes[scope_idx].parent_idx else {
+            return 0;
         };
-        scope.insert(name.to_string())
+        scope_idx = parent_idx;
     }
 }
 
-/// Walk a syntax subtree and collect only constructs which define outline
-/// entries; all other nodes are traversed transparently.
-fn collect_document_symbols_from(
-    node: M2Node,
-    scopes: &mut DocumentSymbolScopes,
-) -> Vec<DocumentSymbol> {
-    if node.is_assignment() {
-        return collect_assignment_document_symbols(node, scopes);
-    }
-
-    let mut symbols = Vec::new();
-    for child in node.children() {
-        symbols.extend(collect_document_symbols_from(child, scopes));
-    }
-    symbols
-}
-
-/// Convert an assignment into symbols for its newly introduced bindings and,
-/// when its right side is a function, attach the function body's local symbols.
-fn collect_assignment_document_symbols(
-    node: M2Node,
-    scopes: &mut DocumentSymbolScopes,
-) -> Vec<DocumentSymbol> {
-    let Some(left) = node.child_by_field_name("left") else {
-        return Vec::new();
-    };
-
-    let children = match node.child_by_field_name("right") {
-        Some(right) if right.is(NodeKind::LambdaExpression) => {
-            collect_function_body_document_symbols(right, scopes)
-        }
-        _ => None,
-    };
-
-    let operator = assignment_operator(node);
-    let mut binding_targets = Vec::new();
-    collect_binding_target_nodes(left, &mut binding_targets);
-
-    if !binding_targets.is_empty() && operator != AssignmentOperator::LeftArrow {
-        return binding_targets
-            .into_iter()
-            .filter(|symbol| {
-                let name = symbol.text();
-                match operator {
-                    AssignmentOperator::ColonEqual | AssignmentOperator::Equal => {
-                        scopes.introduce_local(name)
-                    }
-                    AssignmentOperator::LeftArrow | AssignmentOperator::Other => false,
-                }
-            })
-            .map(|symbol| {
-                document_symbol(
-                    symbol.text().to_string(),
-                    None,
-                    assignment_symbol_kind(node),
-                    node_range(node),
-                    node_range(symbol),
-                    children.clone(),
-                )
-            })
-            .collect();
-    }
-
-    let is_method_installation_left = left.kind.is_method_installation_target();
-
-    match (operator, left.binary_operator()) {
-        (AssignmentOperator::ColonEqual, _) if is_method_installation_left => {
-            vec![document_symbol(
-                left.text().to_string(),
-                Some("method".to_string()),
-                SymbolKind::METHOD,
-                node_range(node),
-                node_range(left),
+fn build_scope_symbols(scope_idx: usize, by_scope: &mut [Vec<Declaration>]) -> Vec<DocumentSymbol> {
+    std::mem::take(&mut by_scope[scope_idx])
+        .into_iter()
+        .map(|declaration| {
+            let children = declaration
+                .child_scope_idx
+                .map(|child_scope_idx| build_scope_symbols(child_scope_idx, by_scope))
+                .filter(|children| !children.is_empty());
+            document_symbol(
+                declaration.name,
+                declaration.detail,
+                declaration.kind,
+                declaration.range,
+                declaration.selection_range,
                 children,
-            )]
-        }
-        (AssignmentOperator::Equal, Some("_")) => vec![document_symbol(
-            left.text().to_string(),
-            Some("indexed variable".to_string()),
-            SymbolKind::VARIABLE,
-            node_range(node),
-            node_range(left),
-            None,
-        )],
-        (AssignmentOperator::Equal, Some(_))
-            if node
-                .child_by_field_name("right")
-                .is_some_and(|right| right.is(NodeKind::LambdaExpression))
-                && is_method_installation_left =>
-        {
-            vec![document_symbol(
-                left.text().to_string(),
-                Some("assignment method".to_string()),
-                SymbolKind::METHOD,
-                node_range(node),
-                node_range(left),
-                children,
-            )]
-        }
-        _ => Vec::new(),
-    }
-}
-
-/// Collect nested outline entries for one function body in an isolated lexical
-/// scope. Parameters are pre-recorded so assignments to them are not emitted.
-fn collect_function_body_document_symbols(
-    function_node: M2Node,
-    scopes: &mut DocumentSymbolScopes,
-) -> Option<Vec<DocumentSymbol>> {
-    let body = function_node.child_by_field_name("body")?;
-
-    scopes.push();
-    if let Some(params) = function_node.child_by_field_name("parameters") {
-        let mut names = Vec::new();
-        collect_parameter_names(params, &mut names);
-        for name in names {
-            scopes.add_current(&name);
-        }
-    }
-
-    let children = collect_document_symbols_from(body, scopes);
-    scopes.pop();
-
-    (!children.is_empty()).then_some(children)
-}
-
-/// Every symbol bound by a destructuring target, recursing through nested
-/// collections (`[x, [y, z]] := …` binds all three).
-fn collect_binding_target_nodes<'tree>(node: M2Node<'tree>, symbols: &mut Vec<M2Node<'tree>>) {
-    match node.kind {
-        NodeKind::Symbol => symbols.push(node),
-        kind if kind.is_collection_expression() => {
-            for child in node.named_children() {
-                collect_binding_target_nodes(child, symbols);
-            }
-        }
-        _ => {}
-    }
-}
-
-/// Gather parameter names from nested parameter collections.
-fn collect_parameter_names(node: M2Node, names: &mut Vec<String>) {
-    match node.kind {
-        NodeKind::Symbol => names.push(node.text().to_string()),
-        // `(x,y)` is a `sequence`; a single `(x)` is a `parenthesized_expression`.
-        kind if kind.is_collection_expression() || kind == NodeKind::ParenthesizedExpression => {
-            for child in node.children() {
-                collect_parameter_names(child, names);
-            }
-        }
-        _ => {}
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AssignmentOperator {
-    Equal,
-    ColonEqual,
-    LeftArrow,
-    Other,
-}
-
-/// Classify the parsed assignment operator for the outline's binding rules.
-fn assignment_operator(node: M2Node) -> AssignmentOperator {
-    match node.binary_operator() {
-        Some("=") => AssignmentOperator::Equal,
-        Some(":=") => AssignmentOperator::ColonEqual,
-        Some("<-") => AssignmentOperator::LeftArrow,
-        _ => AssignmentOperator::Other,
-    }
-}
-
-/// Select the LSP outline kind from the assigned expression when it conveys a
-/// more specific static declaration than a regular variable.
-fn assignment_symbol_kind(node: M2Node) -> SymbolKind {
-    match node.child_by_field_name("right") {
-        Some(right)
-            if right.is(NodeKind::NewStatement)
-                && new_statement_type_name(right) == Some("Type") =>
-        {
-            SymbolKind::CLASS
-        }
-        Some(right) if right.is(NodeKind::LambdaExpression) => SymbolKind::FUNCTION,
-        _ => SymbolKind::VARIABLE,
-    }
-}
-
-/// Return the declared type name from a `new` expression when it is a symbol.
-fn new_statement_type_name<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
-    let type_node = node.child_by_field_name("type")?;
-    if !type_node.is(NodeKind::Symbol) {
-        return None;
-    }
-
-    Some(type_node.text())
+            )
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::document::DocumentSnapshot;
+    use crate::node_metadata::{M2Node, NodeKind};
     use crate::typesystem::BuiltinData;
     use tower_lsp::lsp_types::{Position, Range};
     use tree_sitter::Parser;

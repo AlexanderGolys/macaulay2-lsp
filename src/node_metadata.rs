@@ -94,22 +94,28 @@ impl NodeKind {
             _ => Self::Unknown,
         }
     }
+}
 
-    pub fn is_symbol_like(self) -> bool {
-        matches!(self, Self::Symbol | Self::QuotedKeyword)
+/// Semantic categories shared by syntax kinds.
+///
+/// The grammar-name mapping remains closed and centralized in
+/// [`NodeKind::from_str`]. Analysis depends on these capabilities rather than
+/// matching the concrete enum variants again.
+pub trait NodeKindMetadata {
+    fn is_symbol_like(&self) -> bool;
+    fn is_literal(&self) -> bool;
+    fn is_collection_expression(&self) -> bool;
+}
+
+impl NodeKindMetadata for NodeKind {
+    fn is_symbol_like(&self) -> bool {
+        matches!(*self, Self::Symbol | Self::QuotedKeyword)
     }
 
-    pub fn is_literal(self) -> bool {
+    fn is_literal(&self) -> bool {
         matches!(
-            self,
+            *self,
             Self::IntegerLiteral | Self::FloatLiteral | Self::StringLiteral
-        )
-    }
-
-    pub fn is_method_installation_target(self) -> bool {
-        matches!(
-            self,
-            Self::BinaryExpression | Self::PrefixExpression | Self::PostfixExpression
         )
     }
 
@@ -119,9 +125,9 @@ impl NodeKind {
     /// `=`/`:=`) and as fixed-length right-hand sides whose arity can be checked
     /// against the targets. A parenthesized single expression `(a)` is not one
     /// of these -- the grammar collapses it to the bare expression.
-    pub fn is_collection_expression(self) -> bool {
+    fn is_collection_expression(&self) -> bool {
         matches!(
-            self,
+            *self,
             Self::Sequence | Self::List | Self::Array | Self::AngleBarList
         )
     }

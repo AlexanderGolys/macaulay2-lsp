@@ -73,13 +73,14 @@ fn binding_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<InlayHi
         .typed_bindings_in_range(*range)
         .into_iter()
         .filter_map(|binding| {
-            let type_name = binding.type_name.as_ref()?;
+            let type_name = binding.state.type_name.as_ref()?;
             // Place the hint after the value expression that evaluates to this
             // type (`x = expr : T`), not after the bound name — M2 has no
             // `x : T =` declaration syntax, so a trailing value-type annotation
             // reads more naturally. Falls back to the name's end when there is no
             // value range (e.g. a destructuring target).
             let position = binding
+                .state
                 .value_range
                 .map(|value_range| value_range.end)
                 .unwrap_or(binding.range.end);
@@ -99,20 +100,20 @@ fn expression_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<Inla
         .typed_bindings_in_range(*range)
         .into_iter()
         .filter_map(|binding| {
-            let end = binding.value_range?.end;
-            Some((end.line, end.character, binding.type_name.clone()?))
+            let end = binding.state.value_range?.end;
+            Some((end.line, end.character, binding.state.type_name.clone()?))
         })
         .collect();
     analysis
         .typed_expression_facts_in_range(*range)
         .into_iter()
-        .filter_map(|fact| {
+        .filter_map(|(span, fact)| {
             let type_name = fact.result_type.label()?;
-            let end = fact.span.range.end;
+            let end = span.range.end;
             if binding_value_types.contains(&(end.line, end.character, type_name.clone())) {
                 return None;
             }
-            Some(type_hint(fact.span.range.end, &type_name))
+            Some(type_hint(span.range.end, &type_name))
         })
         .collect()
 }

@@ -195,17 +195,16 @@ fn top_level_definitions(text: &str, builtins: &BuiltinData) -> Vec<(String, Ran
     let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), builtins) else {
         return Vec::new();
     };
-    let Some(global_scope) = snapshot.analysis().scopes.first() else {
-        return Vec::new();
-    };
-    global_scope
-        .symbols
-        .iter()
-        .flat_map(|(name, infos)| {
-            infos.iter().map(move |info| {
-                let token_type = local_symbol_semantic_token_type(info, builtins) as u32;
-                (name.clone(), info.range, token_type)
-            })
+    let analysis = snapshot.analysis();
+    analysis
+        .bindings_in_scope(0)
+        .map(|binding| {
+            let token_type = local_symbol_semantic_token_type(&binding, builtins) as u32;
+            (
+                analysis.symbol_name(binding.symbol).to_string(),
+                binding.range,
+                token_type,
+            )
         })
         .collect()
 }

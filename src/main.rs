@@ -21,6 +21,7 @@ mod builtin_index;
 mod capabilities;
 mod diagnostic_registry;
 mod document;
+mod meta;
 mod node_metadata;
 mod package_index;
 mod partitioned_index;

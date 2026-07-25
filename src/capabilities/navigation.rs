@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::*;
 
 use crate::document::{DocumentSnapshot, TargetSymbol};
-use crate::node_metadata::NodeKind;
+use crate::node_metadata::{NodeKind, NodeKindMetadata};
 use crate::package_index::SourceResolver;
 use crate::partitioned_index::ScopedIndex;
 use crate::record_lsp::record_symbol_kind;

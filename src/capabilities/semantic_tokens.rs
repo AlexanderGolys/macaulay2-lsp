@@ -2,9 +2,9 @@
 
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{BindingRole, SymbolInfo};
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::meta::{BindingRole, Metadata};
+use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::typesystem::{BuiltinData, M2SemanticTokenType};
 use crate::util::*;
 use crate::workspace_index::WorkspaceIndex;
@@ -130,11 +130,11 @@ pub(crate) fn collect_semantic_tokens(
 
             if token_type.is_none() {
                 if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
-                    token_type = Some(local_symbol_semantic_token_type(symbol, builtins) as u32);
-                    if let Some(type_name) = &symbol.type_name {
-                        if let Some(token) =
-                            static_type_semantic_token_for_local_symbol(symbol, type_name, builtins)
-                        {
+                    token_type = Some(local_symbol_semantic_token_type(&symbol, builtins) as u32);
+                    if let Some(type_name) = symbol.meta().type_name {
+                        if let Some(token) = static_type_semantic_token_for_local_symbol(
+                            &symbol, type_name, builtins,
+                        ) {
                             modifiers |= builtin_semantic_token_modifiers(&token);
                         }
                     }
@@ -255,14 +255,15 @@ pub(crate) fn option_assignment_role(
 }
 
 pub(crate) fn local_symbol_semantic_token_type(
-    symbol: &SymbolInfo,
+    symbol: &(impl Metadata + ?Sized),
     builtins: &BuiltinData,
 ) -> M2SemanticTokenType {
-    if symbol.role == BindingRole::Parameter {
+    let meta = symbol.meta();
+    if meta.binding_role == Some(BindingRole::Parameter) {
         return M2SemanticTokenType::Parameter;
     }
 
-    if let Some(type_name) = &symbol.type_name {
+    if let Some(type_name) = meta.type_name {
         if let Some(token) =
             static_type_semantic_token_for_local_symbol(symbol, type_name, builtins)
         {
@@ -270,14 +271,14 @@ pub(crate) fn local_symbol_semantic_token_type(
         }
     }
 
-    match symbol.kind {
-        SymbolKind::FUNCTION => M2SemanticTokenType::Function,
-        SymbolKind::VARIABLE => M2SemanticTokenType::Variable,
-        SymbolKind::METHOD => M2SemanticTokenType::Method,
-        SymbolKind::CLASS => M2SemanticTokenType::Type,
-        SymbolKind::NAMESPACE => M2SemanticTokenType::Namespace,
-        SymbolKind::PROPERTY => M2SemanticTokenType::Property,
-        SymbolKind::CONSTANT => M2SemanticTokenType::EnumMember,
+    match meta.symbol_kind {
+        Some(SymbolKind::FUNCTION) => M2SemanticTokenType::Function,
+        Some(SymbolKind::VARIABLE) => M2SemanticTokenType::Variable,
+        Some(SymbolKind::METHOD) => M2SemanticTokenType::Method,
+        Some(SymbolKind::CLASS) => M2SemanticTokenType::Type,
+        Some(SymbolKind::NAMESPACE) => M2SemanticTokenType::Namespace,
+        Some(SymbolKind::PROPERTY) => M2SemanticTokenType::Property,
+        Some(SymbolKind::CONSTANT) => M2SemanticTokenType::EnumMember,
         _ => M2SemanticTokenType::Variable,
     }
 }
@@ -297,13 +298,13 @@ pub(crate) fn builtin_semantic_token_modifiers(token: &crate::typesystem::M2Sema
 }
 
 fn static_type_semantic_token_for_local_symbol(
-    symbol: &SymbolInfo,
+    symbol: &(impl Metadata + ?Sized),
     type_name: &str,
     builtins: &BuiltinData,
 ) -> Option<crate::typesystem::M2SemanticToken> {
     let token = builtins.get_semantic_token_for_static_type(type_name)?;
-    match symbol.kind {
-        SymbolKind::VARIABLE
+    match symbol.meta().symbol_kind {
+        Some(SymbolKind::VARIABLE)
             if matches!(
                 token.token_type,
                 M2SemanticTokenType::String | M2SemanticTokenType::Number
@@ -1150,11 +1151,10 @@ mod tests {
 
     #[test]
     fn parameter_references_use_parameter_semantic_token_type() {
-        let symbol = SymbolInfo {
-            kind: SymbolKind::VARIABLE,
-            role: BindingRole::Parameter,
-            range: Range::new(Position::new(0, 5), Position::new(0, 6)),
-            type_name: None,
+        let symbol = crate::meta::Meta {
+            symbol_kind: Some(SymbolKind::VARIABLE),
+            binding_role: Some(BindingRole::Parameter),
+            ..crate::meta::Meta::default()
         };
         let builtins = BuiltinData::empty();
 

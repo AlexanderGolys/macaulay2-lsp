@@ -2,8 +2,9 @@
 
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{BindingRole, FunctionInfo, MethodInfo, SymbolInfo};
+use crate::analysis::{FunctionInfo, MethodInfo};
 use crate::document::DocumentSnapshot;
+use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::partitioned_index::ScopedIndex;
 use crate::record_lsp::record_hover_with_package_and_usage;
@@ -37,7 +38,7 @@ pub(crate) fn hover_response(
         let pinned_signature = local_installation_signature.map(|(_, signature)| signature);
         return Some(local_symbol_hover(
             node_text,
-            symbol,
+            &symbol,
             local_method,
             pinned_signature,
         ));
@@ -60,13 +61,13 @@ pub(crate) fn hover_response(
 /// its role label, and (for method functions) its installed signatures.
 fn local_symbol_hover(
     name: &str,
-    symbol: &SymbolInfo,
+    symbol: &(impl Metadata + ?Sized),
     method: Option<&FunctionInfo>,
     pinned_signature: Option<&MethodInfo>,
 ) -> Hover {
-    let title_type = symbol
+    let meta = symbol.meta();
+    let title_type = meta
         .type_name
-        .as_ref()
         .map(|type_name| format!("({type_name}) "))
         .unwrap_or_default();
     let title_signature = method
@@ -75,11 +76,13 @@ fn local_symbol_hover(
             format!(" `{}`", local_method_signature_label(method, signature))
         })
         .unwrap_or_default();
-    let label = match symbol.kind {
-        SymbolKind::FUNCTION if method.is_some() => "User-defined method function",
-        SymbolKind::FUNCTION => "User-defined function",
-        SymbolKind::VARIABLE if symbol.role == BindingRole::Parameter => "Function parameter",
-        SymbolKind::VARIABLE => "User-defined variable",
+    let label = match meta.symbol_kind {
+        Some(SymbolKind::FUNCTION) if method.is_some() => "User-defined method function",
+        Some(SymbolKind::FUNCTION) => "User-defined function",
+        Some(SymbolKind::VARIABLE) if meta.binding_role == Some(BindingRole::Parameter) => {
+            "Function parameter"
+        }
+        Some(SymbolKind::VARIABLE) => "User-defined variable",
         _ => "User-defined symbol",
     };
     let signatures = method
@@ -217,19 +220,19 @@ fn local_method_signature_label(method: &FunctionInfo, signature: &MethodInfo) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::{Analysis, BindingRole, SymbolInfo};
+    use crate::analysis::Analysis;
+    use crate::meta::{BindingRole, Meta};
     use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
     use crate::typesystem::BuiltinData;
-    use tower_lsp::lsp_types::{HoverContents, Position, Range, SymbolKind};
+    use tower_lsp::lsp_types::{HoverContents, Position, SymbolKind};
     use tree_sitter::Parser;
 
     #[test]
     fn local_hover_includes_known_static_type() {
-        let symbol = SymbolInfo {
-            kind: SymbolKind::VARIABLE,
-            role: BindingRole::Ordinary,
-            range: Range::new(Position::new(2, 4), Position::new(2, 7)),
-            type_name: Some("Package".to_string()),
+        let symbol = Meta {
+            symbol_kind: Some(SymbolKind::VARIABLE),
+            binding_role: Some(BindingRole::Ordinary),
+            type_name: Some("Package"),
         };
 
         let hover = local_symbol_hover("Doc", &symbol, None, None);
@@ -259,7 +262,7 @@ mod tests {
             .expect("method symbol should be visible");
         let method = analysis.function("p").expect("method should be registered");
 
-        let hover = local_symbol_hover("p", symbol, Some(method), None);
+        let hover = local_symbol_hover("p", &symbol, Some(method), None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("local hover should use markdown");
         };
@@ -292,7 +295,7 @@ mod tests {
             .local_method_installation_signature_at(M2Node::new(node, text), text)
             .expect("method installation should pin the installed signature");
 
-        let hover = local_symbol_hover("p", symbol, Some(method), Some(pinned_signature));
+        let hover = local_symbol_hover("p", &symbol, Some(method), Some(pinned_signature));
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("local hover should use markdown");
         };

@@ -36,15 +36,12 @@ pub struct Record {
     pub name: InstanceID,
     pub class: InstanceID,
     pub description_short: Option<String>,
-    pub description_long: Option<String>,
     pub examples: Vec<CodeExample>,
     pub extra: HashMap<String, Value>,
-    pub documentation: Option<DocumentationInfo>,
     pub function_info: Option<FunctionInfo>,
     pub option_info: Option<OptionInfo>,
     pub operator_info: Option<OperatorInfo>,
     pub type_info: Option<TypeInfo>,
-    pub relation_info: Option<RelationInfo>,
     /// Whether a `Symbol`-class object is `protect`ed. `None` ⇒ the corpus did
     /// not record it; the classifier then falls back to the class-is-`Symbol`
     /// proxy (see [`BuiltinData::is_protected_symbol`]).
@@ -69,37 +66,6 @@ pub struct OptionInfo {
 /// One option key and, when available, its textual default value.
 pub struct MethodOption {
     pub name: InstanceID,
-    pub default: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-/// Provenance and structured upstream documentation for a corpus record.
-pub struct DocumentationInfo {
-    pub status: DocumentationStatus,
-    pub doc_key: Option<InstanceID>,
-    pub source_file: Option<String>,
-    pub source_line: Option<u64>,
-    pub upstream_eval_status: Option<String>,
-    pub upstream_raw: Option<String>,
-    pub upstream_fields: Vec<String>,
-    pub upstream_field_data: HashMap<String, Value>,
-    pub upstream_description_short: Option<String>,
-    pub upstream_description_long: Option<String>,
-    pub upstream_inputs: Option<Value>,
-    pub upstream_outputs: Option<Value>,
-    pub upstream_description_body: Option<Value>,
-    pub upstream_usage: Option<Value>,
-    pub upstream_see_also: Option<Value>,
-    pub upstream_key: Option<String>,
-    pub upstream_document_tag: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Whether documentation was extracted upstream, synthesized, or unavailable.
-pub enum DocumentationStatus {
-    Upstream,
-    Missing,
-    Generated,
 }
 
 #[derive(Debug, Clone)]
@@ -120,10 +86,8 @@ pub struct DocumentedMethodSignature {
 #[derive(Debug, Clone)]
 /// Parser and runtime metadata for an operator-backed callable.
 pub struct OperatorInfo {
-    pub method_lookup: String,
     pub method_symbol: InstanceID,
     pub forms: Vec<String>,
-    pub flags: HashMap<String, Vec<String>>,
     /// Per-form operator attributes from the corpus (`binary` → `["Flexible"]`,
     /// …). Flexibility is per-form: an operator can be flexible as a prefix yet
     /// not as a binary, so it is queried via [`OperatorInfo::is_flexible`].
@@ -149,19 +113,6 @@ impl OperatorInfo {
 pub struct TypeInfo {
     pub subtypes: Vec<InstanceID>,
     pub parent_type: Option<InstanceID>,
-    pub ancestors: Vec<InstanceID>,
-    pub instances: Vec<InstanceID>,
-}
-
-#[derive(Debug, Clone)]
-/// Object-level relationship facts retained from the generated corpus.
-pub struct RelationInfo {
-    pub parent: Option<InstanceID>,
-    pub ancestors: Vec<InstanceID>,
-    pub class: Option<InstanceID>,
-    pub class_ancestors: Vec<InstanceID>,
-    pub children: Vec<InstanceID>,
-    pub instances: Vec<InstanceID>,
 }
 
 /// Two-sided type hierarchy: `ancestors` (sorted, for upward `is_subtype`/lub/glb
@@ -324,11 +275,6 @@ impl BuiltinData {
     /// Number of primary records; aliases do not increase this count.
     pub fn len(&self) -> usize {
         self.names.len()
-    }
-
-    /// Whether `name` is a primary corpus name or one of its registered aliases.
-    pub fn contains_name(&self, name: &str) -> bool {
-        self.name_to_index.contains_key(&InstanceID::new(name))
     }
 
     /// Primary names beginning with `prefix`, in corpus order and capped at `limit`.
@@ -872,15 +818,12 @@ impl Record {
             name,
             class: InstanceID::new("Thing"),
             description_short: None,
-            description_long: None,
             examples: Vec::new(),
             extra: HashMap::new(),
-            documentation: None,
             function_info: None,
             option_info: None,
             operator_info: None,
             type_info: None,
-            relation_info: None,
             protected: None,
         }
     }
@@ -901,11 +844,6 @@ impl Record {
         self.description_short
             .as_deref()
             .is_some_and(|description| description.contains(needle))
-            || self
-                .documentation
-                .as_ref()
-                .and_then(|documentation| documentation.upstream_description_short.as_deref())
-                .is_some_and(|description| description.contains(needle))
     }
 }
 
@@ -964,8 +902,6 @@ fn record_from_type(entry: &crate::builtin_index::TypeEntry) -> Record {
     record.type_info = Some(TypeInfo {
         subtypes: entry.subtypes.iter().map(|s| InstanceID::new(s)).collect(),
         parent_type: entry.parent.as_deref().map(InstanceID::new),
-        ancestors: entry.ancestors.iter().map(|s| InstanceID::new(s)).collect(),
-        instances: entry.instances.iter().map(|s| InstanceID::new(s)).collect(),
     });
     if let Some(package) = &entry.package {
         record
@@ -1022,7 +958,6 @@ fn record_from_callable(entry: &crate::builtin_index::CallableEntry) -> Record {
                 .iter()
                 .map(|option| MethodOption {
                     name: InstanceID::new(&option.key),
-                    default: option.default.clone(),
                 })
                 .collect(),
         });
@@ -1030,10 +965,8 @@ fn record_from_callable(entry: &crate::builtin_index::CallableEntry) -> Record {
 
     if entry.is_operator {
         record.operator_info = Some(OperatorInfo {
-            method_lookup: entry.name.clone(),
             method_symbol: InstanceID::new(&entry.name),
             forms: entry.forms.clone(),
-            flags: HashMap::new(),
             attributes: entry.operator_attributes.clone(),
         });
     }
@@ -1323,16 +1256,6 @@ impl BuiltinData {
     }
 
     fn is_type_like_record(&self, record: &Record) -> bool {
-        let type_type = InstanceID::new("Type");
-        if record.relation_info.as_ref().is_some_and(|relation_info| {
-            relation_info
-                .class_ancestors
-                .iter()
-                .any(|ancestor| ancestor == &type_type)
-        }) {
-            return true;
-        }
-
         record
             .type_info
             .as_ref()
@@ -1429,7 +1352,7 @@ mod tests {
             builtins.len() > 1_000,
             "expected a substantial builtin database from the typecheck index"
         );
-        assert!(builtins.contains_name("ideal"));
+        assert!(builtins.get_record(&InstanceID::new("ideal")).is_some());
         assert!(
             builtins.names_with_prefix("id", 8).contains(&"ideal"),
             "name index should support live prefix symbol search"
@@ -1556,6 +1479,6 @@ mod tests {
         assert!(builtins.is_subtype(&InstanceID::new("ZZ"), &InstanceID::new("Thing")));
 
         // a known method codomain resolves (ideal of a … → Ideal is documented)
-        assert!(builtins.contains_name("ideal"));
+        assert!(builtins.get_record(&InstanceID::new("ideal")).is_some());
     }
 }
