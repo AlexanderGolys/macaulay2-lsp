@@ -5,12 +5,11 @@
 //! with the type lattice to answer conservative questions about known objects,
 //! method signatures, option values, hover text, and semantic-token roles.
 
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Stable identifier for an indexed M2 object or type.
 pub struct InstanceID(pub String);
 
@@ -27,109 +26,75 @@ impl Display for InstanceID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// One executable example attached to a corpus record or method signature.
 pub struct CodeExample(pub String);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// The normalized metadata known for one builtin object, type, or callable.
-/// @##question Is tha
 pub struct Record {
     pub name: InstanceID,
     pub class: InstanceID,
-    #[serde(default)]
     pub description_short: Option<String>,
-    #[serde(default)]
     pub description_long: Option<String>,
-    #[serde(default)]
     pub examples: Vec<CodeExample>,
-    #[serde(default)]
     pub extra: HashMap<String, Value>,
-    #[serde(default)]
     pub documentation: Option<DocumentationInfo>,
-    #[serde(default)]
     pub function_info: Option<FunctionInfo>,
-    #[serde(default)]
     pub option_info: Option<OptionInfo>,
-    #[serde(default)]
     pub operator_info: Option<OperatorInfo>,
-    #[serde(default)]
     pub type_info: Option<TypeInfo>,
-    #[serde(default)]
     pub relation_info: Option<RelationInfo>,
     /// Whether a `Symbol`-class object is `protect`ed. `None` ⇒ the corpus did
     /// not record it; the classifier then falls back to the class-is-`Symbol`
     /// proxy (see [`BuiltinData::is_protected_symbol`]).
-    #[serde(default)]
     pub protected: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// Callable metadata, separating installed methods from richer documentation.
 pub struct FunctionInfo {
-    #[serde(default)]
     pub methods: Vec<MethodSignature>,
-    #[serde(default)]
     pub documented_methods: Vec<DocumentedMethodSignature>,
-    #[serde(default)]
     pub general_signature: Option<DocumentedMethodSignature>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// The documented options accepted by a callable.
 pub struct OptionInfo {
-    #[serde(default)]
     pub options: Vec<MethodOption>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// One option key and, when available, its textual default value.
 pub struct MethodOption {
     pub name: InstanceID,
-    #[serde(default)]
     pub default: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// Provenance and structured upstream documentation for a corpus record.
 pub struct DocumentationInfo {
     pub status: DocumentationStatus,
-    #[serde(default)]
     pub doc_key: Option<InstanceID>,
-    #[serde(default)]
     pub source_file: Option<String>,
-    #[serde(default)]
     pub source_line: Option<u64>,
-    #[serde(default)]
     pub upstream_eval_status: Option<String>,
-    #[serde(default)]
     pub upstream_raw: Option<String>,
-    #[serde(default)]
     pub upstream_fields: Vec<String>,
-    #[serde(default)]
     pub upstream_field_data: HashMap<String, Value>,
-    #[serde(default)]
     pub upstream_description_short: Option<String>,
-    #[serde(default)]
     pub upstream_description_long: Option<String>,
-    #[serde(default)]
     pub upstream_inputs: Option<Value>,
-    #[serde(default)]
     pub upstream_outputs: Option<Value>,
-    #[serde(default)]
     pub upstream_description_body: Option<Value>,
-    #[serde(default)]
     pub upstream_usage: Option<Value>,
-    #[serde(default)]
     pub upstream_see_also: Option<Value>,
-    #[serde(default)]
     pub upstream_key: Option<String>,
-    #[serde(default)]
     pub upstream_document_tag: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// Whether documentation was extracted upstream, synthesized, or unavailable.
 pub enum DocumentationStatus {
     Upstream,
@@ -137,39 +102,31 @@ pub enum DocumentationStatus {
     Generated,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// An installed method domain: callable name followed by its argument types.
 pub struct MethodSignature {
-    #[serde(default)]
     pub signature: Vec<InstanceID>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// A method signature enriched with codomain, examples, and documentation key.
 pub struct DocumentedMethodSignature {
-    #[serde(default)]
     pub signature: Vec<InstanceID>,
-    #[serde(default)]
     pub output_types: Vec<InstanceID>,
-    #[serde(default)]
     pub examples: Vec<CodeExample>,
-    #[serde(default)]
     pub doc_key: Option<InstanceID>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// Parser and runtime metadata for an operator-backed callable.
 pub struct OperatorInfo {
     pub method_lookup: String,
     pub method_symbol: InstanceID,
-    #[serde(default)]
     pub forms: Vec<String>,
-    #[serde(default)]
     pub flags: HashMap<String, Vec<String>>,
     /// Per-form operator attributes from the corpus (`binary` → `["Flexible"]`,
     /// …). Flexibility is per-form: an operator can be flexible as a prefix yet
     /// not as a binary, so it is queried via [`OperatorInfo::is_flexible`].
-    #[serde(default)]
     pub attributes: HashMap<String, Vec<String>>,
 }
 
@@ -187,32 +144,23 @@ impl OperatorInfo {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// Direct hierarchy and instance facts for an indexed M2 type.
 pub struct TypeInfo {
-    #[serde(default)]
     pub subtypes: Vec<InstanceID>,
-    #[serde(default)]
     pub parent_type: Option<InstanceID>,
-    #[serde(default)]
     pub ancestors: Vec<InstanceID>,
-    #[serde(default)]
     pub instances: Vec<InstanceID>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 /// Object-level relationship facts retained from the generated corpus.
 pub struct RelationInfo {
     pub parent: Option<InstanceID>,
-    #[serde(default)]
     pub ancestors: Vec<InstanceID>,
-    #[serde(default)]
     pub class: Option<InstanceID>,
-    #[serde(default)]
     pub class_ancestors: Vec<InstanceID>,
-    #[serde(default)]
     pub children: Vec<InstanceID>,
-    #[serde(default)]
     pub instances: Vec<InstanceID>,
 }
 
@@ -305,7 +253,7 @@ pub struct TypeFacts {
     option_values_by_slot: HashMap<(String, String), Vec<String>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// A callable/option slot that admits a particular indexed option value.
 pub struct OptionValueUsage {
     pub callable: String,

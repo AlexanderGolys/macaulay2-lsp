@@ -1,7 +1,6 @@
 //! Typed, grammar-local access to Tree-sitter nodes used throughout the server.
 
-use std::ops::Deref;
-
+use std::{iter, ops::Deref};
 use tree_sitter::Node;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -9,16 +8,12 @@ pub enum NodeKind {
     SourceFile,
     Cell,
     Symbol,
-    // The `symbol` field of a quote expression can be a reserved word. It is
-    // symbol-like so `symbol if` resolves and highlights like `symbol x`.
     QuotedKeyword,
     IntegerLiteral,
     FloatLiteral,
     StringLiteral,
     Array,
     Sequence,
-    // A parenthesized single expression `(x)` — its own node since grammar 2.5.0,
-    // distinct from a `sequence` (`()`, `(a, b)`). Identified with its inner value.
     ParenthesizedExpression,
     List,
     AngleBarList,
@@ -49,9 +44,6 @@ pub enum NodeKind {
     ThenClause,
     ElseClause,
     ExceptClause,
-    // Both `line_comment` and `block_comment` fold to one kind: nothing
-    // downstream distinguishes them. String escapes (`escape_sequence`,
-    // `raw_string_escape`) are deliberately not modelled at all.
     Comment,
     Unknown,
 }
@@ -400,7 +392,7 @@ impl<'tree> M2Node<'tree> {
         let source = self.source;
         let mut cursor = self.node.walk();
         let mut reached_root = false;
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             if reached_root {
                 return None;
             }

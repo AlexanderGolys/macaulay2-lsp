@@ -3,6 +3,9 @@
 
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::RwLock;
 use tower_lsp::lsp_types::{Diagnostic, Position, Range as LspRange, SymbolKind};
 use tree_sitter::Tree;
 
@@ -19,6 +22,15 @@ pub enum BindingRole {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SymbolId(u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BindingId(u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BindingStateId(u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct NodeFactId(usize);
 
 #[derive(Debug, Clone)]
 pub struct SymbolInfo {
@@ -41,6 +53,10 @@ pub struct Analysis {
     pub diagnostics: Vec<Diagnostic>,
     pub registry: SemanticRegistry,
     pub installations: Vec<MethodInstallation>,
+    cache_types: bool,
+    type_cache: RwLock<HashMap<NodeFactId, InferredType>>,
+    #[cfg(test)]
+    type_computations: AtomicUsize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -358,15 +374,26 @@ pub enum ExpressionKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingInfo {
+    pub binding_id: BindingId,
+    pub state_id: BindingStateId,
     pub symbol: SymbolId,
     pub kind: SymbolKind,
     pub role: BindingRole,
+    /// The lexical definition selected by references and navigation.
     pub range: LspRange,
     pub scope_idx: usize,
+    /// The type contributed by this particular definition or reassignment.
     pub type_name: Option<String>,
     pub value_range: Option<LspRange>,
     pub declaration_range: LspRange,
     pub span: SpanKey,
+    /// The source occurrence that produced this state. For the initial state it
+    /// is the definition itself; for `=` it is the assignment target.
+    pub state_range: LspRange,
+    /// The scope in which this state was written. This can differ from
+    /// `scope_idx` when `=` updates an enclosing binding.
+    pub state_scope_idx: usize,
+    pub is_definition: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -401,7 +428,9 @@ pub struct SemanticRegistry {
     pub symbol_ids: HashMap<String, SymbolId>,
     pub scopes: Vec<ScopeInfo>,
     pub bindings: Vec<BindingInfo>,
-    pub bindings_by_symbol: HashMap<SymbolId, Vec<usize>>,
+    pub bindings_by_symbol: HashMap<SymbolId, Vec<BindingId>>,
+    pub binding_definitions: HashMap<BindingId, BindingStateId>,
+    pub states_by_binding: HashMap<BindingId, Vec<BindingStateId>>,
     pub node_scopes: HashMap<SpanKey, usize>,
     pub expressions: HashMap<SpanKey, ExpressionFact>,
     pub calls: HashMap<SpanKey, CallInfo>,
@@ -459,9 +488,41 @@ impl Analysis {
         &self.registry
     }
 
+    #[cfg(test)]
+    fn type_computation_count(&self) -> usize {
+        self.type_computations.load(Ordering::Relaxed)
+    }
+
+    #[cfg(test)]
+    fn cached_type_count(&self) -> usize {
+        self.type_cache
+            .read()
+            .expect("type cache lock should not be poisoned")
+            .len()
+    }
+
     pub fn get_binding_at(&self, name: &str, pos: Position) -> Option<&BindingInfo> {
         let scope_idx = self.find_scope_at(pos)?;
+        self.get_binding_from_scope(name, scope_idx, pos)
+    }
+
+    fn get_binding_from_scope(
+        &self,
+        name: &str,
+        scope_idx: usize,
+        pos: Position,
+    ) -> Option<&BindingInfo> {
         let symbol = self.registry.resolve_symbol(name)?;
+        let binding_id = self.binding_id_from_scope(symbol, scope_idx, pos)?;
+        self.binding_state_from_scope(binding_id, scope_idx, pos)
+    }
+
+    fn binding_id_from_scope(
+        &self,
+        symbol: SymbolId,
+        scope_idx: usize,
+        pos: Position,
+    ) -> Option<BindingId> {
         let mut curr = Some(scope_idx);
         while let Some(idx) = curr {
             // In the use's own scope a binding governs only from its definition
@@ -470,23 +531,70 @@ impl Analysis {
             // evaluated at call time, after the file is fully read, so a forward
             // reference to an outer name defined later still resolves to it.
             let constrain_to_prior = idx == scope_idx;
-            let binding = self
+            let binding_id = self
                 .registry
                 .bindings_by_symbol
                 .get(&symbol)
                 .into_iter()
                 .flatten()
-                .filter_map(|binding_idx| self.registry.bindings.get(*binding_idx))
-                .filter(|binding| {
-                    binding.scope_idx == idx && (!constrain_to_prior || binding.range.start <= pos)
+                .filter_map(|binding_id| {
+                    self.binding_definition(*binding_id)
+                        .map(|binding| (*binding_id, binding))
                 })
-                .max_by_key(|binding| (binding.range.start.line, binding.range.start.character));
-            if binding.is_some() {
-                return binding;
+                .filter(|binding| {
+                    binding.1.scope_idx == idx
+                        && (!constrain_to_prior || binding.1.range.start <= pos)
+                })
+                .max_by_key(|(_, binding)| {
+                    (binding.range.start.line, binding.range.start.character)
+                })
+                .map(|(binding_id, _)| binding_id);
+            if binding_id.is_some() {
+                return binding_id;
             }
             curr = self.scopes[idx].parent_idx;
         }
         None
+    }
+
+    fn binding_definition(&self, binding_id: BindingId) -> Option<&BindingInfo> {
+        let state_id = self.registry.binding_definitions.get(&binding_id)?;
+        self.binding_state(*state_id)
+    }
+
+    fn binding_state(&self, state_id: BindingStateId) -> Option<&BindingInfo> {
+        self.registry.bindings.get(state_id.0 as usize)
+    }
+
+    fn binding_state_from_scope(
+        &self,
+        binding_id: BindingId,
+        scope_idx: usize,
+        pos: Position,
+    ) -> Option<&BindingInfo> {
+        let state_ids = self.registry.states_by_binding.get(&binding_id)?;
+        let mut curr = Some(scope_idx);
+        while let Some(idx) = curr {
+            let constrain_to_prior = idx == scope_idx;
+            let state = state_ids
+                .iter()
+                .filter_map(|state_id| self.binding_state(*state_id))
+                .filter(|state| {
+                    state.state_scope_idx == idx
+                        && (!constrain_to_prior || state.state_range.start <= pos)
+                })
+                .max_by_key(|state| {
+                    (
+                        state.state_range.start.line,
+                        state.state_range.start.character,
+                    )
+                });
+            if state.is_some() {
+                return state;
+            }
+            curr = self.scopes[idx].parent_idx;
+        }
+        self.binding_definition(binding_id)
     }
 
     #[cfg(test)]
@@ -518,6 +626,7 @@ impl Analysis {
         self.registry
             .bindings
             .iter()
+            .filter(|binding| binding.is_definition)
             .filter(|binding| binding.type_name.is_some())
             .filter(|binding| matches!(binding.kind, SymbolKind::VARIABLE | SymbolKind::FUNCTION))
             .filter(|binding| {
@@ -601,12 +710,20 @@ impl Analysis {
                 ..Default::default()
             },
             installations: Vec::new(),
+            cache_types: false,
+            type_cache: RwLock::new(HashMap::new()),
+            #[cfg(test)]
+            type_computations: AtomicUsize::new(0),
         };
         // Analysis-first: derive the semantic metadata (scopes, expression facts,
         // method installations) BEFORE running diagnostics, which are almost
         // entirely semantic and consume that metadata rather than re-deriving it.
         let root = M2Node::new(tree.root_node(), text);
         analysis.build_scopes(root, text, 0, builtins);
+        // Scope construction needs source-ordered partial information. Once all
+        // bindings and states exist, inference is stable and each node's final
+        // type can be memoized for all semantic consumers in this snapshot.
+        analysis.cache_types = true;
         analysis.collect_expression_facts(root, text, builtins);
         analysis.collect_installations(root, text, builtins);
         analysis.collect_installation_diagnostics(builtins);
@@ -700,17 +817,14 @@ impl Analysis {
                             },
                         ),
                         // `=` writes the nearest enclosing binding of the name, or
-                        // a global when none exists anywhere up the chain. The
-                        // `DefinitionScope::Global` arm guards on `is_defined_in_chain`
-                        // (walking enclosing locals AND the global scope from the
-                        // current scope), so an `=` inside a function with an
-                        // enclosing local resolves to it and creates no binding,
-                        // while one with no enclosing binding creates a global.
+                        // creates a global when none exists anywhere up the chain.
+                        // The write becomes a new state of that binding rather than
+                        // a second lexical definition.
                         "=" => self.collect_definitions(
                             left,
                             right,
                             text,
-                            DefinitionScope::Global,
+                            DefinitionScope::Assign,
                             SymbolRegistration {
                                 kind: symbol_kind,
                                 role: BindingRole::Ordinary,
@@ -1131,7 +1245,15 @@ impl Analysis {
             .get(&symbol)?
             .iter()
             .rev()
-            .filter_map(|binding_idx| self.registry.bindings.get(*binding_idx))
+            .flat_map(|binding_id| {
+                self.registry
+                    .states_by_binding
+                    .get(binding_id)
+                    .into_iter()
+                    .flatten()
+                    .rev()
+            })
+            .filter_map(|state_id| self.binding_state(*state_id))
             .find(|binding| binding.kind == SymbolKind::FUNCTION)
             .and_then(|binding| binding.type_name.as_deref())
     }
@@ -1187,8 +1309,22 @@ impl Analysis {
                         },
                         text,
                     ),
-                    DefinitionScope::Global => {
-                        if !self.is_defined_in_chain(name, registration.scope_idx) {
+                    DefinitionScope::Assign => {
+                        let position = node_position(text, node);
+                        let binding_id = self.registry.resolve_symbol(name).and_then(|symbol| {
+                            self.binding_id_from_scope(symbol, registration.scope_idx, position)
+                        });
+                        if let Some(binding_id) = binding_id {
+                            self.add_binding_state(
+                                binding_id,
+                                SymbolRegistration {
+                                    node,
+                                    value_node,
+                                    ..registration
+                                },
+                                text,
+                            );
+                        } else {
                             self.add_symbol(
                                 name,
                                 SymbolRegistration {
@@ -1246,24 +1382,75 @@ impl Analysis {
             .entry(name.to_string())
             .or_default()
             .push(symbol);
+        let binding_id = BindingId(self.registry.binding_definitions.len() as u32);
+        let state_id = BindingStateId(self.registry.bindings.len() as u32);
+        let range = to_lsp_range(text, node.range());
         let binding = BindingInfo {
+            binding_id,
+            state_id,
             symbol: symbol_id,
             kind,
             role,
-            range: to_lsp_range(text, node.range()),
+            range,
             scope_idx,
             type_name: type_name.map(ToString::to_string),
             value_range: value_node.map(|value| to_lsp_range(text, value.range())),
             declaration_range: enclosing_definition_range(node, text),
             span: SpanKey::from_node(text, node),
+            state_range: range,
+            state_scope_idx: scope_idx,
+            is_definition: true,
         };
-        let binding_idx = self.registry.bindings.len();
         self.registry.bindings.push(binding);
+        self.registry
+            .binding_definitions
+            .insert(binding_id, state_id);
+        self.registry
+            .states_by_binding
+            .entry(binding_id)
+            .or_default()
+            .push(state_id);
         self.registry
             .bindings_by_symbol
             .entry(symbol_id)
             .or_default()
-            .push(binding_idx);
+            .push(binding_id);
+    }
+
+    fn add_binding_state(
+        &mut self,
+        binding_id: BindingId,
+        registration: SymbolRegistration<'_>,
+        text: &str,
+    ) {
+        let Some(definition) = self.binding_definition(binding_id).cloned() else {
+            return;
+        };
+        let state_id = BindingStateId(self.registry.bindings.len() as u32);
+        let state_range = to_lsp_range(text, registration.node.range());
+        self.registry.bindings.push(BindingInfo {
+            binding_id,
+            state_id,
+            symbol: definition.symbol,
+            kind: registration.kind,
+            role: definition.role,
+            range: definition.range,
+            scope_idx: definition.scope_idx,
+            type_name: registration.type_name.map(ToString::to_string),
+            value_range: registration
+                .value_node
+                .map(|value| to_lsp_range(text, value.range())),
+            declaration_range: definition.declaration_range,
+            span: SpanKey::from_node(text, registration.node),
+            state_range,
+            state_scope_idx: registration.scope_idx,
+            is_definition: false,
+        });
+        self.registry
+            .states_by_binding
+            .entry(binding_id)
+            .or_default()
+            .push(state_id);
     }
 
     pub fn local_method_installation_signature_at<'a>(
@@ -1586,6 +1773,37 @@ impl Analysis {
         scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) -> InferredType {
+        if !self.cache_types {
+            return self.compute_type_of(node, text, scope_idx, builtins);
+        }
+
+        let node_id = NodeFactId(node.id());
+        if let Some(inferred) = self
+            .type_cache
+            .read()
+            .expect("type cache lock should not be poisoned")
+            .get(&node_id)
+        {
+            return inferred.clone();
+        }
+
+        #[cfg(test)]
+        self.type_computations.fetch_add(1, Ordering::Relaxed);
+        let inferred = self.compute_type_of(node, text, scope_idx, builtins);
+        self.type_cache
+            .write()
+            .expect("type cache lock should not be poisoned")
+            .insert(node_id, inferred.clone());
+        inferred
+    }
+
+    fn compute_type_of(
+        &self,
+        node: M2Node,
+        text: &str,
+        scope_idx: usize,
+        builtins: Option<&BuiltinData>,
+    ) -> InferredType {
         match node.kind {
             // A lambda's class is the concrete `FunctionClosure`, not the abstract
             // `Function` — this distinction drives the method-install no-effect rule
@@ -1748,10 +1966,10 @@ impl Analysis {
         builtins: Option<&BuiltinData>,
     ) -> InferredType {
         let name = node.text();
-        if let Some(symbol) =
-            self.lookup_symbol_from_scope(name, scope_idx, node_position(text, node))
+        if let Some(binding) =
+            self.get_binding_from_scope(name, scope_idx, node_position(text, node))
         {
-            if let Some(type_name) = &symbol.type_name {
+            if let Some(type_name) = &binding.type_name {
                 return InferredType::of(type_name);
             }
         }
@@ -2027,73 +2245,17 @@ impl Analysis {
         method.typical_value.clone()
     }
 
-    fn lookup_symbol_from_scope(
-        &self,
-        name: &str,
-        scope_idx: usize,
-        pos: Position,
-    ) -> Option<&SymbolInfo> {
-        let mut curr = Some(scope_idx);
-        while let Some(idx) = curr {
-            if let Some(symbols) = self.scopes[idx].symbols.get(name) {
-                if let Some(symbol) = symbols
-                    .iter()
-                    .rev()
-                    .find(|symbol| symbol.range.start <= pos)
-                {
-                    return Some(symbol);
-                }
-            }
-            curr = self.scopes[idx].parent_idx;
-        }
-        None
-    }
-
-    fn is_defined_in_chain(&self, name: &str, start_scope_idx: usize) -> bool {
-        let mut curr = Some(start_scope_idx);
-        while let Some(idx) = curr {
-            if self.scopes[idx].symbols.contains_key(name) {
-                return true;
-            }
-            curr = self.scopes[idx].parent_idx;
-        }
-        false
-    }
-
-    pub(crate) fn binding_idx_at(&self, name: &str, pos: Position) -> Option<usize> {
+    pub(crate) fn binding_id_at(&self, name: &str, pos: Position) -> Option<BindingId> {
         let scope_idx = self.find_scope_at(pos)?;
         let symbol = self.registry.resolve_symbol(name)?;
-        let mut curr = Some(scope_idx);
-        while let Some(idx) = curr {
-            let binding = self
-                .registry
-                .bindings_by_symbol
-                .get(&symbol)
-                .into_iter()
-                .flatten()
-                .filter_map(|binding_idx| {
-                    self.registry
-                        .bindings
-                        .get(*binding_idx)
-                        .map(|binding| (*binding_idx, binding))
-                })
-                .filter(|(_, binding)| binding.scope_idx == idx && binding.range.start <= pos)
-                .max_by_key(|(_, binding)| {
-                    (binding.range.start.line, binding.range.start.character)
-                });
-            if let Some((binding_idx, _)) = binding {
-                return Some(binding_idx);
-            }
-            curr = self.scopes[idx].parent_idx;
-        }
-        None
+        self.binding_id_from_scope(symbol, scope_idx, pos)
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 enum DefinitionScope {
     Local,
-    Global,
+    Assign,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3044,6 +3206,66 @@ mod tests {
     }
 
     #[test]
+    fn reassignment_changes_later_type_without_changing_the_definition() {
+        let analysis = analyze("x := 1\nbefore := x\nx = y -> y\nafter := x\n");
+
+        let before = analysis
+            .get_binding_at("x", Position::new(1, 10))
+            .expect("the earlier reference should resolve");
+        assert_eq!(before.range.start, Position::new(0, 0));
+        assert_eq!(before.type_name.as_deref(), Some("ZZ"));
+
+        let after = analysis
+            .get_binding_at("x", Position::new(3, 9))
+            .expect("the later reference should resolve");
+        assert_eq!(after.range.start, Position::new(0, 0));
+        assert_eq!(after.type_name.as_deref(), Some("FunctionClosure"));
+        assert_eq!(before.binding_id, after.binding_id);
+        assert_ne!(before.state_id, after.state_id);
+    }
+
+    #[test]
+    fn binding_states_respect_source_order_and_lexical_shadowing() {
+        let analysis = analyze(concat!(
+            "x := 1\n",
+            "f := () -> (\n",
+            "  before := x;\n",
+            "  x := \"local\";\n",
+            "  afterShadow := x;\n",
+            "  x = y -> y;\n",
+            "  afterWrite := x;\n",
+            ")\n",
+            "outside := x\n",
+        ));
+
+        let before = analysis
+            .get_binding_at("x", Position::new(2, 12))
+            .expect("the use before the local definition should see the outer binding");
+        assert_eq!(before.range.start, Position::new(0, 0));
+        assert_eq!(before.type_name.as_deref(), Some("ZZ"));
+
+        let shadowed = analysis
+            .get_binding_at("x", Position::new(4, 17))
+            .expect("the use after the local definition should see the local binding");
+        assert_eq!(shadowed.range.start, Position::new(3, 2));
+        assert_eq!(shadowed.type_name.as_deref(), Some("String"));
+
+        let rewritten = analysis
+            .get_binding_at("x", Position::new(6, 16))
+            .expect("the use after the local write should see its new state");
+        assert_eq!(rewritten.range.start, Position::new(3, 2));
+        assert_eq!(rewritten.type_name.as_deref(), Some("FunctionClosure"));
+        assert_eq!(shadowed.binding_id, rewritten.binding_id);
+        assert_ne!(shadowed.state_id, rewritten.state_id);
+
+        let outside = analysis
+            .get_binding_at("x", Position::new(8, 11))
+            .expect("the nested shadow must not change the outer binding");
+        assert_eq!(outside.range.start, Position::new(0, 0));
+        assert_eq!(outside.type_name.as_deref(), Some("ZZ"));
+    }
+
+    #[test]
     fn analysis_ranges_use_lsp_utf16_columns() {
         let analysis = analyze("\"😀\"; x := 1\nx\n");
 
@@ -3437,6 +3659,18 @@ mod tests {
             .get(&SpanKey::from_node(text, binary))
             .expect("call info should be registered");
         assert_eq!(call.callable_name.as_deref(), Some("+"));
+
+        let computations = analysis.type_computation_count();
+        assert_eq!(computations, analysis.cached_type_count());
+        assert_eq!(
+            analysis.infer_expression_static_type_name(binary, text, Some(&builtins)),
+            Some("ZZ".to_string())
+        );
+        assert_eq!(
+            analysis.type_computation_count(),
+            computations,
+            "a semantic consumer should reuse the node's final inferred type"
+        );
     }
 
     #[test]

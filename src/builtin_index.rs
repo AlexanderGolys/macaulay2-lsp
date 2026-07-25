@@ -82,12 +82,10 @@ pub struct CallableEntry {
 }
 
 /// An optional argument: its key and (sparsely curated) value constraints.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct OptionSpec {
     pub key: String,
-    #[serde(default)]
     pub default: Option<String>,
-    #[serde(default, rename = "possibleValues")]
     pub possible_values: Vec<String>,
 }
 
@@ -174,7 +172,7 @@ impl BuiltinIndex {
                         forms,
                         operator_attributes,
                         typical_value: concrete_codomain(raw.typical_value.as_deref()),
-                        options: raw.options,
+                        options: raw.options.into_iter().map(OptionSpec::from).collect(),
                         signatures,
                         markdown,
                     });
@@ -336,7 +334,7 @@ struct RawRecord {
     #[serde(default)]
     typical_value: Option<String>,
     #[serde(default)]
-    options: Vec<OptionSpec>,
+    options: Vec<RawOptionSpec>,
     #[serde(default)]
     methods: Vec<RawMethod>,
     #[serde(default)]
@@ -355,6 +353,27 @@ struct RawMethod {
     domain: Vec<String>,
     #[serde(default, rename = "typicalValue")]
     typical_value: Option<String>,
+}
+
+/// Wire-format optional argument metadata. Conversion into `OptionSpec` keeps
+/// Serde details at the JSONL boundary.
+#[derive(Debug, Deserialize)]
+struct RawOptionSpec {
+    key: String,
+    #[serde(default)]
+    default: Option<String>,
+    #[serde(default, rename = "possibleValues")]
+    possible_values: Vec<String>,
+}
+
+impl From<RawOptionSpec> for OptionSpec {
+    fn from(raw: RawOptionSpec) -> Self {
+        OptionSpec {
+            key: raw.key,
+            default: raw.default,
+            possible_values: raw.possible_values,
+        }
+    }
 }
 
 /// Operator syntactic metadata: forms are lowercase in the corpus

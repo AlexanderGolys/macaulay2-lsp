@@ -341,6 +341,141 @@ mod tests {
     }
 
     #[test]
+    fn removing_prior_definitions_retypes_the_shifted_assignment() {
+        let builtins = builtins();
+        let mut document = DocumentSnapshot::from_text(
+            "x = y\ny = (x:=2;z=4)\nz = x = y\n".to_string(),
+            &builtins,
+        )
+        .expect("fixture should parse");
+
+        assert!(
+            !document.analysis().registry().bindings.is_empty(),
+            "the fixture should register definitions and assignment states"
+        );
+        let first_x = document
+            .analysis()
+            .get_binding_at("x", Position::new(0, 0))
+            .expect("the first assignment should create global x");
+        assert_eq!(first_x.type_name.as_deref(), Some("Symbol"));
+        for (name, character) in [("z", 0), ("x", 4), ("y", 8)] {
+            let binding = document
+                .analysis()
+                .get_binding_at(name, Position::new(2, character))
+                .expect("the chained assignment should resolve the binding");
+            assert_eq!(
+                binding.type_name.as_deref(),
+                Some("ZZ"),
+                "{name} should have the source-ordered numeric type"
+            );
+        }
+        for character in [0, 4, 8] {
+            let node = document
+                .symbol_node_at_position(Position::new(2, character))
+                .expect("the surviving assignment should initially be on line 2");
+            assert_eq!(document.range_for(node).start, Position::new(2, character));
+        }
+
+        document
+            .apply_changes(
+                &[TextDocumentContentChangeEvent {
+                    range: Some(Range::new(Position::new(0, 0), Position::new(2, 0))),
+                    range_length: None,
+                    text: String::new(),
+                }],
+                &builtins,
+            )
+            .expect("line removal should parse");
+
+        assert_eq!(document.text(), "z = x = y\n");
+        for (name, character) in [("z", 0), ("x", 4), ("y", 8)] {
+            let node = document
+                .symbol_node_at_position(Position::new(0, character))
+                .expect("the surviving assignment should shift up by two lines");
+            assert_eq!(node.text(), name);
+            assert_eq!(document.range_for(node).start, Position::new(0, character));
+        }
+
+        for (name, character) in [("z", 0), ("x", 4)] {
+            let binding = document
+                .analysis()
+                .get_binding_at(name, Position::new(0, character))
+                .expect("the remaining assignment should create the binding");
+            assert_eq!(
+                binding.type_name.as_deref(),
+                Some("Symbol"),
+                "{name} must be retyped from the unresolved y"
+            );
+        }
+        assert!(
+            document
+                .analysis()
+                .get_binding_at("y", Position::new(0, 8))
+                .is_none(),
+            "the removed y definition must not survive the edit"
+        );
+        assert_eq!(
+            document.analysis().registry().bindings.len(),
+            2,
+            "only the new x and z Symbol bindings should remain"
+        );
+        let y_fact = document
+            .expression_fact_at_position(Position::new(0, 8))
+            .expect("the unresolved y should retain an expression fact");
+        assert_eq!(y_fact.result_type.label().as_deref(), Some("Symbol"));
+        assert_eq!(
+            document.analysis().scopes.len(),
+            1,
+            "only the root scope should remain"
+        );
+        assert_eq!(
+            document.analysis().registry().scopes.len(),
+            1,
+            "the semantic registry must not retain removed local scopes"
+        );
+        assert!(
+            document
+                .analysis()
+                .registry()
+                .expressions
+                .values()
+                .all(|fact| fact.span.range.start.line == 0),
+            "retained expression facts must shift from line 2 to line 0"
+        );
+    }
+
+    #[test]
+    fn removing_a_lambda_drops_its_local_scope() {
+        let builtins = builtins();
+        let mut document =
+            DocumentSnapshot::from_text("f := () -> (x := 2; z = 4)\nf\n".to_string(), &builtins)
+                .expect("fixture should parse");
+
+        assert_eq!(document.analysis().scopes.len(), 2);
+        assert_eq!(document.analysis().registry().scopes.len(), 2);
+
+        document
+            .apply_changes(
+                &[TextDocumentContentChangeEvent {
+                    range: Some(Range::new(Position::new(0, 0), Position::new(1, 0))),
+                    range_length: None,
+                    text: String::new(),
+                }],
+                &builtins,
+            )
+            .expect("lambda removal should parse");
+
+        assert_eq!(document.text(), "f\n");
+        assert!(document
+            .analysis()
+            .get_binding_at("f", Position::new(0, 0))
+            .is_none());
+        assert!(document.analysis().registry().bindings.is_empty());
+        assert_eq!(document.analysis().scopes.len(), 1);
+        assert_eq!(document.analysis().registry().scopes.len(), 1);
+    }
+
+    #[test]
     fn replaces_document_when_change_has_no_range() {
         let builtins = builtins();
         let mut document = DocumentSnapshot::from_text("x := 1".to_string(), &builtins)

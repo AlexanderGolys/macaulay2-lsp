@@ -170,18 +170,23 @@ impl Analysis {
             if node.kind.is_symbol_like() {
                 let name = node.text();
                 let position = node_position(text, node);
-                if let Some(binding_idx) = self.binding_idx_at(name, position) {
-                    if let Some(binding) = self.registry.bindings.get(binding_idx) {
+                if let Some(binding_id) = self.binding_id_at(name, position) {
+                    if let Some(binding) = self.get_binding_at(name, position) {
                         let node_range = to_lsp_range(text, node.range());
                         if node_range != binding.range {
-                            used_bindings.insert(binding_idx);
+                            used_bindings.insert(binding_id);
                         }
                     }
                 }
             }
         }
 
-        for (binding_idx, binding) in self.registry.bindings.iter().enumerate() {
+        for binding in self
+            .registry
+            .bindings
+            .iter()
+            .filter(|binding| binding.is_definition)
+        {
             if binding.role != BindingRole::Ordinary {
                 continue;
             }
@@ -191,7 +196,7 @@ impl Analysis {
             if !matches!(binding.kind, SymbolKind::VARIABLE | SymbolKind::FUNCTION) {
                 continue;
             }
-            if used_bindings.contains(&binding_idx) {
+            if used_bindings.contains(&binding.binding_id) {
                 continue;
             }
             let name = self.symbol_name(binding.symbol);
