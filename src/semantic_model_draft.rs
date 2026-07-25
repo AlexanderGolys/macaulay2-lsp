@@ -164,8 +164,8 @@ impl Scope {
     }
 }
 
-/// Implemented by SourceFile, Lambda, scoped Array, and any later syntax node
-/// that introduces a lexical scope.
+/// Implemented by source files, functions, control-flow regions, and any later
+/// syntax node that introduces a lexical scope. Collections do not own scopes.
 pub trait ScopeOwner: M2Node {
     fn scope(&self) -> ScopeRef;
 }
@@ -502,8 +502,8 @@ pub struct ScopeNode {
     /// external strong ScopeRef is retained.
     pub scope: ScopeRef,
 
-    /// SourceFile, Lambda, ArrayScope, etc.  This is the normalized semantic
-    /// kind created in the one sanctioned Tree-sitter constructor.
+    /// The normalized semantic scope kind created in the one sanctioned
+    /// Tree-sitter constructor.
     pub kind: ScopeNodeKind,
 }
 
@@ -511,7 +511,6 @@ pub struct ScopeNode {
 pub enum ScopeNodeKind {
     SourceFile,
     Lambda,
-    Array,
 }
 
 impl M2Node for ScopeNode {

@@ -27,6 +27,8 @@ pub enum M2Diagnostic {
     OperatorNotFlexible,
     InstallArity,
     InstallNeedsColonEquals,
+    ProtectAssignedSymbol,
+    ProtectComputedSymbol,
 }
 
 impl M2Diagnostic {
@@ -45,6 +47,8 @@ impl M2Diagnostic {
             Self::OperatorNotFlexible => "E09",
             Self::InstallArity => "E10",
             Self::InstallNeedsColonEquals => "E11",
+            Self::ProtectAssignedSymbol => "E12",
+            Self::ProtectComputedSymbol => "E13",
         }
     }
 
@@ -64,6 +68,8 @@ impl M2Diagnostic {
             Self::OperatorNotFlexible => "operator-not-flexible",
             Self::InstallArity => "install-arity",
             Self::InstallNeedsColonEquals => "install-needs-colon-equals",
+            Self::ProtectAssignedSymbol => "protect-assigned-symbol",
+            Self::ProtectComputedSymbol => "protect-computed-symbol",
         }
     }
 
@@ -80,7 +86,8 @@ impl M2Diagnostic {
             Self::AmbiguousFloatMemberAccess | Self::UnusedBinding | Self::InstallNoEffect => {
                 DiagnosticSeverity::WARNING
             }
-            Self::OptionKeyConvention => DiagnosticSeverity::HINT,
+            Self::ProtectComputedSymbol => DiagnosticSeverity::WARNING,
+            Self::OptionKeyConvention | Self::ProtectAssignedSymbol => DiagnosticSeverity::HINT,
         }
     }
 
@@ -130,6 +137,8 @@ mod tests {
             M2Diagnostic::OperatorNotFlexible,
             M2Diagnostic::InstallArity,
             M2Diagnostic::InstallNeedsColonEquals,
+            M2Diagnostic::ProtectAssignedSymbol,
+            M2Diagnostic::ProtectComputedSymbol,
         ];
         let mut names = HashSet::new();
         for (index, diagnostic) in all.iter().enumerate() {

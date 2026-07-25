@@ -10,6 +10,7 @@ use crate::analysis::{symbol_node_text, Analysis, BindingRole};
 use crate::diagnostic_registry::M2Diagnostic;
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
+use crate::typesystem::{BuiltinData, InstanceID};
 use crate::util::{node_position, to_lsp_range, utf16_len_for_byte_span};
 
 pub(crate) const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
@@ -29,10 +30,15 @@ pub(crate) async fn publish_diagnostics(client: &Client, uri: Url, document: &Do
 }
 
 impl Analysis {
-    /// Collect the structural diagnostics for the whole tree: syntax/missing-node
-    /// errors, ambiguous float member access, assignment-form validation, and the
-    /// option-key convention hint. Runs after the semantic passes, which it consumes.
-    pub(crate) fn collect_diagnostics(&mut self, node: M2Node, text: &str) {
+    /// Collect diagnostics for the whole tree: syntax/missing-node errors,
+    /// structural assignment checks, convention hints, and semantic checks such
+    /// as unclear `protect` arguments. Runs after the semantic passes it consumes.
+    pub(crate) fn collect_diagnostics(
+        &mut self,
+        node: M2Node,
+        text: &str,
+        builtins: Option<&BuiltinData>,
+    ) {
         if node.is_error() {
             self.diagnostics.push(M2Diagnostic::SyntaxError.at(
                 single_line_range(text, node.start_position(), node.start_byte()),
@@ -55,9 +61,68 @@ impl Analysis {
         // Runs independently of the chain above: any node may be an option pair,
         // and an option `=>` is never an error/missing/assignment node.
         self.diagnose_option_key_convention(node, text);
+        self.diagnose_protect_argument(node, text, builtins);
 
         for child in node.children() {
-            self.collect_diagnostics(child, text);
+            self.collect_diagnostics(child, text, builtins);
+        }
+    }
+
+    fn diagnose_protect_argument(
+        &mut self,
+        node: M2Node,
+        text: &str,
+        builtins: Option<&BuiltinData>,
+    ) {
+        if !node.is_space_application() {
+            return;
+        }
+        let (Some(callable), Some(argument)) = (
+            node.child_by_field_name("left"),
+            node.child_by_field_name("right"),
+        ) else {
+            return;
+        };
+        if callable.kind != NodeKind::Symbol || callable.text() != "protect" {
+            return;
+        }
+        if self
+            .binding_id_at(callable.text(), node_position(text, callable))
+            .is_some()
+        {
+            return;
+        }
+
+        match argument.kind {
+            NodeKind::QuoteExpression => {}
+            NodeKind::Symbol => {
+                let name = argument.text();
+                let position = node_position(text, argument);
+                let has_source_binding = self.binding_id_at(name, position).is_some();
+                let has_builtin_binding = builtins
+                    .is_some_and(|builtins| builtins.get_record(&InstanceID::new(name)).is_some());
+                if has_source_binding || has_builtin_binding {
+                    self.diagnostics
+                        .push(M2Diagnostic::ProtectAssignedSymbol.at(
+                            to_lsp_range(text, argument.range()),
+                            format!(
+                                "`protect {name}` evaluates the current value of `{name}`; \
+                             use `protect symbol {name}` to protect the symbol itself"
+                            ),
+                        ));
+                }
+            }
+            _ => {
+                let inferred = self.infer_expression_static_type_name(argument, text, builtins);
+                if inferred.is_none() || inferred.as_deref() == Some("Symbol") {
+                    self.diagnostics
+                        .push(M2Diagnostic::ProtectComputedSymbol.at(
+                            to_lsp_range(text, argument.range()),
+                            "`protect` evaluates this expression to choose a Symbol at runtime; \
+                         the protected symbol is not statically apparent",
+                        ));
+                }
+            }
         }
     }
 

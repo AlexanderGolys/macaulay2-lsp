@@ -719,7 +719,7 @@ impl Analysis {
         // method installations) BEFORE running diagnostics, which are almost
         // entirely semantic and consume that metadata rather than re-deriving it.
         let root = M2Node::new(tree.root_node(), text);
-        analysis.build_scopes(root, text, 0, builtins);
+        analysis.build_scopes(root, text, 0, 0, builtins);
         // Scope construction needs source-ordered partial information. Once all
         // bindings and states exist, inference is stable and each node's final
         // type can be memoized for all semantic consumers in this snapshot.
@@ -728,7 +728,7 @@ impl Analysis {
         analysis.collect_installations(root, text, builtins);
         analysis.collect_installation_diagnostics(builtins);
         analysis.collect_install_form_diagnostics(root, text, builtins);
-        analysis.collect_diagnostics(root, text);
+        analysis.collect_diagnostics(root, text, builtins);
         analysis.collect_unused_binding_diagnostics(root, text);
         analysis
     }
@@ -738,13 +738,16 @@ impl Analysis {
         node: M2Node,
         text: &str,
         current_scope_idx: usize,
+        assignment_scope_idx: usize,
         builtins: Option<&BuiltinData>,
     ) {
         let mut next_scope_idx = current_scope_idx;
+        let mut next_assignment_scope_idx = assignment_scope_idx;
 
         match node.kind {
             NodeKind::LambdaExpression => {
                 next_scope_idx = self.push_scope(node, text, Some(current_scope_idx));
+                next_assignment_scope_idx = next_scope_idx;
 
                 if let Some(params_node) = node.child_by_field_name("parameters") {
                     let parameter_types = method_installation_parameter_types_for_function(node);
@@ -831,7 +834,7 @@ impl Analysis {
                                 type_name: type_name.as_deref(),
                                 node: left,
                                 value_node: right,
-                                scope_idx: current_scope_idx,
+                                scope_idx: assignment_scope_idx,
                             },
                         ),
                         _ => {}
@@ -843,7 +846,26 @@ impl Analysis {
 
         // Recurse into children
         for child in node.children() {
-            self.build_scopes(child, text, next_scope_idx, builtins);
+            let (child_scope_idx, child_assignment_scope_idx) =
+                match child_scope_assignment_is_local(node, child) {
+                    Some(assignments_are_local) => {
+                        let scope_idx = self.push_scope(child, text, Some(next_scope_idx));
+                        let assignment_scope_idx = if assignments_are_local {
+                            scope_idx
+                        } else {
+                            next_assignment_scope_idx
+                        };
+                        (scope_idx, assignment_scope_idx)
+                    }
+                    None => (next_scope_idx, next_assignment_scope_idx),
+                };
+            self.build_scopes(
+                child,
+                text,
+                child_scope_idx,
+                child_assignment_scope_idx,
+                builtins,
+            );
         }
     }
 
@@ -1311,9 +1333,17 @@ impl Analysis {
                     ),
                     DefinitionScope::Assign => {
                         let position = node_position(text, node);
-                        let binding_id = self.registry.resolve_symbol(name).and_then(|symbol| {
-                            self.binding_id_from_scope(symbol, registration.scope_idx, position)
-                        });
+                        let binding_id = self
+                            .registry
+                            .resolve_symbol(name)
+                            .and_then(|symbol| {
+                                self.binding_id_from_scope(symbol, registration.scope_idx, position)
+                            })
+                            .filter(|binding_id| {
+                                self.binding_definition(*binding_id).is_some_and(|binding| {
+                                    binding.scope_idx == registration.scope_idx
+                                })
+                            });
                         if let Some(binding_id) = binding_id {
                             self.add_binding_state(
                                 binding_id,
@@ -1330,7 +1360,6 @@ impl Analysis {
                                 SymbolRegistration {
                                     node,
                                     value_node,
-                                    scope_idx: 0,
                                     ..registration
                                 },
                                 text,
@@ -2528,6 +2557,44 @@ fn is_try_clause(kind: NodeKind) -> bool {
     )
 }
 
+fn is_loop_clause(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::FromClause
+            | NodeKind::ToClause
+            | NodeKind::InClause
+            | NodeKind::WhenClause
+            | NodeKind::ListClause
+            | NodeKind::DoClause
+    )
+}
+
+fn child_scope_assignment_is_local(parent: M2Node<'_>, child: M2Node<'_>) -> Option<bool> {
+    match parent.kind {
+        NodeKind::IfStatement => {
+            let is_condition = parent
+                .child_by_field_name("condition")
+                .is_some_and(|condition| condition.id() == child.id());
+            (is_condition || matches!(child.kind, NodeKind::ThenClause | NodeKind::ElseClause))
+                .then_some(true)
+        }
+        NodeKind::TryStatement => {
+            let is_body = parent
+                .named_child(0)
+                .is_some_and(|body| body.id() == child.id());
+            (is_body || is_try_clause(child.kind)).then_some(true)
+        }
+        NodeKind::ForStatement => is_loop_clause(child.kind).then_some(false),
+        NodeKind::WhileStatement => {
+            let is_condition = parent
+                .named_child(0)
+                .is_some_and(|condition| condition.id() == child.id());
+            (is_condition || is_loop_clause(child.kind)).then_some(false)
+        }
+        _ => None,
+    }
+}
+
 /// The value a node denotes, peeling parenthesized grouping: `(a)` → `a`,
 /// `((a))` → `a`. A trailing-`;` parenthesized expression (`(a;)`) denotes null,
 /// so it has no value node — returns `None`. A non-parenthesized node is its own
@@ -3134,19 +3201,183 @@ mod tests {
     }
 
     #[test]
-    fn scope_resolution_matches_m2_local_and_assignment_rules() {
-        // `:=` binds locally; `=` writes the nearest enclosing local of that name,
-        // or a global if none exists anywhere up the chain (verified in M2).
+    fn equal_assignment_in_a_function_stays_function_local() {
         let analysis = analyze(concat!(
-            "x = 1\n",                            // 0: global x
-            "f := () -> (\n",                     // 1
-            "  y := 3;\n",                        // 2: f-local y
-            "  g := () -> (x := 5; y = 6; x);\n", // 3: g-local x; y= writes f's y
-            "  (x, y, g())\n",                    // 4
-            ")\n",                                // 5
-            "w := () -> (q = 8; q)\n",            // 6: q= has no enclosing q -> global
-            "y\n",                                // 7: top-level y -> unbound (no global y)
-            "q\n",                                // 8: top-level q -> global from w
+            "outer := 0\n",
+            "f := () -> (\n",
+            "  outer = 1;\n",
+            "  fresh = 2;\n",
+            "  (outer, fresh)\n",
+            ")\n",
+            "outer\n",
+            "fresh\n",
+        ));
+        let definition_line = |name: &str, position: Position| {
+            analysis
+                .get_symbol_at(name, position)
+                .map(|symbol| symbol.range.start.line)
+        };
+
+        assert_eq!(definition_line("outer", Position::new(4, 3)), Some(2));
+        assert_eq!(definition_line("fresh", Position::new(4, 10)), Some(3));
+        assert_eq!(definition_line("outer", Position::new(6, 0)), Some(0));
+        assert_eq!(definition_line("fresh", Position::new(7, 0)), None);
+    }
+
+    #[test]
+    fn collection_constructors_do_not_create_scopes() {
+        let analysis = analyze(
+            "[collectionLocal := 1; collectionEqual = 2;]\n\
+             collectionLocal\n\
+             collectionEqual\n",
+        );
+
+        assert!(analysis
+            .get_symbol_at("collectionLocal", Position::new(1, 0))
+            .is_some());
+        assert!(analysis
+            .get_symbol_at("collectionEqual", Position::new(2, 0))
+            .is_some());
+        assert_eq!(analysis.scopes.len(), 1);
+    }
+
+    #[test]
+    fn if_and_try_regions_do_not_export_bindings() {
+        let analysis = analyze(concat!(
+            "if (conditionEqual = 1; conditionEqual) then ",
+            "(thenLocal := 2; thenEqual = 3;) else ",
+            "(elseLocal := 4; elseEqual = 5;)\n",
+            "try (bodyLocal := 6; bodyEqual = 7;) then ",
+            "(tryThenLocal := 8; tryThenEqual = 9;) else ",
+            "(tryElseLocal := 10; tryElseEqual = 11;)\n",
+            "conditionEqual\n",
+            "thenLocal\n",
+            "thenEqual\n",
+            "elseLocal\n",
+            "elseEqual\n",
+            "bodyLocal\n",
+            "bodyEqual\n",
+            "tryThenLocal\n",
+            "tryThenEqual\n",
+            "tryElseLocal\n",
+            "tryElseEqual\n",
+        ));
+
+        for (line, name) in [
+            (2, "conditionEqual"),
+            (3, "thenLocal"),
+            (4, "thenEqual"),
+            (5, "elseLocal"),
+            (6, "elseEqual"),
+            (7, "bodyLocal"),
+            (8, "bodyEqual"),
+            (9, "tryThenLocal"),
+            (10, "tryThenEqual"),
+            (11, "tryElseLocal"),
+            (12, "tryElseEqual"),
+        ] {
+            assert!(
+                analysis
+                    .get_symbol_at(name, Position::new(line, 0))
+                    .is_none(),
+                "{name} escaped its control-flow region"
+            );
+        }
+    }
+
+    #[test]
+    fn loop_clauses_keep_local_assignments_and_export_context_assignments() {
+        let analysis = analyze(concat!(
+            "for i to 2 list (\n",
+            "  a := 1;\n",
+            "  b = 2;\n",
+            ") do (\n",
+            "  k = a;\n",
+            "  l := b;\n",
+            "  m := 1;\n",
+            "  n = 2;\n",
+            ")\n",
+            "a\n",
+            "b\n",
+            "k\n",
+            "l\n",
+            "m\n",
+            "n\n",
+        ));
+
+        for (line, name, is_bound) in [
+            (9, "a", false),
+            (10, "b", true),
+            (11, "k", true),
+            (12, "l", false),
+            (13, "m", false),
+            (14, "n", true),
+        ] {
+            assert_eq!(
+                analysis
+                    .get_symbol_at(name, Position::new(line, 0))
+                    .is_some(),
+                is_bound,
+                "unexpected post-loop binding for {name}"
+            );
+        }
+        assert!(analysis.get_symbol_at("a", Position::new(4, 6)).is_none());
+        assert!(analysis.get_symbol_at("b", Position::new(5, 7)).is_some());
+    }
+
+    #[test]
+    fn a_loop_inside_a_function_exports_only_to_the_function() {
+        let analysis = analyze(concat!(
+            "f := () -> (\n",
+            "  for i to 0 do (nestedEqual = 1;);\n",
+            "  nestedEqual\n",
+            ")\n",
+            "nestedEqual\n",
+        ));
+
+        assert!(analysis
+            .get_symbol_at("nestedEqual", Position::new(2, 2))
+            .is_some());
+        assert!(analysis
+            .get_symbol_at("nestedEqual", Position::new(4, 0))
+            .is_none());
+    }
+
+    #[test]
+    fn while_condition_and_body_have_separate_local_scopes() {
+        let analysis = analyze(concat!(
+            "while (conditionLocal := true; conditionLocal) do (\n",
+            "  bodyLocal := 1;\n",
+            "  bodyEqual = 2;\n",
+            ")\n",
+            "conditionLocal\n",
+            "bodyLocal\n",
+            "bodyEqual\n",
+        ));
+
+        assert!(analysis
+            .get_symbol_at("conditionLocal", Position::new(4, 0))
+            .is_none());
+        assert!(analysis
+            .get_symbol_at("bodyLocal", Position::new(5, 0))
+            .is_none());
+        assert!(analysis
+            .get_symbol_at("bodyEqual", Position::new(6, 0))
+            .is_some());
+    }
+
+    #[test]
+    fn scope_resolution_keeps_assignments_inside_their_function() {
+        let analysis = analyze(concat!(
+            "x = 1\n",
+            "f := () -> (\n",
+            "  y := 3;\n",
+            "  g := () -> (x := 5; y = 6; x);\n",
+            "  (x, y, g())\n",
+            ")\n",
+            "w := () -> (q = 8; q)\n",
+            "y\n",
+            "q\n",
         ));
         let def_line = |name: &str, pos: Position| {
             analysis
@@ -3156,20 +3387,17 @@ mod tests {
 
         // g's trailing `x` resolves to its own local `x := 5` (line 3), shadowing global.
         assert_eq!(def_line("x", Position::new(3, 29)), Some(3));
-        // `y = 6` inside g writes f's enclosing `y := 3` (line 2), not a new binding.
-        assert_eq!(def_line("y", Position::new(3, 22)), Some(2));
+        // `y = 6` is known inside g, but cannot modify f's binding statically.
+        assert_eq!(def_line("y", Position::new(3, 22)), Some(3));
         // The tuple's `x` skips past (no f-local x) to the global `x` (line 0).
         assert_eq!(def_line("x", Position::new(4, 3)), Some(0));
-        // The tuple's `y` is f's local `y := 3` (line 2).
+        // f retains its own `y`; g's assignment does not escape g.
         assert_eq!(def_line("y", Position::new(4, 6)), Some(2));
-        // `q = 8` in w has no enclosing `q`, so M2 makes it global; the trailing `q`
-        // must resolve to it (line 6).
+        // `q = 8` is visible later in w.
         assert_eq!(def_line("q", Position::new(6, 19)), Some(6));
-        // Top level: `y` never escaped a function (every `y :=` was local and the
-        // `y =` writes hit those locals), so it is unbound — matching M2's
-        // `o7 : Symbol`. `q` did escape as a global, so it resolves.
+        // Neither function contributes bindings to the file scope.
         assert_eq!(def_line("y", Position::new(7, 0)), None);
-        assert_eq!(def_line("q", Position::new(8, 0)), Some(6));
+        assert_eq!(def_line("q", Position::new(8, 0)), None);
     }
 
     #[test]
@@ -3789,6 +4017,100 @@ mod tests {
         assert!(
             !has_diagnostic(&analysis, M2Diagnostic::UnusedBinding),
             "top-level bindings should not be warned as unused exports"
+        );
+    }
+
+    #[test]
+    fn protect_hints_only_for_names_bound_before_the_call() {
+        // Removing the source-order binding lookup would incorrectly flag
+        // `unassigned` and the forward use of `later`, or miss `assigned`.
+        let analysis = analyze(
+            "assigned = target\n\
+             protect assigned\n\
+             protect unassigned\n\
+             protect later\n\
+             later = target\n",
+        );
+
+        let hints = analysis
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.source.as_deref() == Some("protect-assigned-symbol"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(hints.len(), 1);
+        assert_eq!(hints[0].severity, Some(DiagnosticSeverity::HINT));
+        assert_eq!(hints[0].range.start.line, 1);
+        assert!(hints[0].message.contains("protect symbol assigned"));
+    }
+
+    #[test]
+    fn protect_distinguishes_explicit_symbols_and_computed_values() {
+        // Dropping the syntax/type split would warn for the explicit quote,
+        // miss unknown/Symbol-valued computations, or diagnose known integers.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins(
+            "x = y\n\
+             protect symbol x\n\
+             protect (if c then symbol x else symbol y)\n\
+             protect (if c then 1 else symbol y)\n\
+             protect (1 + 2)\n",
+            &builtins,
+        );
+
+        let warnings = analysis
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.source.as_deref() == Some("protect-computed-symbol"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            warnings
+                .iter()
+                .map(|diagnostic| diagnostic.range.start.line)
+                .collect::<Vec<_>>(),
+            vec![2, 3],
+        );
+        assert!(warnings
+            .iter()
+            .all(|diagnostic| diagnostic.severity == Some(DiagnosticSeverity::WARNING)));
+    }
+
+    #[test]
+    fn protect_hints_for_a_bound_parameter() {
+        // A parameter is a real visible binding even though there is no
+        // assignment expression at the call site.
+        let analysis = analyze("f = x -> protect x\n");
+
+        assert!(analysis.diagnostics.iter().any(|diagnostic| {
+            diagnostic.source.as_deref() == Some("protect-assigned-symbol")
+                && diagnostic.severity == Some(DiagnosticSeverity::HINT)
+        }));
+    }
+
+    #[test]
+    fn protect_uses_builtin_bindings_but_ignores_a_shadowed_callable() {
+        // Builtin names are already assigned at document start, while a local
+        // binding named `protect` replaces the builtin callable at later uses.
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins(
+            "protect ZZ\n\
+             x = y\n\
+             protect = f\n\
+             protect x\n",
+            &builtins,
+        );
+
+        assert_eq!(
+            analysis
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| {
+                    diagnostic.source.as_deref() == Some("protect-assigned-symbol")
+                })
+                .map(|diagnostic| diagnostic.range.start.line)
+                .collect::<Vec<_>>(),
+            vec![0],
         );
     }
 

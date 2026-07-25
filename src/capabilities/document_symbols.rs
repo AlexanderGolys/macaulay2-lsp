@@ -96,21 +96,6 @@ impl DocumentSymbolScopes {
         };
         scope.insert(name.to_string())
     }
-
-    /// Introduce a top-level binding once; assignments in nested scopes do not
-    /// contribute document-level entries.
-    fn introduce_global_if_missing(&mut self, name: &str) -> bool {
-        if self.names.len() > 1 {
-            return false;
-        }
-
-        if self.names.iter().rev().any(|scope| scope.contains(name)) {
-            return false;
-        }
-
-        self.names[0].insert(name.to_string());
-        true
-    }
 }
 
 /// Walk a syntax subtree and collect only constructs which define outline
@@ -197,8 +182,9 @@ fn collect_assignment_document_symbols(
             .filter(|symbol| {
                 let name = symbol.text();
                 match operator {
-                    AssignmentOperator::ColonEqual => scopes.introduce_local(name),
-                    AssignmentOperator::Equal => scopes.introduce_global_if_missing(name),
+                    AssignmentOperator::ColonEqual | AssignmentOperator::Equal => {
+                        scopes.introduce_local(name)
+                    }
                     AssignmentOperator::LeftArrow | AssignmentOperator::Other => false,
                 }
             })
@@ -485,8 +471,35 @@ mod tests {
                 .iter()
                 .map(|symbol| symbol.name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["z"]
+            vec!["K", "z"]
         );
+    }
+
+    #[test]
+    fn document_symbols_include_nested_equal_assignment_functions() {
+        let text = "f = () -> (g = () -> (x = 1))";
+        let builtins = BuiltinData::empty();
+
+        let document = document(text, &builtins);
+        let symbols = collect_document_symbols(&document, &builtins);
+
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].name, "f");
+        assert_eq!(symbols[0].kind, SymbolKind::FUNCTION);
+
+        let g = &symbols[0]
+            .children
+            .as_ref()
+            .expect("f should expose its local bindings")[0];
+        assert_eq!(g.name, "g");
+        assert_eq!(g.kind, SymbolKind::FUNCTION);
+
+        let x = &g
+            .children
+            .as_ref()
+            .expect("g should expose its local bindings")[0];
+        assert_eq!(x.name, "x");
+        assert_eq!(x.kind, SymbolKind::VARIABLE);
     }
 
     #[test]
