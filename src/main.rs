@@ -458,7 +458,7 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let symbols = collect_document_symbols(&document, &self.builtins);
+        let symbols = collect_document_symbols(&document);
         Ok(Some(DocumentSymbolResponse::Nested(symbols)))
     }
 

@@ -1,6 +1,7 @@
 //! Shared UTF-16 position conversion and parse-tree range utilities.
 
 use tower_lsp::lsp_types::*;
+use tree_sitter::Point;
 
 use crate::node_metadata::M2Node;
 
@@ -55,7 +56,7 @@ pub(crate) fn byte_index_from_lsp_position(text: &str, position: Position) -> Op
 pub(crate) fn tree_sitter_point_from_lsp_position(
     text: &str,
     position: Position,
-) -> Option<tree_sitter::Point> {
+) -> Option<Point> {
     let byte_index = byte_index_from_lsp_position(text, position)?;
     Some(tree_sitter_point_from_byte_index(text, byte_index))
 }
@@ -63,12 +64,12 @@ pub(crate) fn tree_sitter_point_from_lsp_position(
 pub(crate) fn tree_sitter_point_from_byte_index(
     text: &str,
     byte_index: usize,
-) -> tree_sitter::Point {
+) -> Point {
     let byte_index = floor_char_boundary(text, byte_index);
     let prefix = &text[..byte_index];
     let row = prefix.bytes().filter(|byte| *byte == b'\n').count();
     let line_start = prefix.rfind('\n').map(|index| index + 1).unwrap_or(0);
-    tree_sitter::Point::new(row, byte_index.saturating_sub(line_start))
+    Point::new(row, byte_index.saturating_sub(line_start))
 }
 
 /// The LSP range of a tree-sitter range, converting byte columns to the

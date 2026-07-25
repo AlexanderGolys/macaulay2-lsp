@@ -11,18 +11,13 @@ use tower_lsp::lsp_types::*;
 
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
-use crate::typesystem::BuiltinData;
 use crate::util::*;
 
 /// The outline view of a document: assignment bindings (functions nested under
-/// their body), method installations, indexed variables, and option keys
-/// introduced here (not ones defined by an indexed package).
-pub(crate) fn collect_document_symbols(
-    document: &DocumentSnapshot,
-    builtins: &BuiltinData,
-) -> Vec<DocumentSymbol> {
+/// their body), method installations, and indexed variables.
+pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<DocumentSymbol> {
     let mut scopes = DocumentSymbolScopes::new();
-    collect_document_symbols_from(document.root_node(), builtins, &mut scopes)
+    collect_document_symbols_from(document.root_node(), &mut scopes)
 }
 
 /// Build a `DocumentSymbol` while keeping the deprecated LSP field isolated in
@@ -53,8 +48,6 @@ fn document_symbol(
 struct DocumentSymbolScopes {
     /// Names introduced per lexical scope, starting with the document scope.
     names: Vec<HashSet<String>>,
-    /// Option keys already emitted for this document.
-    options: HashSet<String>,
 }
 
 impl DocumentSymbolScopes {
@@ -62,14 +55,7 @@ impl DocumentSymbolScopes {
     fn new() -> Self {
         Self {
             names: vec![HashSet::new()],
-            options: HashSet::new(),
         }
-    }
-
-    /// Record an option key on its first appearance anywhere in the document.
-    /// Returns `true` only the first time, so repeated keys are listed once.
-    fn introduce_option(&mut self, name: &str) -> bool {
-        self.options.insert(name.to_string())
     }
 
     /// Enter a function body, where `:=` introduces local outline entries.
@@ -102,63 +88,23 @@ impl DocumentSymbolScopes {
 /// entries; all other nodes are traversed transparently.
 fn collect_document_symbols_from(
     node: M2Node,
-    builtins: &BuiltinData,
     scopes: &mut DocumentSymbolScopes,
 ) -> Vec<DocumentSymbol> {
     if node.is_assignment() {
-        return collect_assignment_document_symbols(node, builtins, scopes);
-    }
-    if node.is_option_assignment() {
-        return collect_property_document_symbols(node, builtins, scopes);
+        return collect_assignment_document_symbols(node, scopes);
     }
 
     let mut symbols = Vec::new();
     for child in node.children() {
-        symbols.extend(collect_document_symbols_from(child, builtins, scopes));
+        symbols.extend(collect_document_symbols_from(child, scopes));
     }
     symbols
-}
-
-/// Emit document symbols for option keys (left of `=>`), but only where a key is
-/// actually introduced: a key already indexed in some package is defined there,
-/// not here, and a repeated key is listed once. Keys passed to a function call
-/// are therefore skipped — they are package symbols or repeats.
-fn collect_property_document_symbols(
-    node: M2Node,
-    builtins: &BuiltinData,
-    scopes: &mut DocumentSymbolScopes,
-) -> Vec<DocumentSymbol> {
-    let Some(left) = node.child_by_field_name("left") else {
-        return Vec::new();
-    };
-
-    let mut left_symbols = Vec::new();
-    collect_left_symbol_nodes(left, &mut left_symbols);
-
-    left_symbols
-        .into_iter()
-        .filter_map(|symbol| {
-            let name = symbol.text();
-            if builtins.contains_name(name) || !scopes.introduce_option(name) {
-                return None;
-            }
-            Some(document_symbol(
-                name.to_string(),
-                Some("option".to_string()),
-                SymbolKind::PROPERTY,
-                node_range(node),
-                node_range(symbol),
-                None,
-            ))
-        })
-        .collect()
 }
 
 /// Convert an assignment into symbols for its newly introduced bindings and,
 /// when its right side is a function, attach the function body's local symbols.
 fn collect_assignment_document_symbols(
     node: M2Node,
-    builtins: &BuiltinData,
     scopes: &mut DocumentSymbolScopes,
 ) -> Vec<DocumentSymbol> {
     let Some(left) = node.child_by_field_name("left") else {
@@ -167,7 +113,7 @@ fn collect_assignment_document_symbols(
 
     let children = match node.child_by_field_name("right") {
         Some(right) if right.is(NodeKind::LambdaExpression) => {
-            collect_function_body_document_symbols(right, builtins, scopes)
+            collect_function_body_document_symbols(right, scopes)
         }
         _ => None,
     };
@@ -245,7 +191,6 @@ fn collect_assignment_document_symbols(
 /// scope. Parameters are pre-recorded so assignments to them are not emitted.
 fn collect_function_body_document_symbols(
     function_node: M2Node,
-    builtins: &BuiltinData,
     scopes: &mut DocumentSymbolScopes,
 ) -> Option<Vec<DocumentSymbol>> {
     let body = function_node.child_by_field_name("body")?;
@@ -259,22 +204,10 @@ fn collect_function_body_document_symbols(
         }
     }
 
-    let children = collect_document_symbols_from(body, builtins, scopes);
+    let children = collect_document_symbols_from(body, scopes);
     scopes.pop();
 
     (!children.is_empty()).then_some(children)
-}
-
-fn collect_left_symbol_nodes<'tree>(node: M2Node<'tree>, symbols: &mut Vec<M2Node<'tree>>) {
-    match node.kind {
-        NodeKind::Symbol => symbols.push(node),
-        kind if kind.is_collection_expression() => {
-            for child in node.children() {
-                collect_left_symbol_nodes(child, symbols);
-            }
-        }
-        _ => {}
-    }
 }
 
 /// Every symbol bound by a destructuring target, recursing through nested
@@ -366,7 +299,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
 
         assert_eq!(symbols[0].name, "f");
         assert_eq!(
@@ -377,12 +310,10 @@ mod tests {
 
     #[test]
     fn document_symbols_exclude_package_indexed_option_keys() {
-        // Option keys passed to a call that are indexed in a package (here the
-        // newPackage keys) are defined in that package, not here.
         let text = "newPackage(\"P\", Version => \"0.1\", DebuggingMode => false)\n";
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
 
         assert!(
             symbols
@@ -397,20 +328,16 @@ mod tests {
     }
 
     #[test]
-    fn document_symbols_list_custom_option_key_once() {
-        // A key not indexed in any package is listed at its first occurrence and
-        // not repeated when it is reused.
+    fn document_symbols_exclude_custom_option_keys() {
         let text = "f = method(Options => {MyOpt => 1})\ng(MyOpt => 2)\n";
         let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
 
-        let my_opt: Vec<_> = symbols
-            .iter()
-            .filter(|symbol| symbol.name == "MyOpt")
-            .collect();
-        assert_eq!(my_opt.len(), 1, "custom option key listed exactly once");
-        assert_eq!(my_opt[0].kind, SymbolKind::PROPERTY);
+        assert!(
+            symbols.iter().all(|symbol| symbol.name != "MyOpt"),
+            "option keys must not be document symbols"
+        );
     }
 
     #[test]
@@ -419,7 +346,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
 
         assert_eq!(symbols.len(), 2);
         assert_eq!(symbols[0].name, "f");
@@ -451,7 +378,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
 
         assert_eq!(
             symbols
@@ -481,7 +408,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
 
         assert_eq!(symbols.len(), 1);
         assert_eq!(symbols[0].name, "f");
@@ -510,7 +437,7 @@ mod tests {
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
         let args_symbols = symbols
             .iter()
             .filter(|symbol| symbol.name == "args")
@@ -573,7 +500,7 @@ mod tests {
         collect_static_top_level_bindings(M2Node::new(tree.root_node(), text), &mut expected);
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
         let actual = symbols
             .iter()
             .map(|symbol| symbol.name.as_str())
@@ -606,7 +533,7 @@ String ^~ := peek
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
 
         assert_eq!(
             symbols
@@ -640,7 +567,7 @@ String ^~ := peek
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
         let names: Vec<_> = symbols.iter().map(|symbol| symbol.name.as_str()).collect();
 
         assert_eq!(names, vec!["x", "y", "p", "q", "r"]);
@@ -659,7 +586,7 @@ X + Z := (a,b) -> \"X + Z\"
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
 
         assert_eq!(
             symbols
@@ -678,20 +605,14 @@ X + Z := (a,b) -> \"X + Z\"
     }
 
     #[test]
-    fn document_symbols_include_cst_option_properties() {
+    fn document_symbols_exclude_option_keys_from_function_children() {
         let text = "f := x -> g(x, Strategy => LongPolynomial)";
         let builtins = BuiltinData::empty();
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
-        let children = symbols[0]
-            .children
-            .as_ref()
-            .expect("function body option assignment should appear as child symbols");
+        let symbols = collect_document_symbols(&document);
 
-        assert_eq!(children[0].name, "Strategy");
-        assert_eq!(children[0].kind, SymbolKind::PROPERTY);
-        assert_eq!(children[0].detail.as_deref(), Some("option"));
+        assert!(symbols[0].children.is_none());
     }
 
     #[test]
@@ -700,7 +621,7 @@ X + Z := (a,b) -> \"X + Z\"
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
 
         let document = document(text, &builtins);
-        let symbols = collect_document_symbols(&document, &builtins);
+        let symbols = collect_document_symbols(&document);
 
         assert_eq!(symbols[0].name, "toString");
         assert_eq!(symbols[0].kind, SymbolKind::FUNCTION);
