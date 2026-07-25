@@ -5,9 +5,11 @@
 //! with the type lattice to answer conservative questions about known objects,
 //! method signatures, option values, hover text, and semantic-token roles.
 
-use serde_json::Value;
+use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display};
+
+use crate::builtin_index::{IndexedEntry, OperatorForm};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Stable identifier for an indexed M2 object or type.
@@ -26,6 +28,12 @@ impl Display for InstanceID {
     }
 }
 
+impl Borrow<str> for InstanceID {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// One executable example attached to a corpus record or method signature.
 pub struct CodeExample(pub String);
@@ -37,7 +45,9 @@ pub struct Record {
     pub class: InstanceID,
     pub description_short: Option<String>,
     pub examples: Vec<CodeExample>,
-    pub extra: HashMap<String, Value>,
+    pub package: Option<String>,
+    pub source_file: Option<String>,
+    pub typical_value: Option<String>,
     pub function_info: Option<FunctionInfo>,
     pub option_info: Option<OptionInfo>,
     pub operator_info: Option<OperatorInfo>,
@@ -91,7 +101,7 @@ pub struct OperatorInfo {
     /// Per-form operator attributes from the corpus (`binary` → `["Flexible"]`,
     /// …). Flexibility is per-form: an operator can be flexible as a prefix yet
     /// not as a binary, so it is queried via [`OperatorInfo::is_flexible`].
-    pub attributes: HashMap<String, Vec<String>>,
+    pub attributes: HashMap<OperatorForm, Vec<String>>,
 }
 
 /// The operator attribute marking a form as accepting runtime method
@@ -199,16 +209,28 @@ pub struct SignatureUsage {
 #[derive(Debug, Clone, Default)]
 /// Compact option-value facts derived from the type index.
 pub struct TypeFacts {
-    signature_codomains: HashMap<(String, Vec<String>), String>,
-    option_value_usages: HashMap<String, Vec<OptionValueUsage>>,
-    option_values_by_slot: HashMap<(String, String), Vec<String>>,
+    signature_codomains: HashMap<SignatureKey, InstanceID>,
+    option_value_usages: HashMap<InstanceID, Vec<OptionValueUsage>>,
+    option_values_by_slot: HashMap<OptionSlot, Vec<InstanceID>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct SignatureKey {
+    callable: InstanceID,
+    domain: Vec<InstanceID>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct OptionSlot {
+    callable: InstanceID,
+    option: InstanceID,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// A callable/option slot that admits a particular indexed option value.
 pub struct OptionValueUsage {
-    pub callable: String,
-    pub option: String,
+    pub callable: InstanceID,
+    pub option: InstanceID,
 }
 
 impl TypeFacts {
@@ -216,38 +238,51 @@ impl TypeFacts {
     pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
         let mut facts = TypeFacts::default();
         for callable in index.callables() {
+            let callable_id = InstanceID::new(&callable.name);
             for signature in &callable.signatures {
                 let Some(codomain) = signature.codomain.as_ref() else {
                     continue;
                 };
                 facts.signature_codomains.insert(
-                    (callable.name.clone(), signature.domain.clone()),
-                    codomain.clone(),
+                    SignatureKey {
+                        callable: callable_id.clone(),
+                        domain: signature
+                            .domain
+                            .iter()
+                            .map(|name| InstanceID::new(name))
+                            .collect(),
+                    },
+                    InstanceID::new(codomain),
                 );
             }
             for option in &callable.options {
-                let slot = (callable.name.clone(), option.key.clone());
+                let option_id = InstanceID::new(&option.key);
+                let slot = OptionSlot {
+                    callable: callable_id.clone(),
+                    option: option_id.clone(),
+                };
                 for value in &option.possible_values {
+                    let value_id = InstanceID::new(value);
                     facts
                         .option_values_by_slot
                         .entry(slot.clone())
                         .or_default()
-                        .push(value.clone());
+                        .push(value_id.clone());
                     facts
                         .option_value_usages
-                        .entry(value.clone())
+                        .entry(value_id)
                         .or_default()
                         .push(OptionValueUsage {
-                            callable: callable.name.clone(),
-                            option: option.key.clone(),
+                            callable: callable_id.clone(),
+                            option: option_id.clone(),
                         });
                 }
             }
         }
         for usages in facts.option_value_usages.values_mut() {
             usages.sort_by(|left, right| {
-                (left.callable.as_str(), left.option.as_str())
-                    .cmp(&(right.callable.as_str(), right.option.as_str()))
+                (left.callable.0.as_str(), left.option.0.as_str())
+                    .cmp(&(right.callable.0.as_str(), right.option.0.as_str()))
             });
             usages.dedup();
         }
@@ -259,15 +294,12 @@ impl TypeFacts {
     }
 
     fn signature_codomain(&self, signature: &[InstanceID]) -> Option<&str> {
-        let callable = signature.first()?.0.as_str();
-        let domain = signature
-            .iter()
-            .skip(1)
-            .map(|part| part.0.clone())
-            .collect::<Vec<_>>();
         self.signature_codomains
-            .get(&(callable.to_string(), domain))
-            .map(String::as_str)
+            .get(&SignatureKey {
+                callable: signature.first()?.clone(),
+                domain: signature[1..].to_vec(),
+            })
+            .map(|codomain| codomain.0.as_str())
     }
 }
 
@@ -409,8 +441,8 @@ impl BuiltinData {
         self.type_facts
             .option_values_by_slot
             .iter()
-            .filter(|((_, key), _)| key == option_key)
-            .any(|(_, values)| values.iter().any(|value| value == value_name))
+            .filter(|(slot, _)| slot.option.0 == option_key)
+            .any(|(_, values)| values.iter().any(|value| value.0 == value_name))
     }
 
     /// Merge installed methods with documentation and static codomain facts.
@@ -819,7 +851,9 @@ impl Record {
             class: InstanceID::new("Thing"),
             description_short: None,
             examples: Vec::new(),
-            extra: HashMap::new(),
+            package: None,
+            source_file: None,
+            typical_value: None,
             function_info: None,
             option_info: None,
             operator_info: None,
@@ -894,20 +928,21 @@ fn register_record_keys(
     }
 }
 
+fn base_record(entry: &impl IndexedEntry, default_class: &str) -> Record {
+    let mut record = Record::unknown(InstanceID::new(entry.name()));
+    record.class = InstanceID::new(entry.class().unwrap_or(default_class));
+    record.package = entry.package().map(ToString::to_string);
+    record
+}
+
 /// Synthesize a `Record` from a typecheck-index type entry: the is-a/instance
 /// lattice lives in `type_info`; there is no doc text (hover reads the docs map).
 fn record_from_type(entry: &crate::builtin_index::TypeEntry) -> Record {
-    let mut record = Record::unknown(InstanceID::new(&entry.name));
-    record.class = InstanceID::new(entry.class.as_deref().unwrap_or("Type"));
+    let mut record = base_record(entry, "Type");
     record.type_info = Some(TypeInfo {
         subtypes: entry.subtypes.iter().map(|s| InstanceID::new(s)).collect(),
         parent_type: entry.parent.as_deref().map(InstanceID::new),
     });
-    if let Some(package) = &entry.package {
-        record
-            .extra
-            .insert("package".to_string(), Value::String(package.clone()));
-    }
     record
 }
 
@@ -920,8 +955,7 @@ fn record_from_callable(entry: &crate::builtin_index::CallableEntry) -> Record {
     } else {
         "Function"
     };
-    let mut record = Record::unknown(InstanceID::new(&entry.name));
-    record.class = InstanceID::new(entry.class.as_deref().unwrap_or(default_class));
+    let mut record = base_record(entry, default_class);
 
     let methods = entry
         .signatures
@@ -972,15 +1006,7 @@ fn record_from_callable(entry: &crate::builtin_index::CallableEntry) -> Record {
     }
 
     if let Some(typical_value) = &entry.typical_value {
-        record.extra.insert(
-            "typical_value".to_string(),
-            Value::String(typical_value.clone()),
-        );
-    }
-    if let Some(package) = &entry.package {
-        record
-            .extra
-            .insert("package".to_string(), Value::String(package.clone()));
+        record.typical_value = Some(typical_value.clone());
     }
     record
 }
@@ -988,15 +1014,29 @@ fn record_from_callable(entry: &crate::builtin_index::CallableEntry) -> Record {
 /// Synthesize a `Record` from an object entry (option key, constant, …). Only
 /// its identity and `class` are known — no type/function/operator facts.
 fn record_from_object(entry: &crate::builtin_index::ObjectEntry) -> Record {
-    let mut record = Record::unknown(InstanceID::new(&entry.name));
-    record.class = InstanceID::new(entry.class.as_deref().unwrap_or("Thing"));
+    let mut record = base_record(entry, "Thing");
     record.protected = entry.protected;
-    if let Some(package) = &entry.package {
-        record
-            .extra
-            .insert("package".to_string(), Value::String(package.clone()));
-    }
     record
+}
+
+fn append_records<T: IndexedEntry>(
+    entries: &[T],
+    names: &mut Vec<InstanceID>,
+    name_to_index: &mut HashMap<InstanceID, usize>,
+    records: &mut Vec<Record>,
+    docs: &mut HashMap<InstanceID, String>,
+    make_record: impl Fn(&T) -> Record,
+) {
+    for entry in entries {
+        let id = records.len();
+        register_record_keys(name_to_index, entry.name(), entry.aliases(), id);
+        let name = InstanceID::new(entry.name());
+        names.push(name.clone());
+        if let Some(markdown) = entry.markdown() {
+            docs.entry(name).or_insert_with(|| markdown.to_string());
+        }
+        records.push(make_record(entry));
+    }
 }
 
 impl BuiltinData {
@@ -1012,36 +1052,30 @@ impl BuiltinData {
         let mut records = Vec::new();
         let mut docs = HashMap::new();
 
-        for entry in index.types() {
-            let id = records.len();
-            register_record_keys(&mut name_to_index, &entry.name, &entry.aliases, id);
-            names.push(InstanceID::new(&entry.name));
-            if let Some(md) = &entry.markdown {
-                docs.entry(InstanceID::new(&entry.name))
-                    .or_insert_with(|| md.clone());
-            }
-            records.push(record_from_type(entry));
-        }
-        for entry in index.callables() {
-            let id = records.len();
-            register_record_keys(&mut name_to_index, &entry.name, &entry.aliases, id);
-            names.push(InstanceID::new(&entry.name));
-            if let Some(md) = &entry.markdown {
-                docs.entry(InstanceID::new(&entry.name))
-                    .or_insert_with(|| md.clone());
-            }
-            records.push(record_from_callable(entry));
-        }
-        for entry in index.objects() {
-            let id = records.len();
-            register_record_keys(&mut name_to_index, &entry.name, &entry.aliases, id);
-            names.push(InstanceID::new(&entry.name));
-            if let Some(md) = &entry.markdown {
-                docs.entry(InstanceID::new(&entry.name))
-                    .or_insert_with(|| md.clone());
-            }
-            records.push(record_from_object(entry));
-        }
+        append_records(
+            index.types(),
+            &mut names,
+            &mut name_to_index,
+            &mut records,
+            &mut docs,
+            record_from_type,
+        );
+        append_records(
+            index.callables(),
+            &mut names,
+            &mut name_to_index,
+            &mut records,
+            &mut docs,
+            record_from_callable,
+        );
+        append_records(
+            index.objects(),
+            &mut names,
+            &mut name_to_index,
+            &mut records,
+            &mut docs,
+            record_from_object,
+        );
 
         BuiltinData {
             names,

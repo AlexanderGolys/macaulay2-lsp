@@ -122,6 +122,8 @@ pub enum MethodHead {
 pub struct MethodInstallation {
     pub head: MethodHead,
     pub domain: Vec<TypeRef>,
+    pub codomain: Option<TypeRef>,
+    pub codomain_span: Option<SpanKey>,
     pub range: Range,
     pub target: SpanKey,
     pub value: Option<SpanKey>,
@@ -448,6 +450,7 @@ pub struct SemanticRegistry {
     pub expressions: HashMap<SpanKey, ExpressionFact>,
     pub calls: HashMap<SpanKey, CallInfo>,
     pub functions: HashMap<SymbolId, FunctionInfo>,
+    pub type_parents: HashMap<SymbolId, TypeRef>,
 }
 
 impl SpanKey {
@@ -635,6 +638,42 @@ impl Analysis {
         self.registry.functions.get(&symbol)
     }
 
+    pub(crate) fn method_installation_codomain<'a>(
+        &'a self,
+        installation: &'a MethodInstallation,
+    ) -> Option<&'a str> {
+        if let Some(codomain) = &installation.codomain {
+            return Some(codomain.name());
+        }
+
+        let MethodHead::Function(name) = &installation.head else {
+            return None;
+        };
+        let function = self.function(name)?;
+        function
+            .methods
+            .iter()
+            .rev()
+            .find(|method| {
+                method.range == installation.range
+                    && method.domain.len() == installation.domain.len()
+                    && method
+                        .domain
+                        .iter()
+                        .zip(&installation.domain)
+                        .all(|(actual, expected)| actual == expected.name())
+            })
+            .and_then(|method| method.codomain.as_deref())
+            .or(function.typical_value.as_deref())
+    }
+
+    pub(crate) fn is_method_installation_codomain(&self, node: M2Node, text: &str) -> bool {
+        let span = SpanKey::from_node(text, node);
+        self.installations
+            .iter()
+            .any(|installation| installation.codomain_span.as_ref() == Some(&span))
+    }
+
     pub fn function_by_symbol(&self, symbol: SymbolId) -> Option<&FunctionInfo> {
         self.registry.functions.get(&symbol)
     }
@@ -806,7 +845,7 @@ impl Analysis {
                 if let (Some(left), Some(op)) = (left, op) {
                     let op_text = op.text();
                     if op_text == ":=" {
-                        self.collect_local_method_installation(left, right, text, builtins);
+                        self.collect_local_method_installation(node, left, right, text, builtins);
                     }
                     let symbol_kind = match right {
                         Some(right) if right.kind == NodeKind::LambdaExpression => {
@@ -829,6 +868,9 @@ impl Analysis {
                             self.type_of(right, text, current_scope_idx, builtins)
                                 .dispatch_name()
                         }
+                    });
+                    let parent_type = right.and_then(|right| {
+                        declared_type_parent(right, type_name.as_deref(), builtins)
                     });
 
                     if let (Some(right), Some(name)) =
@@ -853,6 +895,7 @@ impl Analysis {
                                 kind: symbol_kind,
                                 role: BindingRole::Ordinary,
                                 type_name: type_name.as_deref(),
+                                parent_type,
                                 node: left,
                                 value_node: right,
                                 scope_idx: current_scope_idx,
@@ -871,6 +914,7 @@ impl Analysis {
                                 kind: symbol_kind,
                                 role: BindingRole::Ordinary,
                                 type_name: type_name.as_deref(),
+                                parent_type,
                                 node: left,
                                 value_node: right,
                                 scope_idx: assignment_scope_idx,
@@ -974,9 +1018,13 @@ impl Analysis {
         let (head, domain) = self.installation_shape(left, builtins)?;
         let range = to_lsp_range(text, node.range());
         let target = SpanKey::from_node(text, left);
-        let value = node
-            .child_by_field_name("right")
-            .map(|right| SpanKey::from_node(text, right));
+        let right = node.child_by_field_name("right");
+        let value = right.map(|right| SpanKey::from_node(text, right));
+        let codomain_node = right
+            .filter(|right| right.is_option_assignment())
+            .and_then(|right| right.child_by_field_name("left"));
+        let codomain = codomain_node.and_then(symbol_node_text).map(TypeRef::new);
+        let codomain_span = codomain_node.map(|node| SpanKey::from_node(text, node));
         // The RHS function shape, read once here so the arity diagnostic need not
         // re-walk the tree. Only a plain lambda RHS carries a checkable arity.
         let rhs_dispatch = node
@@ -989,6 +1037,8 @@ impl Analysis {
             ":=" => Some(MethodInstallation {
                 head,
                 domain,
+                codomain,
+                codomain_span,
                 range,
                 target,
                 value,
@@ -1007,6 +1057,8 @@ impl Analysis {
                     Some(MethodInstallation {
                         head: MethodHead::OperatorAssign(op),
                         domain,
+                        codomain,
+                        codomain_span,
                         range,
                         target,
                         value,
@@ -1354,6 +1406,7 @@ impl Analysis {
                     kind: SymbolKind::VARIABLE,
                     role: BindingRole::Parameter,
                     type_name,
+                    parent_type: None,
                     node: parameter_node,
                     value_node: None,
                     scope_idx,
@@ -1448,11 +1501,17 @@ impl Analysis {
             kind,
             role,
             type_name,
+            parent_type,
             node,
             value_node,
             scope_idx,
         } = registration;
         let symbol_id = self.registry.intern_symbol(name);
+        if let Some(parent_type) = parent_type {
+            self.registry
+                .type_parents
+                .insert(symbol_id, TypeRef::new(parent_type));
+        }
         let binding_id = BindingId(self.registry.bindings.len() as u32);
         let state_id = BindingStateId(self.registry.binding_states.len() as u32);
         let range = to_lsp_range(text, node.range());
@@ -1495,8 +1554,18 @@ impl Analysis {
         registration: SymbolRegistration<'_>,
         text: &str,
     ) {
-        if self.binding(binding_id).is_none() {
+        let Some(symbol) = self.binding(binding_id).map(|binding| binding.symbol) else {
             return;
+        };
+        match registration.parent_type {
+            Some(parent_type) => {
+                self.registry
+                    .type_parents
+                    .insert(symbol, TypeRef::new(parent_type));
+            }
+            None => {
+                self.registry.type_parents.remove(&symbol);
+            }
         }
         let state_id = BindingStateId(self.registry.binding_states.len() as u32);
         self.registry.binding_states.push(BindingStateInfo {
@@ -1616,21 +1685,34 @@ impl Analysis {
 
     fn collect_local_method_installation(
         &mut self,
-        node: M2Node,
+        assignment: M2Node,
+        target: M2Node,
         right: Option<M2Node>,
         text: &str,
         builtins: Option<&BuiltinData>,
     ) {
-        let Some((name, domain)) = method_installation_signature(node) else {
+        let Some((head, domain)) = self.installation_shape(target, builtins) else {
             return;
         };
-        // An install on a non-method-function compiles but has no effect, so it
-        // creates no method record (the no-effect warning is emitted separately).
-        if self.head_function_kind(&name, builtins) == HeadFunctionKind::NonMethodFunction {
-            return;
-        }
-        let range = to_lsp_range(text, node.range());
-        let symbol = self.registry.intern_symbol(&name);
+        let name = match &head {
+            MethodHead::Function(name) => {
+                // An install on a non-method-function compiles but has no effect,
+                // so it creates no method record.
+                if self.head_function_kind(name, builtins) == HeadFunctionKind::NonMethodFunction {
+                    return;
+                }
+                name.as_str()
+            }
+            MethodHead::Operator(operator) | MethodHead::OperatorAssign(operator) => {
+                operator.token.as_str()
+            }
+        };
+        let domain: Vec<String> = domain
+            .into_iter()
+            .map(|type_ref| type_ref.name().to_string())
+            .collect();
+        let range = to_lsp_range(text, assignment.range());
+        let symbol = self.registry.intern_symbol(name);
         let method = self
             .registry
             .functions
@@ -1757,7 +1839,7 @@ impl Analysis {
                         .methods
                         .iter()
                         .filter(|signature| {
-                            signature_matches_domain(
+                            self.signature_matches_domain(
                                 &signature.domain,
                                 &facts.argument_types,
                                 builtins,
@@ -1793,8 +1875,26 @@ impl Analysis {
 
         Some(CallInfo {
             callable_name: Some(operator.to_string()),
+            candidate_methods: self
+                .registry
+                .resolve_symbol(operator)
+                .and_then(|symbol| self.registry.functions.get(&symbol))
+                .map(|callable| {
+                    callable
+                        .methods
+                        .iter()
+                        .filter(|signature| {
+                            self.signature_matches_domain(
+                                &signature.domain,
+                                &argument_types,
+                                builtins,
+                            )
+                        })
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default(),
             argument_types,
-            candidate_methods: Vec::new(),
         })
     }
 
@@ -2207,6 +2307,11 @@ impl Analysis {
         options: &[(String, String)],
     ) -> InferredType {
         if let Some(return_type) =
+            self.resolve_local_call_return_type(callable, args, Some(builtins))
+        {
+            return InferredType::of(&return_type);
+        }
+        if let Some(return_type) =
             builtins.resolve_call_return_type_with_options(callable, &dispatch_names(args), options)
         {
             return InferredType::of(&return_type);
@@ -2265,7 +2370,7 @@ impl Analysis {
         let matching_codomains = method
             .methods
             .iter()
-            .filter(|signature| signature_matches(signature, argument_types, builtins))
+            .filter(|signature| self.signature_matches(signature, argument_types, builtins))
             .filter_map(|signature| {
                 signature
                     .codomain
@@ -2279,6 +2384,66 @@ impl Analysis {
         }
 
         method.typical_value.clone()
+    }
+
+    fn signature_matches(
+        &self,
+        signature: &MethodInfo,
+        argument_types: &[InferredType],
+        builtins: Option<&BuiltinData>,
+    ) -> bool {
+        self.signature_matches_domain(&signature.domain, argument_types, builtins)
+    }
+
+    fn signature_matches_domain(
+        &self,
+        expected_domain: &[String],
+        argument_types: &[InferredType],
+        builtins: Option<&BuiltinData>,
+    ) -> bool {
+        expected_domain.len() == argument_types.len()
+            && expected_domain
+                .iter()
+                .zip(argument_types)
+                .all(|(expected, actual)| {
+                    actual
+                        .principal()
+                        .is_some_and(|actual| self.is_subtype(actual, expected, builtins))
+                })
+    }
+
+    fn is_subtype(
+        &self,
+        actual: &InstanceID,
+        expected: &str,
+        builtins: Option<&BuiltinData>,
+    ) -> bool {
+        if actual.0 == expected
+            || builtins
+                .is_some_and(|builtins| builtins.is_subtype(actual, &InstanceID::new(expected)))
+        {
+            return true;
+        }
+
+        let mut current = actual.0.as_str();
+        let mut visited = HashSet::new();
+        while let Some(symbol) = self.registry.resolve_symbol(current) {
+            if !visited.insert(symbol) {
+                return false;
+            }
+            let Some(parent) = self.registry.type_parents.get(&symbol) else {
+                return false;
+            };
+            if parent.name() == expected
+                || builtins.is_some_and(|builtins| {
+                    builtins.is_subtype(&InstanceID::new(parent.name()), &InstanceID::new(expected))
+                })
+            {
+                return true;
+            }
+            current = parent.name();
+        }
+        false
     }
 
     pub(crate) fn binding_id_at(&self, name: &str, pos: Position) -> Option<BindingId> {
@@ -2299,6 +2464,7 @@ struct SymbolRegistration<'a> {
     kind: SymbolKind,
     role: BindingRole,
     type_name: Option<&'a str>,
+    parent_type: Option<&'a str>,
     node: M2Node<'a>,
     value_node: Option<M2Node<'a>>,
     scope_idx: usize,
@@ -2388,6 +2554,21 @@ fn declaration_symbol_kind(kind: SymbolKind, value: Option<M2Node<'_>>) -> Symbo
     } else {
         kind
     }
+}
+
+fn declared_type_parent<'tree>(
+    value: M2Node<'tree>,
+    type_name: Option<&str>,
+    builtins: Option<&BuiltinData>,
+) -> Option<&'tree str> {
+    if value.kind != NodeKind::NewStatement
+        || !type_name.is_some_and(|type_name| type_name_denotes_type(type_name, builtins))
+    {
+        return None;
+    }
+    clause_of(value, NodeKind::OfClause)
+        .and_then(clause_value)
+        .and_then(symbol_node_text)
 }
 
 pub(crate) fn symbol_node_text<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
@@ -2673,33 +2854,6 @@ fn is_colon_equal_assignment_left(node: M2Node) -> bool {
     parent
         .child_by_field_name("operator")
         .is_some_and(|operator| operator.text() == ":=")
-}
-
-fn signature_matches(
-    signature: &MethodInfo,
-    argument_types: &[InferredType],
-    builtins: Option<&BuiltinData>,
-) -> bool {
-    signature_matches_domain(&signature.domain, argument_types, builtins)
-}
-
-fn signature_matches_domain(
-    expected_domain: &[String],
-    argument_types: &[InferredType],
-    builtins: Option<&BuiltinData>,
-) -> bool {
-    expected_domain.len() == argument_types.len()
-        && expected_domain
-            .iter()
-            .zip(argument_types)
-            .all(|(expected, actual)| {
-                actual.principal().is_some_and(|actual| {
-                    actual.0 == *expected
-                        || builtins.is_some_and(|builtins| {
-                            builtins.is_subtype(actual, &InstanceID::new(expected))
-                        })
-                })
-            })
 }
 
 fn is_range_within_range(inner: Range, outer: Range) -> bool {
@@ -3626,6 +3780,39 @@ mod tests {
                 .get_symbol_at("p", Position::new(1, 0))
                 .map(|symbol| symbol.state.kind),
             Some(SymbolKind::FUNCTION)
+        );
+    }
+
+    #[test]
+    fn locally_installed_operator_dispatches_over_local_subtypes() {
+        let builtins = core_builtins();
+        let analysis = analyze_with_builtins(
+            "\
+CacheTable = new SelfInitializingType of MutableHashTable
+templateCache = new CacheTable
+MutableHashTable ++ MutableHashTable := MutableHashTable => (a, b) -> a
+x = templateCache ++ templateCache
+x
+",
+            &builtins,
+        );
+
+        let operator = analysis
+            .function("++")
+            .expect("the locally installed operator should be registered");
+        assert_eq!(operator.methods.len(), 1);
+        assert_eq!(
+            operator.methods[0].domain,
+            vec![
+                "MutableHashTable".to_string(),
+                "MutableHashTable".to_string()
+            ]
+        );
+        assert_eq!(
+            analysis
+                .get_symbol_at("x", Position::new(4, 0))
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
+            Some("MutableHashTable")
         );
     }
 

@@ -5,14 +5,11 @@ use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, Symb
 use crate::typesystem::{BuiltinData, OperatorInfo, Record, ResolvedSignature, SignatureUsage};
 
 pub(crate) fn record_package(record: &Record) -> Option<&str> {
-    record.extra.get("package")?.as_str()
+    record.package.as_deref()
 }
 
 pub(crate) fn record_source_file(record: &Record) -> Option<&str> {
-    record
-        .extra
-        .get("package_source_file")
-        .and_then(|value| value.as_str())
+    record.source_file.as_deref()
 }
 
 pub(crate) fn record_symbol_kind(record: &Record) -> SymbolKind {
@@ -237,8 +234,8 @@ fn append_usage_signature_section(
 }
 
 fn record_typical_value(record: &Record) -> Option<String> {
-    if let Some(value) = record.extra.get("typical_value") {
-        return value.as_str().map(ToString::to_string);
+    if let Some(typical_value) = &record.typical_value {
+        return Some(typical_value.clone());
     }
 
     record

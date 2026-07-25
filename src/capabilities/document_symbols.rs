@@ -7,7 +7,7 @@
 
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{ExpressionKind, MethodHead, SpanKey};
+use crate::analysis::{ExpressionKind, SpanKey};
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
 use crate::util::byte_index_from_lsp_position;
@@ -25,7 +25,7 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
     {
         declarations.push(Declaration {
             name: analysis.symbol_name(binding.symbol).to_string(),
-            detail: None,
+            detail: binding.state.type_name.clone(),
             kind: binding.declaration_kind,
             range: binding.declaration_range,
             selection_range: binding.range,
@@ -50,14 +50,7 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
             .map_or(0, |fact| fact.scope_idx);
         declarations.push(Declaration {
             name: name.to_string(),
-            detail: Some(
-                if matches!(installation.head, MethodHead::OperatorAssign(_)) {
-                    "assignment method"
-                } else {
-                    "method"
-                }
-                .to_string(),
-            ),
+            detail: Some(method_signature_detail(analysis, installation, name)),
             kind: SymbolKind::METHOD,
             range: installation.range,
             selection_range: installation.target.range,
@@ -84,16 +77,19 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
             .input_nodes
             .get(1)
             .and_then(|right| scope_with_range(analysis, right.range));
-        let (detail, kind) = match (fact.operator.as_deref(), left.operator.as_deref()) {
-            (Some("="), Some("_")) => (Some("indexed variable".to_string()), SymbolKind::VARIABLE),
-            (Some("="), Some(_)) if child_scope_idx.is_some() => {
-                (Some("assignment method".to_string()), SymbolKind::METHOD)
-            }
+        let kind = match (fact.operator.as_deref(), left.operator.as_deref()) {
+            (Some("="), Some("_")) => SymbolKind::VARIABLE,
+            (Some("="), Some(_)) if child_scope_idx.is_some() => SymbolKind::METHOD,
             _ => continue,
         };
         let Some(name) = text_in_range(document.text(), left_span.range) else {
             continue;
         };
+        let detail = Some(if kind == SymbolKind::METHOD {
+            name.to_string()
+        } else {
+            "indexed variable".to_string()
+        });
         declarations.push(Declaration {
             name: name.to_string(),
             detail,
@@ -115,6 +111,19 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
         )
     });
     build_document_symbol_tree(analysis, declarations)
+}
+
+fn method_signature_detail(
+    analysis: &crate::analysis::Analysis,
+    installation: &crate::analysis::MethodInstallation,
+    target: &str,
+) -> String {
+    analysis
+        .method_installation_codomain(installation)
+        .map_or_else(
+            || target.to_string(),
+            |codomain| format!("{target} -> {codomain}"),
+        )
 }
 
 /// Build a `DocumentSymbol` while keeping the deprecated LSP field isolated in
@@ -495,20 +504,20 @@ String ^~ := peek
                 .map(|symbol| (symbol.name.as_str(), symbol.detail.as_deref(), symbol.kind))
                 .collect::<Vec<_>>(),
             vec![
-                ("Thing Thing", Some("method"), SymbolKind::METHOD),
-                ("Thing .. Thing", Some("method"), SymbolKind::METHOD),
-                ("toString Tally", Some("method"), SymbolKind::METHOD),
+                ("Thing Thing", Some("Thing Thing"), SymbolKind::METHOD),
+                ("Thing .. Thing", Some("Thing .. Thing"), SymbolKind::METHOD),
+                ("toString Tally", Some("toString Tally"), SymbolKind::METHOD),
                 ("x", None, SymbolKind::VARIABLE),
                 ("y", None, SymbolKind::VARIABLE),
-                ("z", None, SymbolKind::VARIABLE),
+                ("z", Some("ZZ"), SymbolKind::VARIABLE),
                 ("x_i", Some("indexed variable"), SymbolKind::VARIABLE),
                 (
                     "String * String",
-                    Some("assignment method"),
+                    Some("String * String"),
                     SymbolKind::METHOD
                 ),
-                ("- String", Some("method"), SymbolKind::METHOD),
-                ("String ^~", Some("method"), SymbolKind::METHOD),
+                ("- String", Some("- String"), SymbolKind::METHOD),
+                ("String ^~", Some("String ^~"), SymbolKind::METHOD),
             ]
         );
     }
@@ -548,12 +557,39 @@ X + Z := (a,b) -> \"X + Z\"
                 .map(|symbol| (symbol.name.as_str(), symbol.detail.as_deref(), symbol.kind))
                 .collect::<Vec<_>>(),
             vec![
-                ("X", None, SymbolKind::CLASS),
-                ("Y", None, SymbolKind::CLASS),
-                ("Z", None, SymbolKind::CLASS),
-                ("- X", Some("method"), SymbolKind::METHOD),
-                ("Y + X", Some("method"), SymbolKind::METHOD),
-                ("X + Z", Some("method"), SymbolKind::METHOD),
+                ("X", Some("Type"), SymbolKind::CLASS),
+                ("Y", Some("Type"), SymbolKind::CLASS),
+                ("Z", Some("Type"), SymbolKind::CLASS),
+                ("- X", Some("- X"), SymbolKind::METHOD),
+                ("Y + X", Some("Y + X"), SymbolKind::METHOD),
+                ("X + Z", Some("X + Z"), SymbolKind::METHOD),
+            ]
+        );
+    }
+
+    #[test]
+    fn document_symbol_details_reuse_binding_types_and_method_codomains() {
+        let text = "\
+p = method(TypicalValue => List)
+p(ZZ, ZZ) := (i, j) -> {i, j}
+p(CC, CC) := Array => (i, j) -> [i, j]
+x := 1
+";
+        let builtins = BuiltinData::empty();
+
+        let document = document(text, &builtins);
+        let symbols = collect_document_symbols(&document);
+
+        assert_eq!(
+            symbols
+                .iter()
+                .map(|symbol| (symbol.name.as_str(), symbol.detail.as_deref()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("p", Some("MethodFunction")),
+                ("p(ZZ, ZZ)", Some("p(ZZ, ZZ) -> List")),
+                ("p(CC, CC)", Some("p(CC, CC) -> Array")),
+                ("x", Some("ZZ")),
             ]
         );
     }

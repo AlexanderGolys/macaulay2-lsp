@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use crate::builtin_index::BuiltinIndex;
+use crate::builtin_index::{BuiltinIndex, PackageName};
 use crate::package_index::collect_imported_packages;
 use crate::typesystem::{BuiltinData, InstanceID, Record, SignatureUsage};
 
@@ -14,7 +14,7 @@ use crate::typesystem::{BuiltinData, InstanceID, Record, SignatureUsage};
 /// default-loaded baseline. Built once from the single embedded corpus.
 #[derive(Debug, Clone)]
 pub(crate) struct PackagePartitionedIndex {
-    partitions: HashMap<String, BuiltinData>,
+    partitions: HashMap<PackageName, BuiltinData>,
     default_loaded: Vec<String>,
 }
 
@@ -27,10 +27,10 @@ impl PackagePartitionedIndex {
         let index = BuiltinIndex::load(corpus);
         let sub_indexes = index.partition_by_package();
 
-        let mut partitions = HashMap::new();
-        for (package, sub_index) in &sub_indexes {
-            partitions.insert(package.clone(), BuiltinData::from_index(sub_index));
-        }
+        let partitions = sub_indexes
+            .iter()
+            .map(|(package, sub_index)| (package.clone(), BuiltinData::from_index(sub_index)))
+            .collect();
 
         let default_loaded = index.default_loaded();
         assert!(
@@ -63,7 +63,7 @@ impl PackagePartitionedIndex {
             .iter()
             .filter_map(|package| {
                 self.partitions
-                    .get_key_value(package)
+                    .get_key_value(package.as_str())
                     .map(|(key, data)| (key.as_str(), data))
             })
             .collect();
@@ -93,7 +93,7 @@ impl LoadedPackages {
         let mut ordered = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for package in default_loaded.iter().chain(imported.iter()) {
-            if seen.insert(package.clone()) {
+            if seen.insert(package.as_str()) {
                 ordered.push(package.clone());
             }
         }
@@ -114,6 +114,12 @@ pub(crate) struct ScopedIndex<'a> {
 }
 
 impl<'a> ScopedIndex<'a> {
+    fn find_map<T>(&self, query: impl Fn(&'a str, &'a BuiltinData) -> Option<T>) -> Option<T> {
+        self.partitions
+            .iter()
+            .find_map(|(package, data)| query(package, data))
+    }
+
     /// The Core partition — always the first loaded (baseline floor). Used by the
     /// few hover helpers that still take the raw Core `BuiltinData`.
     pub fn core(&self) -> &'a BuiltinData {
@@ -124,9 +130,7 @@ impl<'a> ScopedIndex<'a> {
     }
 
     pub fn get_record_with_package(&self, name: &InstanceID) -> Option<(&'a str, Record)> {
-        self.partitions
-            .iter()
-            .find_map(|(package, data)| data.get_record(name).map(|record| (*package, record)))
+        self.find_map(|package, data| data.get_record(name).map(|record| (package, record)))
     }
 
     /// The owning partition of `name`: its package, record, and the partition's
@@ -137,10 +141,7 @@ impl<'a> ScopedIndex<'a> {
         &self,
         name: &InstanceID,
     ) -> Option<(&'a str, Record, &'a BuiltinData)> {
-        self.partitions.iter().find_map(|(package, data)| {
-            data.get_record(name)
-                .map(|record| (*package, record, *data))
-        })
+        self.find_map(|package, data| data.get_record(name).map(|record| (package, record, data)))
     }
 
     pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
@@ -152,9 +153,7 @@ impl<'a> ScopedIndex<'a> {
         callable: &str,
         argument_types: &[Option<String>],
     ) -> Option<SignatureUsage> {
-        self.partitions
-            .iter()
-            .find_map(|(_, data)| data.resolve_call_signature_usage(callable, argument_types))
+        self.find_map(|_, data| data.resolve_call_signature_usage(callable, argument_types))
     }
 
     /// Names across all loaded partitions starting with `prefix`, deduped by name

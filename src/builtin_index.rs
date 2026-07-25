@@ -7,28 +7,20 @@
 //! codomain means *unknown*, never `Thing`. See the `Static Typecheck Index`
 //! decision.
 
+use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::ops::Deref;
 
 use serde::Deserialize;
 
 /// A type's place in the M2 lattice.
 #[derive(Debug, Clone)]
 pub struct TypeEntry {
-    pub name: String,
-    /// Every alias this entry is also keyed by (`Core$ZZ`, …) — retained so the
-    /// `Record`/docs maps mirror the same keys as the lookup tables, not just
-    /// the primary name.
-    pub aliases: Vec<String>,
-    pub package: Option<String>,
-    /// Meta-type — the instance-of axis (`ZZ`'s class is `Ring`).
-    pub class: Option<String>,
+    metadata: EntryMetadata,
     /// Immediate supertype — the is-a edge.
     pub parent: Option<String>,
     pub ancestors: Vec<String>,
     pub subtypes: Vec<String>,
-    /// Rendered hover markdown for this entry, folded into the record by the
-    /// corpus generator. `None` ⇒ undocumented (monotone: absent, not empty).
-    pub markdown: Option<String>,
 }
 
 /// One installed method: an argument-type tuple and its result type.
@@ -44,26 +36,17 @@ pub struct Signature {
 /// no typecheck facts beyond its `class` (the instance-of axis).
 #[derive(Debug, Clone)]
 pub struct ObjectEntry {
-    pub name: String,
-    pub aliases: Vec<String>,
-    pub package: Option<String>,
-    pub class: Option<String>,
+    metadata: EntryMetadata,
     /// Whether the symbol is `protect`ed (cannot be reassigned). `None` ⇒ the
     /// corpus did not record it; consumers fall back to the class-is-`Symbol`
     /// proxy so the absent-data case keeps today's behaviour.
     pub protected: Option<bool>,
-    /// Rendered hover markdown, folded into the record. `None` ⇒ undocumented.
-    pub markdown: Option<String>,
 }
 
 /// A function or operator and the signatures it dispatches on.
 #[derive(Debug, Clone)]
 pub struct CallableEntry {
-    pub name: String,
-    /// Every alias this entry is also keyed by (`Core$gb`, `→`, …).
-    pub aliases: Vec<String>,
-    pub package: Option<String>,
-    pub class: Option<String>,
+    metadata: EntryMetadata,
     pub is_operator: bool,
     /// Capitalized operator forms (`Binary`/`Prefix`/`Postfix`) collected across
     /// this callable's methods — drives operator hover label rendering.
@@ -71,13 +54,11 @@ pub struct CallableEntry {
     /// Per-form operator attributes from the corpus (`binary` → `["Flexible"]`,
     /// …); empty for non-operators. Drives the per-fixity flexibility check that
     /// decides whether `:=` may install a method on this operator.
-    pub operator_attributes: HashMap<String, Vec<String>>,
+    pub operator_attributes: HashMap<OperatorForm, Vec<String>>,
     /// General codomain when documented apart from a specific signature.
     pub typical_value: Option<String>,
     pub options: Vec<OptionSpec>,
     pub signatures: Vec<Signature>,
-    /// Rendered hover markdown, folded into the record. `None` ⇒ undocumented.
-    pub markdown: Option<String>,
 }
 
 /// An optional argument: its key and (sparsely curated) value constraints.
@@ -87,16 +68,149 @@ pub struct OptionSpec {
     pub possible_values: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[serde(transparent)]
+pub struct OperatorForm(String);
+
+impl Borrow<str> for OperatorForm {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EntryMetadata {
+    pub name: String,
+    /// Every alias this entry is also keyed by (`Core$ZZ`, `Core$gb`, `→`, …).
+    pub aliases: Vec<String>,
+    pub package: Option<String>,
+    /// Runtime class or meta-type (`ZZ`'s class is `Ring`).
+    pub class: Option<String>,
+    /// Rendered hover markdown folded into the record by the corpus generator.
+    pub markdown: Option<String>,
+}
+
+pub(crate) trait IndexedEntry: Clone {
+    fn metadata(&self) -> &EntryMetadata;
+
+    fn name(&self) -> &str {
+        &self.metadata().name
+    }
+
+    fn aliases(&self) -> &[String] {
+        &self.metadata().aliases
+    }
+
+    fn package(&self) -> Option<&str> {
+        self.metadata().package.as_deref()
+    }
+
+    fn class(&self) -> Option<&str> {
+        self.metadata().class.as_deref()
+    }
+
+    fn markdown(&self) -> Option<&str> {
+        self.metadata().markdown.as_deref()
+    }
+}
+
+macro_rules! impl_indexed_entry {
+    ($entry:ty) => {
+        impl IndexedEntry for $entry {
+            fn metadata(&self) -> &EntryMetadata {
+                &self.metadata
+            }
+        }
+
+        impl Deref for $entry {
+            type Target = EntryMetadata;
+
+            fn deref(&self) -> &Self::Target {
+                self.metadata()
+            }
+        }
+    };
+}
+
+impl_indexed_entry!(TypeEntry);
+impl_indexed_entry!(CallableEntry);
+impl_indexed_entry!(ObjectEntry);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct EntryKey(String);
+
+impl Borrow<str> for EntryKey {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug)]
+struct EntryTable<T> {
+    entries: Vec<T>,
+    keys: HashMap<EntryKey, usize>,
+}
+
+impl<T> Default for EntryTable<T> {
+    fn default() -> Self {
+        Self {
+            entries: Vec::new(),
+            keys: HashMap::new(),
+        }
+    }
+}
+
+impl<T: IndexedEntry> EntryTable<T> {
+    fn insert(&mut self, entry: T) {
+        let id = self.entries.len();
+        self.keys.insert(EntryKey(entry.name().to_string()), id);
+        for alias in entry.aliases() {
+            self.keys.entry(EntryKey(alias.clone())).or_insert(id);
+        }
+        self.entries.push(entry);
+    }
+
+    #[cfg(test)]
+    fn get(&self, name: &str) -> Option<&T> {
+        self.keys.get(name).map(|id| &self.entries[*id])
+    }
+
+    fn entries(&self) -> &[T] {
+        &self.entries
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PackageName(String);
+
+impl PackageName {
+    fn from_entry(entry: &impl IndexedEntry) -> Self {
+        Self(entry.package().unwrap_or("Core").to_string())
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Borrow<str> for PackageName {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
 /// Each record is keyed by its name *and* every alias (e.g. `gb`, `Core$gb`;
 /// `->`, `→`, `Core$->`), all pointing at one pooled entry.
 #[derive(Debug, Default)]
 pub struct BuiltinIndex {
-    types: Vec<TypeEntry>,
-    type_keys: HashMap<String, usize>,
-    callables: Vec<CallableEntry>,
-    callable_keys: HashMap<String, usize>,
-    objects: Vec<ObjectEntry>,
-    object_keys: HashMap<String, usize>,
+    types: EntryTable<TypeEntry>,
+    callables: EntryTable<CallableEntry>,
+    objects: EntryTable<ObjectEntry>,
     default_loaded: Vec<String>,
 }
 
@@ -110,7 +224,7 @@ impl BuiltinIndex {
             if line.is_empty() {
                 continue;
             }
-            let raw: RawRecord = serde_json::from_str(line)
+            let mut raw: RawRecord = serde_json::from_str(line)
                 .unwrap_or_else(|e| panic!("malformed corpus line: {e}\n{line}"));
 
             // Every non-meta record must name a symbol; an unnamed one is a
@@ -122,26 +236,18 @@ impl BuiltinIndex {
             // name + aliases + extra_keys all resolve to this record.
             let mut keys = raw.aliases.clone();
             keys.extend(raw.extra_keys.iter().cloned());
-            let markdown = raw.markdown.filter(|m| !m.is_empty());
 
             match raw.kind.as_str() {
                 "type" => {
-                    let id = index.types.len();
-                    register_keys(&mut index.type_keys, &raw.name, &keys, id);
-                    index.types.push(TypeEntry {
-                        name: raw.name,
-                        aliases: keys,
-                        package: raw.package.as_deref().map(deref_ref),
-                        class: raw.class.as_deref().map(deref_ref),
+                    index.types.insert(TypeEntry {
+                        metadata: entry_metadata(&mut raw, keys),
                         parent: raw.parent.as_deref().map(deref_ref),
                         ancestors: raw.ancestors.iter().map(|a| deref_ref(a)).collect(),
                         subtypes: raw.subtypes.iter().map(|s| deref_ref(s)).collect(),
-                        markdown,
                     });
                 }
                 "function" | "methodFunction" | "operator" => {
-                    let id = index.callables.len();
-                    register_keys(&mut index.callable_keys, &raw.name, &keys, id);
+                    let metadata = entry_metadata(&mut raw, keys);
                     let forms = raw
                         .operator
                         .as_ref()
@@ -160,30 +266,20 @@ impl BuiltinIndex {
                             codomain: concrete_codomain(method.typical_value.as_deref()),
                         })
                         .collect();
-                    index.callables.push(CallableEntry {
-                        name: raw.name,
-                        aliases: keys,
-                        package: raw.package.as_deref().map(deref_ref),
-                        class: raw.class.as_deref().map(deref_ref),
+                    index.callables.insert(CallableEntry {
+                        metadata,
                         is_operator: raw.kind == "operator",
                         forms,
                         operator_attributes,
                         typical_value: concrete_codomain(raw.typical_value.as_deref()),
                         options: raw.options.into_iter().map(OptionSpec::from).collect(),
                         signatures,
-                        markdown,
                     });
                 }
                 "symbol" | "object" | "table" => {
-                    let id = index.objects.len();
-                    register_keys(&mut index.object_keys, &raw.name, &keys, id);
-                    index.objects.push(ObjectEntry {
-                        name: raw.name,
-                        aliases: keys,
-                        package: raw.package.as_deref().map(deref_ref),
-                        class: raw.class.as_deref().map(deref_ref),
+                    index.objects.insert(ObjectEntry {
+                        metadata: entry_metadata(&mut raw, keys),
                         protected: raw.protected,
-                        markdown,
                     });
                 }
                 "meta" => {
@@ -199,29 +295,29 @@ impl BuiltinIndex {
 
     #[cfg(test)]
     pub fn type_entry(&self, name: &str) -> Option<&TypeEntry> {
-        self.type_keys.get(name).map(|&id| &self.types[id])
+        self.types.get(name)
     }
 
     #[cfg(test)]
     pub fn callable(&self, name: &str) -> Option<&CallableEntry> {
-        self.callable_keys.get(name).map(|&id| &self.callables[id])
+        self.callables.get(name)
     }
 
     /// The pooled type records (one per distinct type, aliases aside). The
     /// `TypeLattice` builder consumes these.
     pub fn types(&self) -> &[TypeEntry] {
-        &self.types
+        self.types.entries()
     }
 
     /// The pooled callable records. The `TypeFacts` builder consumes these.
     pub fn callables(&self) -> &[CallableEntry] {
-        &self.callables
+        self.callables.entries()
     }
 
     /// The pooled object records (option keys, constants, …). They carry no
     /// typecheck facts but are surfaced as `Record`s for hover/classification.
     pub fn objects(&self) -> &[ObjectEntry] {
-        &self.objects
+        self.objects.entries()
     }
 
     /// Packages M2 loads at a fresh start (`loadedPackages`), read from the
@@ -246,30 +342,37 @@ impl BuiltinIndex {
     /// lookups within a partition behave exactly like a single-package load.
     /// Entries with no package bucket under `"Core"` (the loaded-set floor).
     /// `default_loaded` is corpus-global and is not propagated to sub-indexes.
-    pub fn partition_by_package(&self) -> HashMap<String, BuiltinIndex> {
-        let mut partitions: HashMap<String, BuiltinIndex> = HashMap::new();
-        let bucket =
-            |package: &Option<String>| package.clone().unwrap_or_else(|| "Core".to_string());
-
-        for entry in &self.types {
-            let part = partitions.entry(bucket(&entry.package)).or_default();
-            let id = part.types.len();
-            register_keys(&mut part.type_keys, &entry.name, &entry.aliases, id);
-            part.types.push(entry.clone());
-        }
-        for entry in &self.callables {
-            let part = partitions.entry(bucket(&entry.package)).or_default();
-            let id = part.callables.len();
-            register_keys(&mut part.callable_keys, &entry.name, &entry.aliases, id);
-            part.callables.push(entry.clone());
-        }
-        for entry in &self.objects {
-            let part = partitions.entry(bucket(&entry.package)).or_default();
-            let id = part.objects.len();
-            register_keys(&mut part.object_keys, &entry.name, &entry.aliases, id);
-            part.objects.push(entry.clone());
-        }
+    pub(crate) fn partition_by_package(&self) -> HashMap<PackageName, BuiltinIndex> {
+        let mut partitions = HashMap::new();
+        partition_entries(&self.types, &mut partitions, |index| &mut index.types);
+        partition_entries(&self.callables, &mut partitions, |index| {
+            &mut index.callables
+        });
+        partition_entries(&self.objects, &mut partitions, |index| &mut index.objects);
         partitions
+    }
+}
+
+fn entry_metadata(raw: &mut RawRecord, aliases: Vec<String>) -> EntryMetadata {
+    EntryMetadata {
+        name: std::mem::take(&mut raw.name),
+        aliases,
+        package: raw.package.take().map(|package| deref_ref(&package)),
+        class: raw.class.take().map(|class| deref_ref(&class)),
+        markdown: raw.markdown.take().filter(|markdown| !markdown.is_empty()),
+    }
+}
+
+fn partition_entries<T: IndexedEntry>(
+    source: &EntryTable<T>,
+    partitions: &mut HashMap<PackageName, BuiltinIndex>,
+    table: impl Fn(&mut BuiltinIndex) -> &mut EntryTable<T>,
+) {
+    for entry in source.entries() {
+        let partition = partitions
+            .entry(PackageName::from_entry(entry))
+            .or_default();
+        table(partition).insert(entry.clone());
     }
 }
 
@@ -295,15 +398,6 @@ fn concrete_codomain(raw_key: Option<&str>) -> Option<String> {
     match name.as_str() {
         "Thing" | "Any" => None,
         _ => Some(name),
-    }
-}
-
-/// Register a pooled entry under its name and each alias. The name wins on a
-/// collision; an alias never clobbers an already-registered key.
-fn register_keys(keys: &mut HashMap<String, usize>, name: &str, aliases: &[String], id: usize) {
-    keys.insert(name.to_string(), id);
-    for alias in aliases {
-        keys.entry(alias.clone()).or_insert(id);
     }
 }
 
@@ -378,7 +472,7 @@ struct RawOperator {
     /// Per-form operator attributes, e.g. `{"binary": ["Flexible"], "prefix": […]}`.
     /// `Flexible` marks the forms that accept runtime method installation.
     #[serde(default)]
-    attributes: HashMap<String, Vec<String>>,
+    attributes: HashMap<OperatorForm, Vec<String>>,
 }
 
 /// `binary` → `Binary`, etc. The corpus uses lowercase operator forms; the LSP

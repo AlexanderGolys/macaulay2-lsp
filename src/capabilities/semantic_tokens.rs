@@ -115,6 +115,14 @@ pub(crate) fn collect_semantic_tokens(
                 token_type = Some(M2SemanticTokenType::Property as u32);
             }
 
+            // `Codomain => fn` on the right of a method installation uses the
+            // same CST shape as an option pair. Analysis has already
+            // distinguished the install, so its codomain must win over the
+            // generic option-key `field` classification below.
+            if token_type.is_none() && analysis.is_method_installation_codomain(node, text) {
+                token_type = Some(M2SemanticTokenType::Type as u32);
+            }
+
             if token_type.is_none() {
                 if let Some(role) = option_assignment_role(node, builtins) {
                     token_type = Some(role as u32);
@@ -504,10 +512,6 @@ fn method_installation_type_parameter(
         return Some(M2SemanticTokenType::Type);
     }
 
-    if is_type_parameter_in_typical_value(node, parent) && is_known_type(builtins, node_text) {
-        return Some(M2SemanticTokenType::Type);
-    }
-
     None
 }
 
@@ -616,49 +620,6 @@ fn is_method_installation_lhs(node: M2Node<'_>) -> bool {
     !matches!(op, "=" | ":=" | "<-" | "=>")
 }
 
-fn is_type_parameter_in_typical_value(node: M2Node<'_>, parent: M2Node<'_>) -> bool {
-    if parent.kind != NodeKind::BinaryExpression {
-        return false;
-    }
-    if parent.binary_operator() != Some("=>") {
-        return false;
-    }
-    if parent
-        .child_by_field_name("left")
-        .is_none_or(|left| left.id() != node.id())
-    {
-        return false;
-    }
-
-    let mut current = parent;
-    loop {
-        let grandparent = match current.parent() {
-            Some(gp) => gp,
-            None => return false,
-        };
-
-        if grandparent.kind == NodeKind::BinaryExpression {
-            let op = grandparent.binary_operator();
-            if matches!(op, Some("=" | ":=")) {
-                let rhs = match grandparent.child_by_field_name("right") {
-                    Some(r) => r,
-                    None => return false,
-                };
-                if !rhs.contains(parent) {
-                    return false;
-                }
-                let lhs = match grandparent.child_by_field_name("left") {
-                    Some(l) => l,
-                    None => return false,
-                };
-                return is_method_installation_lhs(lhs);
-            }
-            return false;
-        }
-        current = grandparent;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -686,6 +647,26 @@ mod tests {
             &uri,
             augments_syntax_tokens,
         )
+    }
+
+    fn token_type_at(tokens: &[SemanticToken], line: u32, character: u32) -> Option<u32> {
+        let mut token_line = 0;
+        let mut token_start = 0;
+        for token in tokens {
+            if token.delta_line == 0 {
+                token_start += token.delta_start;
+            } else {
+                token_line += token.delta_line;
+                token_start = token.delta_start;
+            }
+            if token_line == line
+                && character >= token_start
+                && character < token_start + token.length
+            {
+                return Some(token.token_type);
+            }
+        }
+        None
     }
 
     #[test]
@@ -1269,6 +1250,24 @@ mod tests {
             token_types.contains(&type_param),
             "Ring in method installation should be Type, got {:?}",
             token_types
+        );
+    }
+
+    #[test]
+    fn explicit_method_codomain_outranks_option_field_classification() {
+        let text = "\
+p = method(TypicalValue => List)
+p(ZZ) := Array => x -> [x]
+";
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        assert_eq!(
+            token_type_at(&tokens, 1, 9),
+            Some(M2SemanticTokenType::Type as u32),
+            "the explicit Array codomain is a type role, not an option field"
         );
     }
 }

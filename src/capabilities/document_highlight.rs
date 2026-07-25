@@ -14,13 +14,18 @@ pub(crate) fn document_highlight_provider_capability(
 
 /// Highlight occurrences related to the cursor. A symbol under the cursor lights
 /// up all its in-file references; a keyword lights up its compound statement's
-/// keyword sequence. The two are mutually exclusive, so references take priority
-/// and keyword highlighting is the fallback.
+/// keyword sequence; a semicolon lights up the expression it terminates.
 pub(crate) fn document_highlights(
     document: &DocumentSnapshot,
     position: Position,
 ) -> Option<Vec<DocumentHighlight>> {
     if let Some(highlights) = symbol_reference_highlights(document, position) {
+        return Some(highlights);
+    }
+    if let Some(highlights) = semicolon_expression_highlight(document, position) {
+        return Some(highlights);
+    }
+    if let Some(highlights) = control_transfer_highlights(document, position) {
         return Some(highlights);
     }
     keyword_sequence_highlights(document, position)
@@ -57,6 +62,108 @@ fn symbol_reference_highlights(
             })
             .collect(),
     )
+}
+
+fn semicolon_expression_highlight(
+    document: &DocumentSnapshot,
+    position: Position,
+) -> Option<Vec<DocumentHighlight>> {
+    let semicolon = document.node_at_position_minimal(position)?;
+    if !semicolon.is_semicolon() {
+        return None;
+    }
+    let expression = semicolon.parent()?;
+    let expression_range = document.range_for(expression);
+    let semicolon_range = document.range_for(semicolon);
+    if expression_range.start >= semicolon_range.start {
+        return None;
+    }
+
+    Some(vec![DocumentHighlight {
+        range: tower_lsp::lsp_types::Range::new(expression_range.start, semicolon_range.start),
+        kind: Some(DocumentHighlightKind::TEXT),
+    }])
+}
+
+fn control_transfer_highlights(
+    document: &DocumentSnapshot,
+    position: Position,
+) -> Option<Vec<DocumentHighlight>> {
+    let cursor_node = document.node_at_position_minimal(position)?;
+    let transfer = enclosing_control_transfer(cursor_node)?;
+    let keyword = transfer.child(0)?;
+    if !keyword.contains(cursor_node) {
+        return None;
+    }
+    let owner = control_transfer_owner(transfer)?;
+
+    let mut nodes = match owner.kind {
+        NodeKind::ForStatement | NodeKind::WhileStatement => statement_keyword_tokens(owner),
+        NodeKind::LambdaExpression => owner.child_by_field_name("operator").into_iter().collect(),
+        _ => Vec::new(),
+    };
+    nodes.extend(
+        owner
+            .descendants()
+            .filter(|candidate| {
+                matches!(
+                    candidate.kind,
+                    NodeKind::ReturnStatement
+                        | NodeKind::BreakStatement
+                        | NodeKind::ContinueStatement
+                ) && control_transfer_owner(*candidate)
+                    .is_some_and(|candidate_owner| candidate_owner.id() == owner.id())
+            })
+            .filter_map(|statement| statement.child(0)),
+    );
+    nodes.sort_by_key(|node| (node.start_byte(), node.end_byte()));
+    nodes.dedup_by_key(|node| node.id());
+
+    Some(
+        nodes
+            .into_iter()
+            .map(|node| DocumentHighlight {
+                range: document.range_for(node),
+                kind: Some(DocumentHighlightKind::TEXT),
+            })
+            .collect(),
+    )
+}
+
+fn enclosing_control_transfer(mut node: M2Node<'_>) -> Option<M2Node<'_>> {
+    loop {
+        if matches!(
+            node.kind,
+            NodeKind::ReturnStatement | NodeKind::BreakStatement | NodeKind::ContinueStatement
+        ) {
+            return Some(node);
+        }
+        node = node.parent()?;
+    }
+}
+
+fn control_transfer_owner(transfer: M2Node<'_>) -> Option<M2Node<'_>> {
+    let returns_from_function = transfer.kind == NodeKind::ReturnStatement;
+    let mut ancestor = transfer;
+    while let Some(parent) = ancestor.parent() {
+        if returns_from_function {
+            if parent.kind == NodeKind::LambdaExpression {
+                return Some(parent);
+            }
+        } else {
+            if matches!(
+                parent.kind,
+                NodeKind::ForStatement | NodeKind::WhileStatement
+            ) {
+                return Some(parent);
+            }
+            if parent.kind == NodeKind::LambdaExpression {
+                return None;
+            }
+        }
+        ancestor = parent;
+    }
+    None
 }
 
 /// Highlight the keyword sequence of the compound statement under the cursor:
@@ -262,5 +369,39 @@ mod tests {
         // inner sequence, not the outer.
         let text = "if a then if b then c\n";
         assert_eq!(highlighted_words(text, 0, 10), vec!["if", "then"]);
+    }
+
+    #[test]
+    fn return_highlights_the_function_arrow_and_sibling_returns() {
+        let text = "f := x -> if x then return x else return 0\n";
+        assert_eq!(
+            highlighted_words(text, 0, 23),
+            vec!["->", "return", "return"]
+        );
+    }
+
+    #[test]
+    fn break_and_continue_highlight_their_owning_loop() {
+        let text = "while a do if b then break else continue\n";
+        assert_eq!(
+            highlighted_words(text, 0, 22),
+            vec!["while", "do", "break", "continue"]
+        );
+        assert_eq!(
+            highlighted_words(text, 0, 33),
+            vec!["while", "do", "break", "continue"]
+        );
+    }
+
+    #[test]
+    fn nested_control_transfers_stay_with_the_innermost_owner() {
+        let text = "while a do (while b do break; continue)\n";
+        assert_eq!(highlighted_words(text, 0, 24), vec!["while", "do", "break"]);
+    }
+
+    #[test]
+    fn semicolon_highlights_the_expression_it_terminates() {
+        let text = "x := (a + b; c);\n";
+        assert_eq!(highlighted_words(text, 0, 15), vec!["x := (a + b; c)"]);
     }
 }
