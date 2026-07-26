@@ -1,7 +1,8 @@
 //! Tree-sitter-guided formatting and folding ranges for Macaulay2 source.
 
 use tower_lsp::lsp_types::{
-    DocumentFormattingOptions, FoldingRange, FoldingRangeProviderCapability, OneOf, TextEdit,
+    DocumentFormattingOptions, FoldingRange, FoldingRangeKind, FoldingRangeProviderCapability,
+    OneOf, TextEdit,
 };
 use tree_sitter::Parser;
 
@@ -69,7 +70,7 @@ pub(crate) fn folding_ranges(text: &str) -> Vec<FoldingRange> {
             start_character: None,
             end_line: range.end_line,
             end_character: None,
-            kind: None,
+            kind: (range.kind == FormatFoldKind::Comment).then_some(FoldingRangeKind::Comment),
             collapsed_text: None,
         })
         .collect()
@@ -156,15 +157,20 @@ pub fn folding_ranges_for_text(text: &str) -> Vec<FormatFoldRange> {
         })
         .collect::<Vec<_>>();
 
-    collect_indent_fold_ranges(&indented_lines)
+    let mut ranges = collect_indent_fold_ranges(&indented_lines);
+    ranges.extend(layout.comment_folds);
+    ranges.sort_by_key(|range| (range.start_line, range.end_line, range.kind));
+    ranges
 }
 
 /// Per-line indentation depths derived from a tree-sitter parse of normalized
 /// text, plus the rows that lie inside a multiline string and must be left
-/// verbatim. `depth(row) = bracket_depth(row) + continuation(row)`.
+/// verbatim and the comment ranges that can be folded.
+/// `depth(row) = bracket_depth(row) + continuation(row)`.
 struct TreeIndentLayout {
     depths: Vec<usize>,
     literal_rows: Vec<bool>,
+    comment_folds: Vec<FormatFoldRange>,
 }
 
 impl TreeIndentLayout {
@@ -178,12 +184,14 @@ impl TreeIndentLayout {
             return Self {
                 depths: vec![0; line_count],
                 literal_rows: vec![false; line_count],
+                comment_folds: Vec::new(),
             };
         }
         let Some(tree) = parser.parse(text, None) else {
             return Self {
                 depths: vec![0; line_count],
                 literal_rows: vec![false; line_count],
+                comment_folds: Vec::new(),
             };
         };
 
@@ -191,6 +199,7 @@ impl TreeIndentLayout {
         let brackets = collect_bracket_groups(root, line_count);
         let literal_rows = collect_literal_rows(root, line_count);
         let line_leads = line_leading_blank(text, line_count);
+        let comment_folds = collect_comment_fold_ranges(root, &line_leads);
 
         let depths = (0..line_count)
             .map(|row| {
@@ -202,6 +211,7 @@ impl TreeIndentLayout {
         Self {
             depths,
             literal_rows,
+            comment_folds,
         }
     }
 
@@ -212,6 +222,67 @@ impl TreeIndentLayout {
     fn is_literal_line(&self, row: usize) -> bool {
         self.literal_rows.get(row).copied().unwrap_or(false)
     }
+}
+
+/// Build folds from parser-classified comments. Consecutive full-line `--`
+/// comments become one range, while each multiline block comment is its own
+/// range. Keeping this tree-derived avoids mistaking comment markers inside
+/// strings for comments.
+fn collect_comment_fold_ranges(root: M2Node<'_>, line_leads: &[usize]) -> Vec<FormatFoldRange> {
+    let mut line_comment_rows = Vec::new();
+    let mut ranges = Vec::new();
+
+    for node in root.descendants() {
+        let start = node.start_position();
+        let end = node.end_position();
+        match node.kind {
+            NodeKind::LineComment
+                if start.row == end.row
+                    && line_leads.get(start.row).copied() == Some(start.column) =>
+            {
+                line_comment_rows.push(start.row as u32);
+            }
+            NodeKind::BlockComment if start.row < end.row => ranges.push(FormatFoldRange {
+                start_line: start.row as u32,
+                end_line: end.row as u32,
+                kind: FormatFoldKind::Comment,
+            }),
+            _ => {}
+        }
+    }
+
+    line_comment_rows.sort_unstable();
+    line_comment_rows.dedup();
+    let mut block_start = None;
+    let mut previous = None;
+    for row in line_comment_rows {
+        if previous.is_none_or(|previous_row| row != previous_row + 1) {
+            append_line_comment_fold(&mut ranges, block_start, previous);
+            block_start = Some(row);
+        }
+        previous = Some(row);
+    }
+    append_line_comment_fold(&mut ranges, block_start, previous);
+
+    ranges
+}
+
+fn append_line_comment_fold(
+    ranges: &mut Vec<FormatFoldRange>,
+    start_line: Option<u32>,
+    end_line: Option<u32>,
+) {
+    let (Some(start_line), Some(end_line)) = (start_line, end_line) else {
+        return;
+    };
+    if start_line == end_line {
+        return;
+    }
+    ranges.push(FormatFoldRange {
+        start_line,
+        end_line,
+        kind: FormatFoldKind::Comment,
+    });
 }
 
 /// A multiline bracket node, keyed by the row it opens on. Brackets that open on
@@ -502,6 +573,13 @@ fn if_statement_is_standalone(node: M2Node<'_>, line_leads: &[usize]) -> bool {
 pub struct FormatFoldRange {
     pub start_line: u32,
     pub end_line: u32,
+    pub kind: FormatFoldKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FormatFoldKind {
+    Region,
+    Comment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -564,6 +642,7 @@ fn close_fold_range(
     ranges.push(FormatFoldRange {
         start_line: range.start_line,
         end_line: previous.line,
+        kind: FormatFoldKind::Region,
     });
 }
 
@@ -1017,6 +1096,74 @@ fn apply_format_edits(text: &str, mut edits: Vec<FormatEdit>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn folds_consecutive_full_line_comments_as_one_range() {
+        assert_eq!(
+            folding_ranges_for_text(
+                "-- first line\n  -- second line\n-- third line\nx = 1\n-- lone line\n"
+            ),
+            vec![FormatFoldRange {
+                start_line: 0,
+                end_line: 2,
+                kind: FormatFoldKind::Comment,
+            }]
+        );
+    }
+
+    #[test]
+    fn keeps_separate_line_comment_blocks_separate() {
+        assert_eq!(
+            folding_ranges_for_text("-- one\n-- two\n\n-- three\n-- four\n"),
+            vec![
+                FormatFoldRange {
+                    start_line: 0,
+                    end_line: 1,
+                    kind: FormatFoldKind::Comment,
+                },
+                FormatFoldRange {
+                    start_line: 3,
+                    end_line: 4,
+                    kind: FormatFoldKind::Comment,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn folds_each_multiline_block_comment() {
+        assert_eq!(
+            folding_ranges_for_text("-* first\nmiddle\nlast *-\nx = 1\n-* another\ncomment *-\n"),
+            vec![
+                FormatFoldRange {
+                    start_line: 0,
+                    end_line: 2,
+                    kind: FormatFoldKind::Comment,
+                },
+                FormatFoldRange {
+                    start_line: 4,
+                    end_line: 5,
+                    kind: FormatFoldKind::Comment,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn marks_comment_folds_for_lsp_clients() {
+        let ranges = folding_ranges("-- first\n-- second\n");
+
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0].kind, Some(FoldingRangeKind::Comment));
+    }
+
+    #[test]
+    fn does_not_treat_inline_or_string_markers_as_comment_blocks() {
+        assert!(
+            folding_ranges_for_text("x = \"-- not a comment\"\ny = 1 -- inline\n-- lone\n")
+                .is_empty()
+        );
+    }
 
     #[test]
     fn trims_trailing_whitespace_without_reflowing_code() {

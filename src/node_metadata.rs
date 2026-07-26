@@ -44,7 +44,8 @@ pub enum NodeKind {
     ThenClause,
     ElseClause,
     ExceptClause,
-    Comment,
+    LineComment,
+    BlockComment,
     Unknown,
 }
 
@@ -90,7 +91,8 @@ impl NodeKind {
             "then_clause" => Self::ThenClause,
             "else_clause" => Self::ElseClause,
             "except_clause" => Self::ExceptClause,
-            "line_comment" | "block_comment" => Self::Comment,
+            "line_comment" => Self::LineComment,
+            "block_comment" => Self::BlockComment,
             _ => Self::Unknown,
         }
     }
@@ -105,6 +107,8 @@ pub trait NodeKindMetadata {
     fn is_symbol_like(&self) -> bool;
     fn is_literal(&self) -> bool;
     fn is_collection_expression(&self) -> bool;
+    fn is_comment(&self) -> bool;
+    fn is_control_transfer(&self) -> bool;
 }
 
 impl NodeKindMetadata for NodeKind {
@@ -129,6 +133,17 @@ impl NodeKindMetadata for NodeKind {
         matches!(
             *self,
             Self::Sequence | Self::List | Self::Array | Self::AngleBarList
+        )
+    }
+
+    fn is_comment(&self) -> bool {
+        matches!(*self, Self::LineComment | Self::BlockComment)
+    }
+
+    fn is_control_transfer(&self) -> bool {
+        matches!(
+            *self,
+            Self::ReturnStatement | Self::BreakStatement | Self::ContinueStatement
         )
     }
 }

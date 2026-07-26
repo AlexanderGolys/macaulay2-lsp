@@ -9,7 +9,7 @@ use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display};
 
-use crate::builtin_index::{IndexedEntry, OperatorForm};
+use crate::builtin_index::{register_entry_keys, IndexedEntry, OperatorForm};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Stable identifier for an indexed M2 object or type.
@@ -30,6 +30,12 @@ impl Display for InstanceID {
 
 impl Borrow<str> for InstanceID {
     fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for InstanceID {
+    fn as_ref(&self) -> &str {
         &self.0
     }
 }
@@ -160,12 +166,13 @@ impl TypeLattice {
         TypeLattice { ancestors }
     }
 
-    pub fn is_subtype(&self, child: &InstanceID, parent: &InstanceID) -> bool {
+    pub fn is_subtype(&self, child: &str, parent: &str) -> bool {
         child == parent
-            || self
-                .ancestors
-                .get(child)
-                .is_some_and(|chain| chain.binary_search(parent).is_ok())
+            || self.ancestors.get(child).is_some_and(|chain| {
+                chain
+                    .binary_search_by(|candidate| candidate.as_ref().cmp(parent))
+                    .is_ok()
+            })
     }
 }
 
@@ -602,7 +609,7 @@ impl BuiltinData {
                 .all(|(argument_type, domain_type)| match argument_type {
                     Some(argument_type) => {
                         argument_type == &domain_type.0
-                            || self.is_subtype(&InstanceID::new(argument_type), domain_type)
+                            || self.is_subtype(argument_type, domain_type)
                     }
                     None => false,
                 })
@@ -805,8 +812,7 @@ fn domain_possibly_matches(
         .zip(argument_types)
         .all(|(domain_type, argument_type)| {
             argument_type.as_ref().is_none_or(|argument_type| {
-                argument_type == &domain_type.0
-                    || builtins.is_subtype(&InstanceID::new(argument_type), domain_type)
+                argument_type == &domain_type.0 || builtins.is_subtype(argument_type, domain_type)
             })
         })
 }
@@ -913,129 +919,144 @@ pub struct M2SemanticToken {
     pub is_constructor: bool,
 }
 
-/// Register a pooled record under its primary name and each alias. The primary
-/// name always wins; an alias never clobbers an already-registered key. Mirrors
-/// `builtin_index::register_keys` so lookups stay consistent with the index.
-fn register_record_keys(
-    keys: &mut HashMap<InstanceID, usize>,
-    name: &str,
-    aliases: &[String],
-    id: usize,
-) {
-    keys.insert(InstanceID::new(name), id);
-    for alias in aliases {
-        keys.entry(InstanceID::new(alias)).or_insert(id);
+/// Conversion contract from one typed index entry into the common feature
+/// record. Shared identity/class/package handling lives here; each entry kind
+/// contributes only the facts it actually owns.
+trait RecordEntry: IndexedEntry {
+    fn default_class(&self) -> &'static str;
+
+    fn add_facts(&self, _record: &mut Record) {}
+
+    fn to_record(&self) -> Record {
+        let mut record = Record::unknown(InstanceID::new(self.name()));
+        record.class = InstanceID::new(self.class().unwrap_or(self.default_class()));
+        record.package = self.package().map(ToString::to_string);
+        self.add_facts(&mut record);
+        record
     }
 }
 
-fn base_record(entry: &impl IndexedEntry, default_class: &str) -> Record {
-    let mut record = Record::unknown(InstanceID::new(entry.name()));
-    record.class = InstanceID::new(entry.class().unwrap_or(default_class));
-    record.package = entry.package().map(ToString::to_string);
-    record
-}
+impl RecordEntry for crate::builtin_index::TypeEntry {
+    fn default_class(&self) -> &'static str {
+        "Type"
+    }
 
-/// Synthesize a `Record` from a typecheck-index type entry: the is-a/instance
-/// lattice lives in `type_info`; there is no doc text (hover reads the docs map).
-fn record_from_type(entry: &crate::builtin_index::TypeEntry) -> Record {
-    let mut record = base_record(entry, "Type");
-    record.type_info = Some(TypeInfo {
-        subtypes: entry.subtypes.iter().map(|s| InstanceID::new(s)).collect(),
-        parent_type: entry.parent.as_deref().map(InstanceID::new),
-    });
-    record
-}
-
-/// Synthesize a `Record` from a typecheck-index callable entry. Each installed
-/// signature becomes a `MethodSignature` of `[name, ...domain]`; the operator
-/// forms drive operator hover labels. Codomains live in `TypeFacts`, not here.
-fn record_from_callable(entry: &crate::builtin_index::CallableEntry) -> Record {
-    let default_class = if entry.is_operator {
-        "Keyword"
-    } else {
-        "Function"
-    };
-    let mut record = base_record(entry, default_class);
-
-    let methods = entry
-        .signatures
-        .iter()
-        .map(|signature| {
-            let mut method = Vec::with_capacity(signature.domain.len() + 1);
-            method.push(InstanceID::new(&entry.name));
-            method.extend(signature.domain.iter().map(|part| InstanceID::new(part)));
-            MethodSignature { signature: method }
-        })
-        .collect();
-
-    let general_signature =
-        entry
-            .typical_value
-            .as_ref()
-            .map(|typical_value| DocumentedMethodSignature {
-                signature: vec![InstanceID::new(&entry.name)],
-                output_types: vec![InstanceID::new(typical_value)],
-                examples: Vec::new(),
-                doc_key: None,
-            });
-
-    record.function_info = Some(FunctionInfo {
-        methods,
-        documented_methods: Vec::new(),
-        general_signature,
-    });
-
-    if !entry.options.is_empty() {
-        record.option_info = Some(OptionInfo {
-            options: entry
-                .options
+    fn add_facts(&self, record: &mut Record) {
+        record.type_info = Some(TypeInfo {
+            subtypes: self
+                .subtypes
                 .iter()
-                .map(|option| MethodOption {
-                    name: InstanceID::new(&option.key),
-                })
+                .map(|subtype| InstanceID::new(subtype))
                 .collect(),
+            parent_type: self.parent.as_deref().map(InstanceID::new),
         });
     }
-
-    if entry.is_operator {
-        record.operator_info = Some(OperatorInfo {
-            method_symbol: InstanceID::new(&entry.name),
-            forms: entry.forms.clone(),
-            attributes: entry.operator_attributes.clone(),
-        });
-    }
-
-    if let Some(typical_value) = &entry.typical_value {
-        record.typical_value = Some(typical_value.clone());
-    }
-    record
 }
 
-/// Synthesize a `Record` from an object entry (option key, constant, …). Only
-/// its identity and `class` are known — no type/function/operator facts.
-fn record_from_object(entry: &crate::builtin_index::ObjectEntry) -> Record {
-    let mut record = base_record(entry, "Thing");
-    record.protected = entry.protected;
-    record
-}
-
-fn append_records<T: IndexedEntry>(
-    entries: &[T],
-    names: &mut Vec<InstanceID>,
-    name_to_index: &mut HashMap<InstanceID, usize>,
-    records: &mut Vec<Record>,
-    docs: &mut HashMap<InstanceID, String>,
-    make_record: impl Fn(&T) -> Record,
-) {
-    for entry in entries {
-        let id = records.len();
-        register_record_keys(name_to_index, entry.name(), entry.aliases(), id);
-        let name = InstanceID::new(entry.name());
-        names.push(name.clone());
-        if let Some(markdown) = entry.markdown() {
-            docs.entry(name).or_insert_with(|| markdown.to_string());
+impl RecordEntry for crate::builtin_index::CallableEntry {
+    fn default_class(&self) -> &'static str {
+        if self.is_operator {
+            "Keyword"
+        } else {
+            "Function"
         }
-        records.push(make_record(entry));
+    }
+
+    fn add_facts(&self, record: &mut Record) {
+        let methods = self
+            .signatures
+            .iter()
+            .map(|signature| {
+                let mut method = Vec::with_capacity(signature.domain.len() + 1);
+                method.push(InstanceID::new(self.name()));
+                method.extend(signature.domain.iter().map(|part| InstanceID::new(part)));
+                MethodSignature { signature: method }
+            })
+            .collect();
+
+        let general_signature =
+            self.typical_value
+                .as_ref()
+                .map(|typical_value| DocumentedMethodSignature {
+                    signature: vec![InstanceID::new(self.name())],
+                    output_types: vec![InstanceID::new(typical_value)],
+                    examples: Vec::new(),
+                    doc_key: None,
+                });
+
+        record.function_info = Some(FunctionInfo {
+            methods,
+            documented_methods: Vec::new(),
+            general_signature,
+        });
+
+        if !self.options.is_empty() {
+            record.option_info = Some(OptionInfo {
+                options: self
+                    .options
+                    .iter()
+                    .map(|option| MethodOption {
+                        name: InstanceID::new(&option.key),
+                    })
+                    .collect(),
+            });
+        }
+
+        if self.is_operator {
+            record.operator_info = Some(OperatorInfo {
+                method_symbol: InstanceID::new(self.name()),
+                forms: self.forms.clone(),
+                attributes: self.operator_attributes.clone(),
+            });
+        }
+
+        record.typical_value.clone_from(&self.typical_value);
+    }
+}
+
+impl RecordEntry for crate::builtin_index::ObjectEntry {
+    fn default_class(&self) -> &'static str {
+        "Thing"
+    }
+
+    fn add_facts(&self, record: &mut Record) {
+        record.protected = self.protected;
+    }
+}
+
+#[derive(Default)]
+struct BuiltinDataBuilder {
+    names: Vec<InstanceID>,
+    name_to_index: HashMap<InstanceID, usize>,
+    records: Vec<Record>,
+    docs: HashMap<InstanceID, String>,
+}
+
+impl BuiltinDataBuilder {
+    fn append<T: RecordEntry>(&mut self, entries: &[T]) {
+        for entry in entries {
+            let id = self.records.len();
+            register_entry_keys(&mut self.name_to_index, entry, id, InstanceID::new);
+            let name = InstanceID::new(entry.name());
+            self.names.push(name.clone());
+            if let Some(markdown) = entry.markdown() {
+                self.docs
+                    .entry(name)
+                    .or_insert_with(|| markdown.to_string());
+            }
+            self.records.push(entry.to_record());
+        }
+    }
+
+    fn finish(self, type_facts: TypeFacts, type_lattice: TypeLattice) -> BuiltinData {
+        BuiltinData {
+            names: self.names,
+            name_to_index: self.name_to_index,
+            records: self.records,
+            docs: self.docs,
+            type_facts,
+            type_lattice,
+        }
     }
 }
 
@@ -1047,44 +1068,11 @@ impl BuiltinData {
         let type_lattice = TypeLattice::from_type_index(index);
         let type_facts = TypeFacts::from_type_index(index);
 
-        let mut names = Vec::new();
-        let mut name_to_index = HashMap::new();
-        let mut records = Vec::new();
-        let mut docs = HashMap::new();
-
-        append_records(
-            index.types(),
-            &mut names,
-            &mut name_to_index,
-            &mut records,
-            &mut docs,
-            record_from_type,
-        );
-        append_records(
-            index.callables(),
-            &mut names,
-            &mut name_to_index,
-            &mut records,
-            &mut docs,
-            record_from_callable,
-        );
-        append_records(
-            index.objects(),
-            &mut names,
-            &mut name_to_index,
-            &mut records,
-            &mut docs,
-            record_from_object,
-        );
-
-        BuiltinData {
-            names,
-            name_to_index,
-            records,
-            docs,
-            type_facts,
-            type_lattice,
-        }
+        let mut records = BuiltinDataBuilder::default();
+        records.append(index.types());
+        records.append(index.callables());
+        records.append(index.objects());
+        records.finish(type_facts, type_lattice)
     }
 
     /// Build a `BuiltinData` over the whole combined corpus (`m2-index.jsonl`).
@@ -1108,24 +1096,12 @@ impl BuiltinData {
         let record = self.get_record(&InstanceID::new(name))?;
         let data_type = &record.class;
 
-        let function_type = InstanceID::new("Function");
-        let command_type = InstanceID::new("Command");
-        let file_type = InstanceID::new("File");
-        let manipulator_type = InstanceID::new("Manipulator");
-        let package_type = InstanceID::new("Package");
-        let keyword_type = InstanceID::new("Keyword");
-        let operator_type = InstanceID::new("Operator");
-        let scripted_functor_type = InstanceID::new("ScriptedFunctor");
-        let symbol_type = InstanceID::new("Symbol");
-        let compiled_function_type = InstanceID::new("CompiledFunction");
-        let compiled_function_closure_type = InstanceID::new("CompiledFunctionClosure");
-
-        let is_command = self.is_subtype(data_type, &command_type);
-        let is_file = self.is_subtype(data_type, &file_type);
-        let is_manipulator = self.is_subtype(data_type, &manipulator_type);
-        let is_scripted_functor = self.is_subtype(data_type, &scripted_functor_type);
-        let is_compiled_function = self.is_subtype(data_type, &compiled_function_type)
-            || self.is_subtype(data_type, &compiled_function_closure_type);
+        let is_command = self.is_subtype(data_type, "Command");
+        let is_file = self.is_subtype(data_type, "File");
+        let is_manipulator = self.is_subtype(data_type, "Manipulator");
+        let is_scripted_functor = self.is_subtype(data_type, "ScriptedFunctor");
+        let is_compiled_function = self.is_subtype(data_type, "CompiledFunction")
+            || self.is_subtype(data_type, "CompiledFunctionClosure");
         let is_constructor =
             self.is_constructor_name(&record.name.0) && !is_manipulator && !is_command;
 
@@ -1135,7 +1111,7 @@ impl BuiltinData {
         if let Some(type_info) = &record.type_info {
             if type_info.parent_type.is_some() {
                 return Some(M2SemanticToken {
-                    token_type: if *data_type == InstanceID::new("Type") {
+                    token_type: if data_type.as_ref() == "Type" {
                         M2SemanticTokenType::Class
                     } else {
                         M2SemanticTokenType::Type
@@ -1149,7 +1125,7 @@ impl BuiltinData {
         }
 
         // 2. Hierarchy traversal for other categories
-        if self.is_subtype(data_type, &function_type)
+        if self.is_subtype(data_type, "Function")
             || is_scripted_functor
             || is_manipulator
             || is_command
@@ -1177,7 +1153,7 @@ impl BuiltinData {
                 is_manipulator,
                 is_constructor,
             })
-        } else if self.is_subtype(data_type, &package_type) {
+        } else if self.is_subtype(data_type, "Package") {
             Some(M2SemanticToken {
                 token_type: M2SemanticTokenType::Namespace,
                 is_command: false,
@@ -1185,16 +1161,16 @@ impl BuiltinData {
                 is_manipulator: false,
                 is_constructor: false,
             })
-        } else if (self.is_subtype(data_type, &symbol_type) || is_file)
-            && !self.is_subtype(data_type, &keyword_type)
-            && !self.is_subtype(data_type, &operator_type)
+        } else if (self.is_subtype(data_type, "Symbol") || is_file)
+            && !self.is_subtype(data_type, "Keyword")
+            && !self.is_subtype(data_type, "Operator")
         {
             // A nominal enum member is an object whose class is *exactly*
             // `Symbol` (not merely an instance of it) and that is `protect`ed; an
             // unprotected symbol is just a name (a variable). When the corpus
             // omits `protected` (None), default to enum-member, since every
             // builtin class-`Symbol` object is in fact protected.
-            let is_symbol_class = *data_type == symbol_type;
+            let is_symbol_class = data_type.as_ref() == "Symbol";
             let token_type = if is_symbol_class && record.protected.unwrap_or(true) {
                 M2SemanticTokenType::EnumMember
             } else {
@@ -1216,37 +1192,29 @@ impl BuiltinData {
     /// Classify a known static type when recoloring a local symbol by inference.
     pub fn get_semantic_token_for_static_type(&self, type_name: &str) -> Option<M2SemanticToken> {
         let type_id = InstanceID::new(type_name);
-        let function_type = InstanceID::new("Function");
-        let command_type = InstanceID::new("Command");
-        let file_type = InstanceID::new("File");
-        let manipulator_type = InstanceID::new("Manipulator");
-        let package_type = InstanceID::new("Package");
-        let scripted_functor_type = InstanceID::new("ScriptedFunctor");
-        let symbol_type = InstanceID::new("Symbol");
-        let type_type = InstanceID::new("Type");
 
-        let is_command = self.is_subtype(&type_id, &command_type);
-        let is_file = self.is_subtype(&type_id, &file_type);
-        let is_manipulator = self.is_subtype(&type_id, &manipulator_type);
+        let is_command = self.is_subtype(type_name, "Command");
+        let is_file = self.is_subtype(type_name, "File");
+        let is_manipulator = self.is_subtype(type_name, "Manipulator");
         // A CompiledFunction(Closure) is a `Function` subtype, so it is already
         // classified by the `function_type` branch below — no separate test.
-        let is_type_valued = self.is_subtype(&type_id, &type_type);
+        let is_type_valued = self.is_subtype(type_name, "Type");
 
         let token_type = if type_name.starts_with("MethodFunction") {
             M2SemanticTokenType::Method
-        } else if self.is_subtype(&type_id, &package_type) {
+        } else if self.is_subtype(type_name, "Package") {
             M2SemanticTokenType::Namespace
         } else if is_type_valued {
             if self
                 .get_record(&type_id)
-                .is_some_and(|record| record.class == type_type)
+                .is_some_and(|record| record.class.as_ref() == "Type")
             {
                 M2SemanticTokenType::Class
             } else {
                 M2SemanticTokenType::Type
             }
-        } else if self.is_subtype(&type_id, &function_type)
-            || self.is_subtype(&type_id, &scripted_functor_type)
+        } else if self.is_subtype(type_name, "Function")
+            || self.is_subtype(type_name, "ScriptedFunctor")
             || is_manipulator
             || is_command
         {
@@ -1259,7 +1227,7 @@ impl BuiltinData {
             }
         } else if is_file {
             M2SemanticTokenType::Variable
-        } else if self.is_subtype(&type_id, &symbol_type) {
+        } else if self.is_subtype(type_name, "Symbol") {
             M2SemanticTokenType::EnumMember
         } else {
             return None;
@@ -1297,8 +1265,9 @@ impl BuiltinData {
     }
 
     /// Check if child is a subtype of parent (inclusive), using the precomputed lattice.
-    pub fn is_subtype(&self, child: &InstanceID, parent: &InstanceID) -> bool {
-        self.type_lattice.is_subtype(child, parent)
+    pub fn is_subtype(&self, child: impl AsRef<str>, parent: impl AsRef<str>) -> bool {
+        self.type_lattice
+            .is_subtype(child.as_ref(), parent.as_ref())
     }
 }
 
@@ -1365,14 +1334,11 @@ mod tests {
 
         // Direct parent edges (verified against M2): SelfInitializingType <: Type,
         // Array <: VisibleList.
-        assert!(builtins.is_subtype(
-            &InstanceID::new("SelfInitializingType"),
-            &InstanceID::new("Type")
-        ));
-        assert!(builtins.is_subtype(&InstanceID::new("Array"), &InstanceID::new("VisibleList")));
+        assert!(builtins.is_subtype("SelfInitializingType", "Type"));
+        assert!(builtins.is_subtype(InstanceID::new("Array"), InstanceID::new("VisibleList")));
         // Transitive edges still hold, and unrelated types stay unrelated.
-        assert!(builtins.is_subtype(&InstanceID::new("Array"), &InstanceID::new("Thing")));
-        assert!(!builtins.is_subtype(&InstanceID::new("Array"), &InstanceID::new("Type")));
+        assert!(builtins.is_subtype("Array", "Thing"));
+        assert!(!builtins.is_subtype("Array", "Type"));
     }
 
     fn generated_builtins() -> BuiltinData {
@@ -1510,7 +1476,7 @@ mod tests {
         assert!(builtins.doc_markdown(&InstanceID::new("ideal")).is_some());
 
         // a known subtype edge survives the deref (ZZ is-a Ring's ancestor chain)
-        assert!(builtins.is_subtype(&InstanceID::new("ZZ"), &InstanceID::new("Thing")));
+        assert!(builtins.is_subtype(InstanceID::new("ZZ"), InstanceID::new("Thing")));
 
         // a known method codomain resolves (ideal of a … → Ideal is documented)
         assert!(builtins.get_record(&InstanceID::new("ideal")).is_some());

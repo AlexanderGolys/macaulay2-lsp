@@ -339,7 +339,7 @@ fn syntax_semantic_token_type(node: M2Node<'_>) -> Option<M2SemanticTokenType> {
         }
         NodeKind::StringLiteral if is_hash_key_string(node) => Some(M2SemanticTokenType::Property),
         NodeKind::StringLiteral => Some(M2SemanticTokenType::String),
-        NodeKind::Comment => Some(M2SemanticTokenType::Comment),
+        kind if kind.is_comment() => Some(M2SemanticTokenType::Comment),
         _ if node.is_modifier_token() => Some(M2SemanticTokenType::Modifier),
         _ if node.is_keyword_token() => Some(M2SemanticTokenType::Keyword),
         _ => None,

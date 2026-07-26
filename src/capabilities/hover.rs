@@ -5,7 +5,7 @@ use tower_lsp::lsp_types::*;
 use crate::analysis::{FunctionInfo, MethodInfo};
 use crate::document::DocumentSnapshot;
 use crate::meta::{BindingRole, Metadata};
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::{M2Node, NodeKindMetadata};
 use crate::partitioned_index::ScopedIndex;
 use crate::record_lsp::record_hover_with_package_and_usage;
 use crate::typesystem::InstanceID;
@@ -146,7 +146,7 @@ fn call_signature_usage_for_hover(
 /// Whether a hover over this node is meaningful: a symbol-like leaf or an
 /// operator token of an expression.
 fn hoverable_symbol_or_operator_node(node: M2Node) -> bool {
-    if matches!(node.kind, NodeKind::Symbol | NodeKind::QuotedKeyword) {
+    if node.kind.is_symbol_like() {
         return true;
     }
 

@@ -2,7 +2,7 @@
 
 use crate::capabilities::navigation::reference_ranges_resolved;
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use tower_lsp::lsp_types::{
     DocumentHighlight, DocumentHighlightKind, DocumentHighlightOptions, OneOf, Position,
 };
@@ -106,13 +106,9 @@ fn control_transfer_highlights(
         owner
             .descendants()
             .filter(|candidate| {
-                matches!(
-                    candidate.kind,
-                    NodeKind::ReturnStatement
-                        | NodeKind::BreakStatement
-                        | NodeKind::ContinueStatement
-                ) && control_transfer_owner(*candidate)
-                    .is_some_and(|candidate_owner| candidate_owner.id() == owner.id())
+                candidate.kind.is_control_transfer()
+                    && control_transfer_owner(*candidate)
+                        .is_some_and(|candidate_owner| candidate_owner.id() == owner.id())
             })
             .filter_map(|statement| statement.child(0)),
     );
@@ -132,10 +128,7 @@ fn control_transfer_highlights(
 
 fn enclosing_control_transfer(mut node: M2Node<'_>) -> Option<M2Node<'_>> {
     loop {
-        if matches!(
-            node.kind,
-            NodeKind::ReturnStatement | NodeKind::BreakStatement | NodeKind::ContinueStatement
-        ) {
+        if node.kind.is_control_transfer() {
             return Some(node);
         }
         node = node.parent()?;

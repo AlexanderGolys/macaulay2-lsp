@@ -2011,7 +2011,7 @@ impl Analysis {
             NodeKind::WhileStatement => InferredType::of("Nothing"),
             // A control transfer evaluates (for the loop/function it escapes) to
             // its operand, or `null` (`Nothing`) when bare.
-            NodeKind::ReturnStatement | NodeKind::BreakStatement | NodeKind::ContinueStatement => {
+            kind if kind.is_control_transfer() => {
                 self.control_transfer_type(node, text, scope_idx, builtins)
             }
             // A debug clause (`time E`, `break v`, …) passes through to the value
@@ -2194,7 +2194,7 @@ impl Analysis {
         let head = self.type_of(left?, text, scope_idx, Some(builtins));
         let head = head.principal()?;
         builtins
-            .is_subtype(head, &InstanceID::new("Function"))
+            .is_subtype(head, "Function")
             .then(|| InferredType::of("FunctionClosure"))
     }
 
@@ -2243,7 +2243,7 @@ impl Analysis {
         let head = self.type_of(callable_node, text, scope_idx, Some(builtins));
         let head_is_function = head
             .principal()
-            .is_some_and(|head| builtins.is_subtype(head, &InstanceID::new("Function")));
+            .is_some_and(|head| builtins.is_subtype(head, "Function"));
         if head_is_function {
             if let Some(callable) = callable_name {
                 if let Some(return_type) = builtins.resolve_call_return_type_with_options(
@@ -2419,8 +2419,7 @@ impl Analysis {
         builtins: Option<&BuiltinData>,
     ) -> bool {
         if actual.0 == expected
-            || builtins
-                .is_some_and(|builtins| builtins.is_subtype(actual, &InstanceID::new(expected)))
+            || builtins.is_some_and(|builtins| builtins.is_subtype(actual, expected))
         {
             return true;
         }
@@ -2435,9 +2434,7 @@ impl Analysis {
                 return false;
             };
             if parent.name() == expected
-                || builtins.is_some_and(|builtins| {
-                    builtins.is_subtype(&InstanceID::new(parent.name()), &InstanceID::new(expected))
-                })
+                || builtins.is_some_and(|builtins| builtins.is_subtype(parent.name(), expected))
             {
                 return true;
             }
@@ -2472,15 +2469,11 @@ struct SymbolRegistration<'a> {
 
 fn expression_kind(node: M2Node<'_>) -> Option<ExpressionKind> {
     match node.kind {
-        NodeKind::StringLiteral | NodeKind::IntegerLiteral | NodeKind::FloatLiteral => {
-            Some(ExpressionKind::Literal)
-        }
+        kind if kind.is_literal() => Some(ExpressionKind::Literal),
         NodeKind::Symbol => Some(ExpressionKind::Name),
-        NodeKind::List
-        | NodeKind::Array
-        | NodeKind::AngleBarList
-        | NodeKind::Sequence
-        | NodeKind::Cell => Some(ExpressionKind::ScopeExpr),
+        kind if kind.is_collection_expression() || kind == NodeKind::Cell => {
+            Some(ExpressionKind::ScopeExpr)
+        }
         // A parenthesized expression is its inner value, so it takes the inner
         // value's kind (`(a+b)` is an `Expr`, `(x)` a `Name`); a null `(a;)` skips.
         NodeKind::ParenthesizedExpression => parenthesized_value(node).and_then(expression_kind),
@@ -2489,10 +2482,8 @@ fn expression_kind(node: M2Node<'_>) -> Option<ExpressionKind> {
         | NodeKind::ForStatement
         | NodeKind::NewStatement
         | NodeKind::TryStatement
-        | NodeKind::ReturnStatement
-        | NodeKind::BreakStatement
-        | NodeKind::ContinueStatement
         | NodeKind::DebugClause => Some(ExpressionKind::ControlExpr),
+        kind if kind.is_control_transfer() => Some(ExpressionKind::ControlExpr),
         NodeKind::LambdaExpression
         | NodeKind::BinaryExpression
         | NodeKind::PrefixExpression
@@ -2666,10 +2657,7 @@ fn operator_text(node: M2Node<'_>) -> Option<&str> {
 /// TYPE, i.e. is `Type` itself or one of its descendants (`SelfInitializingType`,
 /// …). Without the registry only the exact `Type` is recognized.
 fn type_name_denotes_type(type_name: &str, builtins: Option<&BuiltinData>) -> bool {
-    type_name == "Type"
-        || builtins.is_some_and(|builtins| {
-            builtins.is_subtype(&InstanceID::new(type_name), &InstanceID::new("Type"))
-        })
+    type_name == "Type" || builtins.is_some_and(|builtins| builtins.is_subtype(type_name, "Type"))
 }
 
 pub(crate) fn method_installation_signature(node: M2Node) -> Option<(String, Vec<String>)> {
@@ -2824,7 +2812,7 @@ pub(crate) fn method_installation_domain(node: M2Node) -> Option<Vec<String>> {
         // named children and are not dispatch positions.
         let domain = node
             .named_children()
-            .filter(|child| child.kind != NodeKind::Comment)
+            .filter(|child| !child.kind.is_comment())
             .map(|child| {
                 symbol_node_text(child)
                     .unwrap_or_else(|| child.text())

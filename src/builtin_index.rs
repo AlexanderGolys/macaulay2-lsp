@@ -9,6 +9,7 @@
 
 use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::ops::Deref;
 
 use serde::Deserialize;
@@ -145,6 +146,25 @@ impl Borrow<str> for EntryKey {
     }
 }
 
+/// Register one pooled entry under its primary name and every alias. The
+/// primary name always wins; aliases preserve whichever entry claimed a key
+/// first. Both the parsed index and its feature-record projection use this
+/// contract, with their own strongly typed key wrappers.
+pub(crate) fn register_entry_keys<K, V>(
+    keys: &mut HashMap<K, V>,
+    entry: &impl IndexedEntry,
+    id: V,
+    make_key: impl Fn(&str) -> K,
+) where
+    K: Eq + Hash,
+    V: Copy,
+{
+    keys.insert(make_key(entry.name()), id);
+    for alias in entry.aliases() {
+        keys.entry(make_key(alias)).or_insert(id);
+    }
+}
+
 #[derive(Debug)]
 struct EntryTable<T> {
     entries: Vec<T>,
@@ -163,10 +183,7 @@ impl<T> Default for EntryTable<T> {
 impl<T: IndexedEntry> EntryTable<T> {
     fn insert(&mut self, entry: T) {
         let id = self.entries.len();
-        self.keys.insert(EntryKey(entry.name().to_string()), id);
-        for alias in entry.aliases() {
-            self.keys.entry(EntryKey(alias.clone())).or_insert(id);
-        }
+        register_entry_keys(&mut self.keys, &entry, id, |key| EntryKey(key.to_string()));
         self.entries.push(entry);
     }
 
