@@ -99,7 +99,7 @@ pub(crate) fn package_source_string(node: M2Node<'_>) -> Option<&str> {
         parent.kind,
         NodeKind::Sequence | NodeKind::ParenthesizedExpression
     ) {
-        if parent.kind == NodeKind::Sequence && !is_first_named_child(parent, node) {
+        if parent.kind == NodeKind::Sequence && !parent.is_first_collection_element(node) {
             return None;
         }
 
@@ -150,12 +150,6 @@ pub(crate) fn collect_imported_packages_in_tree(
     }
 
     packages
-}
-
-fn is_first_named_child(parent: M2Node<'_>, child: M2Node<'_>) -> bool {
-    parent
-        .named_child(0)
-        .is_some_and(|first| first.id() == child.id())
 }
 
 /// The left symbol of an application `callee ARG` (`needsPackage "Pkg"`): the
@@ -209,5 +203,13 @@ mod import_trigger_tests {
             pkgs,
             vec!["A".to_string(), "B".to_string(), "C".to_string()]
         );
+    }
+
+    #[test]
+    fn import_argument_selection_skips_muted_parts_but_not_null_slots() {
+        let pkgs = collect_imported_packages(
+            "loadPackage(ignored;\"AfterMuted\")\nloadPackage(,\"AfterNull\")\nloadPackage(\"Muted\";)\n",
+        );
+        assert_eq!(pkgs, vec!["AfterMuted".to_string()]);
     }
 }

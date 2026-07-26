@@ -14,9 +14,12 @@ pub enum NodeKind {
     StringLiteral,
     Array,
     Sequence,
+    NakedSequence,
     ParenthesizedExpression,
     List,
     AngleBarList,
+    Muted,
+    Null,
     BinaryExpression,
     PrefixExpression,
     PostfixExpression,
@@ -61,9 +64,12 @@ impl NodeKind {
             "string_literal" => Self::StringLiteral,
             "array" => Self::Array,
             "sequence" => Self::Sequence,
+            "naked_sequence" => Self::NakedSequence,
             "parenthesized_expression" => Self::ParenthesizedExpression,
             "list" => Self::List,
             "angle_bar_list" => Self::AngleBarList,
+            "muted" => Self::Muted,
+            "null" => Self::Null,
             "binary_expression" => Self::BinaryExpression,
             "prefix_expression" => Self::PrefixExpression,
             "postfix_expression" => Self::PostfixExpression,
@@ -107,6 +113,8 @@ pub trait NodeKindMetadata {
     fn is_symbol_like(&self) -> bool;
     fn is_literal(&self) -> bool;
     fn is_collection_expression(&self) -> bool;
+    fn is_sequence(&self) -> bool;
+    fn is_nothing_value(&self) -> bool;
     fn is_comment(&self) -> bool;
     fn is_control_transfer(&self) -> bool;
 }
@@ -134,6 +142,14 @@ impl NodeKindMetadata for NodeKind {
             *self,
             Self::Sequence | Self::List | Self::Array | Self::AngleBarList
         )
+    }
+
+    fn is_sequence(&self) -> bool {
+        matches!(*self, Self::Sequence | Self::NakedSequence)
+    }
+
+    fn is_nothing_value(&self) -> bool {
+        matches!(*self, Self::Muted | Self::Null)
     }
 
     fn is_comment(&self) -> bool {
@@ -215,16 +231,6 @@ impl<'tree> M2Node<'tree> {
 
     pub fn is_semicolon(&self) -> bool {
         self.raw_kind() == ";"
-    }
-
-    /// Whether this parsed expression is explicitly silenced with a trailing
-    /// semicolon. Grammar 3 models that separator as an anonymous child instead
-    /// of a named wrapper node.
-    pub fn has_trailing_semicolon(&self) -> bool {
-        self.children()
-            .filter(|child| !child.is_closing_delimiter())
-            .last()
-            .is_some_and(|child| child.is_semicolon())
     }
 
     /// The implicit-application operator: the `SPACE` token tree-sitter inserts
@@ -400,6 +406,51 @@ impl<'tree> M2Node<'tree> {
             .map(|node| M2Node::new(node, source))
             .collect::<Vec<_>>()
             .into_iter()
+    }
+
+    /// The semantic element slots of a comma-delimited collection.
+    ///
+    /// Grammar 4 exposes zero-width `null` nodes for empty comma slots, so they
+    /// remain in this iterator and count toward arity. Expressions terminated
+    /// by `;` are wrapped in `muted` and do not contribute a value; comments are
+    /// syntax extras rather than elements, so both are skipped here.
+    pub fn collection_elements(&self) -> impl Iterator<Item = M2Node<'tree>> + '_ {
+        self.named_children()
+            .filter(|child| child.kind != NodeKind::Muted && !child.kind.is_comment())
+    }
+
+    /// The final value directly produced by a grouping/cell node.
+    ///
+    /// A trailing `muted` child means the final expression was silenced and the
+    /// container produces no value node. Earlier muted expressions and comments
+    /// do not obscure a later ordinary value.
+    pub fn final_value_child(&self) -> Option<M2Node<'tree>> {
+        self.named_children()
+            .filter(|child| !child.kind.is_comment())
+            .last()
+            .filter(|child| child.kind != NodeKind::Muted)
+    }
+
+    pub fn is_first_collection_element(&self, child: M2Node<'_>) -> bool {
+        self.collection_elements()
+            .next()
+            .is_some_and(|first| first.id() == child.id())
+    }
+
+    /// Whether this comma borders a zero-width empty collection slot. Named
+    /// sibling APIs can step past zero-width nodes, so compare the parser-owned
+    /// slot boundaries with the comma boundaries instead.
+    pub fn comma_borders_empty_slot(&self) -> bool {
+        if !self.is_comma() {
+            return false;
+        }
+        self.parent().is_some_and(|parent| {
+            parent.named_children().any(|sibling| {
+                sibling.kind.is_nothing_value()
+                    && (sibling.start_byte() == self.end_byte()
+                        || sibling.end_byte() == self.start_byte())
+            })
+        })
     }
 
     /// Pre-order depth-first traversal of this subtree: the node itself, then
@@ -617,8 +668,8 @@ mod descendants_tests {
     }
 
     #[test]
-    fn grammar_v3_quote_debug_and_semicolon_shapes_are_modelled() {
-        let text = "local if\nstep 1\nfinish\n(x;)\n";
+    fn grammar_v4_exposes_muted_null_and_naked_sequence_shapes() {
+        let text = "local if\nstep 1\nfinish\n(x;)\n(,a,,)\na,b\n";
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
@@ -654,6 +705,34 @@ mod descendants_tests {
             .descendants()
             .find(|node| node.kind == NodeKind::ParenthesizedExpression)
             .expect("parenthesized expression is present");
-        assert!(parens.has_trailing_semicolon());
+        assert_eq!(
+            parens.named_children().next().map(|child| child.kind),
+            Some(NodeKind::Muted)
+        );
+        assert!(
+            parens.final_value_child().is_none(),
+            "a grouping ending in a muted expression has no value child"
+        );
+
+        let sequence = root
+            .descendants()
+            .find(|node| node.kind == NodeKind::Sequence)
+            .expect("parenthesized comma sequence is present");
+        let elements = sequence.collection_elements().collect::<Vec<_>>();
+        assert_eq!(elements.len(), 4, "every comma slot remains an element");
+        assert_eq!(
+            elements
+                .iter()
+                .filter(|element| element.kind == NodeKind::Null)
+                .count(),
+            3,
+            "empty comma slots are explicit null nodes"
+        );
+
+        let naked = root
+            .descendants()
+            .find(|node| node.kind == NodeKind::NakedSequence)
+            .expect("top-level comma expression is a naked sequence");
+        assert_eq!(naked.collection_elements().count(), 2);
     }
 }

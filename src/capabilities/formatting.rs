@@ -136,7 +136,11 @@ fn reindent_from_tree(text: &str, options: &FormatOptions, newline: &str) -> Str
                 return String::new();
             }
             let mut indented = options.indent.repeat(layout.depth(row));
-            indented.push_str(trimmed);
+            if layout.preserves_literal_trailing_space(row) {
+                indented.push_str(line.trim_start());
+            } else {
+                indented.push_str(trimmed);
+            }
             indented
         })
         .collect::<Vec<_>>()
@@ -170,6 +174,7 @@ pub fn folding_ranges_for_text(text: &str) -> Vec<FormatFoldRange> {
 struct TreeIndentLayout {
     depths: Vec<usize>,
     literal_rows: Vec<bool>,
+    literal_start_rows: Vec<bool>,
     comment_folds: Vec<FormatFoldRange>,
 }
 
@@ -184,6 +189,7 @@ impl TreeIndentLayout {
             return Self {
                 depths: vec![0; line_count],
                 literal_rows: vec![false; line_count],
+                literal_start_rows: vec![false; line_count],
                 comment_folds: Vec::new(),
             };
         }
@@ -191,13 +197,14 @@ impl TreeIndentLayout {
             return Self {
                 depths: vec![0; line_count],
                 literal_rows: vec![false; line_count],
+                literal_start_rows: vec![false; line_count],
                 comment_folds: Vec::new(),
             };
         };
 
         let root = M2Node::new(tree.root_node(), text);
         let brackets = collect_bracket_groups(root, line_count);
-        let literal_rows = collect_literal_rows(root, line_count);
+        let (literal_rows, literal_start_rows) = collect_literal_rows(root, line_count);
         let line_leads = line_leading_blank(text, line_count);
         let comment_folds = collect_comment_fold_ranges(root, &line_leads);
 
@@ -211,6 +218,7 @@ impl TreeIndentLayout {
         Self {
             depths,
             literal_rows,
+            literal_start_rows,
             comment_folds,
         }
     }
@@ -221,6 +229,10 @@ impl TreeIndentLayout {
 
     fn is_literal_line(&self, row: usize) -> bool {
         self.literal_rows.get(row).copied().unwrap_or(false)
+    }
+
+    fn preserves_literal_trailing_space(&self, row: usize) -> bool {
+        self.literal_start_rows.get(row).copied().unwrap_or(false)
     }
 }
 
@@ -367,13 +379,19 @@ fn closer_width(kind: NodeKind) -> usize {
 /// Rows whose start lies strictly inside a multiline string node (the second and
 /// later rows of a `"…"` or `///…///` literal). Their contents are preserved
 /// verbatim, never re-indented.
-fn collect_literal_rows(root: M2Node<'_>, line_count: usize) -> Vec<bool> {
+fn collect_literal_rows(root: M2Node<'_>, line_count: usize) -> (Vec<bool>, Vec<bool>) {
     let mut literal = vec![false; line_count];
+    let mut literal_starts = vec![false; line_count];
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
         if node.is(NodeKind::StringLiteral) {
             let start_row = node.start_position().row;
             let end_row = node.end_position().row;
+            if start_row < end_row {
+                if let Some(slot) = literal_starts.get_mut(start_row) {
+                    *slot = true;
+                }
+            }
             for row in (start_row + 1)..=end_row {
                 if let Some(slot) = literal.get_mut(row) {
                     *slot = true;
@@ -382,7 +400,7 @@ fn collect_literal_rows(root: M2Node<'_>, line_count: usize) -> Vec<bool> {
         }
         stack.extend(node.children());
     }
-    literal
+    (literal, literal_starts)
 }
 
 /// The leading-whitespace length (in bytes) of each line, used purely as layout
@@ -1010,9 +1028,13 @@ fn push_comma_whitespace_edits(text: &str, comma: M2Node<'_>, edits: &mut Vec<Fo
     let Some(end_byte) = same_line_horizontal_whitespace_end(text, comma.end_byte()) else {
         return;
     };
-    let replacement = match text.as_bytes().get(end_byte) {
-        Some(b')' | b']' | b'}' | b';') | None => "",
-        _ => " ",
+    let replacement = if comma.comma_borders_empty_slot() {
+        ""
+    } else {
+        match text.as_bytes().get(end_byte) {
+            Some(b')' | b']' | b'}' | b';') | None => "",
+            _ => " ",
+        }
     };
 
     edits.push(FormatEdit {
@@ -1244,6 +1266,11 @@ mod tests {
         assert_eq!(format_document_text("f(x ,  y)\n"), "f(x, y)\n");
         assert_eq!(format_document_text("f(x,)\n"), "f(x,)\n");
         assert_eq!(format_document_text("f(x,\ny)\n"), "f(x,\n    y)\n");
+        assert_eq!(
+            format_document_text("values := (,a,,)\n"),
+            "values := (,a,,)\n",
+            "explicit null slots remain visually empty"
+        );
     }
 
     #[test]
@@ -1327,6 +1354,11 @@ mod tests {
         assert_eq!(
             format_document_text("x=\"first\n  keep spaces  \nlast\"\ny=1\n"),
             "x = \"first\n  keep spaces  \nlast\"\ny = 1\n"
+        );
+        assert_eq!(
+            format_document_text("  x=///first line  \n  keep spaces  \n///\n"),
+            "x = ///first line  \n  keep spaces  \n///\n",
+            "formatting the prefix must not trim content before a literal newline"
         );
     }
 

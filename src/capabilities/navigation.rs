@@ -171,6 +171,7 @@ pub(crate) fn goto_definition_response(
 ) -> Option<GotoDefinitionResponse> {
     let analysis = document.analysis();
     let node = document.node_at_position_minimal(position)?;
+    let documentation_reference = document.documentation_reference_at(position);
 
     if let Some(string_node) = document.enclosing_node_of_kind(node, NodeKind::StringLiteral) {
         if let Some(package_name) = crate::package_index::package_source_string(string_node) {
@@ -185,11 +186,14 @@ pub(crate) fn goto_definition_response(
         }
     }
 
-    if node.kind != NodeKind::Symbol {
-        return None;
-    }
-
-    let node_text = node.text();
+    let node_text = if let Some(reference) = documentation_reference {
+        reference.name(document.text())
+    } else {
+        if node.kind != NodeKind::Symbol {
+            return None;
+        }
+        node.text()
+    };
 
     if let Some(range) = analysis.find_definition(node_text, position) {
         return Some(GotoDefinitionResponse::Scalar(Location {
@@ -238,7 +242,7 @@ pub(crate) fn reference_ranges_resolved(
 ) -> Vec<Range> {
     let analysis = document.analysis();
     let root_node = document.root_node();
-    let target_name = target.node.text();
+    let target_name = target.name;
     let target_range = target.symbol.range;
 
     let mut references = Vec::new();
@@ -257,7 +261,20 @@ pub(crate) fn reference_ranges_resolved(
             }
         }
     }
+    for reference in document.documentation_references() {
+        if reference.name(document.text()) != target_name {
+            continue;
+        }
+        let range = reference.range();
+        if let Some(symbol) = analysis.get_symbol_at(target_name, range.start) {
+            if symbol.range == target_range && (include_declaration || range != target_range) {
+                references.push(range);
+            }
+        }
+    }
 
+    references.sort_by_key(|range| (range.start, range.end));
+    references.dedup();
     references
 }
 
@@ -270,7 +287,7 @@ pub(crate) fn prepare_rename_range(
     position: Position,
 ) -> Option<Range> {
     let target = document.target_symbol_at(position)?;
-    Some(document.range_for(target.node))
+    Some(target.range)
 }
 
 /// A workspace edit renaming every in-file reference of the symbol at `position`
@@ -320,8 +337,8 @@ pub(crate) fn reference_target(
     position: Position,
     workspace_index: &WorkspaceIndex,
 ) -> Option<ReferenceTarget> {
-    let node = document.symbol_node_at_position(position)?;
-    let name = node.text().to_string();
+    let (name, _) = document.symbol_occurrence_at(position)?;
+    let name = name.to_string();
     match document.analysis().get_binding_at(&name, position) {
         Some(binding) if binding.scope_idx != 0 => Some(ReferenceTarget::Local),
         Some(_) => Some(ReferenceTarget::Global(name)),
@@ -350,6 +367,56 @@ pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -
             }
         }
     }
+    for reference in document.documentation_references() {
+        if reference.name(document.text()) != name {
+            continue;
+        }
+        let range = reference.range();
+        let shadowed = analysis
+            .get_binding_at(name, range.start)
+            .is_some_and(|binding| binding.scope_idx != 0);
+        if !shadowed {
+            references.push(range);
+        }
+    }
+    references.sort_by_key(|range| (range.start, range.end));
+    references.dedup();
+    references
+}
+
+/// Every occurrence of `name` that is not bound by user code at that source
+/// position. Used for in-document builtin highlighting: local shadows must not
+/// light up with the library object they replace.
+pub(crate) fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<Range> {
+    let analysis = document.analysis();
+    let mut references = document
+        .root_node()
+        .descendants()
+        .filter(|node| node.kind.is_symbol_like() && node.text() == name)
+        .filter_map(|node| {
+            let range = document.range_for(node);
+            analysis
+                .get_binding_at(name, range.start)
+                .is_none()
+                .then_some(range)
+        })
+        .collect::<Vec<_>>();
+
+    references.extend(
+        document
+            .documentation_references()
+            .iter()
+            .filter(|reference| reference.name(document.text()) == name)
+            .filter_map(|reference| {
+                let range = reference.range();
+                analysis
+                    .get_binding_at(name, range.start)
+                    .is_none()
+                    .then_some(range)
+            }),
+    );
+    references.sort_by_key(|range| (range.start, range.end));
+    references.dedup();
     references
 }
 
@@ -496,6 +563,83 @@ mod tests {
         assert!(
             ranges.contains(&Range::new(Position::new(1, 0), Position::new(1, 1))),
             "the declaration of `h` must be collected, got {ranges:?}"
+        );
+    }
+
+    #[test]
+    fn backtick_documentation_mentions_are_scope_aware_references() {
+        let text = "x := 1\n-- use `x`\nx\n";
+        let document = document(text);
+        let ranges = collect_reference_ranges(&document, Position::new(1, 8), true);
+
+        assert_eq!(
+            ranges,
+            vec![
+                Range::new(Position::new(0, 0), Position::new(0, 1)),
+                Range::new(Position::new(1, 8), Position::new(1, 9)),
+                Range::new(Position::new(2, 0), Position::new(2, 1)),
+            ]
+        );
+        assert!(matches!(
+            reference_target(
+                &document,
+                Position::new(1, 8),
+                &WorkspaceIndex::default()
+            ),
+            Some(ReferenceTarget::Global(name)) if name == "x"
+        ));
+    }
+
+    #[test]
+    fn goto_definition_resolves_from_a_backtick_documentation_mention() {
+        let text = "x := 1\n-- use `x`\n";
+        let document = document(text);
+        let index = crate::partitioned_index::PackagePartitionedIndex::from_corpus(include_str!(
+            "../data/m2-index.jsonl"
+        ));
+        let loaded =
+            crate::partitioned_index::LoadedPackages::resolve(index.default_loaded(), text);
+        let scoped = index.scoped(&loaded);
+        let uri = Url::parse("file:///t.m2").expect("uri");
+
+        assert_eq!(
+            goto_definition_response(
+                &document,
+                &uri,
+                Position::new(1, 8),
+                &scoped,
+                &SourceResolver::new(Vec::new()),
+                &WorkspaceIndex::default(),
+                |_| None,
+            ),
+            Some(GotoDefinitionResponse::Scalar(Location {
+                uri,
+                range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+            }))
+        );
+    }
+
+    #[test]
+    fn rename_from_code_updates_backtick_documentation_mentions() {
+        let text = "f := x -> (\n-- return `x`\nx + x)\n";
+        let document = document(text);
+        let uri = Url::parse("file:///t.m2").expect("uri");
+        let edits = rename_edits(&document, &uri, Position::new(0, 5), "value")
+            .expect("parameter should be renameable")
+            .changes
+            .expect("simple changes")[&uri]
+            .iter()
+            .map(|edit| edit.range)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            edits,
+            vec![
+                Range::new(Position::new(0, 5), Position::new(0, 6)),
+                Range::new(Position::new(1, 11), Position::new(1, 12)),
+                Range::new(Position::new(2, 0), Position::new(2, 1)),
+                Range::new(Position::new(2, 4), Position::new(2, 5)),
+            ]
         );
     }
 

@@ -3,9 +3,10 @@
 use tower_lsp::lsp_types::*;
 
 use crate::document::DocumentSnapshot;
+use crate::documentation::DocumentationReference;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::typesystem::{BuiltinData, M2SemanticTokenType};
+use crate::typesystem::{M2SemanticToken, M2SemanticTokenType, SemanticTokenKnowledge};
 use crate::util::*;
 use crate::workspace_index::WorkspaceIndex;
 
@@ -30,11 +31,19 @@ pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
     SemanticTokenType::DECORATOR,      // 17
 ];
 
+pub(crate) const LEGEND_MODIFIERS: &[SemanticTokenModifier] = &[
+    SemanticTokenModifier::new("option"),   // 0
+    SemanticTokenModifier::new("command"),  // 1
+    SemanticTokenModifier::new("file"),     // 2
+    SemanticTokenModifier::DECLARATION,     // 3
+    SemanticTokenModifier::DEFAULT_LIBRARY, // 4
+];
+
 pub(crate) const OPTION_MODIFIER: u32 = 1 << 0;
 pub(crate) const COMMAND_MODIFIER: u32 = 1 << 1;
 pub(crate) const FILE_MODIFIER: u32 = 1 << 2;
-pub(crate) const MANIPULATOR_MODIFIER: u32 = 1 << 3;
-pub(crate) const DECLARATION_MODIFIER: u32 = 1 << 4;
+pub(crate) const DECLARATION_MODIFIER: u32 = 1 << 3;
+pub(crate) const DEFAULT_LIBRARY_MODIFIER: u32 = 1 << 4;
 
 /// The LSP semantic-tokens protocol forbids a single token from spanning more
 /// than one line. A multi-line string or comment therefore has to be emitted as
@@ -76,7 +85,7 @@ fn token_line_spans(
 
 pub(crate) fn collect_semantic_tokens(
     document: &DocumentSnapshot,
-    builtins: &BuiltinData,
+    builtins: &(impl SemanticTokenKnowledge + ?Sized),
     workspace_index: &WorkspaceIndex,
     uri: &Url,
     augments_syntax_tokens: bool,
@@ -95,8 +104,19 @@ pub(crate) fn collect_semantic_tokens(
         let node = M2Node::new(cursor.node(), text);
         let syntax_token_type = syntax_semantic_token_type(node);
 
-        let mut emitted_token = false;
-        if node.kind.is_symbol_like() || syntax_token_type.is_some() {
+        let mut emitted_token = emit_documentation_container_tokens(
+            node,
+            syntax_token_type,
+            document,
+            builtins,
+            workspace_index,
+            uri,
+            augments_syntax_tokens,
+            &mut tokens,
+            &mut prev_line,
+            &mut prev_start,
+        );
+        if !emitted_token && (node.kind.is_symbol_like() || syntax_token_type.is_some()) {
             let start_byte = node.start_byte();
             let end_byte = node.end_byte();
             let node_text = node.text();
@@ -107,6 +127,15 @@ pub(crate) fn collect_semantic_tokens(
 
             let mut token_type: Option<u32> = None;
             let mut modifiers: u32 = 0;
+            let mut resolved_from_index = false;
+            // Resolve an indexed symbol at most once. The result supplies both
+            // its semantic role and its provenance; local/workspace resolution
+            // below still takes precedence over using it as the token source.
+            let indexed_token = node
+                .kind
+                .is_symbol_like()
+                .then(|| builtins.semantic_token(node_text))
+                .flatten();
 
             // A symbol read as a quoted global key (`R.name`, `R.?name`) is a
             // property access and outranks every other classification it might
@@ -121,18 +150,21 @@ pub(crate) fn collect_semantic_tokens(
             // generic option-key `field` classification below.
             if token_type.is_none() && analysis.is_method_installation_codomain(node, text) {
                 token_type = Some(M2SemanticTokenType::Type as u32);
+                resolved_from_index = indexed_token.is_some();
             }
 
             if token_type.is_none() {
                 if let Some(role) = option_assignment_role(node, builtins) {
                     token_type = Some(role as u32);
                     modifiers |= OPTION_MODIFIER;
+                    resolved_from_index = indexed_token.is_some();
                 }
             }
 
             if token_type.is_none() {
                 if let Some(type_param_role) = method_installation_type_parameter(node, builtins) {
                     token_type = Some(type_param_role as u32);
+                    resolved_from_index = true;
                 }
             }
 
@@ -146,19 +178,17 @@ pub(crate) fn collect_semantic_tokens(
                             modifiers |= builtin_semantic_token_modifiers(&token);
                         }
                     }
-                    if symbol.role == BindingRole::Parameter && position == symbol.range.start {
+                    if position == symbol.range.start {
                         modifiers |= DECLARATION_MODIFIER;
                     }
                 }
             }
 
             if token_type.is_none() {
-                if let Some(token) = builtins.get_semantic_token(node_text) {
-                    if !augments_syntax_tokens || should_emit_builtin_token_when_augmenting(&token)
-                    {
-                        token_type = Some(token.token_type as u32);
-                        modifiers |= builtin_semantic_token_modifiers(&token);
-                    }
+                if let Some(token) = indexed_token {
+                    token_type = Some(token.token_type as u32);
+                    modifiers |= builtin_semantic_token_modifiers(&token);
+                    resolved_from_index = true;
                 }
             }
 
@@ -167,7 +197,9 @@ pub(crate) fn collect_semantic_tokens(
             // file (M2 globals are workspace-wide once loaded). Highlight it like
             // its cross-file definition.
             if token_type.is_none() {
-                token_type = workspace_index.semantic_token_type(node_text, uri);
+                token_type = workspace_index
+                    .semantic_token_type(node_text, uri)
+                    .map(|token_type| token_type as u32);
             }
 
             if token_type.is_none()
@@ -178,28 +210,19 @@ pub(crate) fn collect_semantic_tokens(
             }
 
             if let Some(token_type) = token_type {
-                for (line, line_start_char, length) in
-                    token_line_spans(text, start_byte, end_byte, start_pos.row as u32, start_char)
-                {
-                    let delta_line = line - prev_line;
-                    let delta_start = if delta_line == 0 {
-                        line_start_char - prev_start
-                    } else {
-                        line_start_char
-                    };
-
-                    tokens.push(SemanticToken {
-                        delta_line,
-                        delta_start,
-                        length,
-                        token_type,
-                        token_modifiers_bitset: modifiers,
-                    });
-
-                    prev_line = line;
-                    prev_start = line_start_char;
-                    emitted_token = true;
+                if resolved_from_index {
+                    modifiers |= DEFAULT_LIBRARY_MODIFIER;
                 }
+                emitted_token = push_semantic_span(
+                    text,
+                    start_byte,
+                    end_byte,
+                    token_type,
+                    modifiers,
+                    &mut tokens,
+                    &mut prev_line,
+                    &mut prev_start,
+                );
             }
         }
 
@@ -223,9 +246,178 @@ pub(crate) fn collect_semantic_tokens(
     tokens
 }
 
+#[allow(clippy::too_many_arguments)]
+fn emit_documentation_container_tokens(
+    node: M2Node<'_>,
+    syntax_token_type: Option<M2SemanticTokenType>,
+    document: &DocumentSnapshot,
+    builtins: &(impl SemanticTokenKnowledge + ?Sized),
+    workspace_index: &WorkspaceIndex,
+    uri: &Url,
+    augments_syntax_tokens: bool,
+    tokens: &mut Vec<SemanticToken>,
+    prev_line: &mut u32,
+    prev_start: &mut u32,
+) -> bool {
+    let Some(base_type) = syntax_token_type.filter(|token_type| {
+        matches!(
+            token_type,
+            M2SemanticTokenType::Comment | M2SemanticTokenType::String
+        )
+    }) else {
+        return false;
+    };
+
+    let references = document
+        .documentation_references()
+        .iter()
+        .copied()
+        .filter(|reference| {
+            let (start, end) = reference.byte_span();
+            node.start_byte() <= start && end <= node.end_byte()
+        })
+        .collect::<Vec<_>>();
+    if references.is_empty() {
+        return false;
+    }
+
+    let text = document.text();
+    let emit_base =
+        !augments_syntax_tokens || should_emit_syntax_token_when_augmenting(Some(base_type));
+    let mut cursor = node.start_byte();
+    let mut emitted = false;
+
+    for reference in references {
+        let Some((token_type, modifiers)) =
+            documentation_reference_semantics(reference, document, builtins, workspace_index, uri)
+        else {
+            continue;
+        };
+        let (start, end) = reference.byte_span();
+        if emit_base && cursor < start {
+            emitted |= push_semantic_span(
+                text,
+                cursor,
+                start,
+                base_type as u32,
+                0,
+                tokens,
+                prev_line,
+                prev_start,
+            );
+        }
+        emitted |= push_semantic_span(
+            text,
+            start,
+            end,
+            token_type as u32,
+            modifiers,
+            tokens,
+            prev_line,
+            prev_start,
+        );
+        cursor = end;
+    }
+
+    if emitted && emit_base && cursor < node.end_byte() {
+        emitted |= push_semantic_span(
+            text,
+            cursor,
+            node.end_byte(),
+            base_type as u32,
+            0,
+            tokens,
+            prev_line,
+            prev_start,
+        );
+    }
+
+    emitted
+}
+
+fn documentation_reference_semantics(
+    reference: DocumentationReference,
+    document: &DocumentSnapshot,
+    builtins: &(impl SemanticTokenKnowledge + ?Sized),
+    workspace_index: &WorkspaceIndex,
+    uri: &Url,
+) -> Option<(M2SemanticTokenType, u32)> {
+    let name = reference.name(document.text());
+    let position = reference.range().start;
+
+    if let Some(symbol) = document.analysis().get_symbol_at(name, position) {
+        let token_type = local_symbol_semantic_token_type(&symbol, builtins);
+        let modifiers = symbol
+            .meta()
+            .type_name
+            .and_then(|type_name| {
+                static_type_semantic_token_for_local_symbol(&symbol, type_name, builtins)
+            })
+            .map_or(0, |token| builtin_semantic_token_modifiers(&token));
+        return Some((token_type, modifiers));
+    }
+
+    if let Some(token) = builtins.semantic_token(name) {
+        return Some((
+            token.token_type,
+            builtin_semantic_token_modifiers(&token) | DEFAULT_LIBRARY_MODIFIER,
+        ));
+    }
+
+    workspace_index
+        .semantic_token_type(name, uri)
+        .map(|token_type| (token_type, 0))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_semantic_span(
+    text: &str,
+    start_byte: usize,
+    end_byte: usize,
+    token_type: u32,
+    modifiers: u32,
+    tokens: &mut Vec<SemanticToken>,
+    prev_line: &mut u32,
+    prev_start: &mut u32,
+) -> bool {
+    if start_byte >= end_byte {
+        return false;
+    }
+
+    let start_point = tree_sitter_point_from_byte_index(text, start_byte);
+    let line_start_byte = start_byte.saturating_sub(start_point.column);
+    let start_char = utf16_len_for_byte_span(text, line_start_byte, start_byte);
+    let mut emitted = false;
+    for (line, line_start_char, length) in token_line_spans(
+        text,
+        start_byte,
+        end_byte,
+        start_point.row as u32,
+        start_char,
+    ) {
+        let delta_line = line - *prev_line;
+        let delta_start = if delta_line == 0 {
+            line_start_char - *prev_start
+        } else {
+            line_start_char
+        };
+        tokens.push(SemanticToken {
+            delta_line,
+            delta_start,
+            length,
+            token_type,
+            token_modifiers_bitset: modifiers,
+        });
+        *prev_line = line;
+        *prev_start = line_start_char;
+        emitted = true;
+    }
+    emitted
+}
+
 pub(crate) fn option_assignment_role(
     node: M2Node<'_>,
-    builtins: &BuiltinData,
+    builtins: &(impl SemanticTokenKnowledge + ?Sized),
 ) -> Option<M2SemanticTokenType> {
     let parent = node.parent()?;
     if !parent.is_option_assignment() {
@@ -264,7 +456,7 @@ pub(crate) fn option_assignment_role(
 
 pub(crate) fn local_symbol_semantic_token_type(
     symbol: &(impl Metadata + ?Sized),
-    builtins: &BuiltinData,
+    builtins: &(impl SemanticTokenKnowledge + ?Sized),
 ) -> M2SemanticTokenType {
     let meta = symbol.meta();
     if meta.binding_role == Some(BindingRole::Parameter) {
@@ -283,7 +475,7 @@ pub(crate) fn local_symbol_semantic_token_type(
         Some(SymbolKind::FUNCTION) => M2SemanticTokenType::Function,
         Some(SymbolKind::VARIABLE) => M2SemanticTokenType::Variable,
         Some(SymbolKind::METHOD) => M2SemanticTokenType::Method,
-        Some(SymbolKind::CLASS) => M2SemanticTokenType::Type,
+        Some(SymbolKind::CLASS) => M2SemanticTokenType::Class,
         Some(SymbolKind::NAMESPACE) => M2SemanticTokenType::Namespace,
         Some(SymbolKind::PROPERTY) => M2SemanticTokenType::Property,
         Some(SymbolKind::CONSTANT) => M2SemanticTokenType::EnumMember,
@@ -291,16 +483,13 @@ pub(crate) fn local_symbol_semantic_token_type(
     }
 }
 
-pub(crate) fn builtin_semantic_token_modifiers(token: &crate::typesystem::M2SemanticToken) -> u32 {
+pub(crate) fn builtin_semantic_token_modifiers(token: &M2SemanticToken) -> u32 {
     let mut modifiers = 0;
-    if token.is_command {
+    if token.is_command || token.is_manipulator {
         modifiers |= COMMAND_MODIFIER;
     }
     if token.is_file {
         modifiers |= FILE_MODIFIER;
-    }
-    if token.is_manipulator {
-        modifiers |= MANIPULATOR_MODIFIER;
     }
     modifiers
 }
@@ -308,9 +497,9 @@ pub(crate) fn builtin_semantic_token_modifiers(token: &crate::typesystem::M2Sema
 fn static_type_semantic_token_for_local_symbol(
     symbol: &(impl Metadata + ?Sized),
     type_name: &str,
-    builtins: &BuiltinData,
-) -> Option<crate::typesystem::M2SemanticToken> {
-    let token = builtins.get_semantic_token_for_static_type(type_name)?;
+    builtins: &(impl SemanticTokenKnowledge + ?Sized),
+) -> Option<M2SemanticToken> {
+    let token = builtins.semantic_token_for_static_type(type_name)?;
     match symbol.meta().symbol_kind {
         Some(SymbolKind::VARIABLE)
             if matches!(
@@ -355,21 +544,6 @@ fn should_emit_syntax_token_when_augmenting(token_type: Option<M2SemanticTokenTy
             | Some(M2SemanticTokenType::Property)
             | Some(M2SemanticTokenType::Namespace)
     )
-}
-
-fn should_emit_builtin_token_when_augmenting(token: &crate::typesystem::M2SemanticToken) -> bool {
-    matches!(
-        token.token_type,
-        M2SemanticTokenType::Function
-            | M2SemanticTokenType::Method
-            | M2SemanticTokenType::Class
-            | M2SemanticTokenType::Type
-            | M2SemanticTokenType::Operator
-            | M2SemanticTokenType::Namespace
-    ) || token.is_command
-        || token.is_file
-        || token.is_manipulator
-        || token.is_constructor
 }
 
 fn is_regexp_string_argument(node: M2Node<'_>) -> bool {
@@ -450,7 +624,7 @@ fn call_like_left_symbol_for_argument<'tree>(
     allow_list_argument: bool,
 ) -> Option<&'tree str> {
     let mut parent = node.parent()?;
-    if parent.kind == NodeKind::Sequence && !is_first_named_child(parent, node) {
+    if parent.kind == NodeKind::Sequence && !parent.is_first_collection_element(node) {
         return None;
     }
 
@@ -491,15 +665,9 @@ fn binary_expression_left_symbol(node: M2Node<'_>) -> Option<&str> {
     Some(left.text())
 }
 
-fn is_first_named_child(parent: M2Node<'_>, child: M2Node<'_>) -> bool {
-    parent
-        .named_child(0)
-        .is_some_and(|first| first.id() == child.id())
-}
-
 fn method_installation_type_parameter(
     node: M2Node<'_>,
-    builtins: &BuiltinData,
+    builtins: &(impl SemanticTokenKnowledge + ?Sized),
 ) -> Option<M2SemanticTokenType> {
     let node_text = node.text();
     let parent = node.parent()?;
@@ -515,8 +683,8 @@ fn method_installation_type_parameter(
     None
 }
 
-fn is_known_type(builtins: &BuiltinData, name: &str) -> bool {
-    builtins.get_semantic_token(name).is_some_and(|token| {
+fn is_known_type(builtins: &(impl SemanticTokenKnowledge + ?Sized), name: &str) -> bool {
+    builtins.semantic_token(name).is_some_and(|token| {
         matches!(
             token.token_type,
             M2SemanticTokenType::Class | M2SemanticTokenType::Type
@@ -624,6 +792,8 @@ fn is_method_installation_lhs(node: M2Node<'_>) -> bool {
 mod tests {
     use super::*;
     use crate::document::DocumentSnapshot;
+    use crate::partitioned_index::PackagePartitionedIndex;
+    use crate::typesystem::TypeKnowledgeProvider;
     use crate::typesystem::{BuiltinData, M2SemanticToken, M2SemanticTokenType};
     use tree_sitter::Parser;
 
@@ -649,7 +819,7 @@ mod tests {
         )
     }
 
-    fn token_type_at(tokens: &[SemanticToken], line: u32, character: u32) -> Option<u32> {
+    fn token_at(tokens: &[SemanticToken], line: u32, character: u32) -> Option<&SemanticToken> {
         let mut token_line = 0;
         let mut token_start = 0;
         for token in tokens {
@@ -663,10 +833,14 @@ mod tests {
                 && character >= token_start
                 && character < token_start + token.length
             {
-                return Some(token.token_type);
+                return Some(token);
             }
         }
         None
+    }
+
+    fn token_type_at(tokens: &[SemanticToken], line: u32, character: u32) -> Option<u32> {
+        token_at(tokens, line, character).map(|token| token.token_type)
     }
 
     #[test]
@@ -791,7 +965,6 @@ mod tests {
                 .map(|token| token.token_type)
                 .collect::<Vec<_>>(),
             vec![
-                M2SemanticTokenType::Operator as u32,
                 M2SemanticTokenType::Type as u32,
                 M2SemanticTokenType::Operator as u32,
                 M2SemanticTokenType::Parameter as u32,
@@ -800,10 +973,10 @@ mod tests {
             ]
         );
         assert_eq!(
-            tokens[3].token_modifiers_bitset & DECLARATION_MODIFIER,
+            tokens[2].token_modifiers_bitset & DECLARATION_MODIFIER,
             DECLARATION_MODIFIER
         );
-        assert_eq!(tokens[5].token_modifiers_bitset & DECLARATION_MODIFIER, 0);
+        assert_eq!(tokens[4].token_modifiers_bitset & DECLARATION_MODIFIER, 0);
     }
 
     #[test]
@@ -834,6 +1007,54 @@ mod tests {
     }
 
     #[test]
+    fn semantic_tokens_resolve_backtick_mentions_inside_comments() {
+        let text = "x := 1\n-- use `x` and `ideal`\n";
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        let local = token_at(&tokens, 1, 8).expect("local documentation reference is tokenized");
+        assert_eq!(local.token_type, M2SemanticTokenType::Variable as u32);
+        assert_eq!(local.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER, 0);
+
+        let builtin =
+            token_at(&tokens, 1, 16).expect("builtin documentation reference is tokenized");
+        assert!(matches!(
+            builtin.token_type,
+            value
+                if value == M2SemanticTokenType::Function as u32
+                    || value == M2SemanticTokenType::Method as u32
+        ));
+        assert_eq!(
+            builtin.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
+            DEFAULT_LIBRARY_MODIFIER
+        );
+
+        assert_eq!(
+            token_at(&tokens, 1, 7).map(|token| token.token_type),
+            Some(M2SemanticTokenType::Comment as u32),
+            "the backtick delimiter remains comment-colored"
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_keep_backtick_mentions_when_augmenting_syntax() {
+        let text = "x := 1\n-- use `x`\n";
+        let builtins = BuiltinData::empty();
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, true);
+
+        assert_eq!(
+            token_at(&tokens, 1, 8).map(|token| token.token_type),
+            Some(M2SemanticTokenType::Variable as u32)
+        );
+        assert!(
+            token_at(&tokens, 1, 7).is_none(),
+            "syntax highlighting owns the surrounding comment"
+        );
+    }
+
+    #[test]
     fn semantic_tokens_classify_binding_qualifiers_as_modifiers() {
         let text = "global x\nlocal y\nsymbol z\nthreadLocal w\nthreadVariable q";
         let builtins = BuiltinData::empty();
@@ -857,7 +1078,7 @@ mod tests {
     }
 
     #[test]
-    fn semantic_tokens_classify_grammar_v3_debug_keywords() {
+    fn semantic_tokens_classify_debug_keywords() {
         let text = "step 1\nfinish 2";
         let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
@@ -964,6 +1185,34 @@ mod tests {
                 M2SemanticTokenType::Namespace as u32, // importFrom("Pkg") — first arg
                 M2SemanticTokenType::String as u32,    // exportFrom {"Pkg"} — list element
                 M2SemanticTokenType::String as u32,    // print "ordinary"
+            ]
+        );
+    }
+
+    #[test]
+    fn namespace_argument_selection_skips_muted_parts_but_not_null_slots() {
+        let text = concat!(
+            "loadPackage(ignored;\"AfterMuted\")\n",
+            "loadPackage(,\"AfterNull\")\n",
+            "loadPackage(\"Muted\";)\n",
+        );
+        let builtins = BuiltinData::empty();
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token.token_type)
+                .filter(|token_type| {
+                    *token_type == M2SemanticTokenType::Namespace as u32
+                        || *token_type == M2SemanticTokenType::String as u32
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                M2SemanticTokenType::Namespace as u32,
+                M2SemanticTokenType::String as u32,
+                M2SemanticTokenType::String as u32,
             ]
         );
     }
@@ -1131,6 +1380,106 @@ mod tests {
     }
 
     #[test]
+    fn semantic_tokens_merge_manipulators_into_command_modifier() {
+        let text = "endl";
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, true);
+        let token = token_at(&tokens, 0, 0).expect("endl should have a semantic token");
+
+        assert_eq!(token.token_type, M2SemanticTokenType::Operator as u32);
+        assert_eq!(
+            token.token_modifiers_bitset & COMMAND_MODIFIER,
+            COMMAND_MODIFIER,
+            "M2 Manipulator values share the command palette role"
+        );
+        assert_eq!(
+            token.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
+            DEFAULT_LIBRARY_MODIFIER
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_preserve_file_modifier_alongside_default_library() {
+        let text = "stdio";
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, true);
+        let token = token_at(&tokens, 0, 0).expect("stdio should have a semantic token");
+
+        assert_eq!(token.token_type, M2SemanticTokenType::Variable as u32);
+        assert_eq!(token.token_modifiers_bitset & FILE_MODIFIER, FILE_MODIFIER);
+        assert_eq!(
+            token.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
+            DEFAULT_LIBRARY_MODIFIER
+        );
+    }
+
+    #[test]
+    fn indexed_objects_use_variable_plus_default_library_without_tainting_locals() {
+        let text = "true\nlocalValue := true\nlocalValue";
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, true);
+
+        let indexed = token_at(&tokens, 0, 0).expect("indexed true should be highlighted");
+        assert_eq!(indexed.token_type, M2SemanticTokenType::Variable as u32);
+        assert_eq!(
+            indexed.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
+            DEFAULT_LIBRARY_MODIFIER
+        );
+
+        let declaration = token_at(&tokens, 1, 0).expect("local declaration should be highlighted");
+        assert_eq!(
+            declaration.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
+            0,
+            "a local binding must not inherit provenance from its indexed value"
+        );
+        let reference = token_at(&tokens, 2, 0).expect("local reference should be highlighted");
+        assert_eq!(
+            reference.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
+            0
+        );
+    }
+
+    #[test]
+    fn imported_index_tokens_use_scoped_role_and_default_library() {
+        let corpus = concat!(
+            "{\"kind\":\"meta\",\"default_loaded\":[\"Core\"]}\n",
+            "{\"kind\":\"type\",\"name\":\"MethodFunction\",",
+            "\"package\":\"$Core$Core\",\"class\":\"$Core$Type\",",
+            "\"parent\":\"$Core$Function\",\"ancestors\":[\"$Core$Function\",\"$Core$Thing\"]}\n",
+            "{\"kind\":\"methodFunction\",\"name\":\"pkgFn\",",
+            "\"package\":\"$Pkg$Pkg\",\"class\":\"$Core$MethodFunction\",",
+            "\"methods\":[{\"domain\":[],\"typicalValue\":null}]}\n",
+        );
+        let provider = PackagePartitionedIndex::from_corpus(corpus);
+        let text = "needsPackage \"Pkg\"\npkgFn";
+        let document =
+            DocumentSnapshot::from_text(text.to_string(), &provider).expect("fixture should parse");
+        let scoped = provider.knowledge_for(document.imported_packages());
+        let workspace_index = WorkspaceIndex::default();
+        let uri = Url::parse("file:///fixture.m2").expect("valid fixture uri");
+
+        let tokens = collect_semantic_tokens(&document, &scoped, &workspace_index, &uri, true);
+        let token = token_at(&tokens, 1, 0).expect("imported pkgFn should be highlighted");
+        assert_eq!(token.token_type, M2SemanticTokenType::Method as u32);
+        assert_eq!(
+            token.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
+            DEFAULT_LIBRARY_MODIFIER
+        );
+
+        let document = DocumentSnapshot::from_text("pkgFn".to_string(), &provider)
+            .expect("unimported fixture should parse");
+        let scoped = provider.knowledge_for(document.imported_packages());
+        let tokens = collect_semantic_tokens(&document, &scoped, &workspace_index, &uri, true);
+        assert!(
+            token_at(&tokens, 0, 0).is_none(),
+            "the same package object must disappear when its import is absent"
+        );
+    }
+
+    #[test]
     fn parameter_references_use_parameter_semantic_token_type() {
         let symbol = crate::meta::Meta {
             symbol_kind: Some(SymbolKind::VARIABLE),
@@ -1176,7 +1525,7 @@ mod tests {
     }
 
     #[test]
-    fn builtin_function_tokens_do_not_use_provenance_modifiers() {
+    fn builtin_function_role_does_not_bake_in_provenance_modifier() {
         let token = M2SemanticToken {
             token_type: M2SemanticTokenType::Function,
             is_command: false,
@@ -1228,12 +1577,86 @@ mod tests {
     }
 
     #[test]
+    fn option_keys_keep_option_and_builtin_provenance_modifiers() {
+        let text = "f(x, Strategy => 4, custom => 7)";
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        let builtin = token_at(
+            &tokens,
+            0,
+            text.find("Strategy").expect("fixture contains Strategy") as u32,
+        )
+        .expect("builtin option key is highlighted");
+        assert_eq!(
+            builtin.token_modifiers_bitset & OPTION_MODIFIER,
+            OPTION_MODIFIER
+        );
+        assert_eq!(
+            builtin.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
+            DEFAULT_LIBRARY_MODIFIER
+        );
+
+        let custom = token_at(
+            &tokens,
+            0,
+            text.find("custom").expect("fixture contains custom") as u32,
+        )
+        .expect("custom option key is highlighted");
+        assert_eq!(
+            custom.token_modifiers_bitset & OPTION_MODIFIER,
+            OPTION_MODIFIER
+        );
+        assert_eq!(custom.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER, 0);
+    }
+
+    #[test]
+    fn local_classes_use_class_tokens_and_binding_sites_are_declarations() {
+        let text = "TokenStream = new Type of List\nTokenStream\n";
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        let declaration = token_at(&tokens, 0, 0).expect("class declaration is highlighted");
+        assert_eq!(declaration.token_type, M2SemanticTokenType::Class as u32);
+        assert_eq!(
+            declaration.token_modifiers_bitset & DECLARATION_MODIFIER,
+            DECLARATION_MODIFIER
+        );
+
+        let reference = token_at(&tokens, 1, 0).expect("class reference is highlighted");
+        assert_eq!(reference.token_type, M2SemanticTokenType::Class as u32);
+        assert_eq!(reference.token_modifiers_bitset & DECLARATION_MODIFIER, 0);
+    }
+
+    #[test]
+    fn semantic_tokens_never_emit_zero_length_entries() {
+        let text = "f ZZ := x -> x";
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        assert!(tokens.iter().all(|token| token.length > 0));
+    }
+
+    #[test]
     fn semantic_token_modifier_bits_match_legend_order() {
+        assert_eq!(
+            LEGEND_MODIFIERS,
+            &[
+                SemanticTokenModifier::new("option"),
+                SemanticTokenModifier::new("command"),
+                SemanticTokenModifier::new("file"),
+                SemanticTokenModifier::DECLARATION,
+                SemanticTokenModifier::DEFAULT_LIBRARY,
+            ]
+        );
         assert_eq!(OPTION_MODIFIER, 1 << 0);
         assert_eq!(COMMAND_MODIFIER, 1 << 1);
         assert_eq!(FILE_MODIFIER, 1 << 2);
-        assert_eq!(MANIPULATOR_MODIFIER, 1 << 3);
-        assert_eq!(DECLARATION_MODIFIER, 1 << 4);
+        assert_eq!(DECLARATION_MODIFIER, 1 << 3);
+        assert_eq!(DEFAULT_LIBRARY_MODIFIER, 1 << 4);
     }
 
     #[test]

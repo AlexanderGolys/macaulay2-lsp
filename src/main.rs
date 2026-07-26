@@ -21,6 +21,7 @@ mod builtin_index;
 mod capabilities;
 mod diagnostic_registry;
 mod document;
+mod documentation;
 mod meta;
 mod node_metadata;
 mod package_index;
@@ -47,7 +48,7 @@ use capabilities::navigation::{
     prepare_rename_range, reference_target, references_response, rename_edits,
     workspace_symbols_response, ReferenceTarget,
 };
-use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_TYPES};
+use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_MODIFIERS, LEGEND_TYPES};
 use capabilities::signature_help::signature_help_response;
 use capabilities::type_hierarchy::{
     TypeHierarchyCapabilityService, TypeHierarchyContext, TYPE_HIERARCHY_METHOD,
@@ -63,9 +64,9 @@ use crate::workspace_index::WorkspaceIndex;
 #[derive(Debug)]
 struct Backend {
     client: Client,
-    /// The Core partition, used for parse-time document analysis and workspace
-    /// indexing (inference stays Core-scoped). On-demand queries route through a
-    /// `ScopedIndex` over `partitioned` instead.
+    /// The Core partition used for workspace-file indexing and syntax-token
+    /// classification. Per-document analysis and user-facing metadata queries
+    /// resolve through an import-aware `ScopedIndex` over `partitioned`.
     builtins: BuiltinData,
     partitioned: PackagePartitionedIndex,
     source_resolver: SourceResolver,
@@ -145,7 +146,7 @@ impl Backend {
                 } else if let Ok(path) = file_uri.to_file_path() {
                     fs::read_to_string(path)
                         .ok()
-                        .and_then(|text| DocumentSnapshot::from_text(text, &self.builtins))
+                        .and_then(|text| DocumentSnapshot::from_text(text, &self.partitioned))
                         .map(|snapshot| global_reference_ranges(&snapshot, name))
                         .unwrap_or_default()
                 } else {
@@ -162,7 +163,7 @@ impl Backend {
     }
 
     async fn on_open(&self, params: TextDocumentItem) {
-        let Some(document) = DocumentSnapshot::from_text(params.text, &self.builtins) else {
+        let Some(document) = DocumentSnapshot::from_text(params.text, &self.partitioned) else {
             return;
         };
         let uri = params.uri;
@@ -176,7 +177,10 @@ impl Backend {
 
     async fn on_change(&self, uri: Url, changes: Vec<TextDocumentContentChangeEvent>) {
         if let Some(mut document) = self.documents.get_mut(&uri) {
-            if document.apply_changes(&changes, &self.builtins).is_none() {
+            if document
+                .apply_changes(&changes, &self.partitioned)
+                .is_none()
+            {
                 return;
             }
             self.workspace_index
@@ -280,13 +284,7 @@ impl LanguageServer for Backend {
                         SemanticTokensOptions {
                             legend: SemanticTokensLegend {
                                 token_types: LEGEND_TYPES.into(),
-                                token_modifiers: vec![
-                                    SemanticTokenModifier::new("option"),
-                                    SemanticTokenModifier::new("command"),
-                                    SemanticTokenModifier::new("file"),
-                                    SemanticTokenModifier::new("manipulator"),
-                                    SemanticTokenModifier::DECLARATION,
-                                ],
+                                token_modifiers: LEGEND_MODIFIERS.into(),
                             },
                             full: Some(SemanticTokensFullOptions::Bool(true)),
                             range: None,
@@ -437,9 +435,10 @@ impl LanguageServer for Backend {
             None => return Ok(None),
         };
         let augments_syntax_tokens = self.semantic_tokens_augment_syntax.load(Ordering::Relaxed);
+        let scoped = self.scoped_index_for(&document);
         let tokens = collect_semantic_tokens(
             &document,
-            &self.builtins,
+            &scoped,
             &self.workspace_index,
             &uri,
             augments_syntax_tokens,
@@ -506,7 +505,8 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        Ok(document_highlights(document.value(), position))
+        let scoped = self.scoped_index_for(&document);
+        Ok(document_highlights(document.value(), position, &scoped))
     }
 
     async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {

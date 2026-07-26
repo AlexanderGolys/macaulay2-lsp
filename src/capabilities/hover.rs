@@ -124,7 +124,7 @@ fn call_signature_usage_for_hover(
 
         let argument = parent.child_by_field_name("right")?;
         analysis
-            .infer_call_static_facts(argument, text, Some(builtins))
+            .infer_call_static_facts(argument, text, builtins)
             .dispatch_argument_types()
     } else if parent
         .child_by_field_name("operator")
@@ -133,8 +133,8 @@ fn call_signature_usage_for_hover(
         let left = parent.child_by_field_name("left")?;
         let right = parent.child_by_field_name("right")?;
         vec![
-            analysis.infer_expression_static_type_name(left, text, Some(builtins)),
-            analysis.infer_expression_static_type_name(right, text, Some(builtins)),
+            analysis.infer_expression_static_type_name(left, text, builtins),
+            analysis.infer_expression_static_type_name(right, text, builtins),
         ]
     } else {
         return None;
@@ -349,7 +349,7 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_builtins(&tree, text, Some(scoped.core()));
+        let analysis = Analysis::new_with_knowledge(&tree, text, scoped.core());
         let node = tree
             .root_node()
             .descendant_for_point_range(
@@ -399,7 +399,7 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_builtins(&tree, text, Some(scoped.core()));
+        let analysis = Analysis::new_with_knowledge(&tree, text, scoped.core());
         let node = tree
             .root_node()
             .descendant_for_point_range(

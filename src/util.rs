@@ -88,6 +88,20 @@ pub(crate) fn node_range(node: M2Node<'_>) -> Range {
     to_lsp_range(node.source(), node.range())
 }
 
+pub(crate) fn range_from_byte_span(text: &str, start_byte: usize, end_byte: usize) -> Range {
+    let start_point = tree_sitter_point_from_byte_index(text, start_byte);
+    let end_point = tree_sitter_point_from_byte_index(text, end_byte);
+    to_lsp_range(
+        text,
+        tree_sitter::Range {
+            start_byte,
+            end_byte,
+            start_point,
+            end_point,
+        },
+    )
+}
+
 /// The LSP position where `node` starts.
 pub(crate) fn node_position(text: &str, node: M2Node) -> Position {
     to_lsp_range(text, node.range()).start

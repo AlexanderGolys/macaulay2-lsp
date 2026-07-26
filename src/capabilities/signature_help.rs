@@ -91,7 +91,7 @@ fn active_parameter_index(argument_node: M2Node, cursor: usize) -> u32 {
 /// `f x`. Empty for `f ()`.
 fn argument_list(argument_node: M2Node) -> Vec<M2Node> {
     let inner = if argument_node.kind == NodeKind::ParenthesizedExpression {
-        match argument_node.named_children().next() {
+        match argument_node.final_value_child() {
             Some(inner) => inner,
             None => return Vec::new(),
         }
@@ -99,7 +99,7 @@ fn argument_list(argument_node: M2Node) -> Vec<M2Node> {
         argument_node
     };
     if inner.kind == NodeKind::Sequence {
-        inner.named_children().collect()
+        inner.collection_elements().collect()
     } else {
         vec![inner]
     }
@@ -224,6 +224,40 @@ mod tests {
         let loaded = LoadedPackages::resolve(index.default_loaded(), text);
         let scoped = index.scoped(&loaded);
         signature_help_response(&document, position, &scoped)
+    }
+
+    fn argument_kinds(text: &str) -> Vec<NodeKind> {
+        let document = DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
+            .expect("fixture should parse");
+        let root = document.root_node();
+        let application = root
+            .descendants()
+            .find(|node| node.is_space_application())
+            .expect("fixture should contain an application");
+        let arguments = application
+            .child_by_field_name("right")
+            .expect("application should have an argument");
+        argument_list(arguments)
+            .into_iter()
+            .map(|argument| argument.kind)
+            .collect()
+    }
+
+    #[test]
+    fn argument_slots_keep_nulls_and_skip_muted_expressions() {
+        assert_eq!(
+            argument_kinds("f(,x,,)\n"),
+            vec![
+                NodeKind::Null,
+                NodeKind::Symbol,
+                NodeKind::Null,
+                NodeKind::Null
+            ]
+        );
+        assert_eq!(
+            argument_kinds("f(ignored;x,y)\n"),
+            vec![NodeKind::Symbol, NodeKind::Symbol]
+        );
     }
 
     #[test]

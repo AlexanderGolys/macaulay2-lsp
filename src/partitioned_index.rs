@@ -8,7 +8,11 @@ use std::collections::HashMap;
 
 use crate::builtin_index::{BuiltinIndex, PackageName};
 use crate::package_index::collect_imported_packages;
-use crate::typesystem::{BuiltinData, InstanceID, Record, SignatureUsage};
+use crate::typesystem::{
+    semantic_token_for_static_type_from_knowledge, semantic_token_from_knowledge, BuiltinData,
+    InstanceID, M2SemanticToken, Record, SemanticTokenKnowledge, SignatureUsage, TypeKnowledge,
+    TypeKnowledgeProvider,
+};
 
 /// Every shipped package's `BuiltinData`, keyed by home package, plus the
 /// default-loaded baseline. Built once from the single embedded corpus.
@@ -68,6 +72,15 @@ impl PackagePartitionedIndex {
             })
             .collect();
         ScopedIndex { partitions }
+    }
+}
+
+impl TypeKnowledgeProvider for PackagePartitionedIndex {
+    type Knowledge<'a> = ScopedIndex<'a>;
+
+    fn knowledge_for<'a>(&'a self, imported_packages: &[String]) -> Self::Knowledge<'a> {
+        let loaded = LoadedPackages::from_parts(self.default_loaded(), imported_packages);
+        self.scoped(&loaded)
     }
 }
 
@@ -192,6 +205,58 @@ impl<'a> ScopedIndex<'a> {
             }
         }
         out
+    }
+}
+
+impl TypeKnowledge for ScopedIndex<'_> {
+    fn is_available(&self) -> bool {
+        true
+    }
+
+    fn get_record(&self, name: &InstanceID) -> Option<Record> {
+        ScopedIndex::get_record(self, name)
+    }
+
+    fn resolve_call_return_type_with_options(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+        options: &[(String, String)],
+    ) -> Option<String> {
+        self.find_map(|_, data| {
+            data.resolve_call_return_type_with_options(callable, argument_types, options)
+        })
+    }
+
+    fn is_subtype(&self, child: &str, parent: &str) -> bool {
+        self.partitions
+            .iter()
+            .any(|(_, data)| data.is_subtype(child, parent))
+    }
+}
+
+impl SemanticTokenKnowledge for ScopedIndex<'_> {
+    fn semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
+        semantic_token_from_knowledge(self, name)
+    }
+
+    fn semantic_token_for_static_type(&self, type_name: &str) -> Option<M2SemanticToken> {
+        semantic_token_for_static_type_from_knowledge(self, type_name)
+    }
+
+    fn is_protected_symbol(&self, name: &str) -> bool {
+        let name = InstanceID::new(name);
+        self.find_map(|_, data| {
+            data.get_record(&name)
+                .map(|_| data.is_protected_symbol(name.as_ref()))
+        })
+        .unwrap_or(false)
+    }
+
+    fn is_option_value_for_key(&self, option_key: &str, value_name: &str) -> bool {
+        self.partitions
+            .iter()
+            .any(|(_, data)| data.is_option_value_for_key(option_key, value_name))
     }
 }
 

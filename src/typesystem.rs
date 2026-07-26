@@ -195,6 +195,61 @@ pub struct BuiltinData {
     type_lattice: TypeLattice,
 }
 
+/// The semantic facts analysis needs from an external symbol/type index.
+///
+/// Keeping this as a narrow trait decouples the analysis engine from the
+/// concrete generated-corpus store. The normal server implements it with
+/// [`BuiltinData`]; syntax-only tests use an empty implementation. A future
+/// workspace/package view can implement the same contract without teaching
+/// analysis about its storage or resolution order.
+pub(crate) trait TypeKnowledge {
+    fn is_available(&self) -> bool;
+
+    fn get_record(&self, name: &InstanceID) -> Option<Record>;
+
+    fn resolve_call_return_type_with_options(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+        options: &[(String, String)],
+    ) -> Option<String>;
+
+    fn is_subtype(&self, child: &str, parent: &str) -> bool;
+}
+
+/// Indexed facts needed specifically for semantic-token classification.
+///
+/// This is separate from [`TypeKnowledge`] because syntax/type analysis should
+/// not depend on editor presentation roles. Both the concrete corpus and a
+/// document-scoped package view implement it, so semantic highlighting follows
+/// the same import resolution order as the other language features.
+pub(crate) trait SemanticTokenKnowledge: TypeKnowledge {
+    fn semantic_token(&self, name: &str) -> Option<M2SemanticToken>;
+
+    fn semantic_token_for_static_type(&self, type_name: &str) -> Option<M2SemanticToken>;
+
+    fn is_protected_symbol(&self, name: &str) -> bool;
+
+    fn is_option_value_for_key(&self, option_key: &str, value_name: &str) -> bool;
+}
+
+/// Supplies the semantic index for one document's imported-package set.
+///
+/// The associated type is a borrowing view: providers may return themselves,
+/// or construct a lightweight scoped view without merging/copying indexes.
+pub(crate) trait TypeKnowledgeProvider {
+    type Knowledge<'a>: TypeKnowledge
+    where
+        Self: 'a;
+
+    fn knowledge_for<'a>(&'a self, imported_packages: &[String]) -> Self::Knowledge<'a>;
+}
+
+/// Empty semantic knowledge for parser/scope-only analysis.
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct NoTypeKnowledge;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// One callable signature after documentation and indexed type facts are merged.
 pub struct ResolvedSignature {
@@ -750,6 +805,120 @@ impl BuiltinData {
     }
 }
 
+impl TypeKnowledge for BuiltinData {
+    fn is_available(&self) -> bool {
+        true
+    }
+
+    fn get_record(&self, name: &InstanceID) -> Option<Record> {
+        BuiltinData::get_record(self, name)
+    }
+
+    fn resolve_call_return_type_with_options(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+        options: &[(String, String)],
+    ) -> Option<String> {
+        BuiltinData::resolve_call_return_type_with_options(self, callable, argument_types, options)
+    }
+
+    fn is_subtype(&self, child: &str, parent: &str) -> bool {
+        BuiltinData::is_subtype(self, child, parent)
+    }
+}
+
+impl<T: TypeKnowledge + ?Sized> TypeKnowledge for &T {
+    fn is_available(&self) -> bool {
+        T::is_available(self)
+    }
+
+    fn get_record(&self, name: &InstanceID) -> Option<Record> {
+        T::get_record(self, name)
+    }
+
+    fn resolve_call_return_type_with_options(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+        options: &[(String, String)],
+    ) -> Option<String> {
+        T::resolve_call_return_type_with_options(self, callable, argument_types, options)
+    }
+
+    fn is_subtype(&self, child: &str, parent: &str) -> bool {
+        T::is_subtype(self, child, parent)
+    }
+}
+
+impl SemanticTokenKnowledge for BuiltinData {
+    fn semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
+        BuiltinData::get_semantic_token(self, name)
+    }
+
+    fn semantic_token_for_static_type(&self, type_name: &str) -> Option<M2SemanticToken> {
+        BuiltinData::get_semantic_token_for_static_type(self, type_name)
+    }
+
+    fn is_protected_symbol(&self, name: &str) -> bool {
+        BuiltinData::is_protected_symbol(self, name)
+    }
+
+    fn is_option_value_for_key(&self, option_key: &str, value_name: &str) -> bool {
+        BuiltinData::is_option_value_for_key(self, option_key, value_name)
+    }
+}
+
+impl<T: SemanticTokenKnowledge + ?Sized> SemanticTokenKnowledge for &T {
+    fn semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
+        T::semantic_token(self, name)
+    }
+
+    fn semantic_token_for_static_type(&self, type_name: &str) -> Option<M2SemanticToken> {
+        T::semantic_token_for_static_type(self, type_name)
+    }
+
+    fn is_protected_symbol(&self, name: &str) -> bool {
+        T::is_protected_symbol(self, name)
+    }
+
+    fn is_option_value_for_key(&self, option_key: &str, value_name: &str) -> bool {
+        T::is_option_value_for_key(self, option_key, value_name)
+    }
+}
+
+impl TypeKnowledgeProvider for BuiltinData {
+    type Knowledge<'a> = &'a BuiltinData;
+
+    fn knowledge_for<'a>(&'a self, _imported_packages: &[String]) -> Self::Knowledge<'a> {
+        self
+    }
+}
+
+#[cfg(test)]
+impl TypeKnowledge for NoTypeKnowledge {
+    fn is_available(&self) -> bool {
+        false
+    }
+
+    fn get_record(&self, _name: &InstanceID) -> Option<Record> {
+        None
+    }
+
+    fn resolve_call_return_type_with_options(
+        &self,
+        _callable: &str,
+        _argument_types: &[Option<String>],
+        _options: &[(String, String)],
+    ) -> Option<String> {
+        None
+    }
+
+    fn is_subtype(&self, _child: &str, _parent: &str) -> bool {
+        false
+    }
+}
+
 fn take_nonminimal_signatures(
     builtins: &BuiltinData,
     signatures: &mut Vec<ResolvedSignature>,
@@ -1091,177 +1260,14 @@ impl BuiltinData {
     }
 
     /// Classify an indexed object by its runtime class and hierarchy for LSP
-    /// semantic tokens. Returns `None` for metadata with no useful token role.
+    /// semantic tokens.
     pub fn get_semantic_token(&self, name: &str) -> Option<M2SemanticToken> {
-        let record = self.get_record(&InstanceID::new(name))?;
-        let data_type = &record.class;
-
-        let is_command = self.is_subtype(data_type, "Command");
-        let is_file = self.is_subtype(data_type, "File");
-        let is_manipulator = self.is_subtype(data_type, "Manipulator");
-        let is_scripted_functor = self.is_subtype(data_type, "ScriptedFunctor");
-        let is_compiled_function = self.is_subtype(data_type, "CompiledFunction")
-            || self.is_subtype(data_type, "CompiledFunctionClosure");
-        let is_constructor =
-            self.is_constructor_name(&record.name.0) && !is_manipulator && !is_command;
-
-        // 1. An indexed type whose own class is `Type` is an M2 class (for
-        // example `Array`). Other type-valued objects, such as `ZZ` whose class
-        // is `Ring`, keep the standard `type` role.
-        if let Some(type_info) = &record.type_info {
-            if type_info.parent_type.is_some() {
-                return Some(M2SemanticToken {
-                    token_type: if data_type.as_ref() == "Type" {
-                        M2SemanticTokenType::Class
-                    } else {
-                        M2SemanticTokenType::Type
-                    },
-                    is_command: false,
-                    is_file: false,
-                    is_manipulator: false,
-                    is_constructor: false,
-                });
-            }
-        }
-
-        // 2. Hierarchy traversal for other categories
-        if self.is_subtype(data_type, "Function")
-            || is_scripted_functor
-            || is_manipulator
-            || is_command
-        {
-            let has_installed_methods = record
-                .function_info
-                .as_ref()
-                .is_some_and(|info| !info.methods.is_empty());
-            let token_type = if is_command {
-                M2SemanticTokenType::Function
-            } else if is_manipulator {
-                M2SemanticTokenType::Operator
-            } else if is_scripted_functor || is_compiled_function {
-                M2SemanticTokenType::Function
-            } else if has_installed_methods {
-                M2SemanticTokenType::Method
-            } else {
-                M2SemanticTokenType::Function
-            };
-
-            Some(M2SemanticToken {
-                token_type,
-                is_command,
-                is_file: false,
-                is_manipulator,
-                is_constructor,
-            })
-        } else if self.is_subtype(data_type, "Package") {
-            Some(M2SemanticToken {
-                token_type: M2SemanticTokenType::Namespace,
-                is_command: false,
-                is_file: false,
-                is_manipulator: false,
-                is_constructor: false,
-            })
-        } else if (self.is_subtype(data_type, "Symbol") || is_file)
-            && !self.is_subtype(data_type, "Keyword")
-            && !self.is_subtype(data_type, "Operator")
-        {
-            // A nominal enum member is an object whose class is *exactly*
-            // `Symbol` (not merely an instance of it) and that is `protect`ed; an
-            // unprotected symbol is just a name (a variable). When the corpus
-            // omits `protected` (None), default to enum-member, since every
-            // builtin class-`Symbol` object is in fact protected.
-            let is_symbol_class = data_type.as_ref() == "Symbol";
-            let token_type = if is_symbol_class && record.protected.unwrap_or(true) {
-                M2SemanticTokenType::EnumMember
-            } else {
-                M2SemanticTokenType::Variable
-            };
-
-            Some(M2SemanticToken {
-                token_type,
-                is_command: false,
-                is_file,
-                is_manipulator: false,
-                is_constructor: false,
-            })
-        } else {
-            None
-        }
+        semantic_token_from_knowledge(self, name)
     }
 
     /// Classify a known static type when recoloring a local symbol by inference.
     pub fn get_semantic_token_for_static_type(&self, type_name: &str) -> Option<M2SemanticToken> {
-        let type_id = InstanceID::new(type_name);
-
-        let is_command = self.is_subtype(type_name, "Command");
-        let is_file = self.is_subtype(type_name, "File");
-        let is_manipulator = self.is_subtype(type_name, "Manipulator");
-        // A CompiledFunction(Closure) is a `Function` subtype, so it is already
-        // classified by the `function_type` branch below — no separate test.
-        let is_type_valued = self.is_subtype(type_name, "Type");
-
-        let token_type = if type_name.starts_with("MethodFunction") {
-            M2SemanticTokenType::Method
-        } else if self.is_subtype(type_name, "Package") {
-            M2SemanticTokenType::Namespace
-        } else if is_type_valued {
-            if self
-                .get_record(&type_id)
-                .is_some_and(|record| record.class.as_ref() == "Type")
-            {
-                M2SemanticTokenType::Class
-            } else {
-                M2SemanticTokenType::Type
-            }
-        } else if self.is_subtype(type_name, "Function")
-            || self.is_subtype(type_name, "ScriptedFunctor")
-            || is_manipulator
-            || is_command
-        {
-            if is_command {
-                M2SemanticTokenType::Function
-            } else if is_manipulator {
-                M2SemanticTokenType::Operator
-            } else {
-                M2SemanticTokenType::Function
-            }
-        } else if is_file {
-            M2SemanticTokenType::Variable
-        } else if self.is_subtype(type_name, "Symbol") {
-            M2SemanticTokenType::EnumMember
-        } else {
-            return None;
-        };
-
-        Some(M2SemanticToken {
-            token_type,
-            is_command,
-            is_file,
-            is_manipulator,
-            is_constructor: false,
-        })
-    }
-
-    /// Whether `name` is a `to<Type>` conversion whose suffix resolves to a
-    /// type-like indexed record.
-    pub fn is_constructor_name(&self, name: &str) -> bool {
-        let unqualified_name = name.rsplit_once('$').map_or(name, |(_, name)| name);
-        let Some(target_name) = unqualified_name.strip_prefix("to") else {
-            return false;
-        };
-        if target_name.is_empty() {
-            return false;
-        }
-
-        self.get_record(&InstanceID::new(target_name))
-            .is_some_and(|record| self.is_type_like_record(&record))
-    }
-
-    fn is_type_like_record(&self, record: &Record) -> bool {
-        record
-            .type_info
-            .as_ref()
-            .is_some_and(|type_info| type_info.parent_type.is_some())
+        semantic_token_for_static_type_from_knowledge(self, type_name)
     }
 
     /// Check if child is a subtype of parent (inclusive), using the precomputed lattice.
@@ -1269,6 +1275,181 @@ impl BuiltinData {
         self.type_lattice
             .is_subtype(child.as_ref(), parent.as_ref())
     }
+}
+
+pub(crate) fn semantic_token_from_knowledge(
+    knowledge: &(impl TypeKnowledge + ?Sized),
+    name: &str,
+) -> Option<M2SemanticToken> {
+    let record = knowledge.get_record(&InstanceID::new(name))?;
+    let data_type = &record.class;
+
+    let is_command = knowledge.is_subtype(data_type.as_ref(), "Command");
+    let is_file = knowledge.is_subtype(data_type.as_ref(), "File");
+    let is_manipulator = knowledge.is_subtype(data_type.as_ref(), "Manipulator");
+    let is_scripted_functor = knowledge.is_subtype(data_type.as_ref(), "ScriptedFunctor");
+    let is_compiled_function = knowledge.is_subtype(data_type.as_ref(), "CompiledFunction")
+        || knowledge.is_subtype(data_type.as_ref(), "CompiledFunctionClosure");
+    let is_constructor =
+        indexed_name_is_constructor(knowledge, &record.name.0) && !is_manipulator && !is_command;
+
+    // An indexed type whose own class is `Type` is an M2 class (for example
+    // `Array`). Other type-valued objects, such as `ZZ` whose class is `Ring`,
+    // keep the standard `type` role.
+    if record_is_type_like(&record) {
+        return Some(M2SemanticToken {
+            token_type: if data_type.as_ref() == "Type" {
+                M2SemanticTokenType::Class
+            } else {
+                M2SemanticTokenType::Type
+            },
+            is_command: false,
+            is_file: false,
+            is_manipulator: false,
+            is_constructor: false,
+        });
+    }
+
+    if knowledge.is_subtype(data_type.as_ref(), "Function")
+        || is_scripted_functor
+        || is_manipulator
+        || is_command
+    {
+        let has_installed_methods = record
+            .function_info
+            .as_ref()
+            .is_some_and(|info| !info.methods.is_empty());
+        let token_type = if is_command {
+            M2SemanticTokenType::Function
+        } else if is_manipulator {
+            M2SemanticTokenType::Operator
+        } else if is_scripted_functor || is_compiled_function {
+            M2SemanticTokenType::Function
+        } else if has_installed_methods {
+            M2SemanticTokenType::Method
+        } else {
+            M2SemanticTokenType::Function
+        };
+
+        Some(M2SemanticToken {
+            token_type,
+            is_command,
+            is_file: false,
+            is_manipulator,
+            is_constructor,
+        })
+    } else if knowledge.is_subtype(data_type.as_ref(), "Package") {
+        Some(M2SemanticToken {
+            token_type: M2SemanticTokenType::Namespace,
+            is_command: false,
+            is_file: false,
+            is_manipulator: false,
+            is_constructor: false,
+        })
+    } else if (knowledge.is_subtype(data_type.as_ref(), "Symbol") || is_file)
+        && !knowledge.is_subtype(data_type.as_ref(), "Keyword")
+        && !knowledge.is_subtype(data_type.as_ref(), "Operator")
+    {
+        // A nominal enum member is an object whose class is exactly `Symbol`
+        // and is protected. Unprotected symbols remain variables.
+        let is_symbol_class = data_type.as_ref() == "Symbol";
+        let token_type = if is_symbol_class && record.protected.unwrap_or(true) {
+            M2SemanticTokenType::EnumMember
+        } else {
+            M2SemanticTokenType::Variable
+        };
+
+        Some(M2SemanticToken {
+            token_type,
+            is_command: false,
+            is_file,
+            is_manipulator: false,
+            is_constructor: false,
+        })
+    } else {
+        // Every remaining indexed object is still a known global value. Its
+        // runtime class has no standard LSP role, so retain `variable` and let
+        // provenance/type modifiers specialize it.
+        Some(M2SemanticToken {
+            token_type: M2SemanticTokenType::Variable,
+            is_command: false,
+            is_file: false,
+            is_manipulator: false,
+            is_constructor: false,
+        })
+    }
+}
+
+pub(crate) fn semantic_token_for_static_type_from_knowledge(
+    knowledge: &(impl TypeKnowledge + ?Sized),
+    type_name: &str,
+) -> Option<M2SemanticToken> {
+    let is_command = knowledge.is_subtype(type_name, "Command");
+    let is_file = knowledge.is_subtype(type_name, "File");
+    let is_manipulator = knowledge.is_subtype(type_name, "Manipulator");
+    let is_type_valued = knowledge.is_subtype(type_name, "Type");
+
+    let token_type = if type_name.starts_with("MethodFunction") {
+        M2SemanticTokenType::Method
+    } else if knowledge.is_subtype(type_name, "Package") {
+        M2SemanticTokenType::Namespace
+    } else if is_type_valued {
+        if knowledge
+            .get_record(&InstanceID::new(type_name))
+            .is_some_and(|record| record.class.as_ref() == "Type")
+        {
+            M2SemanticTokenType::Class
+        } else {
+            M2SemanticTokenType::Type
+        }
+    } else if knowledge.is_subtype(type_name, "Function")
+        || knowledge.is_subtype(type_name, "ScriptedFunctor")
+        || is_manipulator
+        || is_command
+    {
+        if is_command {
+            M2SemanticTokenType::Function
+        } else if is_manipulator {
+            M2SemanticTokenType::Operator
+        } else {
+            M2SemanticTokenType::Function
+        }
+    } else if is_file {
+        M2SemanticTokenType::Variable
+    } else if knowledge.is_subtype(type_name, "Symbol") {
+        M2SemanticTokenType::EnumMember
+    } else {
+        return None;
+    };
+
+    Some(M2SemanticToken {
+        token_type,
+        is_command,
+        is_file,
+        is_manipulator,
+        is_constructor: false,
+    })
+}
+
+fn indexed_name_is_constructor(knowledge: &(impl TypeKnowledge + ?Sized), name: &str) -> bool {
+    let unqualified_name = name.rsplit_once('$').map_or(name, |(_, name)| name);
+    let Some(target_name) = unqualified_name.strip_prefix("to") else {
+        return false;
+    };
+    if target_name.is_empty() {
+        return false;
+    }
+
+    knowledge
+        .get_record(&InstanceID::new(target_name))
+        .is_some_and(|record| record_is_type_like(&record))
+}
+
+fn record_is_type_like(record: &Record) -> bool {
+    record
+        .type_info
+        .as_ref()
+        .is_some_and(|type_info| type_info.parent_type.is_some())
 }
 
 #[cfg(test)]

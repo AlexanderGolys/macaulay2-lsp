@@ -14,7 +14,9 @@ use tree_sitter::Tree;
 use crate::diagnostic_registry::M2Diagnostic;
 use crate::meta::{BindingRole, Meta, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::typesystem::{BuiltinData, InstanceID};
+#[cfg(test)]
+use crate::typesystem::NoTypeKnowledge;
+use crate::typesystem::{InstanceID, TypeKnowledge};
 use crate::util::{node_position, position_in_range, to_lsp_range};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -215,7 +217,7 @@ fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
     Some(match parameters.kind {
         NodeKind::ParenthesizedExpression => Dispatch::Fixed(1),
         kind if kind.is_collection_expression() => {
-            Dispatch::Fixed(parameters.named_children().count())
+            Dispatch::Fixed(parameters.collection_elements().count())
         }
         // A single bare parameter binds the whole argument sequence — variadic.
         kind if kind.is_symbol_like() => Dispatch::Variadic,
@@ -333,21 +335,19 @@ impl InferredType {
     /// subsumed by a more-general one already present (`↑a ⊆ ↑b` when `a` is-a
     /// `b`) is dropped. Needs the lattice to compare subtypes; without it the
     /// union is only deduplicated.
-    fn join(self, other: Self, builtins: Option<&BuiltinData>) -> Self {
+    fn join(self, other: Self, knowledge: &(impl TypeKnowledge + ?Sized)) -> Self {
         let mut generators = self.generators;
         for generator in other.generators {
             if !generators.contains(&generator) {
                 generators.push(generator);
             }
         }
-        if let Some(builtins) = builtins {
-            let candidates = generators.clone();
-            generators.retain(|generator| {
-                !candidates
-                    .iter()
-                    .any(|other| other != generator && builtins.is_subtype(generator, other))
-            });
-        }
+        let candidates = generators.clone();
+        generators.retain(|generator| {
+            !candidates.iter().any(|other| {
+                other != generator && knowledge.is_subtype(generator.as_ref(), other.as_ref())
+            })
+        });
         Self { generators }
     }
 }
@@ -774,10 +774,14 @@ impl Analysis {
 
     #[cfg(test)]
     pub fn new(tree: &Tree, text: &str) -> Self {
-        Self::new_with_builtins(tree, text, None)
+        Self::new_with_knowledge(tree, text, &NoTypeKnowledge)
     }
 
-    pub fn new_with_builtins(tree: &Tree, text: &str, builtins: Option<&BuiltinData>) -> Self {
+    pub(crate) fn new_with_knowledge(
+        tree: &Tree,
+        text: &str,
+        builtins: &(impl TypeKnowledge + ?Sized),
+    ) -> Self {
         let mut analysis = Analysis {
             diagnostics: Vec::new(),
             registry: SemanticRegistry {
@@ -817,7 +821,7 @@ impl Analysis {
         text: &str,
         current_scope_idx: usize,
         assignment_scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         let mut next_scope_idx = current_scope_idx;
         let mut next_assignment_scope_idx = assignment_scope_idx;
@@ -955,7 +959,12 @@ impl Analysis {
     /// Walk the tree once, characterizing every method installation into
     /// `self.installations`. This is the only place the install-vs-call decision
     /// is made; capabilities read the result.
-    fn collect_installations(&mut self, node: M2Node, text: &str, builtins: Option<&BuiltinData>) {
+    fn collect_installations(
+        &mut self,
+        node: M2Node,
+        text: &str,
+        builtins: &(impl TypeKnowledge + ?Sized),
+    ) {
         if node.is_assignment() {
             if let Some(installation) = self.classify_installation(node, text, builtins) {
                 self.installations.push(installation);
@@ -983,7 +992,7 @@ impl Analysis {
         &self,
         node: M2Node<'tree>,
         text: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<M2Node<'tree>> {
         if !node.is_assignment() {
             return None;
@@ -1011,7 +1020,7 @@ impl Analysis {
         &self,
         node: M2Node,
         text: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<MethodInstallation> {
         let operator = node.binary_operator()?;
         let left = node.child_by_field_name("left")?;
@@ -1077,17 +1086,14 @@ impl Analysis {
     fn installation_shape(
         &self,
         node: M2Node,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<(MethodHead, Vec<TypeRef>)> {
-        // A parenthesized expression is identified with its inner value, so
-        // `(T op S) := f` installs exactly like `T op S := f`. The value is the
-        // final expression; a trailing `;` makes the value null, which is not an
-        // installation target.
+        // A parenthesized expression is identified with its final value, so
+        // `(T op S) := f` installs exactly like `T op S := f`. A final `muted`
+        // child means the group evaluates to null and is not an installation
+        // target.
         if node.kind == NodeKind::ParenthesizedExpression {
-            if node.has_trailing_semicolon() {
-                return None;
-            }
-            let inner = node.named_children().last()?;
+            let inner = node.final_value_child()?;
             return self.installation_shape(inner, builtins);
         }
         match node.kind {
@@ -1162,16 +1168,16 @@ impl Analysis {
     /// a local binding whose inferred class is `Type` (e.g. `X = new Type of …`)
     /// shadows builtins, then the builtin type records are consulted. The two
     /// stores keep their own lifecycles; only this query unifies them.
-    fn operand_is_type(&self, name: &str, builtins: Option<&BuiltinData>) -> bool {
+    fn operand_is_type(&self, name: &str, builtins: &(impl TypeKnowledge + ?Sized)) -> bool {
         self.local_binding_is_type(name, builtins)
             || builtins
-                .and_then(|builtins| builtins.get_record(&InstanceID::new(name)))
+                .get_record(&InstanceID::new(name))
                 .is_some_and(|record| record.type_info.is_some())
     }
 
     /// Whether any local binding named `name` is a type — its inferred static
     /// class is `Type` or a `Type` descendant.
-    fn local_binding_is_type(&self, name: &str, builtins: Option<&BuiltinData>) -> bool {
+    fn local_binding_is_type(&self, name: &str, builtins: &(impl TypeKnowledge + ?Sized)) -> bool {
         let Some(symbol) = self.registry.resolve_symbol(name) else {
             return false;
         };
@@ -1194,17 +1200,17 @@ impl Analysis {
     /// reject or silently ignore. Runs after [`collect_installations`] so it only
     /// consumes the stored facts; the type universe (builtins ∪ local) is queried
     /// here because validity depends on the head's class and the operator corpus.
-    fn collect_installation_diagnostics(&mut self, builtins: Option<&BuiltinData>) {
+    fn collect_installation_diagnostics(&mut self, builtins: &(impl TypeKnowledge + ?Sized)) {
         // Validity hinges on the type universe: adjacency `A B := …` is a SPACE
         // operator install when `A` is a type but a function-head install
         // otherwise, and the two have different domains (hence different arities).
-        // Without builtins we cannot tell them apart, so we stay silent (monotone).
-        let Some(builtins) = builtins else {
+        // Without external facts we cannot tell them apart, so stay monotone.
+        if !builtins.is_available() {
             return;
-        };
+        }
         let mut diagnostics = Vec::new();
         for installation in &self.installations {
-            self.installation_diagnostics(installation, Some(builtins), &mut diagnostics);
+            self.installation_diagnostics(installation, builtins, &mut diagnostics);
         }
         self.diagnostics.extend(diagnostics);
     }
@@ -1219,7 +1225,7 @@ impl Analysis {
         &mut self,
         node: M2Node,
         text: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         let mut diagnostics = Vec::new();
         self.scan_install_form(node, text, builtins, &mut diagnostics);
@@ -1230,7 +1236,7 @@ impl Analysis {
         &self,
         node: M2Node,
         text: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
         out: &mut Vec<Diagnostic>,
     ) {
         if let Some(name) = self.illegal_equals_install_head(node, builtins) {
@@ -1254,7 +1260,7 @@ impl Analysis {
     fn illegal_equals_install_head(
         &self,
         node: M2Node,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<String> {
         if !node.is_assignment() || node.binary_operator() != Some("=") {
             return None;
@@ -1279,7 +1285,7 @@ impl Analysis {
     fn installation_diagnostics(
         &self,
         installation: &MethodInstallation,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
         out: &mut Vec<Diagnostic>,
     ) {
         match &installation.head {
@@ -1333,16 +1339,20 @@ impl Analysis {
         &self,
         token: &str,
         form: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<bool> {
-        let record = builtins?.get_record(&InstanceID::new(token))?;
+        let record = builtins.get_record(&InstanceID::new(token))?;
         let operator_info = record.operator_info.as_ref()?;
         Some(operator_info.is_flexible(form))
     }
 
     /// Classify an installation's function head by method-function-ness, querying
     /// the layered type universe (local bindings first, then builtins).
-    fn head_function_kind(&self, name: &str, builtins: Option<&BuiltinData>) -> HeadFunctionKind {
+    fn head_function_kind(
+        &self,
+        name: &str,
+        builtins: &(impl TypeKnowledge + ?Sized),
+    ) -> HeadFunctionKind {
         // A local binding of `name` as a function shadows any builtin — its
         // inferred class (`"FunctionClosure"` for a lambda, `"MethodFunction"`
         // for `method()`) decides method-function-ness.
@@ -1351,9 +1361,7 @@ impl Analysis {
         }
         // Otherwise a builtin record heads a function iff it carries
         // `function_info`; its `class` then decides method-function-ness.
-        if let Some(record) =
-            builtins.and_then(|builtins| builtins.get_record(&InstanceID::new(name)))
-        {
+        if let Some(record) = builtins.get_record(&InstanceID::new(name)) {
             if record.function_info.is_some() {
                 return head_function_kind_of_class(&record.class.0);
             }
@@ -1479,7 +1487,7 @@ impl Analysis {
                 // as `[x, [y, z]]` register their inner symbols too; non-symbol,
                 // non-collection elements fall through to the `_` arm and are
                 // ignored.
-                for child in node.named_children() {
+                for child in node.collection_elements() {
                     self.collect_definitions(
                         child,
                         value_node,
@@ -1616,7 +1624,7 @@ impl Analysis {
         &self,
         node: M2Node,
         text: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> CallStaticFacts {
         let scope_idx = self.find_scope_at(node_position(text, node)).unwrap_or(0);
         self.infer_call_facts(node, text, scope_idx, builtins)
@@ -1626,7 +1634,7 @@ impl Analysis {
         &self,
         node: M2Node,
         text: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<String> {
         let scope_idx = self.find_scope_at(node_position(text, node)).unwrap_or(0);
         self.type_of(node, text, scope_idx, builtins)
@@ -1689,7 +1697,7 @@ impl Analysis {
         target: M2Node,
         right: Option<M2Node>,
         text: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         let Some((head, domain)) = self.installation_shape(target, builtins) else {
             return;
@@ -1748,7 +1756,7 @@ impl Analysis {
         &mut self,
         node: M2Node,
         text: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         let position = node_position(text, node);
         let scope_idx = self.find_scope_at(position).unwrap_or(0);
@@ -1812,7 +1820,7 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<CallInfo> {
         if !matches!(
             node.kind,
@@ -1907,7 +1915,7 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         if !self.cache_types {
             return self.compute_type_of(node, text, scope_idx, builtins);
@@ -1938,7 +1946,7 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         match node.kind {
             // A lambda's class is the concrete `FunctionClosure`, not the abstract
@@ -1953,14 +1961,14 @@ impl Analysis {
             NodeKind::List => InferredType::of("List"),
             NodeKind::Array => InferredType::of("Array"),
             NodeKind::AngleBarList => InferredType::of("AngleBarList"),
-            NodeKind::Sequence => self.sequence_type(node, text, scope_idx, builtins),
-            // A parenthesized expression is its inner value: `(1)` is `ZZ`, `(a+b)`
-            // is the type of `a+b`. A trailing-`;` paren evaluates to the `null`
-            // value (class `Nothing`); we leave it unknown for now rather than
-            // pin `Nothing`.
+            kind if kind.is_sequence() => InferredType::of("Sequence"),
+            kind if kind.is_nothing_value() => InferredType::of("Nothing"),
+            // A parenthesized expression is its final unmuted value: `(1)` is
+            // `ZZ`, `(a;b)` is the type of `b`. With no final value (`(a;)`) it
+            // evaluates to `null`, whose class is `Nothing`.
             NodeKind::ParenthesizedExpression => match parenthesized_value(node) {
                 Some(inner) => self.type_of(inner, text, scope_idx, builtins),
-                None => InferredType::unknown(),
+                None => InferredType::of("Nothing"),
             },
             NodeKind::StringLiteral => InferredType::of("String"),
             NodeKind::IntegerLiteral => InferredType::of("ZZ"),
@@ -2033,7 +2041,7 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         let then_type = clause_of(node, NodeKind::ThenClause)
             .and_then(clause_value)
@@ -2054,7 +2062,7 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         let body = node
             .named_children()
@@ -2082,7 +2090,7 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         match node.named_children().next() {
             Some(operand) => self.type_of(operand, text, scope_idx, builtins),
@@ -2099,7 +2107,7 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         let name = node.text();
         if let Some(binding) =
@@ -2110,29 +2118,11 @@ impl Analysis {
             }
         }
 
-        if let Some(record) =
-            builtins.and_then(|builtins| builtins.get_record(&InstanceID::new(name)))
-        {
+        if let Some(record) = builtins.get_record(&InstanceID::new(name)) {
             return InferredType::from_id(record.class);
         }
 
         InferredType::of("Symbol")
-    }
-
-    /// A sequence's type: its single inner value for a one-element sequence
-    /// (`(a)` collapses to `a`), else the `Sequence` class.
-    fn sequence_type(
-        &self,
-        node: M2Node,
-        text: &str,
-        scope_idx: usize,
-        builtins: Option<&BuiltinData>,
-    ) -> InferredType {
-        let children = node.named_children().collect::<Vec<_>>();
-        match children.as_slice() {
-            [child] => self.type_of(*child, text, scope_idx, builtins),
-            _ => InferredType::of("Sequence"),
-        }
     }
 
     /// A binary expression's type. Juxtaposition `a SPACE b` is application
@@ -2145,7 +2135,7 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         if node.is_space_application() {
             return self.application_type(node, text, scope_idx, builtins);
@@ -2163,13 +2153,11 @@ impl Analysis {
             }
         }
 
-        let (Some(operator), Some(left), Some(right), Some(builtins)) =
-            (operator, left, right, builtins)
-        else {
+        let (Some(operator), Some(left), Some(right)) = (operator, left, right) else {
             return InferredType::unknown();
         };
-        let left_type = self.type_of(left, text, scope_idx, Some(builtins));
-        let right_type = self.type_of(right, text, scope_idx, Some(builtins));
+        let left_type = self.type_of(left, text, scope_idx, builtins);
+        let right_type = self.type_of(right, text, scope_idx, builtins);
         self.dispatch_codomain(builtins, operator, &[left_type, right_type], &[])
     }
 
@@ -2185,16 +2173,15 @@ impl Analysis {
         left: Option<M2Node>,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
         if !matches!(operator, "_" | "@@") {
             return None;
         }
-        let builtins = builtins?;
-        let head = self.type_of(left?, text, scope_idx, Some(builtins));
+        let head = self.type_of(left?, text, scope_idx, builtins);
         let head = head.principal()?;
         builtins
-            .is_subtype(head, "Function")
+            .is_subtype(head.as_ref(), "Function")
             .then(|| InferredType::of("FunctionClosure"))
     }
 
@@ -2208,7 +2195,7 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         let (Some(callable_node), Some(argument_node)) = (
             node.child_by_field_name("left"),
@@ -2237,13 +2224,10 @@ impl Analysis {
         // Otherwise the lattice decides whether the head is a function (delegating
         // to its signatures) or another SPACE method (`Ring × Array →
         // PolynomialRing`).
-        let Some(builtins) = builtins else {
-            return InferredType::unknown();
-        };
-        let head = self.type_of(callable_node, text, scope_idx, Some(builtins));
+        let head = self.type_of(callable_node, text, scope_idx, builtins);
         let head_is_function = head
             .principal()
-            .is_some_and(|head| builtins.is_subtype(head, "Function"));
+            .is_some_and(|head| builtins.is_subtype(head.as_ref(), "Function"));
         if head_is_function {
             if let Some(callable) = callable_name {
                 if let Some(return_type) = builtins.resolve_call_return_type_with_options(
@@ -2258,7 +2242,7 @@ impl Analysis {
             return InferredType::of("Thing");
         }
 
-        let argument_type = self.type_of(argument_node, text, scope_idx, Some(builtins));
+        let argument_type = self.type_of(argument_node, text, scope_idx, builtins);
         self.dispatch_codomain(
             builtins,
             SPACE_OPERATOR,
@@ -2282,16 +2266,14 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
-        let (Some(builtins), Some(operator), Some(operand)) = (
-            builtins,
-            operator_text(node),
-            node.child_by_field_name("operand"),
-        ) else {
+        let (Some(operator), Some(operand)) =
+            (operator_text(node), node.child_by_field_name("operand"))
+        else {
             return InferredType::unknown();
         };
-        let operand_type = self.type_of(operand, text, scope_idx, Some(builtins));
+        let operand_type = self.type_of(operand, text, scope_idx, builtins);
         self.dispatch_codomain(builtins, operator, &[operand_type], &[])
     }
 
@@ -2301,14 +2283,12 @@ impl Analysis {
     /// index entry, so it dispatches"; an unidentifiable head stays `Unknown`.
     fn dispatch_codomain(
         &self,
-        builtins: &BuiltinData,
+        builtins: &(impl TypeKnowledge + ?Sized),
         callable: &str,
         args: &[InferredType],
         options: &[(String, String)],
     ) -> InferredType {
-        if let Some(return_type) =
-            self.resolve_local_call_return_type(callable, args, Some(builtins))
-        {
+        if let Some(return_type) = self.resolve_local_call_return_type(callable, args, builtins) {
             return InferredType::of(&return_type);
         }
         if let Some(return_type) =
@@ -2327,14 +2307,14 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> CallStaticFacts {
         // A single parenthesized argument `f(x)` / `f(opt => v)` denotes its inner
         // value; peel it so the argument is classified like a bare argument.
         let node = parenthesized_value(node).unwrap_or(node);
         if node.kind == NodeKind::Sequence {
             let mut facts = CallStaticFacts::default();
-            for child in node.named_children() {
+            for child in node.collection_elements() {
                 if let Some(option) = literal_option_assignment(child) {
                     facts.literal_options.push(option);
                 } else {
@@ -2363,7 +2343,7 @@ impl Analysis {
         &self,
         callable: &str,
         argument_types: &[InferredType],
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<String> {
         let symbol = self.registry.resolve_symbol(callable)?;
         let method = self.registry.functions.get(&symbol)?;
@@ -2390,7 +2370,7 @@ impl Analysis {
         &self,
         signature: &MethodInfo,
         argument_types: &[InferredType],
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
         self.signature_matches_domain(&signature.domain, argument_types, builtins)
     }
@@ -2399,7 +2379,7 @@ impl Analysis {
         &self,
         expected_domain: &[String],
         argument_types: &[InferredType],
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
         expected_domain.len() == argument_types.len()
             && expected_domain
@@ -2416,11 +2396,9 @@ impl Analysis {
         &self,
         actual: &InstanceID,
         expected: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
-        if actual.0 == expected
-            || builtins.is_some_and(|builtins| builtins.is_subtype(actual, expected))
-        {
+        if actual.0 == expected || builtins.is_subtype(actual.as_ref(), expected) {
             return true;
         }
 
@@ -2433,9 +2411,7 @@ impl Analysis {
             let Some(parent) = self.registry.type_parents.get(&symbol) else {
                 return false;
             };
-            if parent.name() == expected
-                || builtins.is_some_and(|builtins| builtins.is_subtype(parent.name(), expected))
-            {
+            if parent.name() == expected || builtins.is_subtype(parent.name(), expected) {
                 return true;
             }
             current = parent.name();
@@ -2471,12 +2447,19 @@ fn expression_kind(node: M2Node<'_>) -> Option<ExpressionKind> {
     match node.kind {
         kind if kind.is_literal() => Some(ExpressionKind::Literal),
         NodeKind::Symbol => Some(ExpressionKind::Name),
-        kind if kind.is_collection_expression() || kind == NodeKind::Cell => {
+        kind if kind.is_collection_expression()
+            || kind == NodeKind::NakedSequence
+            || kind == NodeKind::Cell =>
+        {
             Some(ExpressionKind::ScopeExpr)
         }
-        // A parenthesized expression is its inner value, so it takes the inner
-        // value's kind (`(a+b)` is an `Expr`, `(x)` a `Name`); a null `(a;)` skips.
-        NodeKind::ParenthesizedExpression => parenthesized_value(node).and_then(expression_kind),
+        // A parenthesized expression takes its final value's kind (`(a+b)` is an
+        // `Expr`, `(x)` a `Name`). A group ending in `muted` still has the
+        // explicit `Nothing` value, represented as a scope expression.
+        NodeKind::ParenthesizedExpression => match parenthesized_value(node) {
+            Some(value) => expression_kind(value),
+            None => Some(ExpressionKind::ScopeExpr),
+        },
         NodeKind::IfStatement
         | NodeKind::WhileStatement
         | NodeKind::ForStatement
@@ -2550,7 +2533,7 @@ fn declaration_symbol_kind(kind: SymbolKind, value: Option<M2Node<'_>>) -> Symbo
 fn declared_type_parent<'tree>(
     value: M2Node<'tree>,
     type_name: Option<&str>,
-    builtins: Option<&BuiltinData>,
+    builtins: &(impl TypeKnowledge + ?Sized),
 ) -> Option<&'tree str> {
     if value.kind != NodeKind::NewStatement
         || !type_name.is_some_and(|type_name| type_name_denotes_type(type_name, builtins))
@@ -2656,8 +2639,8 @@ fn operator_text(node: M2Node<'_>) -> Option<&str> {
 /// Whether `type_name` (an inferred static class or a referenced name) denotes a
 /// TYPE, i.e. is `Type` itself or one of its descendants (`SelfInitializingType`,
 /// …). Without the registry only the exact `Type` is recognized.
-fn type_name_denotes_type(type_name: &str, builtins: Option<&BuiltinData>) -> bool {
-    type_name == "Type" || builtins.is_some_and(|builtins| builtins.is_subtype(type_name, "Type"))
+fn type_name_denotes_type(type_name: &str, builtins: &(impl TypeKnowledge + ?Sized)) -> bool {
+    type_name == "Type" || builtins.is_subtype(type_name, "Type")
 }
 
 pub(crate) fn method_installation_signature(node: M2Node) -> Option<(String, Vec<String>)> {
@@ -2784,17 +2767,13 @@ fn child_scope_assignment_is_local(parent: M2Node<'_>, child: M2Node<'_>) -> Opt
 }
 
 /// The value a node denotes, peeling parenthesized grouping: `(a)` → `a`,
-/// `((a))` → `a`. A trailing-`;` parenthesized expression (`(a;)`) denotes null,
-/// so it has no value node — returns `None`. A non-parenthesized node is its own
-/// value. `()` and `(a, b)` are `Sequence` nodes (real values), left untouched.
+/// `((a))` → `a`. A parenthesized expression whose final child is `muted`
+/// (`(a;)`) denotes null, so it has no value node. A non-parenthesized node is
+/// its own value. `()` and `(a, b)` are `Sequence` nodes, left untouched.
 fn parenthesized_value(node: M2Node) -> Option<M2Node> {
     let mut current = node;
     while current.kind == NodeKind::ParenthesizedExpression {
-        if current.has_trailing_semicolon() {
-            return None;
-        }
-        let inner = current.named_children().last()?;
-        current = inner;
+        current = current.final_value_child()?;
     }
     Some(current)
 }
@@ -2811,8 +2790,7 @@ pub(crate) fn method_installation_domain(node: M2Node) -> Option<Vec<String>> {
         // than dropping it and under-counting the arity. Comments ride along as
         // named children and are not dispatch positions.
         let domain = node
-            .named_children()
-            .filter(|child| !child.kind.is_comment())
+            .collection_elements()
             .map(|child| {
                 symbol_node_text(child)
                     .unwrap_or_else(|| child.text())
@@ -2868,6 +2846,7 @@ mod tests {
         member_index_for_ambiguous_float_literal, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE,
     };
     use crate::diagnostic_registry::diagnostic_has_kind;
+    use crate::typesystem::BuiltinData;
     use tower_lsp::lsp_types::DiagnosticSeverity;
     use tree_sitter::Parser;
 
@@ -2886,7 +2865,7 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        Analysis::new_with_builtins(&tree, text, Some(builtins))
+        Analysis::new_with_knowledge(&tree, text, builtins)
     }
 
     fn core_builtins() -> BuiltinData {
@@ -2906,7 +2885,7 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_builtins(&tree, text, Some(builtins));
+        let analysis = Analysis::new_with_knowledge(&tree, text, builtins);
         let node = find(M2Node::new(tree.root_node(), text), kind)?;
         analysis
             .expression_fact(text, node)
@@ -3049,6 +3028,16 @@ mod tests {
         assert_eq!(dispatch_of("f := () -> 1\n"), Some(Dispatch::Fixed(0)));
         assert_eq!(dispatch_of("f := (x) -> x\n"), Some(Dispatch::Fixed(1)));
         assert_eq!(dispatch_of("f := (x, y) -> x\n"), Some(Dispatch::Fixed(2)));
+        assert_eq!(
+            dispatch_of("f := (, x,) -> x\n"),
+            Some(Dispatch::Fixed(3)),
+            "explicit null slots contribute to the lambda arity"
+        );
+        assert_eq!(
+            dispatch_of("f := (ignored; x, y) -> x\n"),
+            Some(Dispatch::Fixed(2)),
+            "muted expressions do not contribute parameter slots"
+        );
     }
 
     #[test]
@@ -3288,6 +3277,32 @@ mod tests {
         let analysis = analyze("g = x -> x\n");
         let symbols = analysis.in_scope_symbols("g", Position::new(1, 0));
         assert_eq!(symbols, vec![("g".to_string(), SymbolKind::FUNCTION)]);
+    }
+
+    #[test]
+    fn grammar_v4_sequence_and_muted_group_types_follow_runtime_values() {
+        let builtins = core_builtins();
+        assert_eq!(
+            type_label_of_kind("1,2\n", &builtins, NodeKind::NakedSequence).as_deref(),
+            Some("Sequence")
+        );
+        assert_eq!(
+            type_label_of_kind("(,1,,)\n", &builtins, NodeKind::Sequence).as_deref(),
+            Some("Sequence")
+        );
+        assert_eq!(
+            type_label_of_kind("(1;)\n", &builtins, NodeKind::ParenthesizedExpression).as_deref(),
+            Some("Nothing")
+        );
+        assert_eq!(
+            type_label_of_kind(
+                "(1;\"value\")\n",
+                &builtins,
+                NodeKind::ParenthesizedExpression
+            )
+            .as_deref(),
+            Some("String")
+        );
     }
 
     #[test]
@@ -4062,7 +4077,7 @@ x
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_builtins(&tree, text, Some(&builtins));
+        let analysis = Analysis::new_with_knowledge(&tree, text, &builtins);
         let assignment = tree
             .root_node()
             .descendant_for_byte_range(18, 23)
@@ -4088,7 +4103,7 @@ x
         let computations = analysis.type_computation_count();
         assert_eq!(computations, analysis.cached_type_count());
         assert_eq!(
-            analysis.infer_expression_static_type_name(binary, text, Some(&builtins)),
+            analysis.infer_expression_static_type_name(binary, text, &builtins),
             Some("ZZ".to_string())
         );
         assert_eq!(
@@ -4150,7 +4165,7 @@ x
         // The assignment evaluates to its right-hand side, so its expression
         // type is Array even though the target is written with `{}`.
         assert_eq!(
-            analysis.infer_expression_static_type_name(assignment, text, None),
+            analysis.infer_expression_static_type_name(assignment, text, &NoTypeKnowledge),
             Some("Array".to_string())
         );
     }
@@ -4175,6 +4190,19 @@ x
             .collect::<Vec<_>>();
 
         assert_eq!(arity_errors, vec![0, 1, 4, 5]);
+    }
+
+    #[test]
+    fn parallel_assignment_arity_counts_null_slots_and_skips_muted_parts() {
+        let analysis = analyze("[x, y] = [ignored; 2, 3]\n[x, y, z] = [, 1,]\n[x, y] = [, 1,]\n");
+        let arity_errors = analysis
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.message.contains("parallel assignment binds"))
+            .map(|diagnostic| diagnostic.range.start.line)
+            .collect::<Vec<_>>();
+
+        assert_eq!(arity_errors, vec![2]);
     }
 
     #[test]

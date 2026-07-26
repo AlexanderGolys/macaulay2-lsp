@@ -14,16 +14,16 @@ use tower_lsp::lsp_types::{Location, Range, Url};
 
 use crate::capabilities::semantic_tokens::local_symbol_semantic_token_type;
 use crate::document::DocumentSnapshot;
-use crate::typesystem::BuiltinData;
+use crate::typesystem::{BuiltinData, M2SemanticTokenType};
 
 #[derive(Debug, Clone)]
 struct DefLocation {
     uri: Url,
     range: Range,
     /// The semantic-token type this definition would carry in its own file
-    /// (legend index), so a cross-file reference can be highlighted like the
+    /// so a cross-file reference can be highlighted like the
     /// definition. Computed once at index time from the definition's symbol info.
-    token_type: u32,
+    token_type: M2SemanticTokenType,
 }
 
 /// Global definition index, keyed by symbol name, kept in sync with edits and
@@ -142,7 +142,11 @@ impl WorkspaceIndex {
     /// its first top-level definition outside `exclude`. Lets a symbol defined in
     /// another workspace file be highlighted where the local analysis and the
     /// builtin index both come up empty.
-    pub(crate) fn semantic_token_type(&self, name: &str, exclude: &Url) -> Option<u32> {
+    pub(crate) fn semantic_token_type(
+        &self,
+        name: &str,
+        exclude: &Url,
+    ) -> Option<M2SemanticTokenType> {
         self.by_name.get(name).and_then(|locations| {
             locations
                 .iter()
@@ -191,7 +195,10 @@ fn collect_m2_files(dir: &Path, out: &mut Vec<PathBuf>) {
 /// Parse `text` and return its global-scope definitions as `(name, range)`,
 /// where `range` is the definition site — the same range go-to-definition
 /// returns for an in-file symbol.
-fn top_level_definitions(text: &str, builtins: &BuiltinData) -> Vec<(String, Range, u32)> {
+fn top_level_definitions(
+    text: &str,
+    builtins: &BuiltinData,
+) -> Vec<(String, Range, M2SemanticTokenType)> {
     let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), builtins) else {
         return Vec::new();
     };
@@ -199,7 +206,7 @@ fn top_level_definitions(text: &str, builtins: &BuiltinData) -> Vec<(String, Ran
     analysis
         .bindings_in_scope(0)
         .map(|binding| {
-            let token_type = local_symbol_semantic_token_type(&binding, builtins) as u32;
+            let token_type = local_symbol_semantic_token_type(&binding, builtins);
             (
                 analysis.symbol_name(binding.symbol).to_string(),
                 binding.range,

@@ -8,8 +8,9 @@ use tree_sitter::{InputEdit, Parser, Point, Tree};
 #[cfg(test)]
 use crate::analysis::ExpressionFact;
 use crate::analysis::{Analysis, BindingView, FunctionInfo};
+use crate::documentation::{collect_documentation_references, DocumentationReference};
 use crate::package_index::collect_imported_packages_in_tree;
-use crate::typesystem::BuiltinData;
+use crate::typesystem::TypeKnowledgeProvider;
 use crate::util::{
     byte_index_from_lsp_position, floor_char_boundary, node_range,
     tree_sitter_point_from_byte_index, tree_sitter_point_from_lsp_position,
@@ -25,46 +26,56 @@ pub(crate) struct DocumentSnapshot {
     /// owned by the partitioned index, so the snapshot stores only its own
     /// contribution to the loaded set.
     imported_packages: Vec<String>,
+    /// Backtick-delimited code-object mentions inside comments and raw
+    /// documentation strings, indexed once per document version.
+    documentation_references: Vec<DocumentationReference>,
 }
 
 /// The common first step of every reference / highlight / rename request: the
-/// tree-sitter symbol node under the cursor together with its scope-aware
-/// `BindingInfo`. Resolved once per request and threaded through the downstream
-/// reference collection so the target lookup is not repeated.
+/// source occurrence under the cursor together with its scope-aware binding.
+/// The occurrence may be a CST symbol or a backtick mention in documentation.
+/// Resolved once per request and threaded through downstream collection.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TargetSymbol<'a> {
-    pub node: M2Node<'a>,
+    pub name: &'a str,
+    pub range: Range,
     pub symbol: BindingView<'a>,
 }
 
 impl DocumentSnapshot {
-    pub(crate) fn from_text(text: String, builtins: &BuiltinData) -> Option<Self> {
+    pub(crate) fn from_text(
+        text: String,
+        knowledge_provider: &(impl TypeKnowledgeProvider + ?Sized),
+    ) -> Option<Self> {
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
             .ok()?;
         let tree = parser.parse(&text, None)?;
-        let analysis = Analysis::new_with_builtins(&tree, &text, Some(builtins));
         let imported_packages = collect_imported_packages_in_tree(&text, &tree);
+        let knowledge = knowledge_provider.knowledge_for(&imported_packages);
+        let analysis = Analysis::new_with_knowledge(&tree, &text, &knowledge);
+        let documentation_references = collect_documentation_references(&text, &tree);
         Some(Self {
             text,
             tree,
             analysis,
             imported_packages,
+            documentation_references,
         })
     }
 
     pub(crate) fn apply_changes(
         &mut self,
         changes: &[TextDocumentContentChangeEvent],
-        builtins: &BuiltinData,
+        knowledge_provider: &(impl TypeKnowledgeProvider + ?Sized),
     ) -> Option<()> {
         for change in changes {
             if let Some(range) = change.range {
-                self.apply_incremental_change(range, &change.text, builtins)?;
+                self.apply_incremental_change(range, &change.text, knowledge_provider)?;
             } else {
                 let replacement = change.text.clone();
-                let rebuilt = Self::from_text(replacement, builtins)?;
+                let rebuilt = Self::from_text(replacement, knowledge_provider)?;
                 *self = rebuilt;
             }
         }
@@ -92,8 +103,8 @@ impl DocumentSnapshot {
     }
 
     pub(crate) fn binding_at_position(&self, position: Position) -> Option<BindingView<'_>> {
-        let node = self.symbol_node_at_position(position)?;
-        self.analysis.get_binding_at(node.text(), position)
+        let (name, _) = self.symbol_occurrence_at(position)?;
+        self.analysis.get_binding_at(name, position)
     }
 
     /// Resolve the user symbol under `position`: its tree-sitter node plus the
@@ -102,9 +113,37 @@ impl DocumentSnapshot {
     /// punctuation, or whitespace). The single entry point shared by reference,
     /// highlight, and rename requests.
     pub(crate) fn target_symbol_at(&self, position: Position) -> Option<TargetSymbol<'_>> {
+        let (name, range) = self.symbol_occurrence_at(position)?;
+        let symbol = self.analysis.get_symbol_at(name, position)?;
+        Some(TargetSymbol {
+            name,
+            range,
+            symbol,
+        })
+    }
+
+    pub(crate) fn documentation_references(&self) -> &[DocumentationReference] {
+        &self.documentation_references
+    }
+
+    pub(crate) fn documentation_reference_at(
+        &self,
+        position: Position,
+    ) -> Option<DocumentationReference> {
+        self.documentation_references
+            .iter()
+            .copied()
+            .find(|reference| reference.contains(position))
+    }
+
+    /// A real CST symbol or a backtick-delimited symbol mention under the
+    /// cursor. The range always covers only the identifier text.
+    pub(crate) fn symbol_occurrence_at(&self, position: Position) -> Option<(&str, Range)> {
+        if let Some(reference) = self.documentation_reference_at(position) {
+            return Some((reference.name(&self.text), reference.range()));
+        }
         let node = self.symbol_node_at_position(position)?;
-        let symbol = self.analysis.get_symbol_at(node.text(), position)?;
-        Some(TargetSymbol { node, symbol })
+        Some((node.text(), self.range_for(node)))
     }
 
     #[cfg(test)]
@@ -187,7 +226,7 @@ impl DocumentSnapshot {
         &mut self,
         range: Range,
         replacement: &str,
-        builtins: &BuiltinData,
+        knowledge_provider: &(impl TypeKnowledgeProvider + ?Sized),
     ) -> Option<()> {
         let start_byte = floor_char_boundary(
             &self.text,
@@ -221,10 +260,14 @@ impl DocumentSnapshot {
             .set_language(&tree_sitter_macaulay2::language())
             .ok()?;
         let tree = parser.parse(&self.text, Some(&edited_tree))?;
-        let analysis = Analysis::new_with_builtins(&tree, &self.text, Some(builtins));
-        self.imported_packages = collect_imported_packages_in_tree(&self.text, &tree);
+        let imported_packages = collect_imported_packages_in_tree(&self.text, &tree);
+        let knowledge = knowledge_provider.knowledge_for(&imported_packages);
+        let analysis = Analysis::new_with_knowledge(&tree, &self.text, &knowledge);
+        let documentation_references = collect_documentation_references(&self.text, &tree);
+        self.imported_packages = imported_packages;
         self.tree = tree;
         self.analysis = analysis;
+        self.documentation_references = documentation_references;
         Some(())
     }
 }
@@ -248,6 +291,8 @@ fn advance_point(start: Point, inserted_text: &str) -> Point {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::partitioned_index::PackagePartitionedIndex;
+    use crate::typesystem::BuiltinData;
 
     fn builtins() -> BuiltinData {
         BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"))
@@ -293,6 +338,47 @@ mod tests {
             document.imported_packages(),
             &["JSON".to_string(), "Text".to_string()]
         );
+    }
+
+    #[test]
+    fn imported_package_provider_scopes_analysis_and_rederives_after_edit() {
+        let corpus = concat!(
+            "{\"kind\":\"meta\",\"default_loaded\":[\"Core\"]}\n",
+            "{\"kind\":\"type\",\"name\":\"MethodFunction\",",
+            "\"package\":\"$Core$Core\",\"ancestors\":[\"$Core$Function\",\"$Core$Thing\"]}\n",
+            "{\"kind\":\"methodFunction\",\"name\":\"pkgFn\",",
+            "\"package\":\"$Pkg$Pkg\",\"class\":\"$Core$MethodFunction\",",
+            "\"methods\":[{\"domain\":[\"$Core$ZZ\"],\"typicalValue\":\"$Core$String\"}]}\n",
+        );
+        let provider = PackagePartitionedIndex::from_corpus(corpus);
+        let mut document = DocumentSnapshot::from_text(
+            "needsPackage \"Pkg\"\ny := pkgFn 1\ny\n".to_string(),
+            &provider,
+        )
+        .expect("fixture should parse");
+
+        let imported_binding = document
+            .analysis()
+            .get_binding_at("y", Position::new(2, 0))
+            .expect("imported callable result should bind y");
+        assert_eq!(imported_binding.state.type_name.as_deref(), Some("String"));
+
+        document
+            .apply_changes(
+                &[TextDocumentContentChangeEvent {
+                    range: Some(Range::new(Position::new(0, 0), Position::new(1, 0))),
+                    range_length: None,
+                    text: String::new(),
+                }],
+                &provider,
+            )
+            .expect("removing the import should reparse");
+
+        let unimported_binding = document
+            .analysis()
+            .get_binding_at("y", Position::new(1, 0))
+            .expect("the assignment should remain after removing the import");
+        assert_eq!(unimported_binding.state.type_name.as_deref(), Some("Thing"));
     }
 
     #[test]

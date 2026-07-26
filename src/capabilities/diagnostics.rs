@@ -11,7 +11,7 @@ use crate::diagnostic_registry::M2Diagnostic;
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::typesystem::{BuiltinData, InstanceID};
+use crate::typesystem::{InstanceID, TypeKnowledge};
 use crate::util::{node_position, to_lsp_range, utf16_len_for_byte_span};
 
 pub(crate) const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
@@ -38,7 +38,7 @@ impl Analysis {
         &mut self,
         node: M2Node,
         text: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         if node.is_error() {
             self.diagnostics.push(M2Diagnostic::SyntaxError.at(
@@ -73,7 +73,7 @@ impl Analysis {
         &mut self,
         node: M2Node,
         text: &str,
-        builtins: Option<&BuiltinData>,
+        builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         if !node.is_space_application() {
             return;
@@ -100,8 +100,7 @@ impl Analysis {
                 let name = argument.text();
                 let position = node_position(text, argument);
                 let has_source_binding = self.binding_id_at(name, position).is_some();
-                let has_builtin_binding = builtins
-                    .is_some_and(|builtins| builtins.get_record(&InstanceID::new(name)).is_some());
+                let has_builtin_binding = builtins.get_record(&InstanceID::new(name)).is_some();
                 if has_source_binding || has_builtin_binding {
                     self.diagnostics
                         .push(M2Diagnostic::ProtectAssignedSymbol.at(
@@ -208,8 +207,8 @@ impl Analysis {
             return;
         }
 
-        let target_nodes = left.named_children().collect::<Vec<_>>();
-        let value_nodes = right.named_children().collect::<Vec<_>>();
+        let target_nodes = left.collection_elements().collect::<Vec<_>>();
+        let value_nodes = right.collection_elements().collect::<Vec<_>>();
         if target_nodes.len() != value_nodes.len() {
             self.diagnostics.push(M2Diagnostic::ParallelAssignmentArity.at(
                 to_lsp_range(text, right.range()),
@@ -320,15 +319,11 @@ fn is_function_option_context(option: M2Node<'_>) -> bool {
 
 /// A genuine fixed-length collection literal, whose arity is known statically.
 /// `List`/`Array`/`AngleBarList` of any length qualify, including length 0 and 1
-/// (`{a}` is a real one-element list). A `Sequence` qualifies at every length
-/// except 1: the current grammar represents a parenthesized expression `(a)` as
-/// a length-1 `Sequence`, so that single case is runtime-checked, not static.
-/// The empty sequence `()` (length 0) is a real value and stays in scope.
+/// (`{a}` is a real one-element list). Every `Sequence` is fixed-length: a
+/// single parenthesized value `(a)` has the distinct `ParenthesizedExpression`
+/// kind and is runtime-checked instead. The empty sequence `()` is length 0.
 fn is_fixed_length_collection(node: M2Node) -> bool {
-    if !node.kind.is_collection_expression() {
-        return false;
-    }
-    node.kind != NodeKind::Sequence || node.named_children().count() != 1
+    node.kind.is_collection_expression()
 }
 
 fn multiple_assignment_targets_are_symbols(node: M2Node) -> bool {
@@ -341,7 +336,7 @@ fn multiple_assignment_targets_are_symbols(node: M2Node) -> bool {
     // recursion is gated on the child being a collection because the early
     // return above yields `true` for non-collections -- a bare recursive call
     // would otherwise wrongly accept `[x + 1, y]`.
-    node.named_children().all(|child| {
+    node.collection_elements().all(|child| {
         child.kind == NodeKind::Symbol
             || (child.kind.is_collection_expression()
                 && multiple_assignment_targets_are_symbols(child))

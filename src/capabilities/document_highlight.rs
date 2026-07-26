@@ -1,8 +1,9 @@
 //! In-document highlighting for resolved symbols and compound-statement words.
 
-use crate::capabilities::navigation::reference_ranges_resolved;
+use crate::capabilities::navigation::{reference_ranges_resolved, unbound_reference_ranges};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::typesystem::{InstanceID, TypeKnowledge};
 use tower_lsp::lsp_types::{
     DocumentHighlight, DocumentHighlightKind, DocumentHighlightOptions, OneOf, Position,
 };
@@ -18,8 +19,12 @@ pub(crate) fn document_highlight_provider_capability(
 pub(crate) fn document_highlights(
     document: &DocumentSnapshot,
     position: Position,
+    builtins: &(impl TypeKnowledge + ?Sized),
 ) -> Option<Vec<DocumentHighlight>> {
     if let Some(highlights) = symbol_reference_highlights(document, position) {
+        return Some(highlights);
+    }
+    if let Some(highlights) = unbound_symbol_highlights(document, position, builtins) {
         return Some(highlights);
     }
     if let Some(highlights) = semicolon_expression_highlight(document, position) {
@@ -29,6 +34,39 @@ pub(crate) fn document_highlights(
         return Some(highlights);
     }
     keyword_sequence_highlights(document, position)
+}
+
+/// Highlight an otherwise unresolved symbol by spelling alone, without
+/// requiring a source binding or an index record. Grammar/index keywords are
+/// excluded, and locally bound occurrences with the same spelling are a
+/// different symbol, so they stay out of this fallback set.
+fn unbound_symbol_highlights(
+    document: &DocumentSnapshot,
+    position: Position,
+    builtins: &(impl TypeKnowledge + ?Sized),
+) -> Option<Vec<DocumentHighlight>> {
+    let (name, _) = document.symbol_occurrence_at(position)?;
+    if document.analysis().get_binding_at(name, position).is_some() {
+        return None;
+    }
+
+    if builtins
+        .get_record(&InstanceID::new(name))
+        .is_some_and(|record| builtins.is_subtype(record.class.as_ref(), "Keyword"))
+    {
+        return None;
+    }
+
+    let ranges = unbound_reference_ranges(document, name);
+    (!ranges.is_empty()).then(|| {
+        ranges
+            .into_iter()
+            .map(|range| DocumentHighlight {
+                range,
+                kind: Some(DocumentHighlightKind::READ),
+            })
+            .collect()
+    })
 }
 
 /// Highlight every in-file occurrence of the symbol under the cursor — the same
@@ -266,24 +304,32 @@ mod tests {
 
     fn highlighted_words(text: &str, line: u32, character: u32) -> Vec<String> {
         let document = document(text);
-        document_highlights(&document, Position::new(line, character))
-            .unwrap_or_default()
-            .into_iter()
-            .map(|highlight| {
-                let range = highlight.range;
-                let line_text = text.lines().nth(range.start.line as usize).unwrap_or("");
-                line_text[range.start.character as usize..range.end.character as usize].to_string()
-            })
-            .collect()
+        document_highlights(
+            &document,
+            Position::new(line, character),
+            &BuiltinData::empty(),
+        )
+        .unwrap_or_default()
+        .into_iter()
+        .map(|highlight| {
+            let range = highlight.range;
+            let line_text = text.lines().nth(range.start.line as usize).unwrap_or("");
+            line_text[range.start.character as usize..range.end.character as usize].to_string()
+        })
+        .collect()
     }
 
     fn highlight_kinds(text: &str, line: u32, character: u32) -> Vec<DocumentHighlightKind> {
         let document = document(text);
-        document_highlights(&document, Position::new(line, character))
-            .unwrap_or_default()
-            .into_iter()
-            .map(|highlight| highlight.kind.expect("symbol highlights carry a kind"))
-            .collect()
+        document_highlights(
+            &document,
+            Position::new(line, character),
+            &BuiltinData::empty(),
+        )
+        .unwrap_or_default()
+        .into_iter()
+        .map(|highlight| highlight.kind.expect("symbol highlights carry a kind"))
+        .collect()
     }
 
     #[test]
@@ -315,8 +361,8 @@ mod tests {
     }
 
     #[test]
-    fn does_not_highlight_when_cursor_is_inside_an_expression() {
-        assert!(highlighted_words("if a then b else c\n", 0, 3).is_empty());
+    fn highlights_an_unbound_name_inside_an_expression() {
+        assert_eq!(highlighted_words("if a then b else c\n", 0, 3), vec!["a"]);
     }
 
     #[test]
@@ -334,6 +380,73 @@ mod tests {
     }
 
     #[test]
+    fn highlights_backtick_documentation_mentions_with_code_references() {
+        let text = "x := 1\n-- use `x`\nx\n";
+        assert_eq!(highlighted_words(text, 1, 8), vec!["x", "x", "x"],);
+    }
+
+    #[test]
+    fn highlights_unshadowed_builtin_names_but_excludes_keywords() {
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let text = "ideal I\n-- call `ideal` again\nideal J\nif true then ideal K\n";
+        let source_document = document(text);
+        let words = document_highlights(&source_document, Position::new(0, 1), &builtins)
+            .expect("ordinary builtin should resolve")
+            .into_iter()
+            .map(|highlight| {
+                let range = highlight.range;
+                text.lines().nth(range.start.line as usize).unwrap()
+                    [range.start.character as usize..range.end.character as usize]
+                    .to_string()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(words, vec!["ideal", "ideal", "ideal", "ideal"]);
+
+        let keyword_document = document("local x\nlocal y\n");
+        assert!(
+            document_highlights(&keyword_document, Position::new(0, 1), &builtins).is_none(),
+            "keyword-class builtin records must not trigger symbol highlighting"
+        );
+    }
+
+    #[test]
+    fn builtin_highlights_do_not_cross_a_local_shadow() {
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let text = "ideal I\nf := ideal -> (ideal + 1)\nideal J\n";
+        let document = document(text);
+        let highlights = document_highlights(&document, Position::new(0, 1), &builtins)
+            .expect("builtin occurrence should resolve");
+
+        assert_eq!(
+            highlights
+                .into_iter()
+                .map(|highlight| highlight.range.start)
+                .collect::<Vec<_>>(),
+            vec![Position::new(0, 0), Position::new(2, 0)]
+        );
+    }
+
+    #[test]
+    fn highlights_repeated_unbound_names_without_an_index_record() {
+        let text = "futureName x\n-- see `futureName`\nfutureName y\n";
+        let document = document(text);
+        let highlights = document_highlights(&document, Position::new(0, 1), &BuiltinData::empty())
+            .expect("an unresolved non-keyword name is still highlightable");
+
+        assert_eq!(
+            highlights
+                .into_iter()
+                .map(|highlight| highlight.range.start)
+                .collect::<Vec<_>>(),
+            vec![
+                Position::new(0, 0),
+                Position::new(1, 8),
+                Position::new(2, 0),
+            ]
+        );
+    }
+
+    #[test]
     fn distinguishes_the_binding_write_from_use_reads() {
         // Declaration is a WRITE; the two uses are READs.
         assert_eq!(
@@ -347,13 +460,11 @@ mod tests {
     }
 
     #[test]
-    fn loop_variables_are_not_highlighted() {
-        // For-loop iterator variables are not registered as bindings (see
-        // `analysis::build_scopes`), so they have no references to resolve and
-        // fall through to keyword highlighting, which a non-keyword cursor misses.
-        // This documents the known gap: closing it belongs in the symbol registry,
-        // not here, so highlight/references/rename all gain loop vars together.
-        assert!(highlighted_words("for i in L do f i\n", 0, 4).is_empty());
+    fn loop_variables_highlight_by_spelling_without_a_binding() {
+        assert_eq!(
+            highlighted_words("for i in L do f i\n", 0, 4),
+            vec!["i", "i"]
+        );
     }
 
     #[test]
