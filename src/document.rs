@@ -1,6 +1,7 @@
 //! Versioned document snapshots that combine source text, parse tree, and
 //! analysis for LSP requests.
 
+use crate::macro_syntax::MacroSyntax;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Parser, Point, Tree};
@@ -19,6 +20,7 @@ use crate::util::{
 #[derive(Debug)]
 pub(crate) struct DocumentSnapshot {
     text: String,
+    macro_syntax: MacroSyntax,
     tree: Tree,
     analysis: Analysis,
     imported_packages: Vec<String>,
@@ -46,7 +48,8 @@ impl DocumentSnapshot {
         parser
             .set_language(&tree_sitter_macaulay2::language())
             .ok()?;
-        let tree = parser.parse(&text, None)?;
+        let macro_syntax = MacroSyntax::scan(&text);
+        let tree = parser.parse(macro_syntax.parse_text(), None)?;
         let imported_packages = collect_imported_packages_in_tree(&text, &tree);
         let knowledge = knowledge_provider.knowledge_for(&imported_packages);
         let analysis = Analysis::new_with_knowledge(&tree, &text, &knowledge);
@@ -54,6 +57,7 @@ impl DocumentSnapshot {
             collect_documentation(&text, &tree);
         Some(Self {
             text,
+            macro_syntax,
             tree,
             analysis,
             imported_packages,
@@ -82,6 +86,11 @@ impl DocumentSnapshot {
 
     pub(crate) fn text(&self) -> &str {
         &self.text
+    }
+
+    pub(crate) fn is_macro_name(&self, node: M2Node<'_>) -> bool {
+        self.macro_syntax
+            .is_macro_name(node.start_byte(), node.end_byte())
     }
 
     /// The packages this document imports, memoized from its tree. Combined with
@@ -281,13 +290,19 @@ impl DocumentSnapshot {
         parser
             .set_language(&tree_sitter_macaulay2::language())
             .ok()?;
-        let tree = parser.parse(&self.text, Some(&edited_tree))?;
+        let macro_syntax = MacroSyntax::scan(&self.text);
+        let tree = if self.macro_syntax.has_macros() || macro_syntax.has_macros() {
+            parser.parse(macro_syntax.parse_text(), None)?
+        } else {
+            parser.parse(&self.text, Some(&edited_tree))?
+        };
         let imported_packages = collect_imported_packages_in_tree(&self.text, &tree);
         let knowledge = knowledge_provider.knowledge_for(&imported_packages);
         let analysis = Analysis::new_with_knowledge(&tree, &self.text, &knowledge);
         let (documentation_snippets, documentation_references) =
             collect_documentation(&self.text, &tree);
         self.imported_packages = imported_packages;
+        self.macro_syntax = macro_syntax;
         self.tree = tree;
         self.analysis = analysis;
         self.documentation_snippets = documentation_snippets;

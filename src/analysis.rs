@@ -950,6 +950,12 @@ impl Analysis {
                         ),
                         _ => {}
                     }
+
+                    if let (Some(right), Some(type_name)) = (right, type_name.as_deref()) {
+                        if type_name == "Ring" || builtins.is_subtype(type_name, "Ring") {
+                            self.collect_ring_generator_bindings(right, text, builtins);
+                        }
+                    }
                 }
             }
             _ => {}
@@ -1626,6 +1632,67 @@ impl Analysis {
             .push(state_id);
     }
 
+    fn collect_ring_generator_bindings(
+        &mut self,
+        expression: M2Node,
+        text: &str,
+        builtins: &(impl TypeKnowledge + ?Sized),
+    ) {
+        let containers = expression
+            .descendants()
+            .filter(|node| node.is_space_application())
+            .filter_map(|node| {
+                let head = node.child_by_field_name("left")?;
+                let variables = node.child_by_field_name("right")?;
+                if !matches!(variables.kind, NodeKind::Array | NodeKind::List) {
+                    return None;
+                }
+                self.type_of(head, text, 0, builtins)
+                    .principal()
+                    .is_some_and(|head_type| builtins.is_subtype(head_type.as_ref(), "Ring"))
+                    .then_some(variables)
+            })
+            .collect::<Vec<_>>();
+
+        for container in containers {
+            for generator in ring_generator_bindings(container) {
+                self.register_dynamic_global(
+                    &generator.name,
+                    generator.node,
+                    generator.type_name,
+                    text,
+                );
+            }
+        }
+    }
+
+    fn register_dynamic_global(&mut self, name: &str, node: M2Node, type_name: &str, text: &str) {
+        let position = node_position(text, node);
+        let binding_id = self
+            .registry
+            .resolve_symbol(name)
+            .and_then(|symbol| self.binding_id_from_scope(symbol, 0, position))
+            .filter(|binding_id| {
+                self.binding_definition(*binding_id)
+                    .is_some_and(|binding| binding.scope_idx == 0)
+            });
+        let registration = SymbolRegistration {
+            kind: SymbolKind::VARIABLE,
+            role: BindingRole::Ordinary,
+            type_name: Some(type_name),
+            parent_type: None,
+            node,
+            value_node: None,
+            scope_idx: 0,
+            potential_export: true,
+        };
+        if let Some(binding_id) = binding_id {
+            self.add_binding_state(binding_id, registration, text);
+        } else {
+            self.add_symbol(name, registration, text);
+        }
+    }
+
     pub fn local_method_installation_signature_at<'a>(
         &'a self,
         node: M2Node,
@@ -1879,7 +1946,13 @@ impl Analysis {
             let callable = node.child_by_field_name("left")?;
             let argument = node.child_by_field_name("right")?;
             let callable_name = symbol_node_text(callable).map(ToString::to_string);
-            let facts = self.infer_call_facts(argument, text, scope_idx, builtins);
+            let facts = self.infer_call_facts_for_callable(
+                argument,
+                text,
+                scope_idx,
+                callable_name.as_deref(),
+                builtins,
+            );
             let candidate_methods = callable_name
                 .as_deref()
                 .and_then(|name| self.registry.resolve_symbol(name))
@@ -2189,7 +2262,7 @@ impl Analysis {
 
         if let Some(operator) = operator {
             if let Some(result) =
-                self.function_dependent_operator_type(operator, left, text, scope_idx, builtins)
+                self.special_operator_type(operator, left, right, text, scope_idx, builtins)
             {
                 return result;
             }
@@ -2209,22 +2282,40 @@ impl Analysis {
     /// both yield a `FunctionClosure` when the function-position operand is a
     /// `Function`. `None` falls through to ordinary dispatch (so `M_i`, `L_i`,
     /// … keep their table behavior).
-    fn function_dependent_operator_type(
+    fn special_operator_type(
         &self,
         operator: &str,
         left: Option<M2Node>,
+        right: Option<M2Node>,
         text: &str,
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
-        if !matches!(operator, "_" | "@@") {
-            return None;
+        let left_type = self.type_of(left?, text, scope_idx, builtins);
+        let left_name = left_type.principal()?;
+
+        if operator == "_" {
+            if left_name.as_ref() == "Symbol" {
+                return Some(InferredType::of("IndexedVariable"));
+            }
+            if left_name.as_ref() == "IndexedVariableTable" {
+                return Some(InferredType::of("RingElement"));
+            }
         }
-        let head = self.type_of(left?, text, scope_idx, builtins);
-        let head = head.principal()?;
-        builtins
-            .is_subtype(head.as_ref(), "Function")
-            .then(|| InferredType::of("FunctionClosure"))
+
+        if matches!(operator, "_" | "@@") && builtins.is_subtype(left_name.as_ref(), "Function") {
+            return Some(InferredType::of("FunctionClosure"));
+        }
+
+        if operator == "/" && builtins.is_subtype(left_name.as_ref(), "Ring") {
+            let right_type = self.type_of(right?, text, scope_idx, builtins);
+            let right_name = right_type.principal()?;
+            if right_name.as_ref() == "ZZ" {
+                return Some(InferredType::of("QuotientRing"));
+            }
+        }
+
+        None
     }
 
     /// Application `f SPACE x`. A `Function` head delegates to the head's own
@@ -2245,8 +2336,14 @@ impl Analysis {
         ) else {
             return InferredType::unknown();
         };
-        let call_facts = self.infer_call_facts(argument_node, text, scope_idx, builtins);
         let callable_name = symbol_node_text(callable_node);
+        let call_facts = self.infer_call_facts_for_callable(
+            argument_node,
+            text,
+            scope_idx,
+            callable_name,
+            builtins,
+        );
 
         // A locally-defined function is known to be a function from the registry
         // alone, so its application resolves without the builtin lattice: its
@@ -2351,10 +2448,23 @@ impl Analysis {
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> CallStaticFacts {
+        self.infer_call_facts_for_callable(node, text, scope_idx, None, builtins)
+    }
+
+    fn infer_call_facts_for_callable(
+        &self,
+        node: M2Node,
+        text: &str,
+        scope_idx: usize,
+        callable: Option<&str>,
+        builtins: &(impl TypeKnowledge + ?Sized),
+    ) -> CallStaticFacts {
         // A single parenthesized argument `f(x)` / `f(opt => v)` denotes its inner
         // value; peel it so the argument is classified like a bare argument.
         let node = parenthesized_value(node).unwrap_or(node);
-        if node.kind == NodeKind::Sequence {
+        let receives_sequence =
+            callable.is_some_and(|name| self.callable_receives_sequence(name, builtins));
+        if node.kind == NodeKind::Sequence && !receives_sequence {
             let mut facts = CallStaticFacts::default();
             for child in node.collection_elements() {
                 if let Some(option) = literal_option_assignment(child) {
@@ -2379,6 +2489,25 @@ impl Analysis {
             argument_types: vec![self.type_of(node, text, scope_idx, builtins)],
             literal_options: Vec::new(),
         }
+    }
+
+    fn callable_receives_sequence(
+        &self,
+        name: &str,
+        builtins: &(impl TypeKnowledge + ?Sized),
+    ) -> bool {
+        let local_dispatch = self
+            .registry
+            .resolve_symbol(name)
+            .and_then(|symbol| self.registry.functions.get(&symbol))
+            .and_then(|function| function.dispatch);
+        if local_dispatch == Some(Dispatch::Variadic) {
+            return true;
+        }
+
+        builtins
+            .get_record(&InstanceID::new(name))
+            .is_some_and(|record| bare_class_name(record.class.as_ref()) == "MethodFunctionSingle")
     }
 
     fn resolve_local_call_return_type(
@@ -2484,6 +2613,193 @@ struct SymbolRegistration<'a> {
     value_node: Option<M2Node<'a>>,
     scope_idx: usize,
     potential_export: bool,
+}
+
+#[derive(Debug, Clone)]
+struct RingGeneratorBinding<'a> {
+    name: String,
+    type_name: &'static str,
+    node: M2Node<'a>,
+}
+
+fn ring_generator_bindings(container: M2Node<'_>) -> Vec<RingGeneratorBinding<'_>> {
+    let elements = container.collection_elements().collect::<Vec<_>>();
+    let variable_base = elements
+        .iter()
+        .find_map(|element| option_value_node(*element, "VariableBaseName"))
+        .and_then(generator_base_name);
+    let mut bindings = Vec::new();
+
+    for element in elements {
+        if element.is_option_assignment() {
+            if let Some(variables) = option_value_node(element, "Variables") {
+                if variables.kind == NodeKind::IntegerLiteral {
+                    let name = variable_base.clone().unwrap_or_else(|| "p".to_string());
+                    push_ring_generator(
+                        &mut bindings,
+                        RingGeneratorBinding {
+                            name,
+                            type_name: "IndexedVariableTable",
+                            node: variables,
+                        },
+                    );
+                } else {
+                    collect_ring_generator_spec(variables, &mut bindings);
+                }
+            }
+            continue;
+        }
+        collect_ring_generator_spec(element, &mut bindings);
+    }
+
+    bindings
+}
+
+fn option_value_node<'tree>(node: M2Node<'tree>, key: &str) -> Option<M2Node<'tree>> {
+    if !node.is_option_assignment() {
+        return None;
+    }
+    node.child_by_field_name("left")
+        .filter(|left| left.kind == NodeKind::Symbol && left.text() == key)?;
+    node.child_by_field_name("right")
+}
+
+fn generator_base_name(node: M2Node<'_>) -> Option<String> {
+    match node.kind {
+        NodeKind::Symbol => Some(node.text().to_string()),
+        NodeKind::StringLiteral => node.string_literal_inner_text().map(ToString::to_string),
+        _ => None,
+    }
+}
+
+fn collect_ring_generator_spec<'tree>(
+    node: M2Node<'tree>,
+    bindings: &mut Vec<RingGeneratorBinding<'tree>>,
+) {
+    if node.kind == NodeKind::Symbol {
+        push_ring_generator(
+            bindings,
+            RingGeneratorBinding {
+                name: node.text().to_string(),
+                type_name: "RingElement",
+                node,
+            },
+        );
+        return;
+    }
+
+    if node.binary_operator() == Some("_") {
+        if let Some(base) = node
+            .child_by_field_name("left")
+            .filter(|base| base.kind == NodeKind::Symbol)
+        {
+            push_ring_generator(
+                bindings,
+                RingGeneratorBinding {
+                    name: base.text().to_string(),
+                    type_name: "IndexedVariableTable",
+                    node: base,
+                },
+            );
+        }
+        return;
+    }
+
+    if matches!(node.binary_operator(), Some("..") | Some("..<")) {
+        let left = node.child_by_field_name("left");
+        let right = node.child_by_field_name("right");
+        if let (Some(left), Some(right)) = (left, right) {
+            if let (Some(left_base), Some(right_base)) =
+                (indexed_variable_base(left), indexed_variable_base(right))
+            {
+                if left_base.text() == right_base.text() {
+                    push_ring_generator(
+                        bindings,
+                        RingGeneratorBinding {
+                            name: left_base.text().to_string(),
+                            type_name: "IndexedVariableTable",
+                            node,
+                        },
+                    );
+                    return;
+                }
+            }
+
+            if let Some(names) = simple_symbol_range(node, left, right) {
+                for name in names {
+                    push_ring_generator(
+                        bindings,
+                        RingGeneratorBinding {
+                            name,
+                            type_name: "RingElement",
+                            node,
+                        },
+                    );
+                }
+                return;
+            }
+        }
+    }
+
+    if node.kind.is_collection_expression() {
+        for element in node.collection_elements() {
+            collect_ring_generator_spec(element, bindings);
+        }
+    }
+}
+
+fn indexed_variable_base(node: M2Node<'_>) -> Option<M2Node<'_>> {
+    (node.binary_operator() == Some("_"))
+        .then(|| node.child_by_field_name("left"))
+        .flatten()
+        .filter(|base| base.kind == NodeKind::Symbol)
+}
+
+fn simple_symbol_range(
+    range: M2Node<'_>,
+    left: M2Node<'_>,
+    right: M2Node<'_>,
+) -> Option<Vec<String>> {
+    if left.kind != NodeKind::Symbol || right.kind != NodeKind::Symbol {
+        return None;
+    }
+    let [start] = left.text().as_bytes() else {
+        return None;
+    };
+    let [end] = right.text().as_bytes() else {
+        return None;
+    };
+    if !start.is_ascii_alphabetic()
+        || !end.is_ascii_alphabetic()
+        || start.is_ascii_lowercase() != end.is_ascii_lowercase()
+        || start > end
+    {
+        return None;
+    }
+
+    let exclusive = range.binary_operator() == Some("..<");
+    let stop = if exclusive {
+        *end
+    } else {
+        end.saturating_add(1)
+    };
+    Some(
+        (*start..stop)
+            .map(|letter| (letter as char).to_string())
+            .collect(),
+    )
+}
+
+fn push_ring_generator<'tree>(
+    bindings: &mut Vec<RingGeneratorBinding<'tree>>,
+    binding: RingGeneratorBinding<'tree>,
+) {
+    if !bindings
+        .iter()
+        .any(|existing| existing.name == binding.name)
+    {
+        bindings.push(binding);
+    }
 }
 
 fn expression_kind(node: M2Node<'_>) -> Option<ExpressionKind> {
@@ -4062,6 +4378,91 @@ x
                 .get_symbol_at("S", Position::new(2, 0))
                 .and_then(|symbol| symbol.state.type_name.as_deref()),
             Some("Ring")
+        );
+    }
+
+    #[test]
+    fn algebraic_constructors_register_runtime_types_and_ring_generators() {
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
+        let text = concat!(
+            "R = QQ[a..d]\n",
+            "I = ideal(a^2,b)\n",
+            "Q = R/I\n",
+            "M = Q^2\n",
+            "J = ideal(a,b)\n",
+            "N = M/J\n",
+            "a\n",
+            "b\n",
+            "R\n",
+            "I\n",
+            "Q\n",
+            "M\n",
+            "J\n",
+            "N\n",
+        );
+        let analysis = analyze_with_builtins(text, &builtins);
+
+        for (name, line, expected) in [
+            ("a", 6, "RingElement"),
+            ("b", 7, "RingElement"),
+            ("R", 8, "PolynomialRing"),
+            ("I", 9, "Ideal"),
+            ("Q", 10, "QuotientRing"),
+            ("M", 11, "Module"),
+            ("J", 12, "Ideal"),
+            ("N", 13, "Module"),
+        ] {
+            assert_eq!(
+                analysis
+                    .get_symbol_at(name, Position::new(line, 0))
+                    .and_then(|symbol| symbol.state.type_name.as_deref()),
+                Some(expected),
+                "{name} should carry its runtime algebraic class"
+            );
+        }
+    }
+
+    #[test]
+    fn indexed_ring_variables_change_from_index_syntax_to_ring_elements() {
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
+        let text = concat!(
+            "before := u_0\n",
+            "S = ZZ/101[t_0..t_3]\n",
+            "after := t_1\n",
+            "V = QQ[Variables => 3, VariableBaseName => v]\n",
+            "generated := v_2\n",
+            "t\n",
+            "S\n",
+        );
+        let analysis = analyze_with_builtins(text, &builtins);
+
+        for (name, line, expected) in [
+            ("before", 0, "IndexedVariable"),
+            ("after", 2, "RingElement"),
+            ("generated", 4, "RingElement"),
+            ("t", 5, "IndexedVariableTable"),
+            ("S", 6, "PolynomialRing"),
+        ] {
+            assert_eq!(
+                analysis
+                    .get_symbol_at(name, Position::new(line, 0))
+                    .and_then(|symbol| symbol.state.type_name.as_deref()),
+                Some(expected),
+                "{name} should reflect indexed-variable installation"
+            );
+        }
+    }
+
+    #[test]
+    fn method_function_single_receives_parenthesized_sequence_as_one_argument() {
+        let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
+        let analysis = analyze_with_builtins("I = ideal(12,18)\nI\n", &builtins);
+
+        assert_eq!(
+            analysis
+                .get_symbol_at("I", Position::new(1, 0))
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
+            Some("Ideal")
         );
     }
 

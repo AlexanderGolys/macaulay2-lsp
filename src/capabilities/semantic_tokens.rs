@@ -8,7 +8,8 @@ use crate::documentation::DocumentationSnippet;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::typesystem::{
-    M2SemanticToken, M2SemanticTokenProvenance, M2SemanticTokenType, SemanticTokenKnowledge,
+    AlgebraicSemanticKind, M2SemanticToken, M2SemanticTokenProvenance, M2SemanticTokenType,
+    SemanticTokenKnowledge,
 };
 use crate::util::*;
 use crate::workspace_index::WorkspaceDefinitionKnowledge;
@@ -35,12 +36,22 @@ pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
 ];
 
 pub(crate) const LEGEND_MODIFIERS: &[SemanticTokenModifier] = &[
-    SemanticTokenModifier::new("option"),   // 0
-    SemanticTokenModifier::new("command"),  // 1
-    SemanticTokenModifier::new("file"),     // 2
-    SemanticTokenModifier::DECLARATION,     // 3
-    SemanticTokenModifier::DEFAULT_LIBRARY, // 4
-    SemanticTokenModifier::new("builtin"),  // 5
+    SemanticTokenModifier::new("option"),         // 0
+    SemanticTokenModifier::new("command"),        // 1
+    SemanticTokenModifier::new("file"),           // 2
+    SemanticTokenModifier::DECLARATION,           // 3
+    SemanticTokenModifier::DEFAULT_LIBRARY,       // 4
+    SemanticTokenModifier::new("builtin"),        // 5
+    SemanticTokenModifier::new("macro"),          // 6
+    SemanticTokenModifier::new("ring"),           // 7
+    SemanticTokenModifier::new("polynomialRing"), // 8
+    SemanticTokenModifier::new("quotientRing"),   // 9
+    SemanticTokenModifier::new("ringElement"),    // 10
+    SemanticTokenModifier::new("ideal"),          // 11
+    SemanticTokenModifier::new("monomialIdeal"),  // 12
+    SemanticTokenModifier::new("module"),         // 13
+    SemanticTokenModifier::new("matrix"),         // 14
+    SemanticTokenModifier::new("ringMap"),        // 15
 ];
 
 pub(crate) const OPTION_MODIFIER: u32 = 1 << 0;
@@ -49,6 +60,16 @@ pub(crate) const FILE_MODIFIER: u32 = 1 << 2;
 pub(crate) const DECLARATION_MODIFIER: u32 = 1 << 3;
 pub(crate) const DEFAULT_LIBRARY_MODIFIER: u32 = 1 << 4;
 pub(crate) const BUILTIN_MODIFIER: u32 = 1 << 5;
+pub(crate) const MACRO_MODIFIER: u32 = 1 << 6;
+pub(crate) const RING_MODIFIER: u32 = 1 << 7;
+pub(crate) const POLYNOMIAL_RING_MODIFIER: u32 = 1 << 8;
+pub(crate) const QUOTIENT_RING_MODIFIER: u32 = 1 << 9;
+pub(crate) const RING_ELEMENT_MODIFIER: u32 = 1 << 10;
+pub(crate) const IDEAL_MODIFIER: u32 = 1 << 11;
+pub(crate) const MONOMIAL_IDEAL_MODIFIER: u32 = 1 << 12;
+pub(crate) const MODULE_MODIFIER: u32 = 1 << 13;
+pub(crate) const MATRIX_MODIFIER: u32 = 1 << 14;
+pub(crate) const RING_MAP_MODIFIER: u32 = 1 << 15;
 
 /// The LSP semantic-tokens protocol forbids a single token from spanning more
 /// than one line. A multi-line string or comment therefore has to be emitted as
@@ -140,6 +161,7 @@ pub(crate) fn collect_semantic_tokens(
                 workspace_index,
                 uri,
                 emit_syntax,
+                document.is_macro_name(node),
             ) {
                 emitted_token = push_semantic_span(
                     text,
@@ -289,6 +311,7 @@ fn classify_semantic_node(
     workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
     uri: &Url,
     emit_syntax: bool,
+    is_macro_name: bool,
 ) -> Option<(M2SemanticTokenType, u32)> {
     let node_text = node.text();
     let syntax_token_type = syntax_semantic_token_type(node);
@@ -301,7 +324,12 @@ fn classify_semantic_node(
     let mut modifiers = 0;
     let mut resolved_from_index = false;
 
-    if is_quoted_global_key_access(node) {
+    if is_macro_name {
+        token_type = Some(M2SemanticTokenType::Method);
+        modifiers |= MACRO_MODIFIER;
+    }
+
+    if token_type.is_none() && is_quoted_global_key_access(node) {
         token_type = Some(M2SemanticTokenType::Property);
     }
 
@@ -485,7 +513,23 @@ pub(crate) fn builtin_semantic_token_modifiers(token: &M2SemanticToken) -> u32 {
     if token.is_file {
         modifiers |= FILE_MODIFIER;
     }
+    modifiers |= algebraic_semantic_token_modifier(token.algebraic_kind);
     modifiers
+}
+
+fn algebraic_semantic_token_modifier(kind: Option<AlgebraicSemanticKind>) -> u32 {
+    match kind {
+        None => 0,
+        Some(AlgebraicSemanticKind::Ring) => RING_MODIFIER,
+        Some(AlgebraicSemanticKind::PolynomialRing) => POLYNOMIAL_RING_MODIFIER,
+        Some(AlgebraicSemanticKind::QuotientRing) => QUOTIENT_RING_MODIFIER,
+        Some(AlgebraicSemanticKind::RingElement) => RING_ELEMENT_MODIFIER,
+        Some(AlgebraicSemanticKind::Ideal) => IDEAL_MODIFIER,
+        Some(AlgebraicSemanticKind::MonomialIdeal) => MONOMIAL_IDEAL_MODIFIER,
+        Some(AlgebraicSemanticKind::Module) => MODULE_MODIFIER,
+        Some(AlgebraicSemanticKind::Matrix) => MATRIX_MODIFIER,
+        Some(AlgebraicSemanticKind::RingMap) => RING_MAP_MODIFIER,
+    }
 }
 
 fn indexed_semantic_token_modifiers(token: &M2SemanticToken) -> u32 {
@@ -1408,7 +1452,7 @@ mod tests {
     }
 
     #[test]
-    fn semantic_tokens_classify_commands_as_functions_with_command_modifier() {
+    fn default_library_commands_use_method_while_local_command_values_stay_callable() {
         let text = "saveClearAll := clearAll\nclearAll = new Command from { () -> () }\nprotect symbol clearAll";
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
@@ -1433,8 +1477,21 @@ mod tests {
                         && token.token_modifiers_bitset & COMMAND_MODIFIER == COMMAND_MODIFIER
                 })
                 .count(),
-            4,
-            "builtin, aliased, and locally rebound Command values should use function+command"
+            3,
+            "aliased and locally rebound Command values should keep a standard callable base"
+        );
+        assert_eq!(
+            tokens
+                .iter()
+                .filter(|token| {
+                    token.token_type == M2SemanticTokenType::Method as u32
+                        && token.token_modifiers_bitset & COMMAND_MODIFIER == COMMAND_MODIFIER
+                        && token.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER
+                            == DEFAULT_LIBRARY_MODIFIER
+                })
+                .count(),
+            1,
+            "the direct default-library command should use method+defaultLibrary"
         );
     }
 
@@ -1555,6 +1612,7 @@ mod tests {
     fn builtin_type_tokens_do_not_use_custom_type_modifier() {
         let token = M2SemanticToken {
             token_type: M2SemanticTokenType::Type,
+            algebraic_kind: None,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1571,6 +1629,7 @@ mod tests {
     fn builtin_class_tokens_do_not_use_custom_type_modifier() {
         let token = M2SemanticToken {
             token_type: M2SemanticTokenType::Class,
+            algebraic_kind: None,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1587,6 +1646,7 @@ mod tests {
     fn builtin_function_role_does_not_bake_in_provenance_modifier() {
         let token = M2SemanticToken {
             token_type: M2SemanticTokenType::Function,
+            algebraic_kind: None,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1701,6 +1761,95 @@ mod tests {
     }
 
     #[test]
+    fn algebraic_values_keep_standard_bases_and_specific_modifiers() {
+        let text = concat!(
+            "R = QQ[x,y]\n",
+            "I = ideal(x^2,y)\n",
+            "Q = R/I\n",
+            "M = Q^2\n",
+            "x\n",
+        );
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        for (line, token_type, modifier) in [
+            (0, M2SemanticTokenType::Type, POLYNOMIAL_RING_MODIFIER),
+            (1, M2SemanticTokenType::Variable, IDEAL_MODIFIER),
+            (2, M2SemanticTokenType::Type, QUOTIENT_RING_MODIFIER),
+            (3, M2SemanticTokenType::Variable, MODULE_MODIFIER),
+            (4, M2SemanticTokenType::Variable, RING_ELEMENT_MODIFIER),
+        ] {
+            let token = token_at(&tokens, line, 0)
+                .unwrap_or_else(|| panic!("line {line} should carry an algebraic token"));
+            assert_eq!(token.token_type, token_type as u32, "line {line}");
+            assert_eq!(
+                token.token_modifiers_bitset & modifier,
+                modifier,
+                "line {line}"
+            );
+        }
+    }
+
+    #[test]
+    fn algebraic_class_names_remain_standard_class_tokens() {
+        let text = "PolynomialRing\nIdeal\nRingElement\n";
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        for (line, modifier) in [
+            (0, POLYNOMIAL_RING_MODIFIER),
+            (1, IDEAL_MODIFIER),
+            (2, RING_ELEMENT_MODIFIER),
+        ] {
+            let token = token_at(&tokens, line, 0).expect("class name should be highlighted");
+            assert_eq!(token.token_type, M2SemanticTokenType::Class as u32);
+            assert_eq!(token.token_modifiers_bitset & modifier, modifier);
+        }
+    }
+
+    #[test]
+    fn procedural_macro_names_use_method_plus_macro_without_parse_errors() {
+        let text = concat!(
+            "x = $outer $inner 1 $ $\n",
+            "y = 2\n",
+            "message = \"$fake 3 $\"\n",
+        );
+        let builtins = BuiltinData::empty();
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        assert!(
+            document.diagnostics().is_empty(),
+            "matched macro syntax should be parsed through its masked sigils: {:?}",
+            document.diagnostics()
+        );
+        for character in [5, 12] {
+            let token = token_at(&tokens, 0, character)
+                .unwrap_or_else(|| panic!("macro name at {character} should be highlighted"));
+            assert_eq!(token.token_type, M2SemanticTokenType::Method as u32);
+            assert_eq!(
+                token.token_modifiers_bitset & MACRO_MODIFIER,
+                MACRO_MODIFIER
+            );
+        }
+        assert!(
+            document
+                .analysis()
+                .get_binding_at("y", Position::new(1, 0))
+                .is_some(),
+            "source after a macro invocation should remain visible to analysis"
+        );
+        let fake = text.lines().nth(2).unwrap().find("fake").unwrap() as u32;
+        assert_eq!(
+            token_at(&tokens, 2, fake).map(|token| token.token_type),
+            Some(M2SemanticTokenType::String as u32),
+            "macro-like text inside a string stays ordinary string syntax"
+        );
+    }
+
+    #[test]
     fn semantic_token_modifier_bits_match_legend_order() {
         assert_eq!(
             LEGEND_MODIFIERS,
@@ -1711,6 +1860,16 @@ mod tests {
                 SemanticTokenModifier::DECLARATION,
                 SemanticTokenModifier::DEFAULT_LIBRARY,
                 SemanticTokenModifier::new("builtin"),
+                SemanticTokenModifier::new("macro"),
+                SemanticTokenModifier::new("ring"),
+                SemanticTokenModifier::new("polynomialRing"),
+                SemanticTokenModifier::new("quotientRing"),
+                SemanticTokenModifier::new("ringElement"),
+                SemanticTokenModifier::new("ideal"),
+                SemanticTokenModifier::new("monomialIdeal"),
+                SemanticTokenModifier::new("module"),
+                SemanticTokenModifier::new("matrix"),
+                SemanticTokenModifier::new("ringMap"),
             ]
         );
         assert_eq!(OPTION_MODIFIER, 1 << 0);
@@ -1719,6 +1878,16 @@ mod tests {
         assert_eq!(DECLARATION_MODIFIER, 1 << 3);
         assert_eq!(DEFAULT_LIBRARY_MODIFIER, 1 << 4);
         assert_eq!(BUILTIN_MODIFIER, 1 << 5);
+        assert_eq!(MACRO_MODIFIER, 1 << 6);
+        assert_eq!(RING_MODIFIER, 1 << 7);
+        assert_eq!(POLYNOMIAL_RING_MODIFIER, 1 << 8);
+        assert_eq!(QUOTIENT_RING_MODIFIER, 1 << 9);
+        assert_eq!(RING_ELEMENT_MODIFIER, 1 << 10);
+        assert_eq!(IDEAL_MODIFIER, 1 << 11);
+        assert_eq!(MONOMIAL_IDEAL_MODIFIER, 1 << 12);
+        assert_eq!(MODULE_MODIFIER, 1 << 13);
+        assert_eq!(MATRIX_MODIFIER, 1 << 14);
+        assert_eq!(RING_MAP_MODIFIER, 1 << 15);
     }
 
     #[test]

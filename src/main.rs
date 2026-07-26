@@ -21,6 +21,7 @@ mod client_capabilities;
 mod diagnostic_registry;
 mod document;
 mod documentation;
+mod macro_syntax;
 mod meta;
 mod node_metadata;
 mod package_index;

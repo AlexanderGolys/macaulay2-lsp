@@ -1161,9 +1161,37 @@ pub enum M2SemanticTokenProvenance {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlgebraicSemanticKind {
+    Ring,
+    PolynomialRing,
+    QuotientRing,
+    RingElement,
+    Ideal,
+    MonomialIdeal,
+    Module,
+    Matrix,
+    RingMap,
+}
+
+impl AlgebraicSemanticKind {
+    pub fn standard_token_type(self) -> M2SemanticTokenType {
+        match self {
+            Self::Ring | Self::PolynomialRing | Self::QuotientRing => M2SemanticTokenType::Type,
+            Self::RingElement
+            | Self::Ideal
+            | Self::MonomialIdeal
+            | Self::Module
+            | Self::Matrix
+            | Self::RingMap => M2SemanticTokenType::Variable,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A semantic-token role plus M2-specific modifier facts for one identifier.
 pub struct M2SemanticToken {
     pub token_type: M2SemanticTokenType,
+    pub algebraic_kind: Option<AlgebraicSemanticKind>,
     pub is_command: bool,
     pub is_file: bool,
     pub is_manipulator: bool,
@@ -1375,6 +1403,8 @@ pub(crate) fn semantic_token_from_knowledge(
         || knowledge.is_subtype(data_type.as_ref(), "CompiledFunctionClosure");
     let is_constructor =
         indexed_name_is_constructor(knowledge, &record.name.0) && !is_manipulator && !is_command;
+    let algebraic_kind = algebraic_semantic_kind(knowledge, record.name.as_ref())
+        .or_else(|| algebraic_semantic_kind(knowledge, data_type.as_ref()));
     let provenance = if is_compiled_function {
         M2SemanticTokenProvenance::Builtin
     } else if record.package.as_deref() == Some("Core") {
@@ -1393,6 +1423,7 @@ pub(crate) fn semantic_token_from_knowledge(
             } else {
                 M2SemanticTokenType::Type
             },
+            algebraic_kind,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1410,11 +1441,11 @@ pub(crate) fn semantic_token_from_knowledge(
             .function_info
             .as_ref()
             .is_some_and(|info| !info.methods.is_empty());
-        let token_type = if is_command {
-            M2SemanticTokenType::Function
-        } else if is_manipulator {
+        let token_type = if is_manipulator {
             M2SemanticTokenType::Operator
-        } else if is_scripted_functor || is_compiled_function {
+        } else if provenance == M2SemanticTokenProvenance::DefaultLibrary {
+            M2SemanticTokenType::Method
+        } else if is_command || is_scripted_functor || is_compiled_function {
             M2SemanticTokenType::Function
         } else if has_installed_methods {
             M2SemanticTokenType::Method
@@ -1424,6 +1455,7 @@ pub(crate) fn semantic_token_from_knowledge(
 
         Some(M2SemanticToken {
             token_type,
+            algebraic_kind,
             is_command,
             is_file: false,
             is_manipulator,
@@ -1433,6 +1465,7 @@ pub(crate) fn semantic_token_from_knowledge(
     } else if knowledge.is_subtype(data_type.as_ref(), "Package") {
         Some(M2SemanticToken {
             token_type: M2SemanticTokenType::Namespace,
+            algebraic_kind,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1454,6 +1487,7 @@ pub(crate) fn semantic_token_from_knowledge(
 
         Some(M2SemanticToken {
             token_type,
+            algebraic_kind,
             is_command: false,
             is_file,
             is_manipulator: false,
@@ -1465,7 +1499,11 @@ pub(crate) fn semantic_token_from_knowledge(
         // runtime class has no standard LSP role, so retain `variable` and let
         // provenance/type modifiers specialize it.
         Some(M2SemanticToken {
-            token_type: M2SemanticTokenType::Variable,
+            token_type: algebraic_kind.map_or(
+                M2SemanticTokenType::Variable,
+                AlgebraicSemanticKind::standard_token_type,
+            ),
+            algebraic_kind,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1483,8 +1521,11 @@ pub(crate) fn semantic_token_for_static_type_from_knowledge(
     let is_file = knowledge.is_subtype(type_name, "File");
     let is_manipulator = knowledge.is_subtype(type_name, "Manipulator");
     let is_type_valued = knowledge.is_subtype(type_name, "Type");
+    let algebraic_kind = algebraic_semantic_kind(knowledge, type_name);
 
-    let token_type = if type_name.starts_with("MethodFunction") {
+    let token_type = if let Some(kind) = algebraic_kind {
+        kind.standard_token_type()
+    } else if type_name.starts_with("MethodFunction") {
         M2SemanticTokenType::Method
     } else if knowledge.is_subtype(type_name, "Package") {
         M2SemanticTokenType::Namespace
@@ -1519,11 +1560,33 @@ pub(crate) fn semantic_token_for_static_type_from_knowledge(
 
     Some(M2SemanticToken {
         token_type,
+        algebraic_kind,
         is_command,
         is_file,
         is_manipulator,
         is_constructor: false,
         provenance: M2SemanticTokenProvenance::None,
+    })
+}
+
+pub(crate) fn algebraic_semantic_kind(
+    knowledge: &(impl TypeKnowledge + ?Sized),
+    type_name: &str,
+) -> Option<AlgebraicSemanticKind> {
+    [
+        ("QuotientRing", AlgebraicSemanticKind::QuotientRing),
+        ("PolynomialRing", AlgebraicSemanticKind::PolynomialRing),
+        ("MonomialIdeal", AlgebraicSemanticKind::MonomialIdeal),
+        ("Ideal", AlgebraicSemanticKind::Ideal),
+        ("Matrix", AlgebraicSemanticKind::Matrix),
+        ("Module", AlgebraicSemanticKind::Module),
+        ("RingMap", AlgebraicSemanticKind::RingMap),
+        ("RingElement", AlgebraicSemanticKind::RingElement),
+        ("Ring", AlgebraicSemanticKind::Ring),
+    ]
+    .into_iter()
+    .find_map(|(ancestor, kind)| {
+        (type_name == ancestor || knowledge.is_subtype(type_name, ancestor)).then_some(kind)
     })
 }
 
