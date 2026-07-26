@@ -194,7 +194,11 @@ pub(crate) fn goto_definition_response(
         node.text()
     };
 
-    if let Some(range) = analysis.find_definition(node_text, position) {
+    let local_definition = documentation_reference
+        .and_then(|reference| document.documentation_symbol(reference))
+        .map(|symbol| symbol.range)
+        .or_else(|| analysis.find_definition(node_text, position));
+    if let Some(range) = local_definition {
         return Some(GotoDefinitionResponse::Scalar(Location {
             uri: uri.clone(),
             range,
@@ -265,7 +269,7 @@ pub(crate) fn reference_ranges_resolved(
             continue;
         }
         let range = reference.range();
-        if let Some(symbol) = analysis.get_symbol_at(target_name, range.start) {
+        if let Some(symbol) = document.documentation_symbol(*reference) {
             if symbol.range == target_range && (include_declaration || range != target_range) {
                 references.push(range);
             }
@@ -338,7 +342,7 @@ pub(crate) fn reference_target(
 ) -> Option<ReferenceTarget> {
     let (name, _) = document.symbol_occurrence_at(position)?;
     let name = name.to_string();
-    match document.analysis().get_binding_at(&name, position) {
+    match document.binding_at_position(position) {
         Some(binding) if binding.scope_idx != 0 => Some(ReferenceTarget::Local),
         Some(_) => Some(ReferenceTarget::Global(name)),
         None => workspace_index
@@ -371,8 +375,8 @@ pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -
             continue;
         }
         let range = reference.range();
-        let shadowed = analysis
-            .get_binding_at(name, range.start)
+        let shadowed = document
+            .documentation_symbol(*reference)
             .is_some_and(|binding| binding.scope_idx != 0);
         if !shadowed {
             references.push(range);
@@ -408,8 +412,8 @@ pub(crate) fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) 
             .filter(|reference| reference.name(document.text()) == name)
             .filter_map(|reference| {
                 let range = reference.range();
-                analysis
-                    .get_binding_at(name, range.start)
+                document
+                    .documentation_symbol(*reference)
                     .is_none()
                     .then_some(range)
             }),
@@ -591,8 +595,32 @@ mod tests {
     }
 
     #[test]
+    fn backtick_documentation_mentions_resolve_later_bindings() {
+        let text = "-- use `x`\nx := 1\nx\n";
+        let document = document(text);
+        let ranges = collect_reference_ranges(&document, Position::new(0, 8), true);
+
+        assert_eq!(
+            ranges,
+            vec![
+                Range::new(Position::new(0, 8), Position::new(0, 9)),
+                Range::new(Position::new(1, 0), Position::new(1, 1)),
+                Range::new(Position::new(2, 0), Position::new(2, 1)),
+            ]
+        );
+        assert!(matches!(
+            reference_target(
+                &document,
+                Position::new(0, 8),
+                &WorkspaceIndex::default()
+            ),
+            Some(ReferenceTarget::Global(name)) if name == "x"
+        ));
+    }
+
+    #[test]
     fn goto_definition_resolves_from_a_backtick_documentation_mention() {
-        let text = "x := 1\n-- use `x`\n";
+        let text = "-- use `x`\nx := 1\n";
         let document = document(text);
         let index = crate::partitioned_index::PackagePartitionedIndex::from_corpus(include_str!(
             "../data/m2-index.jsonl"
@@ -606,7 +634,7 @@ mod tests {
             goto_definition_response(
                 &document,
                 &uri,
-                Position::new(1, 8),
+                Position::new(0, 8),
                 &scoped,
                 &SourceResolver::new(Vec::new()),
                 &WorkspaceIndex::default(),
@@ -614,7 +642,7 @@ mod tests {
             ),
             Some(GotoDefinitionResponse::Scalar(Location {
                 uri,
-                range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+                range: Range::new(Position::new(1, 0), Position::new(1, 1)),
             }))
         );
     }

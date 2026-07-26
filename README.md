@@ -67,6 +67,7 @@ vim.lsp.config['m2-ls'] = {
         useTabs = false,
         softLineWidth = 100,
         hardLineWidth = 100,
+        controlFlowLayout = 'multilineCompactElse',
         compactFactorOperators = false,
         breakAfterSemicolon = true,
       },
@@ -99,6 +100,7 @@ settings also refreshes hints already visible in the editor.
 | `formatting.softLineWidth` | `100` | Preferred width used to choose among safe parsed line-break positions. |
 | `formatting.hardLineWidth` | `100` | Triggers wrapping when exceeded; `null` or `0` disables wrapping. |
 | `formatting.maxLineWidth` | unset | Compatibility setting that makes the soft and hard widths equal; `null` or `0` disables both. |
+| `formatting.controlFlowLayout` | `multilineCompactElse` | Formats parsed control clauses as `compact`, `multiline`, or `multilineCompactElse`; the last form keeps the final `else value` together. |
 | `formatting.compactFactorOperators` | `false` | Uses compact products such as `2*x`; the default is the conventional `2 * x`. |
 | `formatting.breakAfterSemicolon` | `true` | Places the following statement on a new line; `false` keeps it inline with one space. |
 | `inlayHints.expressionTypes` | `false` | Adds inferred types for expressions in addition to calm binding hints. |

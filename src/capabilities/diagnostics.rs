@@ -243,9 +243,10 @@ impl Analysis {
         }
     }
 
-    /// Warn about non-global bindings (variables and functions) that are never
-    /// referenced outside their own definition site. Top-level bindings are
-    /// potential exports and stay silent, as do `_`-prefixed names.
+    /// Warn about non-exported bindings (variables and functions) that are never
+    /// referenced outside their own definition site. Top-level bindings and
+    /// conditional `=` definitions are potential runtime exports and stay
+    /// silent, as do `_`-prefixed names.
     pub(crate) fn collect_unused_binding_diagnostics(&mut self, root: M2Node, text: &str) {
         let mut used_bindings = HashSet::new();
         for node in root.descendants() {
@@ -266,7 +267,7 @@ impl Analysis {
         let diagnostics = self
             .bindings()
             .filter(|binding| binding.role == BindingRole::Ordinary)
-            .filter(|binding| binding.scope_idx != 0)
+            .filter(|binding| !binding.potential_export)
             .filter(|binding| {
                 matches!(
                     binding.state.kind,

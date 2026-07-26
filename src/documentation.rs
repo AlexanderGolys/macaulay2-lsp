@@ -2,48 +2,24 @@
 //!
 //! Macaulay2 package sources commonly mention code with Markdown-style single
 //! backticks both in comments and in raw `doc ///...///` strings. Tree-sitter
-//! deliberately treats those regions as opaque, so each span receives its own
-//! parse and isolated analysis after the real document analysis is complete.
+//! deliberately treats those regions as opaque, so each span receives a small
+//! isolated parse for reference extraction.
 
 use tower_lsp::lsp_types::{Position, Range};
 use tree_sitter::{Parser, Tree};
 
-use crate::analysis::Analysis;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::typesystem::TypeKnowledge;
 use crate::util::{position_in_range, range_from_byte_span};
 
 #[derive(Debug)]
 pub(crate) struct DocumentationSnippet {
     start_byte: usize,
     end_byte: usize,
-    text: String,
-    tree: Tree,
-    analysis: Analysis,
 }
 
 impl DocumentationSnippet {
     pub(crate) fn byte_span(&self) -> (usize, usize) {
         (self.start_byte, self.end_byte)
-    }
-
-    pub(crate) fn text(&self) -> &str {
-        &self.text
-    }
-
-    pub(crate) fn root_node(&self) -> M2Node<'_> {
-        M2Node::new(self.tree.root_node(), &self.text)
-    }
-
-    pub(crate) fn analysis(&self) -> &Analysis {
-        &self.analysis
-    }
-
-    pub(crate) fn document_byte_span(&self, node: M2Node<'_>) -> (usize, usize) {
-        (
-            self.start_byte + node.start_byte(),
-            self.start_byte + node.end_byte(),
-        )
     }
 }
 
@@ -75,7 +51,6 @@ impl DocumentationReference {
 pub(crate) fn collect_documentation(
     text: &str,
     tree: &Tree,
-    knowledge: &(impl TypeKnowledge + ?Sized),
 ) -> (Vec<DocumentationSnippet>, Vec<DocumentationReference>) {
     let root = M2Node::new(tree.root_node(), text);
     let mut parser = Parser::new();
@@ -90,14 +65,7 @@ pub(crate) fn collect_documentation(
 
     for node in root.descendants() {
         if is_documentation_container(node) {
-            collect_backtick_snippets(
-                node,
-                text,
-                knowledge,
-                &mut parser,
-                &mut snippets,
-                &mut references,
-            );
+            collect_backtick_snippets(node, text, &mut parser, &mut snippets, &mut references);
         }
     }
 
@@ -114,7 +82,6 @@ fn is_documentation_container(node: M2Node<'_>) -> bool {
 fn collect_backtick_snippets(
     node: M2Node<'_>,
     text: &str,
-    knowledge: &(impl TypeKnowledge + ?Sized),
     parser: &mut Parser,
     snippets: &mut Vec<DocumentationSnippet>,
     references: &mut Vec<DocumentationReference>,
@@ -157,7 +124,6 @@ fn collect_backtick_snippets(
         let Some(tree) = parser.parse(candidate, None) else {
             continue;
         };
-        let analysis = Analysis::new_with_knowledge(&tree, candidate, knowledge);
         let root = M2Node::new(tree.root_node(), candidate);
         references.extend(
             root.descendants()
@@ -175,9 +141,6 @@ fn collect_backtick_snippets(
         snippets.push(DocumentationSnippet {
             start_byte,
             end_byte,
-            text: candidate.to_string(),
-            tree,
-            analysis,
         });
     }
 }
@@ -189,7 +152,6 @@ fn is_code_candidate(candidate: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::typesystem::NoTypeKnowledge;
     use tree_sitter::Parser;
 
     fn references(text: &str) -> Vec<(String, Range)> {
@@ -198,7 +160,7 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("Macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        collect_documentation(text, &tree, &NoTypeKnowledge)
+        collect_documentation(text, &tree)
             .1
             .into_iter()
             .map(|reference| (reference.name(text).to_string(), reference.range()))

@@ -13,8 +13,18 @@ pub(crate) trait FormattingConfiguration {
     fn indent_width(&self) -> Option<u32>;
     fn use_tabs(&self) -> Option<bool>;
     fn line_widths(&self) -> (Option<u32>, Option<u32>);
+    fn control_flow_layout(&self) -> ControlFlowLayout;
     fn compact_factor_operators(&self) -> bool;
     fn break_after_semicolon(&self) -> bool;
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum ControlFlowLayout {
+    Compact,
+    Multiline,
+    #[default]
+    MultilineCompactElse,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +33,7 @@ pub struct FormatOptions {
     tab_width: usize,
     soft_line_width: Option<usize>,
     max_line_width: Option<usize>,
+    control_flow_layout: ControlFlowLayout,
     compact_factor_operators: bool,
     break_after_semicolon: bool,
 }
@@ -34,6 +45,7 @@ impl Default for FormatOptions {
             tab_width: 4,
             soft_line_width: Some(100),
             max_line_width: Some(100),
+            control_flow_layout: ControlFlowLayout::MultilineCompactElse,
             compact_factor_operators: false,
             break_after_semicolon: true,
         }
@@ -67,6 +79,7 @@ impl FormatOptions {
         let (soft_line_width, hard_line_width) = configuration.line_widths();
         options.soft_line_width = soft_line_width.map(|width| width as usize);
         options.max_line_width = hard_line_width.map(|width| width as usize);
+        options.control_flow_layout = configuration.control_flow_layout();
         options.compact_factor_operators = configuration.compact_factor_operators();
         options.break_after_semicolon = configuration.break_after_semicolon();
         options
@@ -132,6 +145,7 @@ pub fn format_document_text(text: &str) -> String {
 pub fn format_document_text_with_options(text: &str, options: &FormatOptions) -> String {
     let newline = detect_line_ending(text);
     let formatted = normalize_whitespace(text, options);
+    let formatted = format_control_flow(&formatted, options, newline);
     let formatted = reindent_from_tree(&formatted, options, newline);
     let mut formatted = wrap_long_lines(&formatted, options, newline);
 
@@ -151,6 +165,155 @@ fn detect_line_ending(text: &str) -> &'static str {
     } else {
         "\n"
     }
+}
+
+fn format_control_flow(text: &str, options: &FormatOptions, newline: &'static str) -> String {
+    if options.control_flow_layout == ControlFlowLayout::Compact {
+        return text.to_string();
+    }
+
+    let mut parser = Parser::new();
+    if parser
+        .set_language(&tree_sitter_macaulay2::language())
+        .is_err()
+    {
+        return text.to_string();
+    }
+    let Some(tree) = parser.parse(text, None) else {
+        return text.to_string();
+    };
+
+    let root = M2Node::new(tree.root_node(), text);
+    let mut edits = Vec::new();
+    for clause in root.descendants().filter(|node| {
+        matches!(
+            node.kind,
+            NodeKind::ThenClause
+                | NodeKind::ElseClause
+                | NodeKind::DoClause
+                | NodeKind::ListClause
+                | NodeKind::ExceptClause
+        )
+    }) {
+        if !control_clause_breaks_are_parseable(clause, text) {
+            continue;
+        }
+        let Some(keyword) = clause.child(0) else {
+            continue;
+        };
+        let Some(body) = clause.named_child(0) else {
+            continue;
+        };
+
+        if matches!(clause.kind, NodeKind::ElseClause | NodeKind::ExceptClause) {
+            push_control_flow_break(
+                text,
+                same_line_horizontal_whitespace_start(text, clause.start_byte()),
+                clause.start_byte(),
+                newline,
+                &mut edits,
+            );
+            if clause.kind == NodeKind::ExceptClause {
+                continue;
+            }
+            if body.kind == NodeKind::IfStatement
+                || options.control_flow_layout == ControlFlowLayout::MultilineCompactElse
+            {
+                continue;
+            }
+        }
+
+        push_control_flow_break(
+            text,
+            Some(keyword.end_byte()),
+            body.start_byte(),
+            newline,
+            &mut edits,
+        );
+    }
+
+    apply_format_edits(text, edits)
+}
+
+fn control_clause_breaks_are_parseable(clause: M2Node<'_>, text: &str) -> bool {
+    let mut current = clause;
+    let control = loop {
+        let Some(parent) = current.parent() else {
+            return true;
+        };
+        if matches!(
+            parent.kind,
+            NodeKind::IfStatement
+                | NodeKind::TryStatement
+                | NodeKind::ForStatement
+                | NodeKind::WhileStatement
+        ) {
+            break parent;
+        }
+        current = parent;
+    };
+
+    let mut layout_control = control;
+    while layout_control.kind == NodeKind::IfStatement && if_statement_is_else_if(layout_control) {
+        let Some(outer_if) = layout_control
+            .parent()
+            .and_then(|else_clause| else_clause.parent())
+            .filter(|parent| parent.kind == NodeKind::IfStatement)
+        else {
+            break;
+        };
+        layout_control = outer_if;
+    }
+
+    let line_start = text[..layout_control.start_byte()]
+        .rfind('\n')
+        .map_or(0, |index| index + 1);
+    if !text[line_start..layout_control.start_byte()]
+        .bytes()
+        .all(|byte| matches!(byte, b' ' | b'\t'))
+    {
+        return false;
+    }
+
+    let has_alternative = layout_control
+        .children()
+        .any(|child| matches!(child.kind, NodeKind::ElseClause | NodeKind::ExceptClause));
+    if !has_alternative {
+        return true;
+    }
+
+    let mut ancestor = layout_control.parent();
+    while let Some(node) = ancestor {
+        if node.kind == NodeKind::ParenthesizedExpression || node.kind.is_collection_expression() {
+            return true;
+        }
+        ancestor = node.parent();
+    }
+    false
+}
+
+fn push_control_flow_break(
+    text: &str,
+    start_byte: Option<usize>,
+    end_byte: usize,
+    newline: &'static str,
+    edits: &mut Vec<FormatEdit>,
+) {
+    let Some(start_byte) = start_byte else {
+        return;
+    };
+    if start_byte >= end_byte
+        || !text[start_byte..end_byte]
+            .bytes()
+            .all(|byte| matches!(byte, b' ' | b'\t'))
+    {
+        return;
+    }
+    edits.push(FormatEdit {
+        start_byte,
+        end_byte,
+        replacement: newline,
+    });
 }
 
 /// Re-indent every line of already-normalized `text` from a fresh parse: parse #2
@@ -844,10 +1007,10 @@ fn is_clause_body_first_token(node: M2Node<'_>, row: usize) -> bool {
 }
 
 /// Whether `node` is an `else`/`then` clause keyword beginning `row` that
-/// continues a non-standalone `if` (a ternary). Two parse shapes occur:
-///   * A proper clause keyword inside an `if_statement`: a continuation only when
-///     that `if` is not standalone (a standalone `if` aligns its `else` via
-///     bracket_depth instead).
+/// continues a non-standalone conditional expression. Two parse shapes occur:
+///   * A proper clause keyword inside an `if` or `try`: a continuation only when
+///     its owner is not standalone (a standalone owner aligns the clause through
+///     bracket depth instead).
 ///   * An orphaned keyword that tree-sitter, recovering a line-broken ternary,
 ///     demotes to a leading `symbol` with no enclosing `if` — always the
 ///     continuation of the ternary begun on an earlier line.
@@ -858,10 +1021,10 @@ fn is_dangling_clause_keyword(node: M2Node<'_>, row: usize, line_leads: &[usize]
     if node.start_position().row != row {
         return false;
     }
-    match enclosing_if_statement(node) {
-        Some(if_statement) => {
-            !if_statement_is_standalone(if_statement, line_leads)
-                && !if_statement_is_else_if(if_statement)
+    match enclosing_clause_owner(node) {
+        Some(owner) => {
+            !(control_statement_is_standalone(owner, line_leads)
+                || owner.kind == NodeKind::IfStatement && if_statement_is_else_if(owner))
         }
         None => true,
     }
@@ -878,12 +1041,11 @@ fn is_clause_keyword_leaf(node: M2Node<'_>) -> bool {
     node.is(NodeKind::Symbol) && matches!(node.text(), "else" | "then")
 }
 
-/// The nearest enclosing `if_statement` of a clause keyword, walking up through
-/// its clause parent.
-fn enclosing_if_statement(node: M2Node<'_>) -> Option<M2Node<'_>> {
+/// The nearest enclosing conditional owner of a clause keyword.
+fn enclosing_clause_owner(node: M2Node<'_>) -> Option<M2Node<'_>> {
     let mut current = node;
     while let Some(parent) = current.parent() {
-        if parent.is(NodeKind::IfStatement) {
+        if matches!(parent.kind, NodeKind::IfStatement | NodeKind::TryStatement) {
             return Some(parent);
         }
         current = parent;
@@ -891,9 +1053,8 @@ fn enclosing_if_statement(node: M2Node<'_>) -> Option<M2Node<'_>> {
     None
 }
 
-/// Whether an `if_statement` begins its own line (only whitespace precedes the
-/// `if` token on its row).
-fn if_statement_is_standalone(node: M2Node<'_>, line_leads: &[usize]) -> bool {
+/// Whether a control statement begins its own line.
+fn control_statement_is_standalone(node: M2Node<'_>, line_leads: &[usize]) -> bool {
     let row = node.start_position().row;
     let column = node.start_position().column;
     line_leads.get(row).copied().unwrap_or(0) >= column
@@ -1786,7 +1947,7 @@ mod tests {
             format_document_text(
                 "scan(docKeys, key -> (\nbaseName := recordNameFromDocKey key;\nif db#?key then result#baseName = append(result#baseName ?? {}, hashTable {\"key\" => key, \"raw\" => db#key});\n)\n);\n"
             ),
-            "scan(docKeys, key -> (\n    baseName := recordNameFromDocKey key;\n    if db#?key then result#baseName = append(result#baseName ?? {}, hashTable {\"key\" => key,\n        \"raw\" => db#key});\n)\n);\n"
+            "scan(docKeys, key -> (\n    baseName := recordNameFromDocKey key;\n    if db#?key then\n        result#baseName = append(result#baseName ?? {}, hashTable {\"key\" => key, \"raw\" => db#key});\n)\n);\n"
         );
     }
 
@@ -1912,12 +2073,12 @@ mod tests {
     }
 
     #[test]
-    fn leaves_single_word_if_bodies_inline() {
+    fn expands_a_single_then_body_when_line_breaks_are_parseable() {
         assert_eq!(
             format_document_text("if a then b else c\n"),
             "if a then b else c\n"
         );
-        assert_eq!(format_document_text("if a then b\n"), "if a then b\n");
+        assert_eq!(format_document_text("if a then b\n"), "if a then\n    b\n");
     }
 
     #[test]
@@ -1969,7 +2130,8 @@ mod tests {
             "extracted := (\n\
              \x20   if kind === \"function\" then\n\
              \x20       extractFunc(name, db)\n\
-             \x20   else if kind === \"operator\" then extractOperator(name, db)\n\
+             \x20   else if kind === \"operator\" then\n\
+             \x20       extractOperator(name, db)\n\
              \x20   else extractObject(name, db)\n\
              );\n"
         );
@@ -1989,10 +2151,87 @@ mod tests {
         assert_eq!(
             format_document_text(chain),
             "result := (\n\
-             \x20   if a then one\n\
-             \x20   else if b then two\n\
-             \x20   else if c then three\n\
+             \x20   if a then\n\
+             \x20       one\n\
+             \x20   else if b then\n\
+             \x20       two\n\
+             \x20   else if c then\n\
+             \x20       three\n\
              \x20   else four\n\
+             )\n"
+        );
+    }
+
+    #[test]
+    fn control_flow_layout_variants_choose_the_final_else_shape() {
+        let text = "value := (\nif a then one else if b then two else three\n)\n";
+
+        let compact = FormatOptions {
+            control_flow_layout: ControlFlowLayout::Compact,
+            ..FormatOptions::default()
+        };
+        assert_eq!(
+            format_document_text_with_options(text, &compact),
+            "value := (\n    if a then one else if b then two else three\n)\n"
+        );
+
+        let multiline = FormatOptions {
+            control_flow_layout: ControlFlowLayout::Multiline,
+            ..FormatOptions::default()
+        };
+        assert_eq!(
+            format_document_text_with_options(text, &multiline),
+            "value := (\n\
+             \x20   if a then\n\
+             \x20       one\n\
+             \x20   else if b then\n\
+             \x20       two\n\
+             \x20   else\n\
+             \x20       three\n\
+             )\n"
+        );
+
+        assert_eq!(
+            format_document_text(text),
+            "value := (\n\
+             \x20   if a then\n\
+             \x20       one\n\
+             \x20   else if b then\n\
+             \x20       two\n\
+             \x20   else three\n\
+             )\n"
+        );
+    }
+
+    #[test]
+    fn expands_while_for_and_try_clause_bodies_analogously() {
+        let text = "value := (\nwhile ready do work;\nfor i to 2 list i;\ntry x then y else z\n)\n";
+
+        assert_eq!(
+            format_document_text(text),
+            "value := (\n\
+             \x20   while ready do\n\
+             \x20       work;\n\
+             \x20   for i to 2 list\n\
+             \x20       i;\n\
+             \x20   try x then\n\
+             \x20       y\n\
+             \x20   else z\n\
+             )\n"
+        );
+    }
+
+    #[test]
+    fn keeps_the_except_binder_with_except_and_breaks_after_do() {
+        let text = "value := (\ntry 1/x then result except err do err\n)\n";
+
+        assert_eq!(
+            format_document_text(text),
+            "value := (\n\
+             \x20   try 1 / x then\n\
+             \x20       result\n\
+             \x20   except err do\n\
+             \x20       err\n\
              )\n"
         );
     }

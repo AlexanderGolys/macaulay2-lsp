@@ -370,6 +370,7 @@ pub struct BindingInfo {
     pub symbol: SymbolId,
     pub role: BindingRole,
     pub declaration_kind: SymbolKind,
+    pub potential_export: bool,
     pub range: Range,
     pub scope_idx: usize,
     pub declaration_range: Range,
@@ -415,6 +416,9 @@ impl Metadata for BindingView<'_> {
 pub struct ScopeInfo {
     pub range: Range,
     pub parent_idx: Option<usize>,
+    /// `=` definitions in this statically isolated scope may still become
+    /// visible outside it when the region executes at runtime.
+    pub context_assignments_may_escape: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -497,13 +501,23 @@ impl Analysis {
         self.binding_definition(state.binding_id)
     }
 
-    pub(crate) fn any_symbol(&self, name: &str) -> Option<BindingView<'_>> {
-        let symbol = self.registry.resolve_symbol(name)?;
-        self.registry
-            .bindings_by_symbol
-            .get(&symbol)?
-            .iter()
-            .find_map(|binding_id| self.binding_definition(*binding_id))
+    pub(crate) fn documentation_symbol_at(
+        &self,
+        name: &str,
+        pos: Position,
+    ) -> Option<BindingView<'_>> {
+        self.get_symbol_at(name, pos).or_else(|| {
+            let symbol = self.registry.resolve_symbol(name)?;
+            let mut fallback = None;
+            for binding_id in self.registry.bindings_by_symbol.get(&symbol)? {
+                let binding = self.binding_definition(*binding_id)?;
+                if binding.scope_idx == 0 {
+                    return Some(binding);
+                }
+                fallback.get_or_insert(binding);
+            }
+            fallback
+        })
     }
 
     #[cfg(test)]
@@ -793,6 +807,7 @@ impl Analysis {
                 scopes: vec![ScopeInfo {
                     range: Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
                     parent_idx: None,
+                    context_assignments_may_escape: false,
                 }],
                 ..Default::default()
             },
@@ -833,7 +848,7 @@ impl Analysis {
 
         match node.kind {
             NodeKind::LambdaExpression => {
-                next_scope_idx = self.push_scope(node, text, Some(current_scope_idx));
+                next_scope_idx = self.push_scope(node, text, Some(current_scope_idx), false);
                 next_assignment_scope_idx = next_scope_idx;
 
                 if let Some(params_node) = node.child_by_field_name("parameters") {
@@ -908,6 +923,7 @@ impl Analysis {
                                 node: left,
                                 value_node: right,
                                 scope_idx: current_scope_idx,
+                                potential_export: current_scope_idx == 0,
                             },
                         ),
                         // `=` writes the nearest enclosing binding of the name, or
@@ -927,6 +943,9 @@ impl Analysis {
                                 node: left,
                                 value_node: right,
                                 scope_idx: assignment_scope_idx,
+                                potential_export: assignment_scope_idx == 0
+                                    || self.registry.scopes[assignment_scope_idx]
+                                        .context_assignments_may_escape,
                             },
                         ),
                         _ => {}
@@ -939,10 +958,15 @@ impl Analysis {
         // Recurse into children
         for child in node.children() {
             let (child_scope_idx, child_assignment_scope_idx) =
-                match child_scope_assignment_is_local(node, child) {
-                    Some(assignments_are_local) => {
-                        let scope_idx = self.push_scope(child, text, Some(next_scope_idx));
-                        let assignment_scope_idx = if assignments_are_local {
+                match child_scope_policy(node, child) {
+                    Some(policy) => {
+                        let scope_idx = self.push_scope(
+                            child,
+                            text,
+                            Some(next_scope_idx),
+                            policy.context_assignments_may_escape,
+                        );
+                        let assignment_scope_idx = if policy.assignments_are_local {
                             scope_idx
                         } else {
                             next_assignment_scope_idx
@@ -1423,6 +1447,7 @@ impl Analysis {
                     node: parameter_node,
                     value_node: None,
                     scope_idx,
+                    potential_export: false,
                 },
                 text,
             );
@@ -1518,6 +1543,7 @@ impl Analysis {
             node,
             value_node,
             scope_idx,
+            potential_export,
         } = registration;
         let symbol_id = self.registry.intern_symbol(name);
         if let Some(parent_type) = parent_type {
@@ -1533,6 +1559,7 @@ impl Analysis {
             symbol: symbol_id,
             role,
             declaration_kind: declaration_symbol_kind(kind, value_node),
+            potential_export,
             range,
             scope_idx,
             declaration_range: enclosing_definition_range(node, text),
@@ -1747,10 +1774,20 @@ impl Analysis {
         });
     }
 
-    fn push_scope(&mut self, node: M2Node, text: &str, parent_idx: Option<usize>) -> usize {
+    fn push_scope(
+        &mut self,
+        node: M2Node,
+        text: &str,
+        parent_idx: Option<usize>,
+        context_assignments_may_escape: bool,
+    ) -> usize {
         let range = to_lsp_range(text, node.range());
         let scope_idx = self.registry.scopes.len();
-        self.registry.scopes.push(ScopeInfo { range, parent_idx });
+        self.registry.scopes.push(ScopeInfo {
+            range,
+            parent_idx,
+            context_assignments_may_escape,
+        });
         self.registry
             .node_scopes
             .insert(SpanKey::from_node(text, node), scope_idx);
@@ -2446,6 +2483,7 @@ struct SymbolRegistration<'a> {
     node: M2Node<'a>,
     value_node: Option<M2Node<'a>>,
     scope_idx: usize,
+    potential_export: bool,
 }
 
 fn expression_kind(node: M2Node<'_>) -> Option<ExpressionKind> {
@@ -2745,27 +2783,47 @@ fn is_loop_clause(kind: NodeKind) -> bool {
     )
 }
 
-fn child_scope_assignment_is_local(parent: M2Node<'_>, child: M2Node<'_>) -> Option<bool> {
+#[derive(Debug, Clone, Copy)]
+struct ChildScopePolicy {
+    assignments_are_local: bool,
+    context_assignments_may_escape: bool,
+}
+
+impl ChildScopePolicy {
+    const CONDITIONAL: Self = Self {
+        assignments_are_local: true,
+        context_assignments_may_escape: true,
+    };
+
+    const LOOP_CLAUSE: Self = Self {
+        assignments_are_local: false,
+        context_assignments_may_escape: false,
+    };
+}
+
+fn child_scope_policy(parent: M2Node<'_>, child: M2Node<'_>) -> Option<ChildScopePolicy> {
     match parent.kind {
         NodeKind::IfStatement => {
             let is_condition = parent
                 .child_by_field_name("condition")
                 .is_some_and(|condition| condition.id() == child.id());
             (is_condition || matches!(child.kind, NodeKind::ThenClause | NodeKind::ElseClause))
-                .then_some(true)
+                .then_some(ChildScopePolicy::CONDITIONAL)
         }
         NodeKind::TryStatement => {
             let is_body = parent
                 .named_child(0)
                 .is_some_and(|body| body.id() == child.id());
-            (is_body || is_try_clause(child.kind)).then_some(true)
+            (is_body || is_try_clause(child.kind)).then_some(ChildScopePolicy::CONDITIONAL)
         }
-        NodeKind::ForStatement => is_loop_clause(child.kind).then_some(false),
+        NodeKind::ForStatement => {
+            is_loop_clause(child.kind).then_some(ChildScopePolicy::LOOP_CLAUSE)
+        }
         NodeKind::WhileStatement => {
             let is_condition = parent
                 .named_child(0)
                 .is_some_and(|condition| condition.id() == child.id());
-            (is_condition || is_loop_clause(child.kind)).then_some(false)
+            (is_condition || is_loop_clause(child.kind)).then_some(ChildScopePolicy::LOOP_CLAUSE)
         }
         _ => None,
     }
@@ -4247,6 +4305,34 @@ x
         assert!(
             !has_diagnostic(&analysis, M2Diagnostic::UnusedBinding),
             "top-level bindings should not be warned as unused exports"
+        );
+    }
+
+    #[test]
+    fn conditional_equal_binding_is_a_potential_export_for_unused_diagnostics() {
+        let analysis = analyze(concat!(
+            "if condition then (\n",
+            "  test = true;\n",
+            "  branchLocal := 1;\n",
+            ");\n",
+            "if test == true then null\n",
+        ));
+
+        assert!(
+            analysis
+                .get_symbol_at("test", Position::new(4, 3))
+                .is_none(),
+            "conditional resolution must remain conservative outside the branch"
+        );
+        assert_eq!(
+            analysis
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.message.starts_with("Unused "))
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Unused variable `branchLocal`"],
+            "conditional `=` may escape at runtime, while `:=` remains branch-local"
         );
     }
 

@@ -15,7 +15,8 @@ pub(crate) fn document_highlight_provider_capability(
 
 /// Highlight occurrences related to the cursor. A symbol under the cursor lights
 /// up all its in-file references; a keyword lights up its compound statement's
-/// keyword sequence; a semicolon lights up the expression it terminates.
+/// keyword sequence; a semicolon lights up compact boundary markers for the
+/// expression it terminates.
 pub(crate) fn document_highlights(
     document: &DocumentSnapshot,
     position: Position,
@@ -116,17 +117,95 @@ fn semicolon_expression_highlight(
     if !semicolon.is_semicolon() {
         return None;
     }
-    let expression = semicolon.parent()?;
-    let expression_range = document.range_for(expression);
-    let semicolon_range = document.range_for(semicolon);
-    if expression_range.start >= semicolon_range.start {
+    let muted = semicolon.parent()?;
+    if muted.kind != NodeKind::Muted {
         return None;
     }
+    let expression = muted
+        .named_children()
+        .find(|child| !child.kind.is_comment() && child.end_byte() <= semicolon.start_byte())?;
+    let mut markers = expression_boundary_markers(expression)
+        .into_iter()
+        .filter(|marker| marker.start_byte() < marker.end_byte())
+        .collect::<Vec<_>>();
+    markers.push(semicolon);
 
-    Some(vec![DocumentHighlight {
-        range: tower_lsp::lsp_types::Range::new(expression_range.start, semicolon_range.start),
-        kind: Some(DocumentHighlightKind::TEXT),
-    }])
+    Some(
+        markers
+            .into_iter()
+            .map(|marker| DocumentHighlight {
+                range: document.range_for(marker),
+                kind: Some(DocumentHighlightKind::TEXT),
+            })
+            .collect(),
+    )
+}
+
+/// Select the small structural boundary that identifies an expression from its
+/// terminating semicolon:
+///
+/// - an ordinary expression contributes its first meaningful token;
+/// - a prefix contributes its operator and the operand's opening marker;
+/// - a bracketed expression additionally contributes its opening and closing
+///   delimiters.
+///
+/// Prefixes and brackets recurse, so `(-x);` lights `(`, `-`, `x`, and `)`.
+/// A prefix applied directly to a bracketed expression is deliberately quieter:
+/// `-(x);` contributes only `-`; the caller adds `;` as the matching endpoint.
+/// Every selected range comes from the CST; this deliberately does not scan the
+/// source to rediscover token boundaries.
+fn expression_boundary_markers(expression: M2Node<'_>) -> Vec<M2Node<'_>> {
+    if expression.kind == NodeKind::PrefixExpression {
+        let mut markers = expression
+            .child_by_field_name("operator")
+            .into_iter()
+            .collect::<Vec<_>>();
+        if let Some(operand) = expression.child_by_field_name("operand") {
+            if !is_bracketed_expression(operand) {
+                markers.extend(expression_boundary_markers(operand));
+            }
+        }
+        return markers;
+    }
+
+    let children = expression.children().collect::<Vec<_>>();
+    let opening = children
+        .first()
+        .copied()
+        .filter(M2Node::is_opening_delimiter);
+    let closing = children
+        .last()
+        .copied()
+        .filter(M2Node::is_closing_delimiter);
+    if let Some(opening) = opening {
+        let mut markers = vec![opening];
+        if let Some(first_expression) = expression
+            .named_children()
+            .find(|child| !child.kind.is_comment())
+        {
+            markers.extend(expression_boundary_markers(first_expression));
+        }
+        markers.extend(closing);
+        return markers;
+    }
+
+    if expression.kind.is_symbol_like() || expression.kind.is_literal() {
+        return vec![expression];
+    }
+
+    expression
+        .children()
+        .find(|child| !child.kind.is_comment())
+        .map(expression_boundary_markers)
+        .unwrap_or_else(|| vec![expression])
+}
+
+fn is_bracketed_expression(expression: M2Node<'_>) -> bool {
+    let mut children = expression.children();
+    let opening = children.next();
+    let closing = children.last().or(opening);
+    opening.is_some_and(|node| node.is_opening_delimiter())
+        && closing.is_some_and(|node| node.is_closing_delimiter())
 }
 
 fn control_transfer_highlights(
@@ -405,6 +484,12 @@ mod tests {
     }
 
     #[test]
+    fn highlights_backtick_mentions_of_later_bindings() {
+        let text = "-- use `x`\nx := 1\nx\n";
+        assert_eq!(highlighted_words(text, 0, 8), vec!["x", "x", "x"]);
+    }
+
+    #[test]
     fn highlights_unshadowed_builtin_names_but_excludes_keywords() {
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let text = "ideal I\n-- call `ideal` again\nideal J\nif true then ideal K\n";
@@ -523,8 +608,39 @@ mod tests {
     }
 
     #[test]
-    fn semicolon_highlights_the_expression_it_terminates() {
+    fn semicolon_highlights_only_the_terminated_expression_start() {
         let text = "x := (a + b; c);\n";
-        assert_eq!(highlighted_words(text, 0, 15), vec!["x := (a + b; c)"]);
+        assert_eq!(highlighted_words(text, 0, 15), vec!["x", ";"]);
+    }
+
+    #[test]
+    fn semicolon_includes_a_leading_prefix_and_its_operand() {
+        assert_eq!(highlighted_words("-x;\n", 0, 2), vec!["-", "x", ";"]);
+    }
+
+    #[test]
+    fn semicolon_includes_bracket_boundaries_and_the_expression_start() {
+        assert_eq!(
+            highlighted_words("(a + b);\n", 0, 7),
+            vec!["(", "a", ")", ";"]
+        );
+        assert_eq!(
+            highlighted_words("(-x);\n", 0, 4),
+            vec!["(", "-", "x", ")", ";"]
+        );
+        assert_eq!(highlighted_words("();\n", 0, 2), vec!["(", ")", ";"]);
+    }
+
+    #[test]
+    fn prefix_of_a_bracketed_expression_highlights_only_the_endpoints() {
+        assert_eq!(highlighted_words("-(x);\n", 0, 4), vec!["-", ";"]);
+    }
+
+    #[test]
+    fn semicolon_after_a_compound_statement_highlights_only_its_first_keyword() {
+        assert_eq!(
+            highlighted_words("while a do f a;\n", 0, 14),
+            vec!["while", ";"]
+        );
     }
 }

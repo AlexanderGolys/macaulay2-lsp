@@ -113,9 +113,6 @@ pub(crate) fn collect_semantic_tokens(
             node,
             syntax_token_type,
             document,
-            builtins,
-            workspace_index,
-            uri,
             augments_syntax_tokens,
             &mut tokens,
             &mut prev_line,
@@ -143,7 +140,6 @@ pub(crate) fn collect_semantic_tokens(
                 workspace_index,
                 uri,
                 emit_syntax,
-                None,
             ) {
                 emitted_token = push_semantic_span(
                     text,
@@ -183,9 +179,6 @@ fn emit_documentation_container_tokens(
     node: M2Node<'_>,
     syntax_token_type: Option<M2SemanticTokenType>,
     document: &DocumentSnapshot,
-    builtins: &(impl SemanticTokenKnowledge + ?Sized),
-    workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
-    uri: &Url,
     augments_syntax_tokens: bool,
     tokens: &mut Vec<SemanticToken>,
     prev_line: &mut u32,
@@ -219,9 +212,7 @@ fn emit_documentation_container_tokens(
     let mut emitted = false;
     let mut spans = snippets
         .into_iter()
-        .flat_map(|snippet| {
-            documentation_snippet_semantic_spans(snippet, document, builtins, workspace_index, uri)
-        })
+        .map(documentation_snippet_semantic_span)
         .collect::<Vec<_>>();
     spans.sort_by_key(|span| (span.start_byte, span.end_byte));
 
@@ -278,56 +269,14 @@ struct SemanticSpan {
     modifiers: u32,
 }
 
-fn documentation_snippet_semantic_spans(
-    snippet: &DocumentationSnippet,
-    document: &DocumentSnapshot,
-    builtins: &(impl SemanticTokenKnowledge + ?Sized),
-    workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
-    uri: &Url,
-) -> Vec<SemanticSpan> {
-    let text = snippet.text();
-    let analysis = snippet.analysis();
-    let mut spans = Vec::new();
-
-    for node in snippet.root_node().descendants() {
-        let syntax_token_type = syntax_semantic_token_type(node);
-        if !node.kind.is_symbol_like() && syntax_token_type.is_none() {
-            continue;
-        }
-
-        let position = node_position(text, node);
-        let binding = analysis
-            .get_symbol_at(node.text(), position)
-            .map(|symbol| (symbol, position == symbol.range.start))
-            .or_else(|| {
-                document
-                    .analysis()
-                    .any_symbol(node.text())
-                    .map(|symbol| (symbol, false))
-            });
-        let Some((token_type, modifiers)) = classify_semantic_node(
-            node,
-            text,
-            analysis,
-            binding,
-            builtins,
-            workspace_index,
-            uri,
-            true,
-            Some(M2SemanticTokenType::Variable),
-        ) else {
-            continue;
-        };
-        let (start_byte, end_byte) = snippet.document_byte_span(node);
-        spans.push(SemanticSpan {
-            start_byte,
-            end_byte,
-            token_type,
-            modifiers,
-        });
+fn documentation_snippet_semantic_span(snippet: &DocumentationSnippet) -> SemanticSpan {
+    let (start_byte, end_byte) = snippet.byte_span();
+    SemanticSpan {
+        start_byte,
+        end_byte,
+        token_type: M2SemanticTokenType::Property,
+        modifiers: 0,
     }
-
-    spans
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -340,7 +289,6 @@ fn classify_semantic_node(
     workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
     uri: &Url,
     emit_syntax: bool,
-    unresolved_symbol_type: Option<M2SemanticTokenType>,
 ) -> Option<(M2SemanticTokenType, u32)> {
     let node_text = node.text();
     let syntax_token_type = syntax_semantic_token_type(node);
@@ -403,10 +351,6 @@ fn classify_semantic_node(
 
     if token_type.is_none() {
         token_type = workspace_index.semantic_token_type(node_text, uri);
-    }
-
-    if token_type.is_none() && node.kind.is_symbol_like() {
-        token_type = unresolved_symbol_type;
     }
 
     if token_type.is_none() && emit_syntax {
@@ -1068,28 +1012,20 @@ mod tests {
     }
 
     #[test]
-    fn semantic_tokens_resolve_backtick_mentions_inside_comments() {
+    fn semantic_tokens_color_backtick_mentions_as_properties() {
         let text = "x := 1\n-- use `x` and `ideal`\n";
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
         let local = token_at(&tokens, 1, 8).expect("local documentation reference is tokenized");
-        assert_eq!(local.token_type, M2SemanticTokenType::Variable as u32);
-        assert_eq!(local.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER, 0);
+        assert_eq!(local.token_type, M2SemanticTokenType::Property as u32);
+        assert_eq!(local.token_modifiers_bitset, 0);
 
         let builtin =
             token_at(&tokens, 1, 16).expect("builtin documentation reference is tokenized");
-        assert!(matches!(
-            builtin.token_type,
-            value
-                if value == M2SemanticTokenType::Function as u32
-                    || value == M2SemanticTokenType::Method as u32
-        ));
-        assert_eq!(
-            builtin.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
-            DEFAULT_LIBRARY_MODIFIER
-        );
+        assert_eq!(builtin.token_type, M2SemanticTokenType::Property as u32);
+        assert_eq!(builtin.token_modifiers_bitset, 0);
 
         assert_eq!(
             token_at(&tokens, 1, 7).map(|token| token.token_type),
@@ -1107,7 +1043,7 @@ mod tests {
 
         assert_eq!(
             token_at(&tokens, 1, 8).map(|token| token.token_type),
-            Some(M2SemanticTokenType::Variable as u32)
+            Some(M2SemanticTokenType::Property as u32)
         );
         assert!(
             token_at(&tokens, 1, 7).is_none(),
@@ -1116,7 +1052,7 @@ mod tests {
     }
 
     #[test]
-    fn semantic_tokens_parse_comment_code_and_resolve_later_document_symbols() {
+    fn semantic_tokens_use_one_property_color_for_complete_comment_code() {
         let text = concat!(
             "-- inspect `instance(t, Comment)`\n",
             "Comment = new Type of HashTable\n",
@@ -1130,20 +1066,20 @@ mod tests {
 
         assert_eq!(
             token_type_at(&tokens, 0, line.find("instance").unwrap() as u32),
-            Some(M2SemanticTokenType::Function as u32)
+            Some(M2SemanticTokenType::Property as u32)
         );
         assert_eq!(
             token_type_at(&tokens, 0, line.find("(t").unwrap() as u32 + 1),
-            Some(M2SemanticTokenType::Variable as u32)
+            Some(M2SemanticTokenType::Property as u32)
         );
         assert_eq!(
             token_type_at(&tokens, 0, line.find("Comment").unwrap() as u32),
-            Some(M2SemanticTokenType::Class as u32)
+            Some(M2SemanticTokenType::Property as u32)
         );
     }
 
     #[test]
-    fn comment_code_analysis_does_not_create_document_bindings() {
+    fn comment_code_does_not_create_document_bindings() {
         let text = "-- example `ghost := x -> x`\nghost\n";
         let builtins = BuiltinData::empty();
         let document = document(text, &builtins);
@@ -1152,7 +1088,7 @@ mod tests {
 
         assert_eq!(
             token_type_at(&tokens, 0, comment_line.find("ghost").unwrap() as u32),
-            Some(M2SemanticTokenType::Function as u32)
+            Some(M2SemanticTokenType::Property as u32)
         );
         assert_eq!(
             token_type_at(&tokens, 1, 0),
@@ -1162,31 +1098,19 @@ mod tests {
     }
 
     #[test]
-    fn comment_code_emits_its_own_syntax_colors_when_augmenting() {
+    fn comment_code_uses_one_property_color_when_augmenting() {
         let text = "-- example `if true then 1 + 2 else \"x\"`\n";
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, true);
         let line = text.lines().next().unwrap();
 
-        for keyword in ["if", "then", "else"] {
+        for fragment in ["if", "true", "then", "1", "+", "2", "else", "\"x\""] {
             assert_eq!(
-                token_type_at(&tokens, 0, line.find(keyword).unwrap() as u32),
-                Some(M2SemanticTokenType::Keyword as u32)
+                token_type_at(&tokens, 0, line.find(fragment).unwrap() as u32),
+                Some(M2SemanticTokenType::Property as u32)
             );
         }
-        assert_eq!(
-            token_type_at(&tokens, 0, line.find('1').unwrap() as u32),
-            Some(M2SemanticTokenType::Number as u32)
-        );
-        assert_eq!(
-            token_type_at(&tokens, 0, line.find('+').unwrap() as u32),
-            Some(M2SemanticTokenType::Operator as u32)
-        );
-        assert_eq!(
-            token_type_at(&tokens, 0, line.find("\"x\"").unwrap() as u32),
-            Some(M2SemanticTokenType::String as u32)
-        );
     }
 
     #[test]

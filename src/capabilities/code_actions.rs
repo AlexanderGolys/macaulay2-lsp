@@ -274,6 +274,30 @@ impl CodeActionRule for FlattenElseIf {
 }
 
 fn flatten_else_if_chain(if_node: M2Node<'_>) -> Option<String> {
+    flatten_then_if_chain(if_node).or_else(|| flatten_parenthesized_else_if_chain(if_node))
+}
+
+fn flatten_then_if_chain(if_node: M2Node<'_>) -> Option<String> {
+    let condition = if_node.child_by_field_name("condition")?;
+    let then_clause = clause_child(if_node, NodeKind::ThenClause)?;
+    let then_branch = expression_of_clause(then_clause)?;
+    let nested_if = unwrap_parentheses(then_branch);
+    if nested_if.kind != NodeKind::IfStatement {
+        return None;
+    }
+    let else_branch = expression_of_clause(clause_child(if_node, NodeKind::ElseClause)?)?;
+    let nested_replacement =
+        flatten_else_if_chain(nested_if).unwrap_or_else(|| nested_if.text().to_string());
+
+    Some(format!(
+        "if {} then {} else {}",
+        negated_condition_text(condition),
+        else_branch.text(),
+        nested_replacement
+    ))
+}
+
+fn flatten_parenthesized_else_if_chain(if_node: M2Node<'_>) -> Option<String> {
     let else_clause = clause_child(if_node, NodeKind::ElseClause)?;
     let else_branch = expression_of_clause(else_clause)?;
     let nested_if = unwrap_parentheses(else_branch);
@@ -699,6 +723,33 @@ mod tests {
         assert_eq!(
             change.new_text,
             "if a then one else if b then two else if c then three else four"
+        );
+    }
+
+    #[test]
+    fn flattens_then_nested_if_by_negating_the_outer_condition_once() {
+        let text = "if xywzx then (if xxx then yyyxyz else xuuu) else xuu";
+        let uri = Url::parse("file:///test.m2").expect("test uri should parse");
+        let document = document(text);
+        let position = Position::new(0, text.find("xxx").unwrap() as u32);
+
+        let action = flatten_else_if_code_action(
+            &document,
+            &uri,
+            position,
+            cursor_at(&document, position),
+            &[],
+        )
+        .expect("a nested then-if should be flattenable");
+        let change = &action
+            .edit
+            .expect("code action should carry an edit")
+            .changes
+            .expect("edit should use simple changes")[&uri][0];
+
+        assert_eq!(
+            change.new_text,
+            "if not xywzx then xuu else if xxx then yyyxyz else xuuu"
         );
     }
 

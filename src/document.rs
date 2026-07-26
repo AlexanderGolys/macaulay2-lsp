@@ -51,7 +51,7 @@ impl DocumentSnapshot {
         let knowledge = knowledge_provider.knowledge_for(&imported_packages);
         let analysis = Analysis::new_with_knowledge(&tree, &text, &knowledge);
         let (documentation_snippets, documentation_references) =
-            collect_documentation(&text, &tree, &knowledge);
+            collect_documentation(&text, &tree);
         Some(Self {
             text,
             tree,
@@ -100,8 +100,11 @@ impl DocumentSnapshot {
     }
 
     pub(crate) fn binding_at_position(&self, position: Position) -> Option<BindingView<'_>> {
-        let (name, _) = self.symbol_occurrence_at(position)?;
-        self.analysis.get_binding_at(name, position)
+        if let Some(reference) = self.documentation_reference_at(position) {
+            return self.documentation_symbol(reference);
+        }
+        let node = self.symbol_node_at_position(position)?;
+        self.analysis.get_binding_at(node.text(), position)
     }
 
     /// Resolve the user symbol under `position`: its tree-sitter node plus the
@@ -110,8 +113,18 @@ impl DocumentSnapshot {
     /// punctuation, or whitespace). The single entry point shared by reference,
     /// highlight, and rename requests.
     pub(crate) fn target_symbol_at(&self, position: Position) -> Option<TargetSymbol<'_>> {
-        let (name, range) = self.symbol_occurrence_at(position)?;
-        let symbol = self.analysis.get_symbol_at(name, position)?;
+        let documentation_reference = self.documentation_reference_at(position);
+        let (name, range) = if let Some(reference) = documentation_reference {
+            (reference.name(&self.text), reference.range())
+        } else {
+            let node = self.symbol_node_at_position(position)?;
+            (node.text(), self.range_for(node))
+        };
+        let symbol = if let Some(reference) = documentation_reference {
+            self.documentation_symbol(reference)?
+        } else {
+            self.analysis.get_symbol_at(name, position)?
+        };
         Some(TargetSymbol {
             name,
             range,
@@ -135,6 +148,14 @@ impl DocumentSnapshot {
             .iter()
             .copied()
             .find(|reference| reference.contains(position))
+    }
+
+    pub(crate) fn documentation_symbol(
+        &self,
+        reference: DocumentationReference,
+    ) -> Option<BindingView<'_>> {
+        self.analysis
+            .documentation_symbol_at(reference.name(&self.text), reference.range().start)
     }
 
     /// A real CST symbol or a backtick-delimited symbol mention under the
@@ -265,7 +286,7 @@ impl DocumentSnapshot {
         let knowledge = knowledge_provider.knowledge_for(&imported_packages);
         let analysis = Analysis::new_with_knowledge(&tree, &self.text, &knowledge);
         let (documentation_snippets, documentation_references) =
-            collect_documentation(&self.text, &tree, &knowledge);
+            collect_documentation(&self.text, &tree);
         self.imported_packages = imported_packages;
         self.tree = tree;
         self.analysis = analysis;

@@ -4,7 +4,7 @@ use std::sync::RwLock;
 use serde::{de::Error as _, Deserialize, Deserializer};
 use serde_json::Value;
 
-use crate::capabilities::formatting::FormattingConfiguration;
+use crate::capabilities::formatting::{ControlFlowLayout, FormattingConfiguration};
 use crate::diagnostic_registry::{DiagnosticPolicy, M2Diagnostic};
 
 #[derive(Debug)]
@@ -106,6 +106,7 @@ pub(crate) struct FormattingSettings {
     soft_line_width: Option<u32>,
     hard_line_width: Option<u32>,
     max_line_width: LegacyLineWidth,
+    control_flow_layout: ControlFlowLayout,
     compact_factor_operators: bool,
     break_after_semicolon: bool,
 }
@@ -134,6 +135,7 @@ impl Default for FormattingSettings {
             soft_line_width: Some(100),
             hard_line_width: Some(100),
             max_line_width: LegacyLineWidth::Unset,
+            control_flow_layout: ControlFlowLayout::MultilineCompactElse,
             compact_factor_operators: false,
             break_after_semicolon: true,
         }
@@ -161,6 +163,10 @@ impl FormattingConfiguration for FormattingSettings {
             .filter(|width| *width > 0)
             .map(|width| hard.map_or(width, |hard| width.min(hard)));
         (soft, hard)
+    }
+
+    fn control_flow_layout(&self) -> ControlFlowLayout {
+        self.control_flow_layout
     }
 
     fn compact_factor_operators(&self) -> bool {
@@ -201,6 +207,10 @@ mod tests {
 
         assert!(settings.diagnostics().allows(M2Diagnostic::UnusedBinding));
         assert_eq!(settings.formatting().line_widths(), (Some(100), Some(100)));
+        assert_eq!(
+            settings.formatting().control_flow_layout(),
+            ControlFlowLayout::MultilineCompactElse
+        );
         assert!(!settings.formatting().compact_factor_operators());
         assert!(settings.formatting().break_after_semicolon());
         assert!(!settings.expression_type_hints());
@@ -217,6 +227,7 @@ mod tests {
                     "indentWidth": 2,
                     "useTabs": false,
                     "maxLineWidth": 88,
+                    "controlFlowLayout": "multiline",
                     "compactFactorOperators": true,
                     "breakAfterSemicolon": false
                 },
@@ -235,6 +246,10 @@ mod tests {
         assert_eq!(settings.formatting().indent_width(), Some(2));
         assert_eq!(settings.formatting().use_tabs(), Some(false));
         assert_eq!(settings.formatting().line_widths(), (Some(88), Some(88)));
+        assert_eq!(
+            settings.formatting().control_flow_layout(),
+            ControlFlowLayout::Multiline
+        );
         assert!(settings.formatting().compact_factor_operators());
         assert!(!settings.formatting().break_after_semicolon());
         assert!(settings.expression_type_hints());
@@ -301,6 +316,27 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(clamped.formatting().line_widths(), (Some(120), Some(120)));
+    }
+
+    #[test]
+    fn parses_every_control_flow_layout_variant() {
+        for (name, expected) in [
+            ("compact", ControlFlowLayout::Compact),
+            ("multiline", ControlFlowLayout::Multiline),
+            (
+                "multilineCompactElse",
+                ControlFlowLayout::MultilineCompactElse,
+            ),
+        ] {
+            let settings = ServerSettings::from_value(&serde_json::json!({
+                "formatting": {
+                    "controlFlowLayout": name
+                }
+            }))
+            .unwrap();
+
+            assert_eq!(settings.formatting().control_flow_layout(), expected);
+        }
     }
 
     #[test]
