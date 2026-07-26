@@ -11,7 +11,7 @@ use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
 use crate::typesystem::{InstanceID, LspKnowledge, Record};
 use crate::util::*;
-use crate::workspace_index::WorkspaceIndex;
+use crate::workspace_index::WorkspaceDefinitionKnowledge;
 
 /// The M2 keywords offered as completions — the control-flow, declaration, and
 /// value keywords a user types (a subset of all reserved words: the ones worth
@@ -165,7 +165,7 @@ pub(crate) fn goto_definition_response(
     position: Position,
     knowledge: &(impl LspKnowledge + ?Sized),
     source_resolver: &SourceResolver,
-    workspace_index: &crate::workspace_index::WorkspaceIndex,
+    workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
     record_location: impl Fn(&Record) -> Option<Location>,
 ) -> Option<GotoDefinitionResponse> {
     let analysis = document.analysis();
@@ -334,7 +334,7 @@ pub(crate) enum ReferenceTarget {
 pub(crate) fn reference_target(
     document: &DocumentSnapshot,
     position: Position,
-    workspace_index: &WorkspaceIndex,
+    workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
 ) -> Option<ReferenceTarget> {
     let (name, _) = document.symbol_occurrence_at(position)?;
     let name = name.to_string();
@@ -460,6 +460,7 @@ pub(crate) fn is_valid_m2_identifier(name: &str) -> bool {
 mod tests {
     use super::*;
     use crate::document::DocumentSnapshot;
+    use crate::workspace_index::WorkspaceIndex;
     use tower_lsp::lsp_types::{Position, Range};
 
     fn document(text: &str) -> DocumentSnapshot {
@@ -734,6 +735,26 @@ mod tests {
 
     #[test]
     fn reference_target_classifies_local_versus_global() {
+        struct KnownGlobal;
+
+        impl WorkspaceDefinitionKnowledge for KnownGlobal {
+            fn lookup(&self, _name: &str, _exclude: &Url) -> Vec<Location> {
+                Vec::new()
+            }
+
+            fn is_defined(&self, name: &str) -> bool {
+                name == "shared"
+            }
+
+            fn semantic_token_type(
+                &self,
+                _name: &str,
+                _exclude: &Url,
+            ) -> Option<crate::typesystem::M2SemanticTokenType> {
+                None
+            }
+        }
+
         let index = crate::workspace_index::WorkspaceIndex::default();
         // Lambda parameter -> local (references stay in-file).
         let local = document("f := x -> (x + x)");
@@ -746,6 +767,11 @@ mod tests {
         assert!(matches!(
             reference_target(&global, Position::new(0, 0), &index),
             Some(ReferenceTarget::Global(name)) if name == "y"
+        ));
+        let external = document("shared");
+        assert!(matches!(
+            reference_target(&external, Position::new(0, 0), &KnownGlobal),
+            Some(ReferenceTarget::Global(name)) if name == "shared"
         ));
     }
 

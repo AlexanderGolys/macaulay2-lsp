@@ -21,6 +21,12 @@ pub(crate) fn document_highlights(
     position: Position,
     builtins: &(impl TypeKnowledge + ?Sized),
 ) -> Option<Vec<DocumentHighlight>> {
+    if document
+        .symbol_occurrence_at(position)
+        .is_some_and(|(name, _)| matches!(name, "null" | "true" | "false"))
+    {
+        return None;
+    }
     if let Some(highlights) = symbol_reference_highlights(document, position) {
         return Some(highlights);
     }
@@ -363,6 +369,19 @@ mod tests {
     #[test]
     fn highlights_an_unbound_name_inside_an_expression() {
         assert_eq!(highlighted_words("if a then b else c\n", 0, 3), vec!["a"]);
+    }
+
+    #[test]
+    fn does_not_highlight_null_or_boolean_literals() {
+        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        for literal in ["null", "true", "false"] {
+            let text = format!("{literal}\n{literal}\n");
+            let document = document(&text);
+            assert!(
+                document_highlights(&document, Position::new(0, 0), &builtins).is_none(),
+                "{literal} should not produce document highlights"
+            );
+        }
     }
 
     #[test]

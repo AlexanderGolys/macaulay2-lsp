@@ -497,6 +497,15 @@ impl Analysis {
         self.binding_definition(state.binding_id)
     }
 
+    pub(crate) fn any_symbol(&self, name: &str) -> Option<BindingView<'_>> {
+        let symbol = self.registry.resolve_symbol(name)?;
+        self.registry
+            .bindings_by_symbol
+            .get(&symbol)?
+            .iter()
+            .find_map(|binding_id| self.binding_definition(*binding_id))
+    }
+
     #[cfg(test)]
     pub fn registry(&self) -> &SemanticRegistry {
         &self.registry

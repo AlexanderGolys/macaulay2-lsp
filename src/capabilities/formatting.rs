@@ -12,6 +12,7 @@ use crate::util::full_document_range;
 pub(crate) trait FormattingConfiguration {
     fn indent_width(&self) -> Option<u32>;
     fn use_tabs(&self) -> Option<bool>;
+    fn line_widths(&self) -> (Option<u32>, Option<u32>);
     fn compact_factor_operators(&self) -> bool;
     fn break_after_semicolon(&self) -> bool;
 }
@@ -19,6 +20,9 @@ pub(crate) trait FormattingConfiguration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatOptions {
     indent: String,
+    tab_width: usize,
+    soft_line_width: Option<usize>,
+    max_line_width: Option<usize>,
     compact_factor_operators: bool,
     break_after_semicolon: bool,
 }
@@ -27,6 +31,9 @@ impl Default for FormatOptions {
     fn default() -> Self {
         Self {
             indent: "    ".to_string(),
+            tab_width: 4,
+            soft_line_width: Some(100),
+            max_line_width: Some(100),
             compact_factor_operators: false,
             break_after_semicolon: true,
         }
@@ -35,14 +42,16 @@ impl Default for FormatOptions {
 
 impl FormatOptions {
     pub fn new(tab_size: u32, insert_spaces: bool) -> Self {
+        let tab_width = tab_size.max(1) as usize;
         let indent = if insert_spaces {
-            " ".repeat(tab_size.max(1) as usize)
+            " ".repeat(tab_width)
         } else {
             "\t".to_string()
         };
 
         Self {
             indent,
+            tab_width,
             ..Self::default()
         }
     }
@@ -55,6 +64,9 @@ impl FormatOptions {
         let tab_size = configuration.indent_width().unwrap_or(tab_size);
         let use_tabs = configuration.use_tabs().unwrap_or(!insert_spaces);
         let mut options = Self::new(tab_size, !use_tabs);
+        let (soft_line_width, hard_line_width) = configuration.line_widths();
+        options.soft_line_width = soft_line_width.map(|width| width as usize);
+        options.max_line_width = hard_line_width.map(|width| width as usize);
         options.compact_factor_operators = configuration.compact_factor_operators();
         options.break_after_semicolon = configuration.break_after_semicolon();
         options
@@ -115,16 +127,13 @@ pub fn format_document_text(text: &str) -> String {
 }
 
 /// Format the whole document: whitespace normalization around operators and
-/// punctuation, then tree-derived re-indentation with `options`.
+/// punctuation, tree-derived indentation, and width-based wrapping at parsed
+/// syntax boundaries.
 pub fn format_document_text_with_options(text: &str, options: &FormatOptions) -> String {
-    // Basic spacing only, and provably string/comment-safe: every edit either
-    // adjusts whitespace adjacent to a real operator/punctuation node
-    // (`normalize_whitespace`) or rebuilds a line's leading indentation
-    // (`reindent_from_tree`). Neither rewrites token text, so string and comment
-    // contents are never modified. No reflow/line-breaking, no byte-scanning.
     let newline = detect_line_ending(text);
     let formatted = normalize_whitespace(text, options);
-    let mut formatted = reindent_from_tree(&formatted, options, newline);
+    let formatted = reindent_from_tree(&formatted, options, newline);
+    let mut formatted = wrap_long_lines(&formatted, options, newline);
 
     if text.ends_with('\n') {
         formatted.push_str(newline);
@@ -171,6 +180,277 @@ fn reindent_from_tree(text: &str, options: &FormatOptions, newline: &str) -> Str
         })
         .collect::<Vec<_>>()
         .join(newline)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LineBreakCandidate {
+    start_byte: usize,
+    end_byte: usize,
+}
+
+trait LineBreakRule {
+    fn collect(
+        &self,
+        node: M2Node<'_>,
+        text: &str,
+        options: &FormatOptions,
+        candidates: &mut Vec<LineBreakCandidate>,
+    );
+}
+
+impl<A, B> LineBreakRule for (A, B)
+where
+    A: LineBreakRule,
+    B: LineBreakRule,
+{
+    fn collect(
+        &self,
+        node: M2Node<'_>,
+        text: &str,
+        options: &FormatOptions,
+        candidates: &mut Vec<LineBreakCandidate>,
+    ) {
+        self.0.collect(node, text, options, candidates);
+        self.1.collect(node, text, options, candidates);
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DelimiterBreakRule;
+
+impl LineBreakRule for DelimiterBreakRule {
+    fn collect(
+        &self,
+        node: M2Node<'_>,
+        text: &str,
+        _options: &FormatOptions,
+        candidates: &mut Vec<LineBreakCandidate>,
+    ) {
+        if !node.is_opening_delimiter() {
+            return;
+        }
+        let has_contents = node
+            .parent()
+            .is_some_and(|parent| parent.named_children().next().is_some());
+        if has_contents {
+            push_line_break_candidate_after(node, text, candidates);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CommaBreakRule;
+
+impl LineBreakRule for CommaBreakRule {
+    fn collect(
+        &self,
+        node: M2Node<'_>,
+        text: &str,
+        _options: &FormatOptions,
+        candidates: &mut Vec<LineBreakCandidate>,
+    ) {
+        if node.is_comma() && !node.comma_borders_empty_slot() {
+            push_line_break_candidate_after(node, text, candidates);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct OperatorBreakRule;
+
+impl LineBreakRule for OperatorBreakRule {
+    fn collect(
+        &self,
+        node: M2Node<'_>,
+        text: &str,
+        options: &FormatOptions,
+        candidates: &mut Vec<LineBreakCandidate>,
+    ) {
+        let Some(parent) = node.parent() else {
+            return;
+        };
+        if node.is_operator()
+            && matches!(
+                parent.kind,
+                NodeKind::BinaryExpression | NodeKind::LambdaExpression
+            )
+            && is_spaced_line_final_operator(node.text(), options.compact_factor_operators)
+        {
+            push_line_break_candidate_after(node, text, candidates);
+        }
+    }
+}
+
+fn push_line_break_candidate_after(
+    node: M2Node<'_>,
+    text: &str,
+    candidates: &mut Vec<LineBreakCandidate>,
+) {
+    let start_byte = node.end_byte();
+    let Some(end_byte) = same_line_horizontal_whitespace_end(text, start_byte) else {
+        return;
+    };
+    candidates.push(LineBreakCandidate {
+        start_byte,
+        end_byte,
+    });
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TextLine {
+    start_byte: usize,
+    end_byte: usize,
+}
+
+fn wrap_long_lines(text: &str, options: &FormatOptions, newline: &'static str) -> String {
+    let Some(max_line_width) = options.max_line_width else {
+        return text.to_string();
+    };
+    let soft_line_width = options
+        .soft_line_width
+        .unwrap_or(max_line_width)
+        .min(max_line_width);
+    let rules = (DelimiterBreakRule, (CommaBreakRule, OperatorBreakRule));
+    wrap_long_lines_with_rules(
+        text,
+        options,
+        newline,
+        soft_line_width,
+        max_line_width,
+        &rules,
+    )
+}
+
+fn wrap_long_lines_with_rules(
+    text: &str,
+    options: &FormatOptions,
+    newline: &'static str,
+    soft_line_width: usize,
+    max_line_width: usize,
+    rules: &(impl LineBreakRule + ?Sized),
+) -> String {
+    let mut formatted = text.to_string();
+    loop {
+        let candidates = collect_line_break_candidates(&formatted, options, rules);
+        if candidates.is_empty() {
+            break;
+        }
+
+        let edits = select_line_breaks(
+            &formatted,
+            &candidates,
+            soft_line_width,
+            max_line_width,
+            options.tab_width,
+            newline,
+        );
+        if edits.is_empty() {
+            break;
+        }
+
+        let wrapped = apply_format_edits(&formatted, edits);
+        if wrapped == formatted {
+            break;
+        }
+        formatted = reindent_from_tree(&wrapped, options, newline);
+    }
+    formatted
+}
+
+fn collect_line_break_candidates(
+    text: &str,
+    options: &FormatOptions,
+    rules: &(impl LineBreakRule + ?Sized),
+) -> Vec<LineBreakCandidate> {
+    let mut parser = Parser::new();
+    if parser
+        .set_language(&tree_sitter_macaulay2::language())
+        .is_err()
+    {
+        return Vec::new();
+    }
+    let Some(tree) = parser.parse(text, None) else {
+        return Vec::new();
+    };
+
+    let root = M2Node::new(tree.root_node(), text);
+    let mut candidates = Vec::new();
+    for node in root.descendants() {
+        rules.collect(node, text, options, &mut candidates);
+    }
+    candidates.sort_by_key(|candidate| (candidate.start_byte, candidate.end_byte));
+    candidates.dedup();
+    candidates
+}
+
+fn select_line_breaks(
+    text: &str,
+    candidates: &[LineBreakCandidate],
+    soft_line_width: usize,
+    max_line_width: usize,
+    tab_width: usize,
+    newline: &'static str,
+) -> Vec<FormatEdit> {
+    text_lines(text)
+        .into_iter()
+        .filter(|line| {
+            visual_width(&text[line.start_byte..line.end_byte], tab_width) > max_line_width
+        })
+        .filter_map(|line| {
+            let candidates_on_line = candidates
+                .iter()
+                .filter(|candidate| {
+                    line.start_byte < candidate.start_byte && candidate.end_byte < line.end_byte
+                })
+                .collect::<Vec<_>>();
+            let candidate = candidates_on_line
+                .iter()
+                .copied()
+                .rfind(|candidate| {
+                    visual_width(&text[line.start_byte..candidate.start_byte], tab_width)
+                        <= soft_line_width
+                })
+                .or_else(|| {
+                    candidates_on_line.iter().copied().rfind(|candidate| {
+                        visual_width(&text[line.start_byte..candidate.start_byte], tab_width)
+                            <= max_line_width
+                    })
+                })
+                .or_else(|| candidates_on_line.first().copied())?;
+
+            Some(FormatEdit {
+                start_byte: candidate.start_byte,
+                end_byte: candidate.end_byte,
+                replacement: newline,
+            })
+        })
+        .collect()
+}
+
+fn text_lines(text: &str) -> Vec<TextLine> {
+    let mut offset = 0;
+    text.split_inclusive('\n')
+        .map(|line| {
+            let content = line.strip_suffix('\n').unwrap_or(line);
+            let content = content.strip_suffix('\r').unwrap_or(content);
+            let span = TextLine {
+                start_byte: offset,
+                end_byte: offset + content.len(),
+            };
+            offset += line.len();
+            span
+        })
+        .collect()
+}
+
+fn visual_width(text: &str, tab_width: usize) -> usize {
+    text.chars().fold(0, |column, character| {
+        if character == '\t' {
+            column + tab_width - column % tab_width
+        } else {
+            column + 1
+        }
+    })
 }
 
 /// The document's fold ranges, derived from tree-based indentation depths.
@@ -441,9 +721,7 @@ fn line_leading_blank(text: &str, line_count: usize) -> Vec<usize> {
 
 /// `bracket_depth(row)` = (distinct open-rows of multiline brackets currently
 /// open across this row) minus (distinct groups whose closer begins this row).
-/// The latter dedents closing-delimiter lines back to the opener level. After
-/// `normalize_multiline_closing_delimiters` a multiline closer is on its own
-/// line, so any multiline group closing on `row` has its closer leading.
+/// The latter dedents a leading closing delimiter back to the opener level.
 fn bracket_depth(row: usize, brackets: &[BracketGroup], line_leads: &[usize]) -> usize {
     let leading_blank = line_leads.get(row).copied().unwrap_or(0);
     let mut active = Vec::new();
@@ -581,7 +859,10 @@ fn is_dangling_clause_keyword(node: M2Node<'_>, row: usize, line_leads: &[usize]
         return false;
     }
     match enclosing_if_statement(node) {
-        Some(if_statement) => !if_statement_is_standalone(if_statement, line_leads),
+        Some(if_statement) => {
+            !if_statement_is_standalone(if_statement, line_leads)
+                && !if_statement_is_else_if(if_statement)
+        }
         None => true,
     }
 }
@@ -616,6 +897,21 @@ fn if_statement_is_standalone(node: M2Node<'_>, line_leads: &[usize]) -> bool {
     let row = node.start_position().row;
     let column = node.start_position().column;
     line_leads.get(row).copied().unwrap_or(0) >= column
+}
+
+fn if_statement_is_else_if(node: M2Node<'_>) -> bool {
+    let Some(parent) = node
+        .parent()
+        .filter(|parent| parent.kind == NodeKind::ElseClause)
+    else {
+        return false;
+    };
+    parent
+        .named_child(0)
+        .is_some_and(|body| body.id() == node.id())
+        && parent
+            .child(0)
+            .is_some_and(|keyword| keyword.start_position().row == node.start_position().row)
 }
 
 /// A foldable block of consecutive lines (0-based, both bounds inclusive as
@@ -1333,6 +1629,143 @@ mod tests {
     }
 
     #[test]
+    fn wraps_long_calls_at_parsed_comma_boundaries() {
+        let options = FormatOptions {
+            max_line_width: Some(28),
+            ..FormatOptions::default()
+        };
+
+        assert_eq!(
+            format_document_text_with_options(
+                "result = concatenate(alpha, beta, gamma)\n",
+                &options
+            ),
+            "result = concatenate(alpha,\n    beta, gamma)\n"
+        );
+    }
+
+    #[test]
+    fn hard_width_triggers_wrapping_toward_the_soft_width() {
+        let input = "result = concatenate(alpha, beta, gamma)\n";
+        let below_hard_limit = FormatOptions {
+            soft_line_width: Some(28),
+            max_line_width: Some(50),
+            ..FormatOptions::default()
+        };
+        assert_eq!(
+            format_document_text_with_options(input, &below_hard_limit),
+            input
+        );
+
+        let above_hard_limit = FormatOptions {
+            soft_line_width: Some(28),
+            max_line_width: Some(35),
+            ..FormatOptions::default()
+        };
+        assert_eq!(
+            format_document_text_with_options(input, &above_hard_limit),
+            "result = concatenate(alpha,\n    beta, gamma)\n"
+        );
+    }
+
+    #[test]
+    fn wraps_long_collections_with_the_shared_rule_engine() {
+        let options = FormatOptions {
+            max_line_width: Some(26),
+            ..FormatOptions::default()
+        };
+
+        assert_eq!(
+            format_document_text_with_options("values = {alpha, beta, gamma, delta}\n", &options),
+            "values = {alpha, beta,\n    gamma, delta}\n"
+        );
+    }
+
+    #[test]
+    fn wraps_long_binary_expressions_after_spaced_operators() {
+        let options = FormatOptions {
+            max_line_width: Some(26),
+            ..FormatOptions::default()
+        };
+
+        assert_eq!(
+            format_document_text_with_options("result = alpha + beta + gamma + delta\n", &options),
+            "result = alpha + beta +\n    gamma + delta\n"
+        );
+    }
+
+    #[test]
+    fn wrapping_preserves_literal_contents_and_is_idempotent() {
+        let options = FormatOptions {
+            max_line_width: Some(20),
+            ..FormatOptions::default()
+        };
+        let formatted = format_document_text_with_options(
+            "value = \"alpha, beta + gamma and a very long literal\"\n",
+            &options,
+        );
+
+        assert_eq!(
+            formatted,
+            "value =\n    \"alpha, beta + gamma and a very long literal\"\n"
+        );
+        assert_eq!(
+            format_document_text_with_options(&formatted, &options),
+            formatted
+        );
+    }
+
+    #[test]
+    fn wrapping_can_be_disabled_and_preserves_crlf_when_enabled() {
+        let input = "result = concatenate(alpha, beta, gamma)\r\n";
+        let disabled = FormatOptions {
+            max_line_width: None,
+            ..FormatOptions::default()
+        };
+        assert_eq!(format_document_text_with_options(input, &disabled), input);
+
+        let enabled = FormatOptions {
+            max_line_width: Some(28),
+            ..FormatOptions::default()
+        };
+        assert_eq!(
+            format_document_text_with_options(input, &enabled),
+            "result = concatenate(alpha,\r\n    beta, gamma)\r\n"
+        );
+    }
+
+    #[test]
+    fn wrapped_calls_collections_and_operators_remain_parseable_and_stable() {
+        let options = FormatOptions {
+            max_line_width: Some(24),
+            ..FormatOptions::default()
+        };
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .unwrap();
+
+        for source in [
+            "result = concatenate(alpha, beta, gamma)\n",
+            "values = {alpha, beta, gamma, delta}\n",
+            "result = alpha + beta + gamma + delta\n",
+            "nested = outer(alpha, inner(beta, gamma), delta)\n",
+        ] {
+            let formatted = format_document_text_with_options(source, &options);
+            let tree = parser.parse(&formatted, None).unwrap();
+
+            assert!(
+                !tree.root_node().has_error(),
+                "wrapped source should parse:\n{formatted}"
+            );
+            assert_eq!(
+                format_document_text_with_options(&formatted, &options),
+                formatted
+            );
+        }
+    }
+
+    #[test]
     fn normalizes_semicolon_whitespace() {
         assert_eq!(format_document_text("i=0;j=0;\n"), "i = 0;\nj = 0;\n");
         assert_eq!(format_document_text("i = 0 ; j = 0\n"), "i = 0;\nj = 0\n");
@@ -1353,7 +1786,7 @@ mod tests {
             format_document_text(
                 "scan(docKeys, key -> (\nbaseName := recordNameFromDocKey key;\nif db#?key then result#baseName = append(result#baseName ?? {}, hashTable {\"key\" => key, \"raw\" => db#key});\n)\n);\n"
             ),
-            "scan(docKeys, key -> (\n    baseName := recordNameFromDocKey key;\n    if db#?key then result#baseName = append(result#baseName ?? {}, hashTable {\"key\" => key, \"raw\" => db#key});\n)\n);\n"
+            "scan(docKeys, key -> (\n    baseName := recordNameFromDocKey key;\n    if db#?key then result#baseName = append(result#baseName ?? {}, hashTable {\"key\" => key,\n        \"raw\" => db#key});\n)\n);\n"
         );
     }
 
@@ -1521,8 +1954,8 @@ mod tests {
         // global scope the newline after a completable `if … then …` ends the
         // expression and the following `else` is a syntax error. Within `( … )`
         // the newline is whitespace, so the whole chain is one expression. Each
-        // `else if …` aligns with its `if`, and the final `else` belongs to the
-        // nested `if kind === "operator"`, so it indents one level deeper.
+        // `else if …` and the final `else` use the conventional flat C-style
+        // alignment even though the CST represents a nested `if`.
         let chain = "extracted := (\n\
              if kind === \"function\" then\n\
              extractFunc(name, db)\n\
@@ -1537,11 +1970,31 @@ mod tests {
              \x20   if kind === \"function\" then\n\
              \x20       extractFunc(name, db)\n\
              \x20   else if kind === \"operator\" then extractOperator(name, db)\n\
-             \x20       else extractObject(name, db)\n\
+             \x20   else extractObject(name, db)\n\
              );\n"
         );
         // The result is stable under re-formatting.
         assert_eq!(format_document_text(&formatted), formatted);
+    }
+
+    #[test]
+    fn aligns_every_clause_in_a_multi_else_if_chain() {
+        let chain = "result := (\n\
+             if a then one\n\
+             else if b then two\n\
+             else if c then three\n\
+             else four\n\
+             )\n";
+
+        assert_eq!(
+            format_document_text(chain),
+            "result := (\n\
+             \x20   if a then one\n\
+             \x20   else if b then two\n\
+             \x20   else if c then three\n\
+             \x20   else four\n\
+             )\n"
+        );
     }
 
     #[test]

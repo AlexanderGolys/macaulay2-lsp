@@ -57,6 +57,10 @@ impl PackagePartitionedIndex {
         &self.default_loaded
     }
 
+    pub fn symbol_count(&self) -> usize {
+        self.partitions.values().map(BuiltinData::len).sum()
+    }
+
     /// A non-materializing view over the partitions loaded for a document, in
     /// resolution order (baseline/Core-first, then import order). Imports with no
     /// partition in the corpus are skipped. Borrows only the partitions —

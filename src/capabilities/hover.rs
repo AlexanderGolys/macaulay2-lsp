@@ -66,15 +66,15 @@ fn local_symbol_hover(
     pinned_signature: Option<&MethodInfo>,
 ) -> Hover {
     let meta = symbol.meta();
-    let title_type = meta
-        .type_name
-        .map(|type_name| format!("({type_name}) "))
-        .unwrap_or_default();
     let title_signature = method
         .zip(pinned_signature)
         .map(|(method, signature)| {
             format!(" `{}`", local_method_signature_label(method, signature))
         })
+        .unwrap_or_default();
+    let type_line = meta
+        .type_name
+        .map(|type_name| format!("\nType: `{type_name}`"))
         .unwrap_or_default();
     let label = match meta.symbol_kind {
         Some(SymbolKind::FUNCTION) if method.is_some() => "User-defined method function",
@@ -89,8 +89,8 @@ fn local_symbol_hover(
         .map(|method| local_method_signatures_markdown(method, pinned_signature))
         .unwrap_or_default();
     let markdown = format!(
-        "**{}{}**{}\n\n{}{}",
-        title_type, name, title_signature, label, signatures
+        "**{}**{}{}\n\n{}{}",
+        name, title_signature, type_line, label, signatures
     );
 
     Hover {
@@ -155,13 +155,7 @@ fn local_method_signatures_markdown(
     pinned_signature: Option<&MethodInfo>,
 ) -> String {
     if let Some(pinned_signature) = pinned_signature {
-        let mut lines = vec![
-            "\n\n**Signature:**".to_string(),
-            format!(
-                "- `{}`",
-                local_method_signature_label(method, pinned_signature)
-            ),
-        ];
+        let mut lines = Vec::new();
         let excluded = method
             .methods
             .iter()
@@ -171,7 +165,7 @@ fn local_method_signatures_markdown(
             })
             .collect::<Vec<_>>();
         if !excluded.is_empty() {
-            lines.push("\n**Excluded Signatures For This Usage:**".to_string());
+            lines.push("\n\n**Other signatures for this call:**".to_string());
             for signature in excluded.iter().take(15) {
                 lines.push(format!(
                     "- `{}`",
@@ -193,7 +187,7 @@ fn local_method_signatures_markdown(
             .unwrap_or_default();
     }
 
-    let mut lines = vec!["\n\n**Local Method Signatures:**".to_string()];
+    let mut lines = vec!["\n\n**Methods:**".to_string()];
     for signature in &method.methods {
         lines.push(format!(
             "- `{}`",
@@ -204,7 +198,7 @@ fn local_method_signatures_markdown(
 }
 
 fn local_method_signature_label(method: &FunctionInfo, signature: &MethodInfo) -> String {
-    let domain = signature.domain.join(", ");
+    let domain = format!("({})", signature.domain.join(", "));
     let codomain = signature
         .codomain
         .as_ref()
@@ -238,10 +232,9 @@ mod tests {
         };
 
         assert!(
-            markup.value.starts_with("**(Package) Doc**"),
-            "local hover should display known static type facts before the title name"
+            markup.value.starts_with("**Doc**\nType: `Package`"),
+            "local hover should place known static type facts below the title name"
         );
-        assert!(!markup.value.contains("\n\nType: `Package`"));
         assert!(!markup.value.contains("Defined at"));
     }
 
@@ -265,7 +258,7 @@ mod tests {
         };
 
         assert!(markup.value.contains("User-defined method function"));
-        assert!(markup.value.contains("`ZZ, ZZ -> List`"));
+        assert!(markup.value.contains("`(ZZ, ZZ) -> List`"));
     }
 
     #[test]
@@ -299,13 +292,11 @@ mod tests {
 
         assert!(markup
             .value
-            .contains("**(MethodFunction) p** `ZZ, ZZ -> List`"));
-        assert!(markup.value.contains("**Signature:**"));
-        assert!(markup
-            .value
-            .contains("**Excluded Signatures For This Usage:**"));
-        assert!(markup.value.contains("`CC, CC -> Array`"));
-        assert!(!markup.value.contains("**Local Method Signatures:**"));
+            .contains("**p** `(ZZ, ZZ) -> List`\nType: `MethodFunction`"));
+        assert!(!markup.value.contains("**Signature:**"));
+        assert!(markup.value.contains("**Other signatures for this call:**"));
+        assert!(markup.value.contains("`(CC, CC) -> Array`"));
+        assert!(!markup.value.contains("**Methods:**"));
     }
 
     #[test]

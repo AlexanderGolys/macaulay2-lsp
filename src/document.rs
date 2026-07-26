@@ -8,7 +8,7 @@ use tree_sitter::{InputEdit, Parser, Point, Tree};
 #[cfg(test)]
 use crate::analysis::ExpressionFact;
 use crate::analysis::{Analysis, BindingView, FunctionInfo};
-use crate::documentation::{collect_documentation_references, DocumentationReference};
+use crate::documentation::{collect_documentation, DocumentationReference, DocumentationSnippet};
 use crate::package_index::collect_imported_packages_in_tree;
 use crate::typesystem::TypeKnowledgeProvider;
 use crate::util::{
@@ -22,6 +22,7 @@ pub(crate) struct DocumentSnapshot {
     tree: Tree,
     analysis: Analysis,
     imported_packages: Vec<String>,
+    documentation_snippets: Vec<DocumentationSnippet>,
     documentation_references: Vec<DocumentationReference>,
 }
 
@@ -49,12 +50,14 @@ impl DocumentSnapshot {
         let imported_packages = collect_imported_packages_in_tree(&text, &tree);
         let knowledge = knowledge_provider.knowledge_for(&imported_packages);
         let analysis = Analysis::new_with_knowledge(&tree, &text, &knowledge);
-        let documentation_references = collect_documentation_references(&text, &tree);
+        let (documentation_snippets, documentation_references) =
+            collect_documentation(&text, &tree, &knowledge);
         Some(Self {
             text,
             tree,
             analysis,
             imported_packages,
+            documentation_snippets,
             documentation_references,
         })
     }
@@ -118,6 +121,10 @@ impl DocumentSnapshot {
 
     pub(crate) fn documentation_references(&self) -> &[DocumentationReference] {
         &self.documentation_references
+    }
+
+    pub(crate) fn documentation_snippets(&self) -> &[DocumentationSnippet] {
+        &self.documentation_snippets
     }
 
     pub(crate) fn documentation_reference_at(
@@ -257,10 +264,12 @@ impl DocumentSnapshot {
         let imported_packages = collect_imported_packages_in_tree(&self.text, &tree);
         let knowledge = knowledge_provider.knowledge_for(&imported_packages);
         let analysis = Analysis::new_with_knowledge(&tree, &self.text, &knowledge);
-        let documentation_references = collect_documentation_references(&self.text, &tree);
+        let (documentation_snippets, documentation_references) =
+            collect_documentation(&self.text, &tree, &knowledge);
         self.imported_packages = imported_packages;
         self.tree = tree;
         self.analysis = analysis;
+        self.documentation_snippets = documentation_snippets;
         self.documentation_references = documentation_references;
         Some(())
     }

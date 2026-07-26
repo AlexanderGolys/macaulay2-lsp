@@ -30,11 +30,14 @@ impl<T: Clone> SettingsStore<T> {
 }
 
 impl<T> SettingsStore<T> {
-    pub(crate) fn replace(&self, value: T) {
-        *self
-            .current
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = value;
+    pub(crate) fn replace(&self, value: T) -> T {
+        std::mem::replace(
+            &mut self
+                .current
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            value,
+        )
     }
 }
 
@@ -61,6 +64,10 @@ impl ServerSettings {
 
     pub(crate) fn formatting(&self) -> &FormattingSettings {
         &self.formatting
+    }
+
+    pub(crate) fn inlay_hints(&self) -> &InlayHintSettings {
+        &self.inlay_hints
     }
 
     pub(crate) fn expression_type_hints(&self) -> bool {
@@ -96,8 +103,27 @@ impl DiagnosticPolicy for DiagnosticSettings {
 pub(crate) struct FormattingSettings {
     indent_width: Option<u32>,
     use_tabs: Option<bool>,
+    soft_line_width: Option<u32>,
+    hard_line_width: Option<u32>,
+    max_line_width: LegacyLineWidth,
     compact_factor_operators: bool,
     break_after_semicolon: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum LegacyLineWidth {
+    #[default]
+    Unset,
+    Configured(Option<u32>),
+}
+
+impl<'de> Deserialize<'de> for LegacyLineWidth {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Option::<u32>::deserialize(deserializer).map(Self::Configured)
+    }
 }
 
 impl Default for FormattingSettings {
@@ -105,6 +131,9 @@ impl Default for FormattingSettings {
         Self {
             indent_width: None,
             use_tabs: None,
+            soft_line_width: Some(100),
+            hard_line_width: Some(100),
+            max_line_width: LegacyLineWidth::Unset,
             compact_factor_operators: false,
             break_after_semicolon: true,
         }
@@ -120,6 +149,20 @@ impl FormattingConfiguration for FormattingSettings {
         self.use_tabs
     }
 
+    fn line_widths(&self) -> (Option<u32>, Option<u32>) {
+        if let LegacyLineWidth::Configured(width) = self.max_line_width {
+            let width = width.filter(|width| *width > 0);
+            return (width, width);
+        }
+
+        let hard = self.hard_line_width.filter(|width| *width > 0);
+        let soft = self
+            .soft_line_width
+            .filter(|width| *width > 0)
+            .map(|width| hard.map_or(width, |hard| width.min(hard)));
+        (soft, hard)
+    }
+
     fn compact_factor_operators(&self) -> bool {
         self.compact_factor_operators
     }
@@ -131,7 +174,7 @@ impl FormattingConfiguration for FormattingSettings {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-struct InlayHintSettings {
+pub(crate) struct InlayHintSettings {
     expression_types: bool,
 }
 
@@ -157,6 +200,7 @@ mod tests {
         let settings = ServerSettings::from_value(&serde_json::json!({})).unwrap();
 
         assert!(settings.diagnostics().allows(M2Diagnostic::UnusedBinding));
+        assert_eq!(settings.formatting().line_widths(), (Some(100), Some(100)));
         assert!(!settings.formatting().compact_factor_operators());
         assert!(settings.formatting().break_after_semicolon());
         assert!(!settings.expression_type_hints());
@@ -172,6 +216,7 @@ mod tests {
                 "formatting": {
                     "indentWidth": 2,
                     "useTabs": false,
+                    "maxLineWidth": 88,
                     "compactFactorOperators": true,
                     "breakAfterSemicolon": false
                 },
@@ -189,6 +234,7 @@ mod tests {
         assert!(settings.diagnostics().allows(M2Diagnostic::SyntaxError));
         assert_eq!(settings.formatting().indent_width(), Some(2));
         assert_eq!(settings.formatting().use_tabs(), Some(false));
+        assert_eq!(settings.formatting().line_widths(), (Some(88), Some(88)));
         assert!(settings.formatting().compact_factor_operators());
         assert!(!settings.formatting().break_after_semicolon());
         assert!(settings.expression_type_hints());
@@ -223,10 +269,45 @@ mod tests {
     }
 
     #[test]
+    fn null_or_zero_line_width_disables_wrapping() {
+        for max_line_width in [serde_json::Value::Null, serde_json::json!(0)] {
+            let settings = ServerSettings::from_value(&serde_json::json!({
+                "formatting": {
+                    "maxLineWidth": max_line_width
+                }
+            }))
+            .unwrap();
+
+            assert_eq!(settings.formatting().line_widths(), (None, None));
+        }
+    }
+
+    #[test]
+    fn parses_soft_and_hard_line_widths_and_clamps_the_soft_target() {
+        let settings = ServerSettings::from_value(&serde_json::json!({
+            "formatting": {
+                "softLineWidth": 90,
+                "hardLineWidth": 110
+            }
+        }))
+        .unwrap();
+        assert_eq!(settings.formatting().line_widths(), (Some(90), Some(110)));
+
+        let clamped = ServerSettings::from_value(&serde_json::json!({
+            "formatting": {
+                "softLineWidth": 140,
+                "hardLineWidth": 120
+            }
+        }))
+        .unwrap();
+        assert_eq!(clamped.formatting().line_widths(), (Some(120), Some(120)));
+    }
+
+    #[test]
     fn generic_store_replaces_complete_snapshots() {
         let store = SettingsStore::<Vec<u8>>::default();
 
-        store.replace(vec![1, 2, 3]);
+        assert!(store.replace(vec![1, 2, 3]).is_empty());
 
         assert_eq!(store.snapshot(), vec![1, 2, 3]);
     }

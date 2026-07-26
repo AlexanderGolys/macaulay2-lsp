@@ -994,7 +994,7 @@ impl TypeKnowledge for NoTypeKnowledge {
 }
 
 fn take_nonminimal_signatures(
-    builtins: &BuiltinData,
+    knowledge: &(impl TypeKnowledge + ?Sized),
     signatures: &mut Vec<ResolvedSignature>,
 ) -> Vec<ResolvedSignature> {
     let originals = signatures.clone();
@@ -1002,7 +1002,7 @@ fn take_nonminimal_signatures(
     signatures.retain(|candidate| {
         let is_dominated = originals
             .iter()
-            .any(|other| signature_strictly_smaller(builtins, other, candidate));
+            .any(|other| signature_strictly_smaller(knowledge, other, candidate));
         if is_dominated {
             dominated.push(candidate.clone());
         }
@@ -1012,7 +1012,7 @@ fn take_nonminimal_signatures(
 }
 
 fn signature_strictly_smaller(
-    builtins: &BuiltinData,
+    knowledge: &(impl TypeKnowledge + ?Sized),
     smaller: &ResolvedSignature,
     bigger: &ResolvedSignature,
 ) -> bool {
@@ -1035,7 +1035,7 @@ fn signature_strictly_smaller(
         if small == big {
             continue;
         }
-        if builtins.is_subtype(small, big) {
+        if knowledge.is_subtype(small.as_ref(), big.as_ref()) {
             strict = true;
             continue;
         }
@@ -1046,7 +1046,7 @@ fn signature_strictly_smaller(
 }
 
 fn domain_possibly_matches(
-    builtins: &BuiltinData,
+    knowledge: &(impl TypeKnowledge + ?Sized),
     domain: &[InstanceID],
     argument_types: &[Option<String>],
 ) -> bool {
@@ -1055,7 +1055,8 @@ fn domain_possibly_matches(
         .zip(argument_types)
         .all(|(domain_type, argument_type)| {
             argument_type.as_ref().is_none_or(|argument_type| {
-                argument_type == &domain_type.0 || builtins.is_subtype(argument_type, domain_type)
+                argument_type == &domain_type.0
+                    || knowledge.is_subtype(argument_type, domain_type.as_ref())
             })
         })
 }
@@ -1153,6 +1154,13 @@ pub enum M2SemanticTokenType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum M2SemanticTokenProvenance {
+    None,
+    DefaultLibrary,
+    Builtin,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A semantic-token role plus M2-specific modifier facts for one identifier.
 pub struct M2SemanticToken {
     pub token_type: M2SemanticTokenType,
@@ -1160,6 +1168,7 @@ pub struct M2SemanticToken {
     pub is_file: bool,
     pub is_manipulator: bool,
     pub is_constructor: bool,
+    pub provenance: M2SemanticTokenProvenance,
 }
 
 /// Conversion contract from one typed index entry into the common feature
@@ -1366,6 +1375,13 @@ pub(crate) fn semantic_token_from_knowledge(
         || knowledge.is_subtype(data_type.as_ref(), "CompiledFunctionClosure");
     let is_constructor =
         indexed_name_is_constructor(knowledge, &record.name.0) && !is_manipulator && !is_command;
+    let provenance = if is_compiled_function {
+        M2SemanticTokenProvenance::Builtin
+    } else if record.package.as_deref() == Some("Core") {
+        M2SemanticTokenProvenance::DefaultLibrary
+    } else {
+        M2SemanticTokenProvenance::None
+    };
 
     // An indexed type whose own class is `Type` is an M2 class (for example
     // `Array`). Other type-valued objects, such as `ZZ` whose class is `Ring`,
@@ -1381,6 +1397,7 @@ pub(crate) fn semantic_token_from_knowledge(
             is_file: false,
             is_manipulator: false,
             is_constructor: false,
+            provenance,
         });
     }
 
@@ -1411,6 +1428,7 @@ pub(crate) fn semantic_token_from_knowledge(
             is_file: false,
             is_manipulator,
             is_constructor,
+            provenance,
         })
     } else if knowledge.is_subtype(data_type.as_ref(), "Package") {
         Some(M2SemanticToken {
@@ -1419,6 +1437,7 @@ pub(crate) fn semantic_token_from_knowledge(
             is_file: false,
             is_manipulator: false,
             is_constructor: false,
+            provenance,
         })
     } else if (knowledge.is_subtype(data_type.as_ref(), "Symbol") || is_file)
         && !knowledge.is_subtype(data_type.as_ref(), "Keyword")
@@ -1439,6 +1458,7 @@ pub(crate) fn semantic_token_from_knowledge(
             is_file,
             is_manipulator: false,
             is_constructor: false,
+            provenance,
         })
     } else {
         // Every remaining indexed object is still a known global value. Its
@@ -1450,6 +1470,7 @@ pub(crate) fn semantic_token_from_knowledge(
             is_file: false,
             is_manipulator: false,
             is_constructor: false,
+            provenance,
         })
     }
 }
@@ -1502,6 +1523,7 @@ pub(crate) fn semantic_token_for_static_type_from_knowledge(
         is_file,
         is_manipulator,
         is_constructor: false,
+        provenance: M2SemanticTokenProvenance::None,
     })
 }
 

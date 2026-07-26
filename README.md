@@ -65,6 +65,8 @@ vim.lsp.config['m2-ls'] = {
       formatting = {
         indentWidth = 4,
         useTabs = false,
+        softLineWidth = 100,
+        hardLineWidth = 100,
         compactFactorOperators = false,
         breakAfterSemicolon = true,
       },
@@ -84,7 +86,9 @@ binary.
 
 Settings may be sent under the `m2-ls` or `macaulay2` section of
 `workspace/didChangeConfiguration`, or directly through
-`initializationOptions`. Changes apply without restarting the server.
+`initializationOptions`. Changes apply without restarting the server. When the
+client advertises `workspace.inlayHint.refreshSupport`, changing inlay-hint
+settings also refreshes hints already visible in the editor.
 
 | Setting | Default | Effect |
 | --- | --- | --- |
@@ -92,6 +96,9 @@ Settings may be sent under the `m2-ls` or `macaulay2` section of
 | `diagnostics.disabled` | `[]` | Suppresses selected rules by name or code, such as `unused-binding` or `E07`. |
 | `formatting.indentWidth` | client value | Overrides the LSP formatting request's `tabSize`. |
 | `formatting.useTabs` | client value | Overrides the LSP formatting request's `insertSpaces`. |
+| `formatting.softLineWidth` | `100` | Preferred width used to choose among safe parsed line-break positions. |
+| `formatting.hardLineWidth` | `100` | Triggers wrapping when exceeded; `null` or `0` disables wrapping. |
+| `formatting.maxLineWidth` | unset | Compatibility setting that makes the soft and hard widths equal; `null` or `0` disables both. |
 | `formatting.compactFactorOperators` | `false` | Uses compact products such as `2*x`; the default is the conventional `2 * x`. |
 | `formatting.breakAfterSemicolon` | `true` | Places the following statement on a new line; `false` keeps it inline with one space. |
 | `inlayHints.expressionTypes` | `false` | Adds inferred types for expressions in addition to calm binding hints. |

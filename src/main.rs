@@ -6,7 +6,6 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::panic;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use dashmap::DashMap;
@@ -14,11 +13,11 @@ use tokio::{io, task};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use typesystem::BuiltinData;
 
 mod analysis;
 mod builtin_index;
 mod capabilities;
+mod client_capabilities;
 mod diagnostic_registry;
 mod document;
 mod documentation;
@@ -54,6 +53,10 @@ use capabilities::signature_help::signature_help_response;
 use capabilities::type_hierarchy::{
     TypeHierarchyCapabilityService, TypeHierarchyContext, TYPE_HIERARCHY_METHOD,
 };
+use client_capabilities::{
+    refresh_if_changed, ClientSupport, InlayHintRefresh, SemanticTokensAugmentSyntax,
+    TypeHierarchyDynamicRegistration, WorkspaceRefresh,
+};
 use diagnostic_registry::DiagnosticPolicy;
 use document::DocumentSnapshot;
 use package_index::SourceResolver;
@@ -67,38 +70,30 @@ use crate::workspace_index::WorkspaceIndex;
 #[derive(Debug)]
 struct Backend {
     client: Client,
-    builtins: BuiltinData,
     partitioned: PackagePartitionedIndex,
     source_resolver: SourceResolver,
     documents: DashMap<Url, DocumentSnapshot>,
     workspace_index: Arc<WorkspaceIndex>,
     settings: SettingsStore<ServerSettings>,
-    semantic_tokens_augment_syntax: AtomicBool,
-    type_hierarchy_dynamic_registration: AtomicBool,
+    semantic_tokens_augment_syntax: ClientSupport<SemanticTokensAugmentSyntax>,
+    type_hierarchy_dynamic_registration: ClientSupport<TypeHierarchyDynamicRegistration>,
+    inlay_hint_refresh: ClientSupport<InlayHintRefresh>,
 }
 
 impl Backend {
     fn new(client: Client) -> Self {
         let partitioned =
             PackagePartitionedIndex::from_corpus(include_str!("./data/m2-index.jsonl"));
-        // `self.builtins` is the Core partition — the new partitioned path and
-        // the legacy single-blob path share one source so they cannot drift.
-        // Core is always present (it is the loaded-set floor); its absence is a
-        // corrupt corpus, so fail fast.
-        let builtins = partitioned
-            .partition("Core")
-            .expect("Core partition present in builtin corpus")
-            .clone();
         Backend {
             client,
-            builtins,
             partitioned,
             source_resolver: SourceResolver::from_environment(),
             documents: DashMap::new(),
             workspace_index: Arc::new(WorkspaceIndex::default()),
             settings: SettingsStore::default(),
-            semantic_tokens_augment_syntax: AtomicBool::new(false),
-            type_hierarchy_dynamic_registration: AtomicBool::new(false),
+            semantic_tokens_augment_syntax: ClientSupport::default(),
+            type_hierarchy_dynamic_registration: ClientSupport::default(),
+            inlay_hint_refresh: ClientSupport::default(),
         }
     }
 
@@ -107,7 +102,9 @@ impl Backend {
             return;
         };
         match fs::read_to_string(&path) {
-            Ok(text) => self.workspace_index.index_file(uri, &text, &self.builtins),
+            Ok(text) => self
+                .workspace_index
+                .index_file(uri, &text, &self.partitioned),
             Err(_) => self.workspace_index.remove_file(uri),
         }
     }
@@ -116,12 +113,31 @@ impl Backend {
     /// corpus baseline with the document's imports and build the borrowing
     /// `ScopedIndex` view. Five handlers route through this so the package
     /// scoping rule lives in one place.
-    fn scoped_index_for<'a>(&'a self, document: &'a DocumentSnapshot) -> ScopedIndex<'a> {
+    fn scoped_index_for<'a>(&'a self, document: &DocumentSnapshot) -> ScopedIndex<'a> {
         let loaded = LoadedPackages::from_parts(
             self.partitioned.default_loaded(),
             document.imported_packages(),
         );
         self.partitioned.scoped(&loaded)
+    }
+
+    fn with_document<R>(
+        &self,
+        uri: &Url,
+        request: impl FnOnce(&DocumentSnapshot) -> R,
+    ) -> Option<R> {
+        let document = self.documents.get(uri)?;
+        Some(request(document.value()))
+    }
+
+    fn with_scoped_document<R>(
+        &self,
+        uri: &Url,
+        request: impl FnOnce(&DocumentSnapshot, &ScopedIndex<'_>) -> R,
+    ) -> Option<R> {
+        let document = self.documents.get(uri)?;
+        let scoped = self.scoped_index_for(document.value());
+        Some(request(document.value(), &scoped))
     }
 
     /// Collect occurrences of a global symbol across every workspace file
@@ -164,13 +180,46 @@ impl Backend {
         publish_diagnostics(&self.client, uri, document, settings.diagnostics()).await;
     }
 
+    async fn apply_settings(
+        &self,
+        settings: ServerSettings,
+        refresh_client: &(impl WorkspaceRefresh<InlayHintRefresh> + ?Sized),
+    ) -> tower_lsp::jsonrpc::Result<()> {
+        let previous = self.settings.replace(settings.clone());
+
+        if previous.diagnostics() != settings.diagnostics() {
+            let diagnostics = self
+                .documents
+                .iter()
+                .map(|document| {
+                    (
+                        document.key().clone(),
+                        visible_diagnostics(document.value(), settings.diagnostics()),
+                    )
+                })
+                .collect::<Vec<_>>();
+            for (uri, diagnostics) in diagnostics {
+                self.client
+                    .publish_diagnostics(uri, diagnostics, None)
+                    .await;
+            }
+        }
+
+        refresh_if_changed(
+            &self.inlay_hint_refresh,
+            refresh_client,
+            previous.inlay_hints() != settings.inlay_hints(),
+        )
+        .await
+    }
+
     async fn on_open(&self, params: TextDocumentItem) {
         let Some(document) = DocumentSnapshot::from_text(params.text, &self.partitioned) else {
             return;
         };
         let uri = params.uri;
         self.workspace_index
-            .index_file(&uri, document.text(), &self.builtins);
+            .index_file(&uri, document.text(), &self.partitioned);
         self.documents.insert(uri.clone(), document);
         if let Some(document) = self.documents.get(&uri) {
             self.publish_document_diagnostics(uri, document.value())
@@ -187,7 +236,7 @@ impl Backend {
                 return;
             }
             self.workspace_index
-                .index_file(&uri, document.text(), &self.builtins);
+                .index_file(&uri, document.text(), &self.partitioned);
             self.publish_document_diagnostics(uri, document.value())
                 .await;
         }
@@ -224,27 +273,19 @@ impl LanguageServer for Backend {
         self.workspace_index.set_roots(workspace_roots(&params));
         // Index every `.m2` file under the project roots off the request path.
         let index = Arc::clone(&self.workspace_index);
-        let builtins = self.builtins.clone();
-        task::spawn_blocking(move || index.scan(&builtins));
-        let text_document_capabilities = params.capabilities.text_document;
-        let augments_syntax_tokens = text_document_capabilities
-            .as_ref()
-            .and_then(|capabilities| capabilities.semantic_tokens.as_ref())
-            .and_then(|semantic_tokens| semantic_tokens.augments_syntax_tokens)
-            .unwrap_or(false);
+        let knowledge = self.partitioned.clone();
+        task::spawn_blocking(move || index.scan(&knowledge));
         self.semantic_tokens_augment_syntax
-            .store(augments_syntax_tokens, Ordering::Relaxed);
-        let type_hierarchy_dynamic_registration = text_document_capabilities
-            .as_ref()
-            .and_then(|capabilities| capabilities.type_hierarchy)
-            .and_then(|type_hierarchy| type_hierarchy.dynamic_registration)
-            .unwrap_or(false);
+            .negotiate(&params.capabilities);
         self.type_hierarchy_dynamic_registration
-            .store(type_hierarchy_dynamic_registration, Ordering::Relaxed);
+            .negotiate(&params.capabilities);
+        self.inlay_hint_refresh.negotiate(&params.capabilities);
 
         if let Some(options) = params.initialization_options.as_ref() {
             match ServerSettings::from_value(options) {
-                Ok(settings) => self.settings.replace(settings),
+                Ok(settings) => {
+                    self.settings.replace(settings);
+                }
                 Err(error) => {
                     self.client
                         .log_message(
@@ -304,9 +345,7 @@ impl LanguageServer for Backend {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        if self
-            .type_hierarchy_dynamic_registration
-            .load(Ordering::Relaxed)
+        if self.type_hierarchy_dynamic_registration.is_supported()
             && self
                 .client
                 .register_capability(vec![Registration {
@@ -344,7 +383,7 @@ impl LanguageServer for Backend {
                 MessageType::INFO,
                 format!(
                     "Macaulay2 LSP initialized with {} builtin symbols",
-                    self.builtins.len()
+                    self.partitioned.symbol_count()
                 ),
             )
             .await;
@@ -382,21 +421,12 @@ impl LanguageServer for Backend {
                 return;
             }
         };
-        self.settings.replace(settings.clone());
-
-        let diagnostics = self
-            .documents
-            .iter()
-            .map(|document| {
-                (
-                    document.key().clone(),
-                    visible_diagnostics(document.value(), settings.diagnostics()),
-                )
-            })
-            .collect::<Vec<_>>();
-        for (uri, diagnostics) in diagnostics {
+        if let Err(error) = self.apply_settings(settings, &self.client).await {
             self.client
-                .publish_diagnostics(uri, diagnostics, None)
+                .log_message(
+                    MessageType::WARNING,
+                    format!("Failed to refresh Macaulay2 inlay hints: {error}"),
+                )
                 .await;
         }
     }
@@ -427,39 +457,31 @@ impl LanguageServer for Backend {
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let document = match self.documents.get(uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
-        let scoped = self.scoped_index_for(&document);
-        Ok(hover_response(document.value(), position, &scoped))
+        Ok(self
+            .with_scoped_document(uri, |document, knowledge| {
+                hover_response(document, position, knowledge)
+            })
+            .flatten())
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let document = match self.documents.get(uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
-        let scoped = self.scoped_index_for(&document);
-        Ok(completion_response(
-            document.text(),
-            position,
-            document.analysis(),
-            &scoped,
-        ))
+        Ok(self
+            .with_scoped_document(uri, |document, knowledge| {
+                completion_response(document.text(), position, document.analysis(), knowledge)
+            })
+            .flatten())
     }
 
     async fn signature_help(&self, params: SignatureHelpParams) -> Result<Option<SignatureHelp>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let document = match self.documents.get(uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
-        let scoped = self.scoped_index_for(&document);
-        Ok(signature_help_response(&document, position, &scoped))
+        Ok(self
+            .with_scoped_document(uri, |document, knowledge| {
+                signature_help_response(document, position, knowledge)
+            })
+            .flatten())
     }
 
     async fn semantic_tokens_full(
@@ -467,23 +489,20 @@ impl LanguageServer for Backend {
         params: SemanticTokensParams,
     ) -> Result<Option<SemanticTokensResult>> {
         let uri = params.text_document.uri;
-        let document = match self.documents.get(&uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
-        let augments_syntax_tokens = self.semantic_tokens_augment_syntax.load(Ordering::Relaxed);
-        let scoped = self.scoped_index_for(&document);
-        let tokens = collect_semantic_tokens(
-            &document,
-            &scoped,
-            &self.workspace_index,
-            &uri,
-            augments_syntax_tokens,
-        );
-        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
-            result_id: None,
-            data: tokens,
-        })))
+        let augments_syntax_tokens = self.semantic_tokens_augment_syntax.is_supported();
+        Ok(self.with_scoped_document(&uri, |document, knowledge| {
+            let tokens = collect_semantic_tokens(
+                document,
+                knowledge,
+                &self.workspace_index,
+                &uri,
+                augments_syntax_tokens,
+            );
+            SemanticTokensResult::Tokens(SemanticTokens {
+                result_id: None,
+                data: tokens,
+            })
+        }))
     }
 
     async fn document_symbol(
@@ -491,51 +510,39 @@ impl LanguageServer for Backend {
         params: DocumentSymbolParams,
     ) -> Result<Option<DocumentSymbolResponse>> {
         let uri = params.text_document.uri;
-        let document = match self.documents.get(&uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
-        let symbols = collect_document_symbols(&document);
-        Ok(Some(DocumentSymbolResponse::Nested(symbols)))
+        Ok(self.with_document(&uri, |document| {
+            DocumentSymbolResponse::Nested(collect_document_symbols(document))
+        }))
     }
 
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         let uri = &params.text_document.uri;
-        let document = match self.documents.get(uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
         let settings = self.settings.snapshot();
-        let diagnostics = if params.context.diagnostics.is_empty() {
-            visible_diagnostics(document.value(), settings.diagnostics())
-        } else {
-            params
-                .context
-                .diagnostics
-                .into_iter()
-                .filter(|diagnostic| settings.diagnostics().allows_lsp_diagnostic(diagnostic))
-                .collect()
-        };
-        Ok(available_code_actions(
-            document.value(),
-            uri,
-            params.range.start,
-            &diagnostics,
-        ))
+        Ok(self
+            .with_document(uri, |document| {
+                let diagnostics = if params.context.diagnostics.is_empty() {
+                    visible_diagnostics(document, settings.diagnostics())
+                } else {
+                    params
+                        .context
+                        .diagnostics
+                        .into_iter()
+                        .filter(|diagnostic| {
+                            settings.diagnostics().allows_lsp_diagnostic(diagnostic)
+                        })
+                        .collect()
+                };
+                available_code_actions(document, uri, params.range.start, &diagnostics)
+            })
+            .flatten())
     }
 
     async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
         let uri = &params.text_document.uri;
-        let document = match self.documents.get(uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
         let expression_types = self.settings.snapshot().expression_type_hints();
-        Ok(Some(inlay_hints_response(
-            document.value(),
-            params.range,
-            expression_types,
-        )))
+        Ok(self.with_document(uri, |document| {
+            inlay_hints_response(document, params.range, expression_types)
+        }))
     }
 
     async fn document_highlight(
@@ -544,12 +551,11 @@ impl LanguageServer for Backend {
     ) -> Result<Option<Vec<DocumentHighlight>>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let document = match self.documents.get(uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
-        let scoped = self.scoped_index_for(&document);
-        Ok(document_highlights(document.value(), position, &scoped))
+        Ok(self
+            .with_scoped_document(uri, |document, knowledge| {
+                document_highlights(document, position, knowledge)
+            })
+            .flatten())
     }
 
     async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
@@ -604,11 +610,11 @@ impl LanguageServer for Backend {
     ) -> Result<Option<PrepareRenameResponse>> {
         let uri = &params.text_document.uri;
         let position = params.position;
-        let document = match self.documents.get(uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
-        Ok(prepare_rename_range(document.value(), position).map(PrepareRenameResponse::Range))
+        Ok(self
+            .with_document(uri, |document| {
+                prepare_rename_range(document, position).map(PrepareRenameResponse::Range)
+            })
+            .flatten())
     }
 
     async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
@@ -670,14 +676,12 @@ impl LanguageServer for Backend {
     ) -> Result<Option<Vec<TypeHierarchyItem>>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let document = match self.documents.get(&uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
-        let scoped = self.scoped_index_for(&document);
         Ok(self
-            .type_hierarchy_context()
-            .prepare(document.value(), &scoped, &uri, position))
+            .with_scoped_document(&uri, |document, knowledge| {
+                self.type_hierarchy_context()
+                    .prepare(document, knowledge, &uri, position)
+            })
+            .flatten())
     }
 
     async fn supertypes(
@@ -696,27 +700,20 @@ impl LanguageServer for Backend {
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
         let uri = params.text_document.uri;
-        let document = match self.documents.get(&uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
         let settings = self.settings.snapshot();
-        Ok(Some(document_formatting_text_edits(
-            document.text(),
-            params.options.tab_size,
-            params.options.insert_spaces,
-            settings.formatting(),
-        )))
+        Ok(self.with_document(&uri, |document| {
+            document_formatting_text_edits(
+                document.text(),
+                params.options.tab_size,
+                params.options.insert_spaces,
+                settings.formatting(),
+            )
+        }))
     }
 
     async fn folding_range(&self, params: FoldingRangeParams) -> Result<Option<Vec<FoldingRange>>> {
         let uri = params.text_document.uri;
-        let document = match self.documents.get(&uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
-
-        Ok(Some(folding_ranges(document.text())))
+        Ok(self.with_document(&uri, |document| folding_ranges(document.text())))
     }
 
     #[allow(deprecated)]
@@ -743,21 +740,19 @@ impl LanguageServer for Backend {
     ) -> Result<Option<GotoDefinitionResponse>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-
-        let document = match self.documents.get(uri) {
-            Some(document) => document,
-            None => return Ok(None),
-        };
-        let scoped = self.scoped_index_for(&document);
-        Ok(goto_definition_response(
-            document.value(),
-            uri,
-            position,
-            &scoped,
-            &self.source_resolver,
-            &self.workspace_index,
-            |record| self.source_resolver.record_location(record),
-        ))
+        Ok(self
+            .with_scoped_document(uri, |document, knowledge| {
+                goto_definition_response(
+                    document,
+                    uri,
+                    position,
+                    knowledge,
+                    &self.source_resolver,
+                    &self.workspace_index,
+                    |record| self.source_resolver.record_location(record),
+                )
+            })
+            .flatten())
     }
 }
 
@@ -802,7 +797,8 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use std::future::poll_fn;
+    use std::future::{poll_fn, Future};
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::{env, fs};
 
     use super::*;
@@ -815,6 +811,18 @@ mod tests {
     use tower_lsp::jsonrpc::{Request as JsonRpcRequest, Response as JsonRpcResponse};
     use tree_sitter::Parser;
 
+    #[derive(Default)]
+    struct CountingInlayHintRefresh {
+        calls: AtomicUsize,
+    }
+
+    impl WorkspaceRefresh<InlayHintRefresh> for CountingInlayHintRefresh {
+        fn refresh(&self) -> impl Future<Output = tower_lsp::jsonrpc::Result<()>> + Send {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            std::future::ready(Ok(()))
+        }
+    }
+
     async fn call_lsp(
         service: &mut LspService<Backend>,
         request: JsonRpcRequest,
@@ -826,6 +834,43 @@ mod tests {
             .call(request)
             .await
             .expect("LSP service call should succeed")
+    }
+
+    #[test]
+    fn document_request_helpers_share_missing_and_scoped_behavior() {
+        let (service, _socket) = LspService::new(Backend::new);
+        let uri = Url::parse("file:///tmp/m2-ls-request-helper-test.m2").unwrap();
+
+        assert!(service
+            .inner()
+            .with_document(&uri, |document| document.text().to_string())
+            .is_none());
+        assert!(service
+            .inner()
+            .with_scoped_document(&uri, |_, _| ())
+            .is_none());
+
+        let document = DocumentSnapshot::from_text(
+            "needsPackage \"JSON\"\n".to_string(),
+            &service.inner().partitioned,
+        )
+        .unwrap();
+        service.inner().documents.insert(uri.clone(), document);
+
+        assert_eq!(
+            service
+                .inner()
+                .with_document(&uri, |document| document.text().to_string()),
+            Some("needsPackage \"JSON\"\n".to_string())
+        );
+        assert_eq!(
+            service
+                .inner()
+                .with_scoped_document(&uri, |_, knowledge| knowledge
+                    .get_record(&typesystem::InstanceID::new("toJSON"))
+                    .is_some()),
+            Some(true)
+        );
     }
 
     #[tokio::test]
@@ -879,6 +924,7 @@ mod tests {
                         "formatting": {
                             "indentWidth": 2,
                             "useTabs": false,
+                            "maxLineWidth": 12,
                             "compactFactorOperators": false
                         }
                     }
@@ -900,7 +946,7 @@ mod tests {
         drop(document);
 
         let document = DocumentSnapshot::from_text(
-            "f := (\na*b\n)\n".to_string(),
+            "f := (\nlongName*a*b\n)\n".to_string(),
             &service.inner().partitioned,
         )
         .expect("formatting fixture should parse");
@@ -921,7 +967,67 @@ mod tests {
             .await
             .expect("formatting should return a response");
         let response = serde_json::to_value(response).unwrap();
-        assert_eq!(response["result"][0]["newText"], "f := (\n  a * b\n)\n");
+        assert_eq!(
+            response["result"][0]["newText"],
+            "f := (\n  longName *\n    a * b\n)\n"
+        );
+    }
+
+    #[tokio::test]
+    async fn live_inlay_hint_changes_use_negotiated_workspace_refresh() {
+        let (mut service, _socket) = LspService::new(Backend::new);
+        let initialize = JsonRpcRequest::build("initialize")
+            .params(serde_json::json!({
+                "capabilities": {
+                    "workspace": {
+                        "inlayHint": {
+                            "refreshSupport": true
+                        }
+                    }
+                }
+            }))
+            .id(1)
+            .finish();
+        call_lsp(&mut service, initialize)
+            .await
+            .expect("initialize should return a response");
+
+        let refresh = CountingInlayHintRefresh::default();
+        let enabled = ServerSettings::from_value(&serde_json::json!({
+            "inlayHints": {
+                "expressionTypes": true
+            }
+        }))
+        .unwrap();
+        service
+            .inner()
+            .apply_settings(enabled.clone(), &refresh)
+            .await
+            .unwrap();
+        assert_eq!(refresh.calls.load(Ordering::Relaxed), 1);
+
+        service
+            .inner()
+            .apply_settings(enabled, &refresh)
+            .await
+            .unwrap();
+        assert_eq!(refresh.calls.load(Ordering::Relaxed), 1);
+
+        let formatting_only = ServerSettings::from_value(&serde_json::json!({
+            "formatting": {
+                "indentWidth": 2
+            },
+            "inlayHints": {
+                "expressionTypes": true
+            }
+        }))
+        .unwrap();
+        service
+            .inner()
+            .apply_settings(formatting_only, &refresh)
+            .await
+            .unwrap();
+        assert_eq!(refresh.calls.load(Ordering::Relaxed), 1);
     }
 
     #[test]
@@ -1067,12 +1173,12 @@ mod tests {
         };
 
         assert!(
-            markup.value.contains("`RingMap -> Ideal`"),
+            markup.value.contains("`(RingMap) -> Ideal`"),
             "record hover should display documented method codomains"
         );
         assert!(
-            markup.value.contains("```macaulay2\nR = QQ[a..d];"),
-            "record hover should display saved examples via folded markdown"
+            markup.value.contains("> ```macaulay2\n> R = QQ[a..d];"),
+            "record hover should display saved examples in a bordered card"
         );
     }
 
@@ -1133,11 +1239,9 @@ mod tests {
             panic!("record hover should use markdown");
         };
 
-        assert!(markup.value.contains("**Signature:**"));
-        assert!(markup.value.contains("`String -> File`"));
-        assert!(markup
-            .value
-            .contains("**Excluded Signatures For This Usage:**"));
-        assert!(markup.value.contains("`ZZ -> Ring`"));
+        assert!(markup.value.starts_with("**f** `(String) -> File`"));
+        assert!(!markup.value.contains("**Signature:**"));
+        assert!(markup.value.contains("**Other signatures for this call:**"));
+        assert!(markup.value.contains("`(ZZ) -> Ring`"));
     }
 }

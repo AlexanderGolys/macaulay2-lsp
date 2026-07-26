@@ -7,7 +7,7 @@
 //! defined at the top level of another resolves across the project.
 
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use dashmap::DashMap;
 use tower_lsp::lsp_types::{Location, Range, Url};
@@ -15,13 +15,33 @@ use tower_lsp::lsp_types::{Location, Range, Url};
 use crate::analysis::SymbolName;
 use crate::capabilities::semantic_tokens::local_symbol_semantic_token_type;
 use crate::document::DocumentSnapshot;
-use crate::typesystem::{BuiltinData, M2SemanticTokenType};
+use crate::typesystem::{M2SemanticTokenType, SemanticTokenKnowledge, TypeKnowledgeProvider};
 
 #[derive(Debug, Clone)]
 struct DefLocation {
     uri: Url,
     range: Range,
     semantic_token_type: M2SemanticTokenType,
+}
+
+pub(crate) trait WorkspaceDefinitionKnowledge {
+    fn lookup(&self, name: &str, exclude: &Url) -> Vec<Location>;
+    fn is_defined(&self, name: &str) -> bool;
+    fn semantic_token_type(&self, name: &str, exclude: &Url) -> Option<M2SemanticTokenType>;
+}
+
+impl<T: WorkspaceDefinitionKnowledge + ?Sized> WorkspaceDefinitionKnowledge for Arc<T> {
+    fn lookup(&self, name: &str, exclude: &Url) -> Vec<Location> {
+        self.as_ref().lookup(name, exclude)
+    }
+
+    fn is_defined(&self, name: &str) -> bool {
+        self.as_ref().is_defined(name)
+    }
+
+    fn semantic_token_type(&self, name: &str, exclude: &Url) -> Option<M2SemanticTokenType> {
+        self.as_ref().semantic_token_type(name, exclude)
+    }
 }
 
 /// Global definition index, keyed by symbol name, kept in sync with edits and
@@ -48,7 +68,11 @@ impl WorkspaceIndex {
 
     /// Walk every root and index all `.m2` files found. Intended to run off the
     /// request path (e.g. `spawn_blocking`) since it touches the filesystem.
-    pub(crate) fn scan(&self, builtins: &BuiltinData) {
+    pub(crate) fn scan<K>(&self, knowledge_provider: &K)
+    where
+        K: TypeKnowledgeProvider + ?Sized,
+        for<'a> K::Knowledge<'a>: SemanticTokenKnowledge,
+    {
         for root in self.roots() {
             let mut files = Vec::new();
             collect_m2_files(&root, &mut files);
@@ -65,15 +89,19 @@ impl WorkspaceIndex {
                 let Ok(text) = std::fs::read_to_string(&path) else {
                     continue;
                 };
-                self.index_file(&uri, &text, builtins);
+                self.index_file(&uri, &text, knowledge_provider);
             }
         }
     }
 
     /// Replace the definitions recorded for `uri` with those parsed from `text`.
-    pub(crate) fn index_file(&self, uri: &Url, text: &str, builtins: &BuiltinData) {
+    pub(crate) fn index_file<K>(&self, uri: &Url, text: &str, knowledge_provider: &K)
+    where
+        K: TypeKnowledgeProvider + ?Sized,
+        for<'a> K::Knowledge<'a>: SemanticTokenKnowledge,
+    {
         self.remove_file(uri);
-        let definitions = top_level_definitions(text, builtins);
+        let definitions = top_level_definitions(text, knowledge_provider);
         if definitions.is_empty() {
             return;
         }
@@ -110,10 +138,25 @@ impl WorkspaceIndex {
         }
     }
 
-    /// Every workspace definition of `name`, excluding `exclude` — the current
-    /// document, whose live analysis is the authoritative source for its own
-    /// definitions.
-    pub(crate) fn lookup(&self, name: &str, exclude: &Url) -> Vec<Location> {
+    /// Every `.m2` file under the project roots, as URIs. Walks the filesystem,
+    /// so callers should keep it off the hot path.
+    pub(crate) fn workspace_file_uris(&self) -> Vec<Url> {
+        let mut uris = Vec::new();
+        for root in self.roots() {
+            let mut files = Vec::new();
+            collect_m2_files(&root, &mut files);
+            uris.extend(
+                files
+                    .iter()
+                    .filter_map(|path| Url::from_file_path(path).ok()),
+            );
+        }
+        uris
+    }
+}
+
+impl WorkspaceDefinitionKnowledge for WorkspaceIndex {
+    fn lookup(&self, name: &str, exclude: &Url) -> Vec<Location> {
         self.definitions_by_name
             .get(name)
             .map(|locations| {
@@ -129,43 +172,17 @@ impl WorkspaceIndex {
             .unwrap_or_default()
     }
 
-    /// Whether `name` is defined at top level anywhere in the workspace. Used to
-    /// recognise a global symbol whose definition lives in another file.
-    pub(crate) fn is_defined(&self, name: &str) -> bool {
+    fn is_defined(&self, name: &str) -> bool {
         self.definitions_by_name.contains_key(name)
     }
 
-    /// The semantic-token type for a cross-file reference to `name`, taken from
-    /// its first top-level definition outside `exclude`. Lets a symbol defined in
-    /// another workspace file be highlighted where the local analysis and the
-    /// builtin index both come up empty.
-    pub(crate) fn semantic_token_type(
-        &self,
-        name: &str,
-        exclude: &Url,
-    ) -> Option<M2SemanticTokenType> {
+    fn semantic_token_type(&self, name: &str, exclude: &Url) -> Option<M2SemanticTokenType> {
         self.definitions_by_name.get(name).and_then(|locations| {
             locations
                 .iter()
                 .find(|location| &location.uri != exclude)
                 .map(|location| location.semantic_token_type)
         })
-    }
-
-    /// Every `.m2` file under the project roots, as URIs. Walks the filesystem,
-    /// so callers should keep it off the hot path.
-    pub(crate) fn workspace_file_uris(&self) -> Vec<Url> {
-        let mut uris = Vec::new();
-        for root in self.roots() {
-            let mut files = Vec::new();
-            collect_m2_files(&root, &mut files);
-            uris.extend(
-                files
-                    .iter()
-                    .filter_map(|path| Url::from_file_path(path).ok()),
-            );
-        }
-        uris
     }
 }
 
@@ -192,18 +209,23 @@ fn collect_m2_files(dir: &Path, out: &mut Vec<PathBuf>) {
 /// Parse `text` and return its global-scope definitions as `(name, range)`,
 /// where `range` is the definition site — the same range go-to-definition
 /// returns for an in-file symbol.
-fn top_level_definitions(
+fn top_level_definitions<K>(
     text: &str,
-    builtins: &BuiltinData,
-) -> Vec<(String, Range, M2SemanticTokenType)> {
-    let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), builtins) else {
+    knowledge_provider: &K,
+) -> Vec<(String, Range, M2SemanticTokenType)>
+where
+    K: TypeKnowledgeProvider + ?Sized,
+    for<'a> K::Knowledge<'a>: SemanticTokenKnowledge,
+{
+    let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), knowledge_provider) else {
         return Vec::new();
     };
+    let knowledge = knowledge_provider.knowledge_for(snapshot.imported_packages());
     let analysis = snapshot.analysis();
     analysis
         .bindings_in_scope(0)
         .map(|binding| {
-            let token_type = local_symbol_semantic_token_type(&binding, builtins);
+            let token_type = local_symbol_semantic_token_type(&binding, &knowledge);
             (
                 analysis.symbol_name(binding.symbol).to_string(),
                 binding.range,
@@ -216,6 +238,7 @@ fn top_level_definitions(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::partitioned_index::PackagePartitionedIndex;
     use crate::typesystem::BuiltinData;
 
     #[test]
@@ -247,5 +270,36 @@ mod tests {
         assert_eq!(index.lookup("renamed", &main).len(), 1);
         index.remove_file(&defs);
         assert!(index.lookup("renamed", &main).is_empty());
+    }
+
+    #[test]
+    fn imported_package_knowledge_classifies_workspace_definitions() {
+        let corpus = concat!(
+            "{\"kind\":\"meta\",\"default_loaded\":[\"Core\"]}\n",
+            "{\"kind\":\"type\",\"name\":\"Type\",",
+            "\"package\":\"$Core$Core\",\"class\":\"$Core$Type\",",
+            "\"parent\":\"$Core$Thing\",\"ancestors\":[\"$Core$Thing\"]}\n",
+            "{\"kind\":\"type\",\"name\":\"MethodFunction\",",
+            "\"package\":\"$Core$Core\",\"class\":\"$Core$Type\",",
+            "\"parent\":\"$Core$Function\",\"ancestors\":[\"$Core$Function\",\"$Core$Thing\"]}\n",
+            "{\"kind\":\"methodFunction\",\"name\":\"packageType\",",
+            "\"package\":\"$Pkg$Pkg\",\"class\":\"$Core$MethodFunction\",",
+            "\"methods\":[{\"domain\":[\"$Core$ZZ\"],\"typicalValue\":\"$Core$Type\"}]}\n",
+        );
+        let knowledge = PackagePartitionedIndex::from_corpus(corpus);
+        let index = WorkspaceIndex::default();
+        let definitions = Url::parse("file:///definitions.m2").unwrap();
+        let reference = Url::parse("file:///reference.m2").unwrap();
+
+        index.index_file(
+            &definitions,
+            "needsPackage \"Pkg\"\nGreeting = packageType 1\n",
+            &knowledge,
+        );
+
+        assert_eq!(
+            index.semantic_token_type("Greeting", &reference),
+            Some(M2SemanticTokenType::Class)
+        );
     }
 }
