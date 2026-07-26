@@ -26,7 +26,7 @@ pub struct SymbolId(u32);
 pub struct SymbolName(Arc<str>);
 
 impl SymbolName {
-    fn new(name: &str) -> Self {
+    pub(crate) fn new(name: &str) -> Self {
         Self(Arc::from(name))
     }
 
@@ -129,10 +129,7 @@ pub struct MethodInstallation {
     pub range: Range,
     pub target: SpanKey,
     pub value: Option<SpanKey>,
-    /// The argument shape of the right-hand-side function, when it is a lambda.
-    /// Lets the arity diagnostic check it against [`expected_rhs_arity`] without
-    /// re-walking the tree. `None` when the RHS is not a plain lambda.
-    pub rhs_dispatch: Option<Dispatch>,
+    pub rhs_lambda_dispatch: Option<Dispatch>,
 }
 
 impl MethodInstallation {
@@ -275,8 +272,7 @@ pub struct SpanKey {
 /// instead of collapsing to `FunctionClosure`/`Thing`. See Open Questions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InferredType {
-    /// Minimal generators (the most-general types of the up-set); never empty.
-    generators: Vec<InstanceID>,
+    minimal_generators: Vec<InstanceID>,
 }
 
 impl InferredType {
@@ -292,7 +288,7 @@ impl InferredType {
 
     fn from_id(id: InstanceID) -> Self {
         Self {
-            generators: vec![id],
+            minimal_generators: vec![id],
         }
     }
 
@@ -300,7 +296,7 @@ impl InferredType {
     /// dispatch queries and inlay display consume in the basic (single-type)
     /// inference. `None` once a branch join has produced several generators.
     fn principal(&self) -> Option<&InstanceID> {
-        match self.generators.as_slice() {
+        match self.minimal_generators.as_slice() {
             [only] => Some(only),
             _ => None,
         }
@@ -319,11 +315,11 @@ impl InferredType {
     /// types — so a single generator always renders; a joined set renders as
     /// `A | B`. `None` only if the set is empty, which constructors never produce.
     pub(crate) fn label(&self) -> Option<String> {
-        if self.generators.is_empty() {
+        if self.minimal_generators.is_empty() {
             return None;
         }
         Some(
-            self.generators
+            self.minimal_generators
                 .iter()
                 .map(|generator| generator.0.as_str())
                 .collect::<Vec<_>>()
@@ -336,19 +332,19 @@ impl InferredType {
     /// `b`) is dropped. Needs the lattice to compare subtypes; without it the
     /// union is only deduplicated.
     fn join(self, other: Self, knowledge: &(impl TypeKnowledge + ?Sized)) -> Self {
-        let mut generators = self.generators;
-        for generator in other.generators {
-            if !generators.contains(&generator) {
-                generators.push(generator);
+        let mut minimal_generators = self.minimal_generators;
+        for generator in other.minimal_generators {
+            if !minimal_generators.contains(&generator) {
+                minimal_generators.push(generator);
             }
         }
-        let candidates = generators.clone();
-        generators.retain(|generator| {
+        let candidates = minimal_generators.clone();
+        minimal_generators.retain(|generator| {
             !candidates.iter().any(|other| {
                 other != generator && knowledge.is_subtype(generator.as_ref(), other.as_ref())
             })
         });
-        Self { generators }
+        Self { minimal_generators }
     }
 }
 
@@ -1036,7 +1032,7 @@ impl Analysis {
         let codomain_span = codomain_node.map(|node| SpanKey::from_node(text, node));
         // The RHS function shape, read once here so the arity diagnostic need not
         // re-walk the tree. Only a plain lambda RHS carries a checkable arity.
-        let rhs_dispatch = node
+        let rhs_lambda_dispatch = node
             .child_by_field_name("right")
             .filter(|right| right.kind == NodeKind::LambdaExpression)
             .and_then(function_dispatch);
@@ -1051,7 +1047,7 @@ impl Analysis {
                 range,
                 target,
                 value,
-                rhs_dispatch,
+                rhs_lambda_dispatch,
             }),
             // `=` installs only the assignment form of a BINARY operator (incl.
             // SPACE), and only when every operand is a type; otherwise the same
@@ -1071,7 +1067,7 @@ impl Analysis {
                         range,
                         target,
                         value,
-                        rhs_dispatch,
+                        rhs_lambda_dispatch,
                     })
                 }
                 _ => None,
@@ -1318,7 +1314,7 @@ impl Analysis {
 
         // A variadic RHS (`x -> …`) binds the whole argument sequence and absorbs
         // any arity, so only a fixed-arity RHS can be wrong.
-        if let Some(Dispatch::Fixed(actual)) = installation.rhs_dispatch {
+        if let Some(Dispatch::Fixed(actual)) = installation.rhs_lambda_dispatch {
             let expected = installation.expected_rhs_arity();
             if actual != expected {
                 out.push(M2Diagnostic::InstallArity.at(

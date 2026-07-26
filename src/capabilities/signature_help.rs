@@ -14,14 +14,13 @@ use tower_lsp::lsp_types::{
 use crate::analysis::{Analysis, FunctionInfo, MethodInfo};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
-use crate::partitioned_index::ScopedIndex;
-use crate::typesystem::{InstanceID, ResolvedSignature};
+use crate::typesystem::{InstanceID, LspKnowledge, ResolvedSignature};
 use crate::util::byte_index_from_lsp_position;
 
 pub(crate) fn signature_help_response(
     document: &DocumentSnapshot,
     position: Position,
-    scoped: &ScopedIndex,
+    knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Option<SignatureHelp> {
     let text = document.text();
     let cursor = byte_index_from_lsp_position(text, position)?;
@@ -36,7 +35,7 @@ pub(crate) fn signature_help_response(
     }
     let callable_name = callable_node.text();
 
-    let signatures = signature_informations(callable_name, document.analysis(), scoped);
+    let signatures = signature_informations(callable_name, document.analysis(), knowledge);
     if signatures.is_empty() {
         return None;
     }
@@ -127,7 +126,7 @@ fn active_signature_index(signatures: &[SignatureInformation], active_parameter:
 fn signature_informations(
     callable: &str,
     analysis: &Analysis,
-    scoped: &ScopedIndex,
+    knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Vec<SignatureInformation> {
     if let Some(function) = analysis.function(callable) {
         let local = local_signatures(callable, function);
@@ -136,18 +135,17 @@ fn signature_informations(
         }
     }
 
-    let Some(record) = scoped.get_record(&InstanceID::new(callable)) else {
+    let Some(record) = knowledge.get_record(&InstanceID::new(callable)) else {
         return Vec::new();
     };
-    let core = scoped.core();
     // Documented signatures carry a codomain; undocumented installed methods
     // (the rest) carry only a domain. Both are real call shapes worth showing.
-    let mut signatures: Vec<SignatureInformation> = core
+    let mut signatures: Vec<SignatureInformation> = knowledge
         .documented_signatures(&record)
         .iter()
         .map(|signature| builtin_signature_information(callable, signature))
         .collect();
-    for method in core.undocumented_installed_methods(&record) {
+    for method in knowledge.undocumented_installed_methods(&record) {
         let domain = method_domain(&method.signature);
         signatures.push(signature_information(callable, &domain, None));
     }
@@ -322,5 +320,17 @@ mod tests {
             .signatures
             .iter()
             .any(|signature| signature.label.starts_with("concatenate(")),);
+    }
+
+    #[test]
+    fn imported_callable_signatures_use_the_owning_partition() {
+        let text = "needsPackage \"JSON\"\ntoJSON(x)\n";
+        let response =
+            help(text, Position::new(1, 7)).expect("signature help for an imported callable");
+
+        assert!(response
+            .signatures
+            .iter()
+            .any(|signature| signature.label == "toJSON(Symbol) -> String"));
     }
 }

@@ -56,12 +56,49 @@ vim.lsp.config['m2-ls'] = {
   cmd = { vim.fn.expand('~/.local/bin/m2-ls') },
   filetypes = { 'macaulay2' },
   root_markers = { '.git' },
+  settings = {
+    ['m2-ls'] = {
+      diagnostics = {
+        enabled = true,
+        disabled = {},
+      },
+      formatting = {
+        indentWidth = 4,
+        useTabs = false,
+        compactFactorOperators = false,
+        breakAfterSemicolon = true,
+      },
+      inlayHints = {
+        expressionTypes = false,
+      },
+    },
+  },
 }
 vim.lsp.enable('m2-ls')
 ```
 
 Restart the client after rebuilding (`:LspRestart m2-ls`) so it picks up a new
 binary.
+
+## Settings
+
+Settings may be sent under the `m2-ls` or `macaulay2` section of
+`workspace/didChangeConfiguration`, or directly through
+`initializationOptions`. Changes apply without restarting the server.
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| `diagnostics.enabled` | `true` | Enables or suppresses all published diagnostics. |
+| `diagnostics.disabled` | `[]` | Suppresses selected rules by name or code, such as `unused-binding` or `E07`. |
+| `formatting.indentWidth` | client value | Overrides the LSP formatting request's `tabSize`. |
+| `formatting.useTabs` | client value | Overrides the LSP formatting request's `insertSpaces`. |
+| `formatting.compactFactorOperators` | `false` | Uses compact products such as `2*x`; the default is the conventional `2 * x`. |
+| `formatting.breakAfterSemicolon` | `true` | Places the following statement on a new line; `false` keeps it inline with one space. |
+| `inlayHints.expressionTypes` | `false` | Adds inferred types for expressions in addition to calm binding hints. |
+
+Diagnostic names and stable codes are listed in `src/diagnostic_registry.rs`.
+Invalid diagnostic selectors reject the settings update and leave the previous
+configuration active.
 
 ## Builtin metadata
 

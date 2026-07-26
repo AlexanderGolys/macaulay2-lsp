@@ -11,9 +11,8 @@ use tower_lsp::lsp_types::{Position, Range, TypeHierarchyItem, Url};
 
 use crate::document::DocumentSnapshot;
 use crate::package_index::SourceResolver;
-use crate::partitioned_index::{PackagePartitionedIndex, ScopedIndex};
 use crate::record_lsp::record_symbol_kind;
-use crate::typesystem::{InstanceID, Record};
+use crate::typesystem::{InstanceID, LspKnowledge, PartitionedTypeKnowledge, Record};
 
 pub(crate) const TYPE_HIERARCHY_METHOD: &str = "textDocument/prepareTypeHierarchy";
 
@@ -21,31 +20,27 @@ pub(crate) const TYPE_HIERARCHY_METHOD: &str = "textDocument/prepareTypeHierarch
 /// walk its parent/subtype edges, and materialize `TypeHierarchyItem`s. Born
 /// out of the `Backend` handlers — kept here so `main.rs` only wires LSP
 /// requests to thin shims, matching the other capability modules.
-pub(crate) struct TypeHierarchyContext<'a> {
-    partitioned: &'a PackagePartitionedIndex,
+pub(crate) struct TypeHierarchyContext<'a, K: ?Sized> {
+    knowledge: &'a K,
     source_resolver: &'a SourceResolver,
 }
 
-impl<'a> TypeHierarchyContext<'a> {
-    pub(crate) fn new(
-        partitioned: &'a PackagePartitionedIndex,
-        source_resolver: &'a SourceResolver,
-    ) -> Self {
+impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
+    pub(crate) fn new(knowledge: &'a K, source_resolver: &'a SourceResolver) -> Self {
         Self {
-            partitioned,
+            knowledge,
             source_resolver,
         }
     }
 
     /// Prepare the type-hierarchy root for the symbol at `position`, when that
     /// symbol names a top-level type/class record in scope. The caller owns
-    /// the document guard lookup *and* the `ScopedIndex` prologue (so the
-    /// package scoping rule stays single-sourced on the backend); everything
-    /// past the snapshot lives here.
+    /// the document guard lookup and constructs the scoped knowledge view;
+    /// everything past the snapshot lives here.
     pub(crate) fn prepare(
         &self,
         document: &DocumentSnapshot,
-        scoped: &ScopedIndex<'_>,
+        scoped: &(impl LspKnowledge + ?Sized),
         uri: &Url,
         position: Position,
     ) -> Option<Vec<TypeHierarchyItem>> {
@@ -57,7 +52,7 @@ impl<'a> TypeHierarchyContext<'a> {
         record.type_info.as_ref()?;
 
         Some(vec![self.item(
-            package,
+            &package,
             &record,
             Some(uri.clone()),
             Some(range),
@@ -123,8 +118,9 @@ impl<'a> TypeHierarchyContext<'a> {
     /// non-type record has no hierarchy edges).
     fn record(&self, package: Option<&str>, name: &str) -> Option<(String, Record)> {
         let package = package.unwrap_or("Core");
-        let index = self.partitioned.partition(package)?;
-        let record = index.get_record(&InstanceID::new(name))?;
+        let record = self
+            .knowledge
+            .get_record_from_package(package, &InstanceID::new(name))?;
         record.type_info.as_ref()?;
         Some((package.to_string(), record))
     }
@@ -133,17 +129,12 @@ impl<'a> TypeHierarchyContext<'a> {
     /// originating package's partition and falling back to Core (cross-package
     /// edges into the Core lattice resolve there).
     fn related_record(&self, package: &str, name: &InstanceID) -> Option<(String, Record)> {
-        if let Some(record) = self
-            .partitioned
-            .partition(package)
-            .and_then(|index| index.get_record(name))
-        {
+        if let Some(record) = self.knowledge.get_record_from_package(package, name) {
             return Some((package.to_string(), record));
         }
 
-        self.partitioned
-            .partition("Core")
-            .and_then(|core| core.get_record(name))
+        self.knowledge
+            .get_record_from_package("Core", name)
             .map(|record| ("Core".to_string(), record))
     }
 
@@ -271,6 +262,35 @@ pub(crate) fn advertise_type_hierarchy_capability(response: Response) -> Respons
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
+
+    fn corpus() -> &'static str {
+        include_str!("../data/m2-index.jsonl")
+    }
+
+    #[test]
+    fn prepares_type_and_resolves_its_parent_from_partitioned_knowledge() {
+        let knowledge = PackagePartitionedIndex::from_corpus(corpus());
+        let loaded = LoadedPackages::from_parts(knowledge.default_loaded(), &[]);
+        let scoped = knowledge.scoped(&loaded);
+        let document = DocumentSnapshot::from_text("ZZ\n".to_string(), &knowledge)
+            .expect("source should parse");
+        let resolver = SourceResolver::new(Vec::new());
+        let context = TypeHierarchyContext::new(&knowledge, &resolver);
+        let uri = Url::parse("file:///type-hierarchy-test.m2").expect("valid test URI");
+
+        let items = context
+            .prepare(&document, &scoped, &uri, Position::new(0, 0))
+            .expect("ZZ should be a known type");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "ZZ");
+
+        let parents = context
+            .supertypes(&items[0])
+            .expect("known type should produce a hierarchy response");
+        assert_eq!(parents.len(), 1);
+        assert_eq!(parents[0].name, "Number");
+    }
 
     #[test]
     fn initialize_result_advertises_static_type_hierarchy() {

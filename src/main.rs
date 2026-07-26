@@ -27,12 +27,13 @@ mod node_metadata;
 mod package_index;
 mod partitioned_index;
 mod record_lsp;
+mod settings;
 mod typesystem;
 mod util;
 mod workspace_index;
 
 use capabilities::code_actions::available_code_actions;
-use capabilities::diagnostics::publish_diagnostics;
+use capabilities::diagnostics::{publish_diagnostics, visible_diagnostics};
 use capabilities::document_highlight::{
     document_highlight_provider_capability, document_highlights,
 };
@@ -53,31 +54,27 @@ use capabilities::signature_help::signature_help_response;
 use capabilities::type_hierarchy::{
     TypeHierarchyCapabilityService, TypeHierarchyContext, TYPE_HIERARCHY_METHOD,
 };
+use diagnostic_registry::DiagnosticPolicy;
 use document::DocumentSnapshot;
 use package_index::SourceResolver;
 #[cfg(test)]
 use package_index::{collect_imported_packages, package_source_string};
 
 use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex, ScopedIndex};
+use crate::settings::{ServerSettings, SettingsStore};
 use crate::workspace_index::WorkspaceIndex;
 
 #[derive(Debug)]
 struct Backend {
     client: Client,
-    /// The Core partition used for workspace-file indexing and syntax-token
-    /// classification. Per-document analysis and user-facing metadata queries
-    /// resolve through an import-aware `ScopedIndex` over `partitioned`.
     builtins: BuiltinData,
     partitioned: PackagePartitionedIndex,
     source_resolver: SourceResolver,
     documents: DashMap<Url, DocumentSnapshot>,
     workspace_index: Arc<WorkspaceIndex>,
+    settings: SettingsStore<ServerSettings>,
     semantic_tokens_augment_syntax: AtomicBool,
     type_hierarchy_dynamic_registration: AtomicBool,
-    /// Opt-in (via `initializationOptions.inlayHints.expressionTypes`) to the
-    /// maximal per-expression inlay type readout. Off by default: the calm
-    /// release behavior shows only binding type hints.
-    inlay_expression_types: AtomicBool,
 }
 
 impl Backend {
@@ -99,9 +96,9 @@ impl Backend {
             source_resolver: SourceResolver::from_environment(),
             documents: DashMap::new(),
             workspace_index: Arc::new(WorkspaceIndex::default()),
+            settings: SettingsStore::default(),
             semantic_tokens_augment_syntax: AtomicBool::new(false),
             type_hierarchy_dynamic_registration: AtomicBool::new(false),
-            inlay_expression_types: AtomicBool::new(false),
         }
     }
 
@@ -158,8 +155,13 @@ impl Backend {
             })
     }
 
-    fn type_hierarchy_context(&self) -> TypeHierarchyContext<'_> {
+    fn type_hierarchy_context(&self) -> TypeHierarchyContext<'_, PackagePartitionedIndex> {
         TypeHierarchyContext::new(&self.partitioned, &self.source_resolver)
+    }
+
+    async fn publish_document_diagnostics(&self, uri: Url, document: &DocumentSnapshot) {
+        let settings = self.settings.snapshot();
+        publish_diagnostics(&self.client, uri, document, settings.diagnostics()).await;
     }
 
     async fn on_open(&self, params: TextDocumentItem) {
@@ -171,7 +173,8 @@ impl Backend {
             .index_file(&uri, document.text(), &self.builtins);
         self.documents.insert(uri.clone(), document);
         if let Some(document) = self.documents.get(&uri) {
-            publish_diagnostics(&self.client, uri, document.value()).await;
+            self.publish_document_diagnostics(uri, document.value())
+                .await;
         }
     }
 
@@ -185,7 +188,8 @@ impl Backend {
             }
             self.workspace_index
                 .index_file(&uri, document.text(), &self.builtins);
-            publish_diagnostics(&self.client, uri, document.value()).await;
+            self.publish_document_diagnostics(uri, document.value())
+                .await;
         }
     }
 }
@@ -238,18 +242,19 @@ impl LanguageServer for Backend {
         self.type_hierarchy_dynamic_registration
             .store(type_hierarchy_dynamic_registration, Ordering::Relaxed);
 
-        // Opt in to the maximal per-expression inlay readout (debugging) via
-        // `initializationOptions.inlayHints.expressionTypes`. Default: calm,
-        // binding-type hints only.
-        let inlay_expression_types = params
-            .initialization_options
-            .as_ref()
-            .and_then(|options| options.get("inlayHints"))
-            .and_then(|inlay_hints| inlay_hints.get("expressionTypes"))
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false);
-        self.inlay_expression_types
-            .store(inlay_expression_types, Ordering::Relaxed);
+        if let Some(options) = params.initialization_options.as_ref() {
+            match ServerSettings::from_value(options) {
+                Ok(settings) => self.settings.replace(settings),
+                Err(error) => {
+                    self.client
+                        .log_message(
+                            MessageType::WARNING,
+                            format!("Ignoring invalid Macaulay2 LSP settings: {error}"),
+                        )
+                        .await;
+                }
+            }
+        }
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -294,7 +299,7 @@ impl LanguageServer for Backend {
                 ),
                 ..Default::default()
             },
-            ..Default::default()
+            server_info: Some(server_info()),
         })
     }
 
@@ -362,6 +367,38 @@ impl LanguageServer for Backend {
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         self.on_change(params.text_document.uri, params.content_changes)
             .await;
+    }
+
+    async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
+        let settings = match ServerSettings::from_value(&params.settings) {
+            Ok(settings) => settings,
+            Err(error) => {
+                self.client
+                    .log_message(
+                        MessageType::WARNING,
+                        format!("Ignoring invalid Macaulay2 LSP settings: {error}"),
+                    )
+                    .await;
+                return;
+            }
+        };
+        self.settings.replace(settings.clone());
+
+        let diagnostics = self
+            .documents
+            .iter()
+            .map(|document| {
+                (
+                    document.key().clone(),
+                    visible_diagnostics(document.value(), settings.diagnostics()),
+                )
+            })
+            .collect::<Vec<_>>();
+        for (uri, diagnostics) in diagnostics {
+            self.client
+                .publish_diagnostics(uri, diagnostics, None)
+                .await;
+        }
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
@@ -468,16 +505,22 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
+        let settings = self.settings.snapshot();
         let diagnostics = if params.context.diagnostics.is_empty() {
-            document.diagnostics()
+            visible_diagnostics(document.value(), settings.diagnostics())
         } else {
-            &params.context.diagnostics
+            params
+                .context
+                .diagnostics
+                .into_iter()
+                .filter(|diagnostic| settings.diagnostics().allows_lsp_diagnostic(diagnostic))
+                .collect()
         };
         Ok(available_code_actions(
             document.value(),
             uri,
             params.range.start,
-            diagnostics,
+            &diagnostics,
         ))
     }
 
@@ -487,7 +530,7 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
-        let expression_types = self.inlay_expression_types.load(Ordering::Relaxed);
+        let expression_types = self.settings.snapshot().expression_type_hints();
         Ok(Some(inlay_hints_response(
             document.value(),
             params.range,
@@ -657,10 +700,12 @@ impl LanguageServer for Backend {
             Some(document) => document,
             None => return Ok(None),
         };
+        let settings = self.settings.snapshot();
         Ok(Some(document_formatting_text_edits(
             document.text(),
             params.options.tab_size,
             params.options.insert_spaces,
+            settings.formatting(),
         )))
     }
 
@@ -737,6 +782,13 @@ fn workspace_roots(params: &InitializeParams) -> Vec<PathBuf> {
         .collect()
 }
 
+fn server_info() -> ServerInfo {
+    ServerInfo {
+        name: env!("CARGO_PKG_NAME").to_string(),
+        version: Some(env!("CARGO_PKG_VERSION").to_string()),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     install_panic_logging();
@@ -750,13 +802,135 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
+    use std::future::poll_fn;
     use std::{env, fs};
 
     use super::*;
     use crate::analysis::Analysis;
+    use crate::capabilities::formatting::FormattingConfiguration;
+    use crate::diagnostic_registry::M2Diagnostic;
     use crate::record_lsp::record_hover_with_package_and_usage;
     use crate::typesystem::BuiltinData;
+    use tower::Service;
+    use tower_lsp::jsonrpc::{Request as JsonRpcRequest, Response as JsonRpcResponse};
     use tree_sitter::Parser;
+
+    async fn call_lsp(
+        service: &mut LspService<Backend>,
+        request: JsonRpcRequest,
+    ) -> Option<JsonRpcResponse> {
+        poll_fn(|context| service.poll_ready(context))
+            .await
+            .expect("LSP service should become ready");
+        service
+            .call(request)
+            .await
+            .expect("LSP service call should succeed")
+    }
+
+    #[tokio::test]
+    async fn lsp_service_applies_initial_and_live_settings() {
+        let (mut service, _socket) = LspService::new(Backend::new);
+        let initialize = JsonRpcRequest::build("initialize")
+            .params(serde_json::json!({
+                "capabilities": {},
+                "initializationOptions": {
+                    "formatting": {
+                        "compactFactorOperators": true
+                    },
+                    "inlayHints": {
+                        "expressionTypes": true
+                    }
+                }
+            }))
+            .id(1)
+            .finish();
+
+        let response = call_lsp(&mut service, initialize)
+            .await
+            .expect("initialize should return a response");
+        let response = serde_json::to_value(response).unwrap();
+        assert_eq!(
+            response["result"]["serverInfo"]["name"],
+            env!("CARGO_PKG_NAME")
+        );
+        assert_eq!(
+            response["result"]["serverInfo"]["version"],
+            env!("CARGO_PKG_VERSION")
+        );
+        let initial = service.inner().settings.snapshot();
+        assert!(initial.formatting().compact_factor_operators());
+        assert!(initial.expression_type_hints());
+
+        let uri = Url::parse("file:///tmp/m2-ls-settings-test.m2").unwrap();
+        let document =
+            DocumentSnapshot::from_text("x = (\n".to_string(), &service.inner().partitioned)
+                .expect("fixture should parse");
+        assert!(!document.diagnostics().is_empty());
+        service.inner().documents.insert(uri.clone(), document);
+
+        let change = JsonRpcRequest::build("workspace/didChangeConfiguration")
+            .params(serde_json::json!({
+                "settings": {
+                    "m2-ls": {
+                        "diagnostics": {
+                            "enabled": false
+                        },
+                        "formatting": {
+                            "indentWidth": 2,
+                            "useTabs": false,
+                            "compactFactorOperators": false
+                        }
+                    }
+                }
+            }))
+            .finish();
+        assert!(call_lsp(&mut service, change).await.is_none());
+
+        let current = service.inner().settings.snapshot();
+        assert!(!current.diagnostics().allows(M2Diagnostic::SyntaxError));
+        assert!(!current.formatting().compact_factor_operators());
+        let document = service
+            .inner()
+            .documents
+            .iter()
+            .next()
+            .expect("test document should remain open");
+        assert!(visible_diagnostics(document.value(), current.diagnostics()).is_empty());
+        drop(document);
+
+        let document = DocumentSnapshot::from_text(
+            "f := (\na*b\n)\n".to_string(),
+            &service.inner().partitioned,
+        )
+        .expect("formatting fixture should parse");
+        service.inner().documents.insert(uri.clone(), document);
+        let formatting = JsonRpcRequest::build("textDocument/formatting")
+            .params(serde_json::json!({
+                "textDocument": {
+                    "uri": uri
+                },
+                "options": {
+                    "tabSize": 8,
+                    "insertSpaces": false
+                }
+            }))
+            .id(2)
+            .finish();
+        let response = call_lsp(&mut service, formatting)
+            .await
+            .expect("formatting should return a response");
+        let response = serde_json::to_value(response).unwrap();
+        assert_eq!(response["result"][0]["newText"], "f := (\n  a * b\n)\n");
+    }
+
+    #[test]
+    fn reports_crate_identity_to_lsp_clients() {
+        let info = server_info();
+
+        assert_eq!(info.name, env!("CARGO_PKG_NAME"));
+        assert_eq!(info.version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
+    }
 
     #[test]
     fn source_resolver_finds_package_and_doc_files_from_m2_path_roots() {

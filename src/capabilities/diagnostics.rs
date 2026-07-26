@@ -7,7 +7,7 @@ use tower_lsp::lsp_types::{Position, Range as LspRange, SymbolKind};
 use tower_lsp::Client;
 
 use crate::analysis::{symbol_node_text, Analysis};
-use crate::diagnostic_registry::M2Diagnostic;
+use crate::diagnostic_registry::{DiagnosticPolicy, M2Diagnostic};
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
@@ -25,8 +25,25 @@ pub(crate) const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
         - `x..2` => `x .. 2`
         - `x...2` => `x .. .2`
         - `symbol.....2` => `symbol.. .. .2`";
-pub(crate) async fn publish_diagnostics(client: &Client, uri: Url, document: &DocumentSnapshot) {
-    let diagnostics = document.diagnostics().to_vec();
+pub(crate) fn visible_diagnostics(
+    document: &DocumentSnapshot,
+    policy: &(impl DiagnosticPolicy + ?Sized),
+) -> Vec<tower_lsp::lsp_types::Diagnostic> {
+    document
+        .diagnostics()
+        .iter()
+        .filter(|diagnostic| policy.allows_lsp_diagnostic(diagnostic))
+        .cloned()
+        .collect()
+}
+
+pub(crate) async fn publish_diagnostics(
+    client: &Client,
+    uri: Url,
+    document: &DocumentSnapshot,
+    policy: &(impl DiagnosticPolicy + ?Sized),
+) {
+    let diagnostics = visible_diagnostics(document, policy);
     client.publish_diagnostics(uri, diagnostics, None).await;
 }
 

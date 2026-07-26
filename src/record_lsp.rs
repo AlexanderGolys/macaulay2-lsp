@@ -2,7 +2,7 @@
 
 use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, SymbolKind};
 
-use crate::typesystem::{BuiltinData, OperatorInfo, Record, ResolvedSignature, SignatureUsage};
+use crate::typesystem::{LspKnowledge, OperatorInfo, Record, ResolvedSignature, SignatureUsage};
 
 pub(crate) fn record_package(record: &Record) -> Option<&str> {
     record.package.as_deref()
@@ -32,13 +32,13 @@ pub(crate) fn record_symbol_kind(record: &Record) -> SymbolKind {
 pub(crate) fn record_hover_with_package_and_usage(
     record: &Record,
     package: Option<&str>,
-    builtins: &BuiltinData,
+    knowledge: &(impl LspKnowledge + ?Sized),
     usage: Option<&SignatureUsage>,
 ) -> Hover {
     Hover {
         contents: HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,
-            value: record_hover_markdown(record, package, builtins, usage),
+            value: record_hover_markdown(record, package, knowledge, usage),
         }),
         range: None,
     }
@@ -47,7 +47,7 @@ pub(crate) fn record_hover_with_package_and_usage(
 fn record_hover_markdown(
     record: &Record,
     package: Option<&str>,
-    builtins: &BuiltinData,
+    knowledge: &(impl LspKnowledge + ?Sized),
     usage: Option<&SignatureUsage>,
 ) -> String {
     let title_signature = usage
@@ -73,7 +73,7 @@ fn record_hover_markdown(
 
         match option_role {
             "key" => {
-                let usages = builtins.option_usage_names(&record.name.0, 8);
+                let usages = knowledge.option_usage_names(&record.name.0, 8);
                 if !usages.is_empty() {
                     markdown.push_str("**Accepted By Methods:**\n");
                     for usage in usages {
@@ -83,7 +83,7 @@ fn record_hover_markdown(
                 }
             }
             "value" => {
-                let usages = builtins.option_value_usage_names(&record.name.0, 8);
+                let usages = knowledge.option_value_usage_names(&record.name.0, 8);
                 if !usages.is_empty() {
                     markdown.push_str("**Valid As Option Value:**\n");
                     for usage in usages {
@@ -141,7 +141,7 @@ fn record_hover_markdown(
         let documented_signatures = if usage.is_some() {
             Vec::new()
         } else {
-            builtins.documented_signatures(record)
+            knowledge.documented_signatures(record)
         };
         if !documented_signatures.is_empty() {
             markdown.push_str("**Documented Signatures:**\n");
@@ -160,7 +160,7 @@ fn record_hover_markdown(
         let installed_methods = if usage.is_some() {
             Vec::new()
         } else {
-            builtins.undocumented_installed_methods(record)
+            knowledge.undocumented_installed_methods(record)
         };
         if !installed_methods.is_empty() {
             markdown.push_str("**Installed Methods:**\n");
@@ -201,9 +201,9 @@ fn record_hover_markdown(
     // rendered docs live in a separate map read once at startup. Append them
     // below the structured header. Package records keep their own docs and have
     // no entry here, so this is a no-op for them.
-    if let Some(doc) = builtins.doc_markdown(&record.name) {
+    if let Some(doc) = knowledge.doc_markdown(&record.name) {
         markdown.push_str("\n---\n\n");
-        markdown.push_str(doc);
+        markdown.push_str(&doc);
         markdown.push('\n');
     }
 

@@ -9,17 +9,26 @@ use tree_sitter::Parser;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::util::full_document_range;
 
-/// Formatting style derived from the client's `FormatOptions` (`tab_size` /
-/// `insert_spaces`): the indent unit used for every depth level.
+pub(crate) trait FormattingConfiguration {
+    fn indent_width(&self) -> Option<u32>;
+    fn use_tabs(&self) -> Option<bool>;
+    fn compact_factor_operators(&self) -> bool;
+    fn break_after_semicolon(&self) -> bool;
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatOptions {
     indent: String,
+    compact_factor_operators: bool,
+    break_after_semicolon: bool,
 }
 
 impl Default for FormatOptions {
     fn default() -> Self {
         Self {
             indent: "    ".to_string(),
+            compact_factor_operators: false,
+            break_after_semicolon: true,
         }
     }
 }
@@ -32,7 +41,23 @@ impl FormatOptions {
             "\t".to_string()
         };
 
-        Self { indent }
+        Self {
+            indent,
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn from_configuration(
+        tab_size: u32,
+        insert_spaces: bool,
+        configuration: &(impl FormattingConfiguration + ?Sized),
+    ) -> Self {
+        let tab_size = configuration.indent_width().unwrap_or(tab_size);
+        let use_tabs = configuration.use_tabs().unwrap_or(!insert_spaces);
+        let mut options = Self::new(tab_size, !use_tabs);
+        options.compact_factor_operators = configuration.compact_factor_operators();
+        options.break_after_semicolon = configuration.break_after_semicolon();
+        options
     }
 }
 
@@ -49,9 +74,10 @@ pub(crate) fn document_formatting_text_edits(
     text: &str,
     tab_size: u32,
     insert_spaces: bool,
+    configuration: &(impl FormattingConfiguration + ?Sized),
 ) -> Vec<TextEdit> {
-    let formatted =
-        format_document_text_with_options(text, &FormatOptions::new(tab_size, insert_spaces));
+    let options = FormatOptions::from_configuration(tab_size, insert_spaces, configuration);
+    let formatted = format_document_text_with_options(text, &options);
     if formatted == text {
         return Vec::new();
     }
@@ -97,7 +123,7 @@ pub fn format_document_text_with_options(text: &str, options: &FormatOptions) ->
     // (`reindent_from_tree`). Neither rewrites token text, so string and comment
     // contents are never modified. No reflow/line-breaking, no byte-scanning.
     let newline = detect_line_ending(text);
-    let formatted = normalize_whitespace(text);
+    let formatted = normalize_whitespace(text, options);
     let mut formatted = reindent_from_tree(&formatted, options, newline);
 
     if text.ends_with('\n') {
@@ -124,7 +150,7 @@ fn detect_line_ending(text: &str) -> &'static str {
 /// tree-derived depth; lines inside a multiline string/raw-string are emitted
 /// verbatim so their interior spacing is preserved.
 fn reindent_from_tree(text: &str, options: &FormatOptions, newline: &str) -> String {
-    let layout = TreeIndentLayout::build(text);
+    let layout = TreeIndentLayout::build(text, options.compact_factor_operators);
     text.lines()
         .enumerate()
         .map(|(row, line)| {
@@ -149,7 +175,7 @@ fn reindent_from_tree(text: &str, options: &FormatOptions, newline: &str) -> Str
 
 /// The document's fold ranges, derived from tree-based indentation depths.
 pub fn folding_ranges_for_text(text: &str) -> Vec<FormatFoldRange> {
-    let layout = TreeIndentLayout::build(text);
+    let layout = TreeIndentLayout::build(text, false);
     let indented_lines = text
         .lines()
         .enumerate()
@@ -179,7 +205,7 @@ struct TreeIndentLayout {
 }
 
 impl TreeIndentLayout {
-    fn build(text: &str) -> Self {
+    fn build(text: &str, compact_factor_operators: bool) -> Self {
         let line_count = text.lines().count().max(1);
         let mut parser = Parser::new();
         if parser
@@ -211,7 +237,7 @@ impl TreeIndentLayout {
         let depths = (0..line_count)
             .map(|row| {
                 bracket_depth(row, &brackets, &line_leads)
-                    + line_continuation(row, root, &line_leads)
+                    + line_continuation(row, root, &line_leads, compact_factor_operators)
             })
             .collect();
 
@@ -303,9 +329,7 @@ fn append_line_comment_fold(
 struct BracketGroup {
     open_row: usize,
     close_row: usize,
-    /// Column of the closing delimiter on `close_row`; its closer "begins the
-    /// line" when this equals the line's leading-whitespace length.
-    close_col: usize,
+    closing_delimiter_column: usize,
 }
 
 /// Collect every multiline bracket node (`(…)`, `{…}`, `[…]`, `<|…|>`) spanning
@@ -324,7 +348,7 @@ fn collect_bracket_groups(root: M2Node<'_>, line_count: usize) -> Vec<BracketGro
                 groups.push(BracketGroup {
                     open_row,
                     close_row: close_position.row,
-                    close_col: close_position
+                    closing_delimiter_column: close_position
                         .column
                         .saturating_sub(closer_width(node.kind)),
                 });
@@ -360,7 +384,7 @@ fn collect_unclosed_error_brackets(
             groups.push(BracketGroup {
                 open_row,
                 close_row: last_row,
-                close_col: usize::MAX,
+                closing_delimiter_column: usize::MAX,
             });
         }
     }
@@ -429,7 +453,7 @@ fn bracket_depth(row: usize, brackets: &[BracketGroup], line_leads: &[usize]) ->
             active.push(group.open_row);
         }
         if group.close_row == row
-            && group.close_col == leading_blank
+            && group.closing_delimiter_column == leading_blank
             && !leading_closed.contains(&group.open_row)
         {
             leading_closed.push(group.open_row);
@@ -440,14 +464,19 @@ fn bracket_depth(row: usize, brackets: &[BracketGroup], line_leads: &[usize]) ->
 
 /// `continuation(row)` is a flat +1 for a line that continues an expression or a
 /// clause body broken onto a later line (see the rule cases inline).
-fn line_continuation(row: usize, root: M2Node<'_>, line_leads: &[usize]) -> usize {
+fn line_continuation(
+    row: usize,
+    root: M2Node<'_>,
+    line_leads: &[usize],
+    compact_factor_operators: bool,
+) -> usize {
     let Some(first) = first_leaf_on_row(root, row) else {
         return 0;
     };
 
     // (a) The first token is the start of the right operand of a binary
     // expression whose operator dangled on an earlier row (`a +\nb`).
-    if is_right_operand_first_token(first, row) {
+    if is_right_operand_first_token(first, row, compact_factor_operators) {
         return 1;
     }
 
@@ -491,7 +520,11 @@ fn first_leaf_on_row(root: M2Node<'_>, row: usize) -> Option<M2Node<'_>> {
 /// whose operator dangled on a row before `row`. Only spaced operators carry a
 /// continuation: a compact operator like `*` left at line end (`a*\nb`) does not
 /// indent its continuation, matching the line-final-operator spacing pass.
-fn is_right_operand_first_token(node: M2Node<'_>, row: usize) -> bool {
+fn is_right_operand_first_token(
+    node: M2Node<'_>,
+    row: usize,
+    compact_factor_operators: bool,
+) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
         if parent.is(NodeKind::BinaryExpression) {
@@ -501,7 +534,7 @@ fn is_right_operand_first_token(node: M2Node<'_>, row: usize) -> bool {
             ) {
                 if right.start_byte() == node.start_byte()
                     && operator.start_position().row < row
-                    && is_spaced_line_final_operator(operator.text())
+                    && is_spaced_line_final_operator(operator.text(), compact_factor_operators)
                 {
                     return true;
                 }
@@ -664,7 +697,7 @@ fn close_fold_range(
     });
 }
 
-fn normalize_whitespace(text: &str) -> String {
+fn normalize_whitespace(text: &str, options: &FormatOptions) -> String {
     let mut parser = Parser::new();
     if parser
         .set_language(&tree_sitter_macaulay2::language())
@@ -677,11 +710,21 @@ fn normalize_whitespace(text: &str) -> String {
     };
 
     let mut edits = Vec::new();
-    collect_format_edits(M2Node::new(tree.root_node(), text), text, &mut edits);
+    collect_format_edits(
+        M2Node::new(tree.root_node(), text),
+        text,
+        options,
+        &mut edits,
+    );
     apply_format_edits(text, edits)
 }
 
-fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit>) {
+fn collect_format_edits(
+    node: M2Node<'_>,
+    text: &str,
+    options: &FormatOptions,
+    edits: &mut Vec<FormatEdit>,
+) {
     if node.is_missing() {
         return;
     }
@@ -692,7 +735,7 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
         }
 
         if node.is_semicolon() {
-            push_semicolon_whitespace_edits(text, node, edits);
+            push_semicolon_whitespace_edits(text, node, options.break_after_semicolon, edits);
         }
 
         if let Some(operator) = node.child_by_field_name("operator") {
@@ -714,7 +757,7 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
                         push_compact_operator_whitespace_edits(text, operator, edits)
                     }
                     OperatorSpacing::Factor => {
-                        if binary_operator_all_factors(node) {
+                        if options.compact_factor_operators && binary_operator_all_factors(node) {
                             push_compact_operator_whitespace_edits(text, operator, edits);
                         } else {
                             push_operator_whitespace_edits(text, operator, edits);
@@ -730,7 +773,7 @@ fn collect_format_edits(node: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit
     }
 
     for child in node.children() {
-        collect_format_edits(child, text, edits);
+        collect_format_edits(child, text, options, edits);
     }
 }
 
@@ -867,8 +910,12 @@ fn binary_operator_all_factors(node: M2Node<'_>) -> bool {
 /// (Factor operators are excluded: a compact `*` left at line-end `a*\nb` does
 /// not indent). Derived from `binary_operator_spacing` so a new spaced operator
 /// cannot be added to one table and forgotten in the other.
-fn is_spaced_line_final_operator(operator: &str) -> bool {
-    binary_operator_spacing(operator) == OperatorSpacing::Spaced
+fn is_spaced_line_final_operator(operator: &str, compact_factor_operators: bool) -> bool {
+    match binary_operator_spacing(operator) {
+        OperatorSpacing::Spaced => true,
+        OperatorSpacing::Factor => !compact_factor_operators,
+        _ => false,
+    }
 }
 
 fn is_parenthesized_call(node: M2Node<'_>) -> bool {
@@ -1044,7 +1091,12 @@ fn push_comma_whitespace_edits(text: &str, comma: M2Node<'_>, edits: &mut Vec<Fo
     });
 }
 
-fn push_semicolon_whitespace_edits(text: &str, semicolon: M2Node<'_>, edits: &mut Vec<FormatEdit>) {
+fn push_semicolon_whitespace_edits(
+    text: &str,
+    semicolon: M2Node<'_>,
+    break_after_semicolon: bool,
+    edits: &mut Vec<FormatEdit>,
+) {
     if let Some(start_byte) = same_line_horizontal_whitespace_start(text, semicolon.start_byte()) {
         edits.push(FormatEdit {
             start_byte,
@@ -1060,10 +1112,17 @@ fn push_semicolon_whitespace_edits(text: &str, semicolon: M2Node<'_>, edits: &mu
         return;
     };
     if !matches!(next_byte, b'\n' | b'\r') {
+        let replacement = if break_after_semicolon {
+            "\n"
+        } else if matches!(next_byte, b')' | b']' | b'}') {
+            ""
+        } else {
+            " "
+        };
         edits.push(FormatEdit {
             start_byte: semicolon.end_byte(),
             end_byte,
-            replacement: "\n",
+            replacement,
         });
     }
 }
@@ -1224,8 +1283,8 @@ mod tests {
             format_document_text("f(x, Strategy=>LongPolynomial)\n"),
             "f(x, Strategy => LongPolynomial)\n"
         );
-        assert_eq!(format_document_text("8 * delta / 2\n"), "8*delta/2\n");
-        assert_eq!(format_document_text("x ** y // z\n"), "x**y // z\n");
+        assert_eq!(format_document_text("8*delta/2\n"), "8 * delta / 2\n");
+        assert_eq!(format_document_text("x**y // z\n"), "x ** y // z\n");
         assert_eq!(format_document_text("x<<y\n"), "x << y\n");
         assert_eq!(format_document_text("x ^ y # 0\n"), "x^y#0\n");
     }
@@ -1323,6 +1382,51 @@ mod tests {
     }
 
     #[test]
+    fn can_restore_compact_factor_operators() {
+        let options = FormatOptions {
+            compact_factor_operators: true,
+            ..FormatOptions::default()
+        };
+
+        assert_eq!(
+            format_document_text_with_options("8 * delta / 2\n", &options),
+            "8*delta/2\n"
+        );
+    }
+
+    #[test]
+    fn can_keep_semicolon_separated_statements_inline() {
+        let options = FormatOptions {
+            break_after_semicolon: false,
+            ..FormatOptions::default()
+        };
+
+        assert_eq!(
+            format_document_text_with_options("i=0;j=0;\n", &options),
+            "i = 0; j = 0;\n"
+        );
+    }
+
+    #[test]
+    fn server_settings_override_lsp_format_options() {
+        let settings = crate::settings::ServerSettings::from_value(&serde_json::json!({
+            "formatting": {
+                "indentWidth": 2,
+                "useTabs": false,
+                "compactFactorOperators": true,
+                "breakAfterSemicolon": false
+            }
+        }))
+        .unwrap();
+        let options = FormatOptions::from_configuration(8, false, settings.formatting());
+
+        assert_eq!(
+            format_document_text_with_options("f := (\na * b;c\n)\n", &options),
+            "f := (\n  a*b; c\n)\n"
+        );
+    }
+
+    #[test]
     fn normalizes_parenthesized_call_whitespace() {
         assert_eq!(format_document_text("f (x,y)\n"), "f(x, y)\n");
         assert_eq!(format_document_text("f \t (x)\n"), "f(x)\n");
@@ -1401,10 +1505,11 @@ mod tests {
 
     #[test]
     fn formats_example_file_despite_parser_gaps() {
-        let formatted = format_document_text(include_str!("../../example_m2_code/example1.m2"));
+        let formatted =
+            format_document_text(include_str!("../../tests/fixtures/formatting_example.m2"));
 
-        assert!(formatted.contains("k := ceiling((-3 + sqrt(9.0 + 8*delta))/2);"));
-        assert!(formatted.contains("K = ZZ/101;"));
+        assert!(formatted.contains("k := ceiling((-3 + sqrt(9.0 + 8 * delta)) / 2);"));
+        assert!(formatted.contains("K = ZZ / 101;"));
         assert!(formatted.contains("randomPlanePoints = (delta, R) -> ("));
         assert!(formatted.contains("random(source gens Ip2, R^{-d})"));
         assert!(formatted.contains("SyzygyLimit => 60"));
@@ -1451,7 +1556,8 @@ mod tests {
 
     #[test]
     fn keeps_top_level_symbols_unindented_after_comment_dividers() {
-        let formatted = format_document_text(include_str!("../../example_m2_code/example2.m2"));
+        let formatted =
+            format_document_text(include_str!("../../tests/fixtures/comment_dividers.m2"));
 
         assert!(formatted.contains("\nprimitive = (L) -> ("));
         assert!(formatted.contains("\ntoZZ = (L) -> ("));

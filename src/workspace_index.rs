@@ -12,6 +12,7 @@ use std::sync::RwLock;
 use dashmap::DashMap;
 use tower_lsp::lsp_types::{Location, Range, Url};
 
+use crate::analysis::SymbolName;
 use crate::capabilities::semantic_tokens::local_symbol_semantic_token_type;
 use crate::document::DocumentSnapshot;
 use crate::typesystem::{BuiltinData, M2SemanticTokenType};
@@ -20,10 +21,7 @@ use crate::typesystem::{BuiltinData, M2SemanticTokenType};
 struct DefLocation {
     uri: Url,
     range: Range,
-    /// The semantic-token type this definition would carry in its own file
-    /// so a cross-file reference can be highlighted like the
-    /// definition. Computed once at index time from the definition's symbol info.
-    token_type: M2SemanticTokenType,
+    semantic_token_type: M2SemanticTokenType,
 }
 
 /// Global definition index, keyed by symbol name, kept in sync with edits and
@@ -31,10 +29,8 @@ struct DefLocation {
 /// files from disk.
 #[derive(Debug, Default)]
 pub(crate) struct WorkspaceIndex {
-    /// name -> every place it is defined at top level across the workspace.
-    by_name: DashMap<String, Vec<DefLocation>>,
-    /// file -> the names it contributes, so a re-index can drop the old set.
-    by_file: DashMap<Url, Vec<String>>,
+    definitions_by_name: DashMap<SymbolName, Vec<DefLocation>>,
+    names_by_file: DashMap<Url, Vec<SymbolName>>,
     roots: RwLock<Vec<PathBuf>>,
 }
 
@@ -63,7 +59,7 @@ impl WorkspaceIndex {
                 // A file already in the index is owned by an open buffer (indexed
                 // live) or was already visited this scan; don't overwrite it with
                 // potentially stale disk content.
-                if self.by_file.contains_key(&uri) {
+                if self.names_by_file.contains_key(&uri) {
                     continue;
                 }
                 let Ok(text) = std::fs::read_to_string(&path) else {
@@ -82,33 +78,34 @@ impl WorkspaceIndex {
             return;
         }
         let mut names = Vec::with_capacity(definitions.len());
-        for (name, range, token_type) in definitions {
-            self.by_name
+        for (name, range, semantic_token_type) in definitions {
+            let name = SymbolName::new(&name);
+            self.definitions_by_name
                 .entry(name.clone())
                 .or_default()
                 .push(DefLocation {
                     uri: uri.clone(),
                     range,
-                    token_type,
+                    semantic_token_type,
                 });
             names.push(name);
         }
-        self.by_file.insert(uri.clone(), names);
+        self.names_by_file.insert(uri.clone(), names);
     }
 
     pub(crate) fn remove_file(&self, uri: &Url) {
-        let Some((_, names)) = self.by_file.remove(uri) else {
+        let Some((_, names)) = self.names_by_file.remove(uri) else {
             return;
         };
         for name in names {
-            let now_empty = if let Some(mut locations) = self.by_name.get_mut(&name) {
+            let now_empty = if let Some(mut locations) = self.definitions_by_name.get_mut(&name) {
                 locations.retain(|location| &location.uri != uri);
                 locations.is_empty()
             } else {
                 false
             };
             if now_empty {
-                self.by_name.remove(&name);
+                self.definitions_by_name.remove(&name);
             }
         }
     }
@@ -117,7 +114,7 @@ impl WorkspaceIndex {
     /// document, whose live analysis is the authoritative source for its own
     /// definitions.
     pub(crate) fn lookup(&self, name: &str, exclude: &Url) -> Vec<Location> {
-        self.by_name
+        self.definitions_by_name
             .get(name)
             .map(|locations| {
                 locations
@@ -135,7 +132,7 @@ impl WorkspaceIndex {
     /// Whether `name` is defined at top level anywhere in the workspace. Used to
     /// recognise a global symbol whose definition lives in another file.
     pub(crate) fn is_defined(&self, name: &str) -> bool {
-        self.by_name.contains_key(name)
+        self.definitions_by_name.contains_key(name)
     }
 
     /// The semantic-token type for a cross-file reference to `name`, taken from
@@ -147,11 +144,11 @@ impl WorkspaceIndex {
         name: &str,
         exclude: &Url,
     ) -> Option<M2SemanticTokenType> {
-        self.by_name.get(name).and_then(|locations| {
+        self.definitions_by_name.get(name).and_then(|locations| {
             locations
                 .iter()
                 .find(|location| &location.uri != exclude)
-                .map(|location| location.token_type)
+                .map(|location| location.semantic_token_type)
         })
     }
 

@@ -6,9 +6,8 @@ use crate::analysis::{FunctionInfo, MethodInfo};
 use crate::document::DocumentSnapshot;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKindMetadata};
-use crate::partitioned_index::ScopedIndex;
 use crate::record_lsp::record_hover_with_package_and_usage;
-use crate::typesystem::InstanceID;
+use crate::typesystem::{InstanceID, LspKnowledge};
 
 /// The hover at `position`: a local symbol renders its binding info and local
 /// method signatures; a builtin/package object renders its record from the
@@ -16,7 +15,7 @@ use crate::typesystem::InstanceID;
 pub(crate) fn hover_response(
     document: &DocumentSnapshot,
     position: Position,
-    scoped: &ScopedIndex,
+    knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Option<Hover> {
     let text = document.text();
     let analysis = document.analysis();
@@ -46,13 +45,14 @@ pub(crate) fn hover_response(
 
     // Render from the partition that owns the record so an imported package
     // object shows its own documentation/signatures, not only a Core lookup.
-    let (package, record, owning_data) =
-        scoped.record_partition(&InstanceID(node_text.to_string()))?;
-    let signature_usage = call_signature_usage_for_hover(node, node_text, text, analysis, scoped);
+    let (package, record) =
+        knowledge.get_record_with_package(&InstanceID(node_text.to_string()))?;
+    let signature_usage =
+        call_signature_usage_for_hover(node, node_text, text, analysis, knowledge);
     Some(record_hover_with_package_and_usage(
         &record,
-        Some(package),
-        owning_data,
+        Some(&package),
+        knowledge,
         signature_usage.as_ref(),
     ))
 }
@@ -109,12 +109,9 @@ fn call_signature_usage_for_hover(
     node_text: &str,
     text: &str,
     analysis: &crate::analysis::Analysis,
-    scoped: &ScopedIndex,
+    knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Option<crate::typesystem::SignatureUsage> {
     let parent = node.parent()?;
-    // Static inference stays Core-scoped (its package path is a later phase);
-    // signature-usage resolution consults the full loaded scope.
-    let builtins = scoped.core();
 
     let argument_types = if parent.is_space_application() {
         let callable = parent.child_by_field_name("left")?;
@@ -124,7 +121,7 @@ fn call_signature_usage_for_hover(
 
         let argument = parent.child_by_field_name("right")?;
         analysis
-            .infer_call_static_facts(argument, text, builtins)
+            .infer_call_static_facts(argument, text, knowledge)
             .dispatch_argument_types()
     } else if parent
         .child_by_field_name("operator")
@@ -133,14 +130,14 @@ fn call_signature_usage_for_hover(
         let left = parent.child_by_field_name("left")?;
         let right = parent.child_by_field_name("right")?;
         vec![
-            analysis.infer_expression_static_type_name(left, text, builtins),
-            analysis.infer_expression_static_type_name(right, text, builtins),
+            analysis.infer_expression_static_type_name(left, text, knowledge),
+            analysis.infer_expression_static_type_name(right, text, knowledge),
         ]
     } else {
         return None;
     };
 
-    scoped.resolve_call_signature_usage(node_text, &argument_types)
+    knowledge.resolve_call_signature_usage(node_text, &argument_types)
 }
 
 /// Whether a hover over this node is meaningful: a symbol-like leaf or an
@@ -349,7 +346,7 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_knowledge(&tree, text, scoped.core());
+        let analysis = Analysis::new_with_knowledge(&tree, text, &scoped);
         let node = tree
             .root_node()
             .descendant_for_point_range(
@@ -399,7 +396,7 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_knowledge(&tree, text, scoped.core());
+        let analysis = Analysis::new_with_knowledge(&tree, text, &scoped);
         let node = tree
             .root_node()
             .descendant_for_point_range(

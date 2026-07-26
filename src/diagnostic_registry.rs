@@ -32,6 +32,23 @@ pub enum M2Diagnostic {
 }
 
 impl M2Diagnostic {
+    pub const ALL: [Self; 14] = [
+        Self::SyntaxError,
+        Self::MissingNode,
+        Self::AmbiguousFloatMemberAccess,
+        Self::MultipleAssignmentTargets,
+        Self::ColonEqualPartAssignment,
+        Self::ParallelAssignmentArity,
+        Self::OptionKeyConvention,
+        Self::UnusedBinding,
+        Self::InstallNoEffect,
+        Self::OperatorNotFlexible,
+        Self::InstallArity,
+        Self::InstallNeedsColonEquals,
+        Self::ProtectAssignedSymbol,
+        Self::ProtectComputedSymbol,
+    ];
+
     /// The stable `E..` code surfaced to the editor (rustc-style).
     pub fn code(self) -> &'static str {
         match self {
@@ -104,14 +121,34 @@ impl M2Diagnostic {
             ..Default::default()
         }
     }
+
+    pub fn from_selector(selector: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|diagnostic| selector == diagnostic.code() || selector == diagnostic.name())
+    }
+
+    pub fn from_diagnostic(diagnostic: &Diagnostic) -> Option<Self> {
+        let NumberOrString::String(code) = diagnostic.code.as_ref()? else {
+            return None;
+        };
+        Self::ALL
+            .into_iter()
+            .find(|diagnostic| code == diagnostic.code())
+    }
+}
+
+pub trait DiagnosticPolicy {
+    fn allows(&self, diagnostic: M2Diagnostic) -> bool;
+
+    fn allows_lsp_diagnostic(&self, diagnostic: &Diagnostic) -> bool {
+        M2Diagnostic::from_diagnostic(diagnostic).is_none_or(|kind| self.allows(kind))
+    }
 }
 
 /// Whether `diagnostic` was emitted for `kind`, matched by its stable code.
 pub fn diagnostic_has_kind(diagnostic: &Diagnostic, kind: M2Diagnostic) -> bool {
-    matches!(
-        &diagnostic.code,
-        Some(NumberOrString::String(code)) if code == kind.code()
-    )
+    M2Diagnostic::from_diagnostic(diagnostic) == Some(kind)
 }
 
 #[cfg(test)]
@@ -124,24 +161,8 @@ mod tests {
         // Every variant must appear here; the exhaustive `match`es guarantee a
         // new one is given a code/name/severity, and this list keeps the `E..`
         // codes contiguous and the names unique.
-        let all = [
-            M2Diagnostic::SyntaxError,
-            M2Diagnostic::MissingNode,
-            M2Diagnostic::AmbiguousFloatMemberAccess,
-            M2Diagnostic::MultipleAssignmentTargets,
-            M2Diagnostic::ColonEqualPartAssignment,
-            M2Diagnostic::ParallelAssignmentArity,
-            M2Diagnostic::OptionKeyConvention,
-            M2Diagnostic::UnusedBinding,
-            M2Diagnostic::InstallNoEffect,
-            M2Diagnostic::OperatorNotFlexible,
-            M2Diagnostic::InstallArity,
-            M2Diagnostic::InstallNeedsColonEquals,
-            M2Diagnostic::ProtectAssignedSymbol,
-            M2Diagnostic::ProtectComputedSymbol,
-        ];
         let mut names = HashSet::new();
-        for (index, diagnostic) in all.iter().enumerate() {
+        for (index, diagnostic) in M2Diagnostic::ALL.iter().enumerate() {
             assert_eq!(
                 diagnostic.code(),
                 format!("E{index:02}"),

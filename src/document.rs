@@ -21,13 +21,7 @@ pub(crate) struct DocumentSnapshot {
     text: String,
     tree: Tree,
     analysis: Analysis,
-    /// Packages this document imports (`needsPackage`/`loadPackage`/`debug`/
-    /// `importFrom`), collected once per version from `tree`. The baseline is
-    /// owned by the partitioned index, so the snapshot stores only its own
-    /// contribution to the loaded set.
     imported_packages: Vec<String>,
-    /// Backtick-delimited code-object mentions inside comments and raw
-    /// documentation strings, indexed once per document version.
     documentation_references: Vec<DocumentationReference>,
 }
 

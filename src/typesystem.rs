@@ -58,9 +58,6 @@ pub struct Record {
     pub option_info: Option<OptionInfo>,
     pub operator_info: Option<OperatorInfo>,
     pub type_info: Option<TypeInfo>,
-    /// Whether a `Symbol`-class object is `protect`ed. `None` ⇒ the corpus did
-    /// not record it; the classifier then falls back to the class-is-`Symbol`
-    /// proxy (see [`BuiltinData::is_protected_symbol`]).
     pub protected: Option<bool>,
 }
 
@@ -104,10 +101,7 @@ pub struct DocumentedMethodSignature {
 pub struct OperatorInfo {
     pub method_symbol: InstanceID,
     pub forms: Vec<String>,
-    /// Per-form operator attributes from the corpus (`binary` → `["Flexible"]`,
-    /// …). Flexibility is per-form: an operator can be flexible as a prefix yet
-    /// not as a binary, so it is queried via [`OperatorInfo::is_flexible`].
-    pub attributes: HashMap<OperatorForm, Vec<String>>,
+    pub form_attributes: HashMap<OperatorForm, Vec<String>>,
 }
 
 /// The operator attribute marking a form as accepting runtime method
@@ -118,7 +112,7 @@ impl OperatorInfo {
     /// Whether this operator accepts a method installed on the given form
     /// (`"binary"`/`"prefix"`/`"postfix"`) — i.e. that form is `Flexible`.
     pub fn is_flexible(&self, form: &str) -> bool {
-        self.attributes
+        self.form_attributes
             .get(form)
             .is_some_and(|attributes| attributes.iter().any(|a| a == FLEXIBLE_ATTRIBUTE))
     }
@@ -155,7 +149,7 @@ impl TypeLattice {
             // for the direct edge — otherwise it only ever succeeds reflexively.
             let mut chain: Vec<InstanceID> =
                 entry.ancestors.iter().map(|a| InstanceID::new(a)).collect();
-            if let Some(parent) = &entry.parent {
+            if let Some(parent) = &entry.immediate_parent {
                 chain.push(InstanceID::new(parent));
             }
             chain.sort();
@@ -179,18 +173,10 @@ impl TypeLattice {
 #[derive(Debug, Clone)]
 /// In-memory view of the generated builtin corpus used by one LSP workspace.
 pub struct BuiltinData {
-    /// Primary names, one per pooled record (1:1 with `records`).
-    names: Vec<InstanceID>,
-    /// Name *and* every alias → record index. More entries than `names`.
-    name_to_index: HashMap<InstanceID, usize>,
-    /// Records held in memory; `get_record` clones from here rather than
-    /// re-deserializing a packed string per lookup.
+    primary_names: Vec<InstanceID>,
+    record_index_by_name: HashMap<InstanceID, usize>,
     records: Vec<Record>,
-    /// Pre-rendered hover markdown keyed by name + aliases. Read once at load
-    /// (folded into each `m2-index.jsonl` record for builtins and lifted into
-    /// this map by `from_index`); hover reads it from here. Empty for runtime
-    /// package indexes.
-    docs: HashMap<InstanceID, String>,
+    hover_markdown_by_name: HashMap<InstanceID, String>,
     type_facts: TypeFacts,
     type_lattice: TypeLattice,
 }
@@ -231,6 +217,34 @@ pub(crate) trait SemanticTokenKnowledge: TypeKnowledge {
     fn is_protected_symbol(&self, name: &str) -> bool;
 
     fn is_option_value_for_key(&self, option_key: &str, value_name: &str) -> bool;
+}
+
+pub(crate) trait LspKnowledge: TypeKnowledge {
+    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, Record)>;
+
+    fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)>;
+
+    fn matching_names(&self, query: &str, limit: usize) -> Vec<(String, String)>;
+
+    fn resolve_call_signature_usage(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+    ) -> Option<SignatureUsage>;
+
+    fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature>;
+
+    fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature>;
+
+    fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String>;
+
+    fn option_value_usage_names(&self, value_name: &str, limit: usize) -> Vec<String>;
+
+    fn doc_markdown(&self, name: &InstanceID) -> Option<String>;
+}
+
+pub(crate) trait PartitionedTypeKnowledge {
+    fn get_record_from_package(&self, package: &str, name: &InstanceID) -> Option<Record>;
 }
 
 /// Supplies the semantic index for one document's imported-package set.
@@ -368,7 +382,7 @@ impl TypeFacts {
 impl BuiltinData {
     /// Number of primary records; aliases do not increase this count.
     pub fn len(&self) -> usize {
-        self.names.len()
+        self.primary_names.len()
     }
 
     /// Primary names beginning with `prefix`, in corpus order and capped at `limit`.
@@ -377,7 +391,7 @@ impl BuiltinData {
             return Vec::new();
         }
 
-        self.names
+        self.primary_names
             .iter()
             .map(|name| name.0.as_str())
             .filter(|name| name.starts_with(prefix))
@@ -392,7 +406,7 @@ impl BuiltinData {
         }
 
         let query = query.to_lowercase();
-        self.names
+        self.primary_names
             .iter()
             .map(|name| name.0.as_str())
             .filter(|name| name.to_lowercase().contains(&query))
@@ -403,7 +417,7 @@ impl BuiltinData {
     /// Clone the record named by `name`, resolving aliases through the same map
     /// used for all builtin lookups.
     pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
-        let index = *self.name_to_index.get(name)?;
+        let index = *self.record_index_by_name.get(name)?;
         self.records.get(index).cloned()
     }
 
@@ -411,9 +425,9 @@ impl BuiltinData {
     /// docs asset carried an entry. Typecheck records hold no doc text. Aliases
     /// resolve to the record's primary name, under which the docs are keyed.
     pub fn doc_markdown(&self, name: &InstanceID) -> Option<&str> {
-        let index = *self.name_to_index.get(name)?;
-        let primary = self.names.get(index)?;
-        self.docs.get(primary).map(String::as_str)
+        let index = *self.record_index_by_name.get(name)?;
+        let primary = self.primary_names.get(index)?;
+        self.hover_markdown_by_name.get(primary).map(String::as_str)
     }
 
     /// Return callables which document `option_name`, with package qualifiers
@@ -427,7 +441,7 @@ impl BuiltinData {
             .rsplit_once('$')
             .map_or(option_name, |(_, name)| name);
         let mut usages = Vec::new();
-        for (index, name) in self.names.iter().enumerate() {
+        for (index, name) in self.primary_names.iter().enumerate() {
             let Some(record) = self.records.get(index) else {
                 continue;
             };
@@ -887,6 +901,66 @@ impl<T: SemanticTokenKnowledge + ?Sized> SemanticTokenKnowledge for &T {
     }
 }
 
+impl LspKnowledge for BuiltinData {
+    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, Record)> {
+        let record = BuiltinData::get_record(self, name)?;
+        let package = record.package.clone().unwrap_or_else(|| "Core".to_string());
+        Some((package, record))
+    }
+
+    fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)> {
+        BuiltinData::names_with_prefix(self, prefix, limit)
+            .into_iter()
+            .map(|name| {
+                let package = BuiltinData::get_record(self, &InstanceID::new(name))
+                    .and_then(|record| record.package)
+                    .unwrap_or_else(|| "Core".to_string());
+                (package, name.to_string())
+            })
+            .collect()
+    }
+
+    fn matching_names(&self, query: &str, limit: usize) -> Vec<(String, String)> {
+        BuiltinData::matching_names(self, query, limit)
+            .into_iter()
+            .map(|name| {
+                let package = BuiltinData::get_record(self, &InstanceID::new(name))
+                    .and_then(|record| record.package)
+                    .unwrap_or_else(|| "Core".to_string());
+                (package, name.to_string())
+            })
+            .collect()
+    }
+
+    fn resolve_call_signature_usage(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+    ) -> Option<SignatureUsage> {
+        BuiltinData::resolve_call_signature_usage(self, callable, argument_types)
+    }
+
+    fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
+        BuiltinData::documented_signatures(self, record)
+    }
+
+    fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature> {
+        BuiltinData::undocumented_installed_methods(self, record)
+    }
+
+    fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String> {
+        BuiltinData::option_usage_names(self, option_name, limit)
+    }
+
+    fn option_value_usage_names(&self, value_name: &str, limit: usize) -> Vec<String> {
+        BuiltinData::option_value_usage_names(self, value_name, limit)
+    }
+
+    fn doc_markdown(&self, name: &InstanceID) -> Option<String> {
+        BuiltinData::doc_markdown(self, name).map(str::to_string)
+    }
+}
+
 impl TypeKnowledgeProvider for BuiltinData {
     type Knowledge<'a> = &'a BuiltinData;
 
@@ -1117,7 +1191,7 @@ impl RecordEntry for crate::builtin_index::TypeEntry {
                 .iter()
                 .map(|subtype| InstanceID::new(subtype))
                 .collect(),
-            parent_type: self.parent.as_deref().map(InstanceID::new),
+            parent_type: self.immediate_parent.as_deref().map(InstanceID::new),
         });
     }
 }
@@ -1174,8 +1248,8 @@ impl RecordEntry for crate::builtin_index::CallableEntry {
         if self.is_operator {
             record.operator_info = Some(OperatorInfo {
                 method_symbol: InstanceID::new(self.name()),
-                forms: self.forms.clone(),
-                attributes: self.operator_attributes.clone(),
+                forms: self.operator_forms.clone(),
+                form_attributes: self.operator_attributes.clone(),
             });
         }
 
@@ -1195,21 +1269,21 @@ impl RecordEntry for crate::builtin_index::ObjectEntry {
 
 #[derive(Default)]
 struct BuiltinDataBuilder {
-    names: Vec<InstanceID>,
-    name_to_index: HashMap<InstanceID, usize>,
+    primary_names: Vec<InstanceID>,
+    record_index_by_name: HashMap<InstanceID, usize>,
     records: Vec<Record>,
-    docs: HashMap<InstanceID, String>,
+    hover_markdown_by_name: HashMap<InstanceID, String>,
 }
 
 impl BuiltinDataBuilder {
     fn append<T: RecordEntry>(&mut self, entries: &[T]) {
         for entry in entries {
             let id = self.records.len();
-            register_entry_keys(&mut self.name_to_index, entry, id, InstanceID::new);
+            register_entry_keys(&mut self.record_index_by_name, entry, id, InstanceID::new);
             let name = InstanceID::new(entry.name());
-            self.names.push(name.clone());
+            self.primary_names.push(name.clone());
             if let Some(markdown) = entry.markdown() {
-                self.docs
+                self.hover_markdown_by_name
                     .entry(name)
                     .or_insert_with(|| markdown.to_string());
             }
@@ -1219,10 +1293,10 @@ impl BuiltinDataBuilder {
 
     fn finish(self, type_facts: TypeFacts, type_lattice: TypeLattice) -> BuiltinData {
         BuiltinData {
-            names: self.names,
-            name_to_index: self.name_to_index,
+            primary_names: self.primary_names,
+            record_index_by_name: self.record_index_by_name,
             records: self.records,
-            docs: self.docs,
+            hover_markdown_by_name: self.hover_markdown_by_name,
             type_facts,
             type_lattice,
         }

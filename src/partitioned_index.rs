@@ -10,7 +10,8 @@ use crate::builtin_index::{BuiltinIndex, PackageName};
 use crate::package_index::collect_imported_packages;
 use crate::typesystem::{
     semantic_token_for_static_type_from_knowledge, semantic_token_from_knowledge, BuiltinData,
-    InstanceID, M2SemanticToken, Record, SemanticTokenKnowledge, SignatureUsage, TypeKnowledge,
+    InstanceID, LspKnowledge, M2SemanticToken, MethodSignature, PartitionedTypeKnowledge, Record,
+    ResolvedSignature, SemanticTokenKnowledge, SignatureUsage, TypeKnowledge,
     TypeKnowledgeProvider,
 };
 
@@ -84,6 +85,12 @@ impl TypeKnowledgeProvider for PackagePartitionedIndex {
     }
 }
 
+impl PartitionedTypeKnowledge for PackagePartitionedIndex {
+    fn get_record_from_package(&self, package: &str, name: &InstanceID) -> Option<Record> {
+        self.partition(package)?.get_record(name)
+    }
+}
+
 /// The ordered set of packages in scope for a document: the default-loaded
 /// baseline followed by the packages the text imports, deduplicated. A pure
 /// function of the text — adding or removing an import simply re-derives it.
@@ -133,28 +140,8 @@ impl<'a> ScopedIndex<'a> {
             .find_map(|(package, data)| query(package, data))
     }
 
-    /// The Core partition — always the first loaded (baseline floor). Used by the
-    /// few hover helpers that still take the raw Core `BuiltinData`.
-    pub fn core(&self) -> &'a BuiltinData {
-        self.partitions
-            .first()
-            .map(|(_, data)| *data)
-            .expect("loaded set is never empty: Core is always the baseline")
-    }
-
     pub fn get_record_with_package(&self, name: &InstanceID) -> Option<(&'a str, Record)> {
         self.find_map(|package, data| data.get_record(name).map(|record| (package, record)))
-    }
-
-    /// The owning partition of `name`: its package, record, and the partition's
-    /// `BuiltinData` (which carries that record's docs, documented signatures, and
-    /// option usages). Hover renders from the owning partition so an imported
-    /// package object shows its own documentation, not just a Core lookup.
-    pub fn record_partition(
-        &self,
-        name: &InstanceID,
-    ) -> Option<(&'a str, Record, &'a BuiltinData)> {
-        self.find_map(|package, data| data.get_record(name).map(|record| (package, record, data)))
     }
 
     pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
@@ -257,6 +244,76 @@ impl SemanticTokenKnowledge for ScopedIndex<'_> {
         self.partitions
             .iter()
             .any(|(_, data)| data.is_option_value_for_key(option_key, value_name))
+    }
+}
+
+impl LspKnowledge for ScopedIndex<'_> {
+    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, Record)> {
+        ScopedIndex::get_record_with_package(self, name)
+            .map(|(package, record)| (package.to_string(), record))
+    }
+
+    fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)> {
+        ScopedIndex::names_with_prefix(self, prefix, limit)
+            .into_iter()
+            .map(|(package, name)| (package.to_string(), name.to_string()))
+            .collect()
+    }
+
+    fn matching_names(&self, query: &str, limit: usize) -> Vec<(String, String)> {
+        ScopedIndex::matching_names(self, query, limit)
+            .into_iter()
+            .map(|(package, name)| (package.to_string(), name.to_string()))
+            .collect()
+    }
+
+    fn resolve_call_signature_usage(
+        &self,
+        callable: &str,
+        argument_types: &[Option<String>],
+    ) -> Option<SignatureUsage> {
+        ScopedIndex::resolve_call_signature_usage(self, callable, argument_types)
+    }
+
+    fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
+        self.find_map(|_, data| {
+            data.get_record(&record.name)
+                .map(|_| data.documented_signatures(record))
+        })
+        .unwrap_or_default()
+    }
+
+    fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature> {
+        self.find_map(|_, data| {
+            data.get_record(&record.name)
+                .map(|_| data.undocumented_installed_methods(record))
+        })
+        .unwrap_or_default()
+    }
+
+    fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String> {
+        let name = InstanceID::new(option_name);
+        self.find_map(|_, data| {
+            data.get_record(&name)
+                .map(|_| data.option_usage_names(option_name, limit))
+        })
+        .unwrap_or_default()
+    }
+
+    fn option_value_usage_names(&self, value_name: &str, limit: usize) -> Vec<String> {
+        let name = InstanceID::new(value_name);
+        self.find_map(|_, data| {
+            data.get_record(&name)
+                .map(|_| data.option_value_usage_names(value_name, limit))
+        })
+        .unwrap_or_default()
+    }
+
+    fn doc_markdown(&self, name: &InstanceID) -> Option<String> {
+        self.find_map(|_, data| {
+            data.get_record(name)
+                .and_then(|_| data.doc_markdown(name).map(str::to_string))
+        })
     }
 }
 

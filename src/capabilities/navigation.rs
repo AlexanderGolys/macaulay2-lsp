@@ -8,9 +8,8 @@ use tower_lsp::lsp_types::*;
 use crate::document::{DocumentSnapshot, TargetSymbol};
 use crate::node_metadata::{NodeKind, NodeKindMetadata};
 use crate::package_index::SourceResolver;
-use crate::partitioned_index::ScopedIndex;
 use crate::record_lsp::record_symbol_kind;
-use crate::typesystem::{InstanceID, Record};
+use crate::typesystem::{InstanceID, LspKnowledge, Record};
 use crate::util::*;
 use crate::workspace_index::WorkspaceIndex;
 
@@ -54,7 +53,7 @@ pub(crate) fn completion_response(
     text: &str,
     position: Position,
     analysis: &crate::analysis::Analysis,
-    scoped: &ScopedIndex,
+    knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Option<CompletionResponse> {
     let prefix = symbol_prefix_at(text, position)?;
     let mut items = Vec::new();
@@ -84,10 +83,10 @@ pub(crate) fn completion_response(
     }
 
     // Builtin / imported package names from the scoped index.
-    for (package, name) in scoped.names_with_prefix(&prefix, 80) {
-        if seen.insert(name.to_string()) {
+    for (package, name) in knowledge.names_with_prefix(&prefix, 80) {
+        if seen.insert(name.clone()) {
             items.push(CompletionItem {
-                label: name.to_string(),
+                label: name,
                 kind: Some(CompletionItemKind::FUNCTION),
                 // Label provenance only for non-baseline packages, matching prior UX.
                 detail: (package != "Core").then(|| format!("Package: {package}")),
@@ -126,30 +125,30 @@ pub(crate) fn references_response(
 #[allow(deprecated)]
 pub(crate) fn workspace_symbols_response(
     query: &str,
-    scoped: &ScopedIndex,
+    knowledge: &(impl LspKnowledge + ?Sized),
     record_location: impl Fn(&Record) -> Option<Location>,
 ) -> Vec<SymbolInformation> {
     let mut symbols = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
-    for (package, name) in scoped.matching_names(query, 120) {
-        if !should_include_workspace_symbol(package, name) {
+    for (package, name) in knowledge.matching_names(query, 120) {
+        if !should_include_workspace_symbol(&package, &name) {
             continue;
         }
-        let Some(record) = scoped.get_record(&InstanceID(name.to_string())) else {
+        let Some(record) = knowledge.get_record(&InstanceID::new(&name)) else {
             continue;
         };
         let Some(location) = record_location(&record) else {
             continue;
         };
-        if seen.insert(workspace_symbol_dedupe_key(package, name)) {
+        if seen.insert(workspace_symbol_dedupe_key(&package, &name)) {
             symbols.push(SymbolInformation {
-                name: name.to_string(),
+                name,
                 kind: record_symbol_kind(&record),
                 tags: None,
                 deprecated: None,
                 location,
-                container_name: Some(package.to_string()),
+                container_name: Some(package),
             });
         }
     }
@@ -164,7 +163,7 @@ pub(crate) fn goto_definition_response(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
-    scoped: &ScopedIndex,
+    knowledge: &(impl LspKnowledge + ?Sized),
     source_resolver: &SourceResolver,
     workspace_index: &crate::workspace_index::WorkspaceIndex,
     record_location: impl Fn(&Record) -> Option<Location>,
@@ -209,7 +208,7 @@ pub(crate) fn goto_definition_response(
         return Some(GotoDefinitionResponse::Array(workspace_locations));
     }
 
-    if let Some(record) = scoped.get_record(&InstanceID(node_text.to_string())) {
+    if let Some(record) = knowledge.get_record(&InstanceID(node_text.to_string())) {
         if let Some(location) = record_location(&record) {
             return Some(GotoDefinitionResponse::Scalar(location));
         }

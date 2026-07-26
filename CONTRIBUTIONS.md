@@ -7,6 +7,7 @@ This repository contains an experimental Rust language server for Macaulay2. The
 - `src/main.rs`: LSP server setup, request handlers, semantic tokens, hover, completion, and go-to-definition wiring.
 - `src/analysis.rs`: syntax and scope analysis over Tree-sitter parse trees.
 - `src/typesystem.rs`: builtin metadata loading, type hierarchy helpers, and token classification.
+- `src/settings.rs`: typed initialization and live workspace configuration.
 - `src/capabilities/`: per-feature LSP handlers (hover, formatting, navigation, diagnostics, …).
 - `src/data/m2-index.jsonl`: the checked-in builtin corpus — one JSON record per builtin object (types, callables, objects, option keys), used for hover, classification, and type inference.
 
@@ -31,7 +32,12 @@ cargo clippy
 Before committing Rust changes, run:
 
 ```sh
-cargo fmt && cargo test && cargo build && cargo clippy
+cargo fmt -- --check
+cargo test
+cargo check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo build
+cargo package --allow-dirty
 ```
 
 For LSP behavior changes, also test through an editor client when practical. Non-ASCII text matters: LSP positions are UTF-16, while Tree-sitter positions are byte-based.

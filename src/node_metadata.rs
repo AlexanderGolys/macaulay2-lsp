@@ -167,9 +167,6 @@ impl NodeKindMetadata for NodeKind {
 #[derive(Debug, Clone, Copy)]
 pub struct M2Node<'tree> {
     node: Node<'tree>,
-    /// The full source buffer this node was parsed from. Held so `text()` can
-    /// return the node's exact span without the caller ever touching the raw
-    /// buffer. Carried (not re-derived) so navigations propagate it for free.
     source: &'tree str,
     pub kind: NodeKind,
 }

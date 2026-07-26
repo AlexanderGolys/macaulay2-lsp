@@ -18,8 +18,7 @@ use serde::Deserialize;
 #[derive(Debug, Clone)]
 pub struct TypeEntry {
     metadata: EntryMetadata,
-    /// Immediate supertype — the is-a edge.
-    pub parent: Option<String>,
+    pub immediate_parent: Option<String>,
     pub ancestors: Vec<String>,
     pub subtypes: Vec<String>,
 }
@@ -28,7 +27,6 @@ pub struct TypeEntry {
 #[derive(Debug, Clone)]
 pub struct Signature {
     pub domain: Vec<String>,
-    /// `None` ⇒ codomain undocumented; the checker stays silent rather than guess.
     pub codomain: Option<String>,
 }
 
@@ -38,9 +36,6 @@ pub struct Signature {
 #[derive(Debug, Clone)]
 pub struct ObjectEntry {
     metadata: EntryMetadata,
-    /// Whether the symbol is `protect`ed (cannot be reassigned). `None` ⇒ the
-    /// corpus did not record it; consumers fall back to the class-is-`Symbol`
-    /// proxy so the absent-data case keeps today's behaviour.
     pub protected: Option<bool>,
 }
 
@@ -49,14 +44,8 @@ pub struct ObjectEntry {
 pub struct CallableEntry {
     metadata: EntryMetadata,
     pub is_operator: bool,
-    /// Capitalized operator forms (`Binary`/`Prefix`/`Postfix`) collected across
-    /// this callable's methods — drives operator hover label rendering.
-    pub forms: Vec<String>,
-    /// Per-form operator attributes from the corpus (`binary` → `["Flexible"]`,
-    /// …); empty for non-operators. Drives the per-fixity flexibility check that
-    /// decides whether `:=` may install a method on this operator.
+    pub operator_forms: Vec<String>,
     pub operator_attributes: HashMap<OperatorForm, Vec<String>>,
-    /// General codomain when documented apart from a specific signature.
     pub typical_value: Option<String>,
     pub options: Vec<OptionSpec>,
     pub signatures: Vec<Signature>,
@@ -82,12 +71,9 @@ impl Borrow<str> for OperatorForm {
 #[derive(Debug, Clone)]
 pub struct EntryMetadata {
     pub name: String,
-    /// Every alias this entry is also keyed by (`Core$ZZ`, `Core$gb`, `→`, …).
     pub aliases: Vec<String>,
     pub package: Option<String>,
-    /// Runtime class or meta-type (`ZZ`'s class is `Ring`).
     pub class: Option<String>,
-    /// Rendered hover markdown folded into the record by the corpus generator.
     pub markdown: Option<String>,
 }
 
@@ -258,14 +244,14 @@ impl BuiltinIndex {
                 "type" => {
                     index.types.insert(TypeEntry {
                         metadata: entry_metadata(&mut raw, keys),
-                        parent: raw.parent.as_deref().map(deref_ref),
+                        immediate_parent: raw.parent.as_deref().map(deref_ref),
                         ancestors: raw.ancestors.iter().map(|a| deref_ref(a)).collect(),
                         subtypes: raw.subtypes.iter().map(|s| deref_ref(s)).collect(),
                     });
                 }
                 "function" | "methodFunction" | "operator" => {
                     let metadata = entry_metadata(&mut raw, keys);
-                    let forms = raw
+                    let operator_forms = raw
                         .operator
                         .as_ref()
                         .map(|op| op.forms.iter().map(|f| capitalize_form(f)).collect())
@@ -286,7 +272,7 @@ impl BuiltinIndex {
                     index.callables.insert(CallableEntry {
                         metadata,
                         is_operator: raw.kind == "operator",
-                        forms,
+                        operator_forms,
                         operator_attributes,
                         typical_value: concrete_codomain(raw.typical_value.as_deref()),
                         options: raw.options.into_iter().map(OptionSpec::from).collect(),
@@ -486,8 +472,6 @@ impl From<RawOptionSpec> for OptionSpec {
 struct RawOperator {
     #[serde(default)]
     forms: Vec<String>,
-    /// Per-form operator attributes, e.g. `{"binary": ["Flexible"], "prefix": […]}`.
-    /// `Flexible` marks the forms that accept runtime method installation.
     #[serde(default)]
     attributes: HashMap<OperatorForm, Vec<String>>,
 }
@@ -534,8 +518,8 @@ mod tests {
         // operator record -> callable + capitalized forms from the `operator` object
         let minus = index.callable("-").expect("- operator present");
         assert!(minus.is_operator);
-        assert!(minus.forms.contains(&"Binary".to_string()));
-        assert!(minus.forms.contains(&"Prefix".to_string()));
+        assert!(minus.operator_forms.contains(&"Binary".to_string()));
+        assert!(minus.operator_forms.contains(&"Prefix".to_string()));
     }
 
     #[test]
