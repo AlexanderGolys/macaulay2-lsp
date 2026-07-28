@@ -13,6 +13,7 @@ use crate::builtin_index::{InstanceID, Record};
 use crate::document::DocumentSnapshot;
 use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
+use crate::source::SourceNavigation;
 use crate::typesystem::{LspKnowledge, PartitionedTypeKnowledge};
 
 pub(crate) const TYPE_HIERARCHY_METHOD: &str = "textDocument/prepareTypeHierarchy";
@@ -47,7 +48,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
     ) -> Option<Vec<TypeHierarchyItem>> {
         let node = document.symbol_node_at_position(position)?;
         let name = node.text();
-        let range = document.range_for(node);
+        let range = document.range_for_node(node);
 
         let (package, record) = scoped.get_record_with_package(&InstanceID::new(name))?;
         record.type_info.as_ref()?;

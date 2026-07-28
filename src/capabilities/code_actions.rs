@@ -8,6 +8,7 @@ use crate::capabilities::diagnostics::ambiguous_float_member_access_rewrite;
 use crate::diagnostic_registry::{diagnostic_has_kind, M2Diagnostic};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
+use crate::source::SourceNavigation;
 use crate::util::position_in_range;
 
 struct CodeActionContext<'tree, 'request> {
@@ -123,7 +124,7 @@ impl CodeActionRule for ConvertToRawString {
             }
             .build(
                 context.uri,
-                context.document.range_for(string_node),
+                context.document.range_for_node(string_node),
                 replacement,
             ),
         )
@@ -156,7 +157,7 @@ impl CodeActionRule for AmbiguousFloatMemberAccess {
             }
             .build(
                 context.uri,
-                context.document.range_for(expression),
+                context.document.range_for_node(expression),
                 replacement,
             ),
         )
@@ -181,7 +182,7 @@ impl CodeActionRule for ConditionalNull {
             }
             .build(
                 context.uri,
-                context.document.range_for(if_node),
+                context.document.range_for_node(if_node),
                 replacement,
             ),
         )
@@ -206,7 +207,7 @@ impl CodeActionRule for SimplifyTry {
             }
             .build(
                 context.uri,
-                context.document.range_for(try_node),
+                context.document.range_for_node(try_node),
                 replacement,
             ),
         )
@@ -241,7 +242,7 @@ impl CodeActionRule for SimplifyIfCondition {
             }
             .build(
                 context.uri,
-                context.document.range_for(if_node),
+                context.document.range_for_node(if_node),
                 replacement,
             ),
         )
@@ -268,7 +269,11 @@ impl CodeActionRule for FlattenElseIf {
                 is_preferred: None,
                 diagnostics: None,
             }
-            .build(context.uri, context.document.range_for(node), replacement),
+            .build(
+                context.uri,
+                context.document.range_for_node(node),
+                replacement,
+            ),
         )
     }
 }

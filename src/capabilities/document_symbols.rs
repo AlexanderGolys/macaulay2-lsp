@@ -10,7 +10,7 @@ use tower_lsp::lsp_types::*;
 use crate::analysis::{ExpressionKind, SpanKey};
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
-use crate::util::byte_index_from_lsp_position;
+use crate::source::SourceNavigation;
 
 /// The outline view of a document: assignment bindings (functions nested under
 /// their body), method installations, and indexed variables.
@@ -43,7 +43,7 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
     }
 
     for installation in &analysis.installations {
-        let Some(name) = text_in_range(document.text(), installation.target.range) else {
+        let Some(name) = document.text_in_range(installation.target.range) else {
             continue;
         };
         let scope_idx = registry
@@ -86,7 +86,7 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
             (Some("="), Some(_)) if child_scope_idx.is_some() => SymbolKind::METHOD,
             _ => continue,
         };
-        let Some(name) = text_in_range(document.text(), left_span.range) else {
+        let Some(name) = document.text_in_range(left_span.range) else {
             continue;
         };
         let detail = Some(if kind == SymbolKind::METHOD {
@@ -171,12 +171,6 @@ fn scope_with_range(analysis: &crate::analysis::Analysis, range: Range) -> Optio
         .scopes
         .iter()
         .position(|scope| scope.range == range)
-}
-
-fn text_in_range(text: &str, range: Range) -> Option<&str> {
-    let start = byte_index_from_lsp_position(text, range.start)?;
-    let end = byte_index_from_lsp_position(text, range.end)?;
-    text.get(start..end)
 }
 
 fn build_document_symbol_tree(

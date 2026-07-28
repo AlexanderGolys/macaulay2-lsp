@@ -5,53 +5,57 @@
 //! deliberately treats those regions as opaque, so each span receives a small
 //! isolated parse for reference extraction.
 
+use std::ops::Range as ByteRange;
+
 use tower_lsp::lsp_types::{Position, Range};
 use tree_sitter::{Parser, Tree};
 
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::util::{position_in_range, range_from_byte_span};
+use crate::source::{DocumentSpan, SourceNavigation};
+use crate::util::position_in_range;
 
+/// One backtick-delimited source snippet parsed for embedded references.
 #[derive(Debug)]
 pub(crate) struct DocumentationSnippet {
-    start_byte: usize,
-    end_byte: usize,
+    bytes: ByteRange<usize>,
 }
 
 impl DocumentationSnippet {
     pub(crate) fn byte_span(&self) -> (usize, usize) {
-        (self.start_byte, self.end_byte)
+        (self.bytes.start, self.bytes.end)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// One symbol mention extracted from an otherwise opaque documentation region.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DocumentationReference {
-    start_byte: usize,
-    end_byte: usize,
-    range: Range,
+    span: DocumentSpan,
 }
 
 impl DocumentationReference {
     pub(crate) fn name<'a>(&self, text: &'a str) -> &'a str {
-        &text[self.start_byte..self.end_byte]
+        &text[self.span.bytes()]
     }
 
     pub(crate) fn range(&self) -> Range {
-        self.range
+        self.span.range()
     }
 
     pub(crate) fn byte_span(&self) -> (usize, usize) {
-        (self.start_byte, self.end_byte)
+        let bytes = self.span.bytes();
+        (bytes.start, bytes.end)
     }
 
     pub(crate) fn contains(&self, position: Position) -> bool {
-        position_in_range(position, self.range)
+        position_in_range(position, self.span.range())
     }
 }
 
 pub(crate) fn collect_documentation(
-    text: &str,
+    source: &(impl SourceNavigation + ?Sized),
     tree: &Tree,
 ) -> (Vec<DocumentationSnippet>, Vec<DocumentationReference>) {
+    let text = source.text();
     let root = M2Node::new(tree.root_node(), text);
     let mut parser = Parser::new();
     if parser
@@ -65,7 +69,7 @@ pub(crate) fn collect_documentation(
 
     for node in root.descendants() {
         if is_documentation_container(node) {
-            collect_backtick_snippets(node, text, &mut parser, &mut snippets, &mut references);
+            collect_backtick_snippets(node, source, &mut parser, &mut snippets, &mut references);
         }
     }
 
@@ -81,7 +85,7 @@ fn is_documentation_container(node: M2Node<'_>) -> bool {
 
 fn collect_backtick_snippets(
     node: M2Node<'_>,
-    text: &str,
+    source: &(impl SourceNavigation + ?Sized),
     parser: &mut Parser,
     snippets: &mut Vec<DocumentationSnippet>,
     references: &mut Vec<DocumentationReference>,
@@ -132,15 +136,12 @@ fn collect_backtick_snippets(
                     let symbol_start = start_byte + symbol.start_byte();
                     let symbol_end = start_byte + symbol.end_byte();
                     DocumentationReference {
-                        start_byte: symbol_start,
-                        end_byte: symbol_end,
-                        range: range_from_byte_span(text, symbol_start, symbol_end),
+                        span: source.span_for_bytes(symbol_start..symbol_end),
                     }
                 }),
         );
         snippets.push(DocumentationSnippet {
-            start_byte,
-            end_byte,
+            bytes: start_byte..end_byte,
         });
     }
 }
@@ -160,7 +161,8 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("Macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        collect_documentation(text, &tree)
+        let source = crate::source::DocumentSource::new(text.to_string());
+        collect_documentation(&source, &tree)
             .1
             .into_iter()
             .map(|reference| (reference.name(text).to_string(), reference.range()))

@@ -8,6 +8,7 @@ use crate::document::DocumentSnapshot;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKindMetadata};
 use crate::record_lsp::record_hover_with_package_and_usage;
+use crate::source::SourceNavigation;
 use crate::typesystem::LspKnowledge;
 
 /// The hover at `position`: a local symbol renders its binding info and local
@@ -23,7 +24,7 @@ pub(crate) fn hover_response(
 
     if let Some(reference) = document.documentation_reference_at(position) {
         let name = reference.name(text);
-        let mut hover = if let Some(symbol) = document.documentation_symbol(reference) {
+        let mut hover = if let Some(symbol) = document.documentation_symbol(&reference) {
             local_symbol_hover(
                 name,
                 &symbol,
@@ -50,7 +51,7 @@ pub(crate) fn hover_response(
 
     if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
         let local_installation_signature = analysis
-            .local_method_installation_signature_at(node, text)
+            .local_method_installation_signature_at(node, document)
             .filter(|(method, _)| analysis.symbol_name(method.symbol) == node_text);
         let local_method = local_installation_signature
             .map(|(method, _)| method)
@@ -70,7 +71,7 @@ pub(crate) fn hover_response(
     let (package, record) =
         knowledge.get_record_with_package(&InstanceID(node_text.to_string()))?;
     let signature_usage =
-        call_signature_usage_for_hover(node, node_text, text, analysis, knowledge);
+        call_signature_usage_for_hover(node, node_text, document, analysis, knowledge);
     Some(record_hover_with_package_and_usage(
         record,
         Some(&package),
@@ -130,7 +131,7 @@ fn local_symbol_hover(
 fn call_signature_usage_for_hover(
     node: M2Node,
     node_text: &str,
-    text: &str,
+    source: &(impl SourceNavigation + ?Sized),
     analysis: &crate::analysis::Analysis,
     knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Option<crate::typesystem::SignatureUsage> {
@@ -143,7 +144,7 @@ fn call_signature_usage_for_hover(
         }
 
         let argument = parent.child_by_field_name("right")?;
-        let facts = analysis.infer_call_static_facts(argument, text, knowledge);
+        let facts = analysis.infer_call_static_facts(argument, source, knowledge);
         analysis.dispatch_argument_types(&facts)
     } else if parent
         .child_by_field_name("operator")
@@ -152,8 +153,8 @@ fn call_signature_usage_for_hover(
         let left = parent.child_by_field_name("left")?;
         let right = parent.child_by_field_name("right")?;
         vec![
-            analysis.infer_expression_static_type(left, text, knowledge),
-            analysis.infer_expression_static_type(right, text, knowledge),
+            analysis.infer_expression_static_type(left, source, knowledge),
+            analysis.infer_expression_static_type(right, source, knowledge),
         ]
     } else {
         return None;
@@ -245,6 +246,7 @@ mod tests {
     use crate::builtin_index::BuiltinData;
     use crate::meta::{BindingRole, Meta};
     use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
+    use crate::source::DocumentSource;
     use tower_lsp::lsp_types::{HoverContents, Position, SymbolKind};
     use tree_sitter::Parser;
 
@@ -306,6 +308,7 @@ mod tests {
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
         let analysis = Analysis::new(&tree, text);
+        let source = DocumentSource::new(text.to_string());
         let position = Position::new(1, 0);
         let node = tree
             .root_node()
@@ -318,7 +321,7 @@ mod tests {
             .get_symbol_at("p", position)
             .expect("method symbol should be visible");
         let (method, pinned_signature) = analysis
-            .local_method_installation_signature_at(M2Node::new(node, text), text)
+            .local_method_installation_signature_at(M2Node::new(node, text), &source)
             .expect("method installation should pin the installed signature");
 
         let hover = local_symbol_hover(
@@ -354,6 +357,7 @@ mod tests {
             .expect("Macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
         let analysis = Analysis::new(&tree, text);
+        let source = DocumentSource::new(text.to_string());
 
         for (line, expected_codomain) in [(1, "List"), (2, "Array")] {
             let point = tree_sitter::Point::new(line, 0);
@@ -362,7 +366,7 @@ mod tests {
                 .descendant_for_point_range(point, point)
                 .expect("method name node should be found");
             let (_, installation) = analysis
-                .local_method_installation_signature_at(M2Node::new(node, text), text)
+                .local_method_installation_signature_at(M2Node::new(node, text), &source)
                 .expect("the source occurrence should resolve its installation identity");
             assert_eq!(
                 installation.codomain.as_ref().map(InstanceID::name),
@@ -453,7 +457,8 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_knowledge(&tree, text, &scoped);
+        let source = DocumentSource::new(text.to_string());
+        let analysis = Analysis::new_with_knowledge(&tree, &source, &scoped);
         let node = tree
             .root_node()
             .descendant_for_point_range(
@@ -465,7 +470,7 @@ mod tests {
         let usage = call_signature_usage_for_hover(
             M2Node::new(node, text),
             "openOut",
-            text,
+            &source,
             &analysis,
             &scoped,
         )
@@ -503,7 +508,8 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_knowledge(&tree, text, &scoped);
+        let source = DocumentSource::new(text.to_string());
+        let analysis = Analysis::new_with_knowledge(&tree, &source, &scoped);
         let node = tree
             .root_node()
             .descendant_for_point_range(
@@ -517,7 +523,7 @@ mod tests {
             "operator tokens should be hoverable"
         );
 
-        let usage = call_signature_usage_for_hover(node, "+", text, &analysis, &scoped)
+        let usage = call_signature_usage_for_hover(node, "+", &source, &analysis, &scoped)
             .expect("+ hover should resolve usage signatures");
         let signature = usage
             .pinned

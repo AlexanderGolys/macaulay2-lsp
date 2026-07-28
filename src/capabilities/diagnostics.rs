@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use tower_lsp::lsp_types::Url;
-use tower_lsp::lsp_types::{Position, Range as LspRange, SymbolKind};
+use tower_lsp::lsp_types::{Range as LspRange, SymbolKind};
 use tower_lsp::Client;
 
 use crate::analysis::{symbol_node_text, Analysis};
@@ -12,8 +12,8 @@ use crate::diagnostic_registry::{DiagnosticPolicy, M2Diagnostic};
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::source::SourceNavigation;
 use crate::typesystem::TypeKnowledge;
-use crate::util::{node_position, to_lsp_range, utf16_len_for_byte_span};
 
 pub(crate) const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
     "This is parsed like function call: dot followed immediately by digits are always parsed
@@ -55,42 +55,42 @@ impl Analysis {
     pub(crate) fn collect_diagnostics(
         &mut self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         if node.is_error() {
             self.diagnostics.push(M2Diagnostic::SyntaxError.at(
-                single_line_range(text, node.start_position(), node.start_byte()),
+                source.remainder_of_line_range(node.start_byte()),
                 "Syntax error",
             ));
         } else if node.is_missing() {
             self.diagnostics.push(M2Diagnostic::MissingNode.at(
-                to_lsp_range(text, node.range()),
+                source.range_for_node(node),
                 format!("Missing: {}", node.syntax_label()),
             ));
-        } else if let Some(range) = ambiguous_float_member_access_range(node, text) {
+        } else if let Some(range) = ambiguous_float_member_access_range(node, source) {
             self.diagnostics.push(
                 M2Diagnostic::AmbiguousFloatMemberAccess
                     .at(range, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE),
             );
         } else if node.is_assignment() {
-            self.validate_assignment_form(node, text);
+            self.validate_assignment_form(node, source);
         }
 
         // Runs independently of the chain above: any node may be an option pair,
         // and an option `=>` is never an error/missing/assignment node.
-        self.diagnose_option_key_convention(node, text);
-        self.diagnose_protect_argument(node, text, builtins);
+        self.diagnose_option_key_convention(node, source);
+        self.diagnose_protect_argument(node, source, builtins);
 
         for child in node.children() {
-            self.collect_diagnostics(child, text, builtins);
+            self.collect_diagnostics(child, source, builtins);
         }
     }
 
     fn diagnose_protect_argument(
         &mut self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         if !node.is_space_application() {
@@ -106,7 +106,7 @@ impl Analysis {
             return;
         }
         if self
-            .binding_id_at(callable.text(), node_position(text, callable))
+            .binding_id_at(callable.text(), source.position_for_node(callable))
             .is_some()
         {
             return;
@@ -116,13 +116,13 @@ impl Analysis {
             NodeKind::QuoteExpression => {}
             NodeKind::Symbol => {
                 let name = argument.text();
-                let position = node_position(text, argument);
+                let position = source.position_for_node(argument);
                 let has_source_binding = self.binding_id_at(name, position).is_some();
                 let has_builtin_binding = builtins.get_record(&InstanceID::new(name)).is_some();
                 if has_source_binding || has_builtin_binding {
                     self.diagnostics
                         .push(M2Diagnostic::ProtectAssignedSymbol.at(
-                            to_lsp_range(text, argument.range()),
+                            source.range_for_node(argument),
                             format!(
                                 "`protect {name}` evaluates the current value of `{name}`; \
                              use `protect symbol {name}` to protect the symbol itself"
@@ -131,14 +131,14 @@ impl Analysis {
                 }
             }
             _ => {
-                let inferred = self.infer_expression_static_type(argument, text, builtins);
+                let inferred = self.infer_expression_static_type(argument, source, builtins);
                 if inferred
                     .as_ref()
                     .is_none_or(|type_id| type_id.name() == "Symbol")
                 {
                     self.diagnostics
                         .push(M2Diagnostic::ProtectComputedSymbol.at(
-                            to_lsp_range(text, argument.range()),
+                            source.range_for_node(argument),
                             "`protect` evaluates this expression to choose a Symbol at runtime; \
                          the protected symbol is not statically apparent",
                         ));
@@ -151,7 +151,11 @@ impl Analysis {
     /// Flag a lowercase-initial key on an `=>` pair with a gentle Hint — but only
     /// when the pair is a function option, not a hashtable entry (see the context
     /// predicate, where lowercase keys are legitimate).
-    fn diagnose_option_key_convention(&mut self, node: M2Node, text: &str) {
+    fn diagnose_option_key_convention(
+        &mut self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+    ) {
         if node.binary_operator() != Some("=>") {
             return;
         }
@@ -173,12 +177,16 @@ impl Analysis {
             return;
         }
         self.diagnostics.push(M2Diagnostic::OptionKeyConvention.at(
-            to_lsp_range(text, key.range()),
+            source.range_for_node(key),
             format!("Option key `{key_text}` should be capitalized by Macaulay2 convention"),
         ));
     }
 
-    fn validate_assignment_form(&mut self, node: M2Node, text: &str) {
+    fn validate_assignment_form(
+        &mut self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+    ) {
         let Some(left) = node.child_by_field_name("left") else {
             return;
         };
@@ -189,7 +197,7 @@ impl Analysis {
 
         // Consume the installation fact characterized during analysis (which had
         // the type registry) rather than re-deciding install-vs-call here.
-        let is_method_installation = self.installation_for(node, text).is_some();
+        let is_method_installation = self.installation_for(node, source).is_some();
 
         if matches!(op_text, "=" | ":=")
             && !is_method_installation
@@ -197,7 +205,7 @@ impl Analysis {
         {
             self.diagnostics
                 .push(M2Diagnostic::MultipleAssignmentTargets.at(
-                    to_lsp_range(text, left.range()),
+                    source.range_for_node(left),
                     format!("{op_text} multiple assignment targets must be symbols"),
                 ));
         }
@@ -205,14 +213,14 @@ impl Analysis {
         if op_text == ":=" && left.binary_operator() == Some("#") {
             self.diagnostics
                 .push(M2Diagnostic::ColonEqualPartAssignment.at(
-                    to_lsp_range(text, left.range()),
+                    source.range_for_node(left),
                     "`:=` cannot assign to parts; use `=` for part assignment",
                 ));
         }
 
         if matches!(op_text, "=" | ":=") && !is_method_installation {
             if let Some(right) = node.child_by_field_name("right") {
-                self.validate_parallel_assignment_arity(left, right, text);
+                self.validate_parallel_assignment_arity(left, right, source);
             }
         }
     }
@@ -223,7 +231,12 @@ impl Analysis {
     /// are runtime-checked (the right side's length is not known statically) and
     /// left alone. Recurses so nested targets like `[x, [y, z]] = [1, {2, 3, 4}]`
     /// are checked at every level where both sides are collection literals.
-    fn validate_parallel_assignment_arity(&mut self, left: M2Node, right: M2Node, text: &str) {
+    fn validate_parallel_assignment_arity(
+        &mut self,
+        left: M2Node,
+        right: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+    ) {
         if !is_fixed_length_collection(left) || !is_fixed_length_collection(right) {
             return;
         }
@@ -232,7 +245,7 @@ impl Analysis {
         let value_nodes = right.collection_elements().collect::<Vec<_>>();
         if target_nodes.len() != value_nodes.len() {
             self.diagnostics.push(M2Diagnostic::ParallelAssignmentArity.at(
-                to_lsp_range(text, right.range()),
+                source.range_for_node(right),
                 format!(
                     "parallel assignment binds {} targets but the right-hand side lists {}; their lengths must match",
                     target_nodes.len(),
@@ -243,7 +256,7 @@ impl Analysis {
         }
 
         for (target, value) in target_nodes.iter().zip(value_nodes.iter()) {
-            self.validate_parallel_assignment_arity(*target, *value, text);
+            self.validate_parallel_assignment_arity(*target, *value, source);
         }
     }
 
@@ -251,15 +264,19 @@ impl Analysis {
     /// referenced outside their own definition site. Top-level bindings and
     /// conditional `=` definitions are potential runtime exports and stay
     /// silent, as do `_`-prefixed names.
-    pub(crate) fn collect_unused_binding_diagnostics(&mut self, root: M2Node, text: &str) {
+    pub(crate) fn collect_unused_binding_diagnostics(
+        &mut self,
+        root: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+    ) {
         let mut used_bindings = HashSet::new();
         for node in root.descendants() {
             if node.kind.is_symbol_like() {
                 let name = node.text();
-                let position = node_position(text, node);
+                let position = source.position_for_node(node);
                 if let Some(binding_id) = self.binding_id_at(name, position) {
                     if let Some(binding) = self.get_binding_at(name, position) {
-                        let node_range = to_lsp_range(text, node.range());
+                        let node_range = source.range_for_node(node);
                         if node_range != binding.range {
                             used_bindings.insert(binding_id);
                         }
@@ -297,25 +314,6 @@ impl Analysis {
             .collect::<Vec<_>>();
         self.diagnostics.extend(diagnostics);
     }
-}
-
-fn single_line_range(text: &str, start: tree_sitter::Point, start_byte: usize) -> LspRange {
-    let start_line_byte = start_byte.saturating_sub(start.column);
-    let line_end_byte = text[start_byte..]
-        .find('\n')
-        .map(|i| start_byte + i)
-        .unwrap_or(text.len());
-
-    LspRange::new(
-        Position::new(
-            start.row as u32,
-            utf16_len_for_byte_span(text, start_line_byte, start_byte),
-        ),
-        Position::new(
-            start.row as u32,
-            utf16_len_for_byte_span(text, start_line_byte, line_end_byte),
-        ),
-    )
 }
 
 /// Decide whether an `=>` pair is a *function/method option* (convention applies)
@@ -394,6 +392,9 @@ pub(crate) fn member_index_for_ambiguous_float_literal(float_text: &str) -> Opti
         .then(|| fractional_part.to_string())
 }
 
-fn ambiguous_float_member_access_range(node: M2Node<'_>, text: &str) -> Option<LspRange> {
-    ambiguous_float_member_access_rewrite(node).map(|_| to_lsp_range(text, node.range()))
+fn ambiguous_float_member_access_range(
+    node: M2Node<'_>,
+    source: &(impl SourceNavigation + ?Sized),
+) -> Option<LspRange> {
+    ambiguous_float_member_access_rewrite(node).map(|_| source.range_for_node(node))
 }

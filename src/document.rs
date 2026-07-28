@@ -1,8 +1,6 @@
 //! Versioned document snapshots that combine source text, parse tree, and
 //! analysis for LSP requests.
 
-use std::ops::Range as ByteRange;
-
 use crate::macro_syntax::MacroSyntax;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
@@ -15,13 +13,14 @@ use crate::analysis::{Analysis, BindingView, FunctionInfo};
 use crate::builtin_index::InstanceID;
 use crate::documentation::{collect_documentation, DocumentationReference, DocumentationSnippet};
 use crate::package_index::collect_imported_packages_in_tree;
+use crate::source::{DocumentSource, SourceNavigation};
 use crate::typesystem::TypeKnowledgeProvider;
-use crate::util::{floor_char_boundary, utf16_col_to_byte, utf16_len_for_byte_span};
 
+/// One immutable source, syntax, and semantic-analysis snapshot served to LSP
+/// requests.
 #[derive(Debug)]
 pub(crate) struct DocumentSnapshot {
-    text: String,
-    navigation: DocumentNavigation,
+    source: DocumentSource,
     macro_syntax: MacroSyntax,
     tree: Tree,
     analysis: Analysis,
@@ -30,123 +29,9 @@ pub(crate) struct DocumentSnapshot {
     documentation_references: Vec<DocumentationReference>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DocumentSpan {
-    pub bytes: ByteRange<usize>,
-    pub range: Range,
-}
-
-#[derive(Debug)]
-struct DocumentNavigation {
-    lines: Vec<DocumentLine>,
-}
-
-#[derive(Debug)]
-struct DocumentLine {
-    start_byte: usize,
-    content_end_byte: usize,
-}
-
-impl DocumentNavigation {
-    fn new(text: &str) -> Self {
-        let mut lines = Vec::new();
-        let mut start_byte = 0;
-        for segment in text.split_inclusive('\n') {
-            let content = segment.strip_suffix('\n').unwrap_or(segment);
-            let content = content.strip_suffix('\r').unwrap_or(content);
-            lines.push(DocumentLine {
-                start_byte,
-                content_end_byte: start_byte + content.len(),
-            });
-            start_byte += segment.len();
-        }
-        if text.is_empty() || text.ends_with('\n') {
-            lines.push(DocumentLine {
-                start_byte: text.len(),
-                content_end_byte: text.len(),
-            });
-        }
-        Self { lines }
-    }
-
-    fn line_for_byte(&self, byte_index: usize) -> (usize, &DocumentLine) {
-        let line_index = self
-            .lines
-            .partition_point(|line| line.start_byte <= byte_index)
-            .saturating_sub(1);
-        (line_index, &self.lines[line_index])
-    }
-
-    fn position_for_byte(&self, text: &str, byte_index: usize) -> Position {
-        let byte_index = floor_char_boundary(text, byte_index);
-        let (line_index, line) = self.line_for_byte(byte_index);
-        let byte_index = byte_index.min(line.content_end_byte);
-        Position::new(
-            line_index as u32,
-            utf16_len_for_byte_span(text, line.start_byte, byte_index),
-        )
-    }
-
-    fn byte_for_position(&self, text: &str, position: Position) -> Option<usize> {
-        let line = self.lines.get(position.line as usize)?;
-        let content = &text[line.start_byte..line.content_end_byte];
-        Some(line.start_byte + utf16_col_to_byte(content, position.character))
-    }
-
-    fn point_for_position(&self, text: &str, position: Position) -> Option<Point> {
-        let line = self.lines.get(position.line as usize)?;
-        let byte_index = self.byte_for_position(text, position)?;
-        Some(Point::new(
-            position.line as usize,
-            byte_index - line.start_byte,
-        ))
-    }
-
-    fn span(&self, text: &str, bytes: ByteRange<usize>) -> DocumentSpan {
-        DocumentSpan {
-            range: Range::new(
-                self.position_for_byte(text, bytes.start),
-                self.position_for_byte(text, bytes.end),
-            ),
-            bytes,
-        }
-    }
-
-    fn visible_ranges(&self, text: &str, span: &DocumentSpan) -> Vec<Range> {
-        let mut ranges = Vec::new();
-        let first_line = span.range.start.line as usize;
-        let last_line = span.range.end.line as usize;
-
-        for line_index in first_line..=last_line {
-            let line = &self.lines[line_index];
-            let start_byte = if line_index == first_line {
-                span.bytes.start
-            } else {
-                line.start_byte
-            }
-            .min(line.content_end_byte);
-            let end_byte = if line_index == last_line {
-                span.bytes.end
-            } else {
-                line.content_end_byte
-            }
-            .min(line.content_end_byte);
-            if start_byte >= end_byte {
-                continue;
-            }
-
-            let start = if line_index == first_line {
-                span.range.start
-            } else {
-                Position::new(line_index as u32, 0)
-            };
-            let length = utf16_len_for_byte_span(text, start_byte, end_byte);
-            ranges.push(Range::new(
-                start,
-                Position::new(start.line, start.character + length),
-            ));
-        }
-        ranges
+impl SourceNavigation for DocumentSnapshot {
+    fn source(&self) -> &DocumentSource {
+        &self.source
     }
 }
 
@@ -166,21 +51,20 @@ impl DocumentSnapshot {
         text: String,
         knowledge_provider: &(impl TypeKnowledgeProvider + ?Sized),
     ) -> Option<Self> {
+        let source = DocumentSource::new(text);
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
             .ok()?;
-        let macro_syntax = MacroSyntax::scan(&text);
+        let macro_syntax = MacroSyntax::scan(source.text());
         let tree = parser.parse(macro_syntax.parse_text(), None)?;
-        let imported_packages = collect_imported_packages_in_tree(&text, &tree);
+        let imported_packages = collect_imported_packages_in_tree(source.text(), &tree);
         let knowledge = knowledge_provider.knowledge_for(&imported_packages);
-        let analysis = Analysis::new_with_knowledge(&tree, &text, &knowledge);
+        let analysis = Analysis::new_with_knowledge(&tree, &source, &knowledge);
         let (documentation_snippets, documentation_references) =
-            collect_documentation(&text, &tree);
-        let navigation = DocumentNavigation::new(&text);
+            collect_documentation(&source, &tree);
         Some(Self {
-            text,
-            navigation,
+            source,
             macro_syntax,
             tree,
             analysis,
@@ -209,7 +93,7 @@ impl DocumentSnapshot {
     }
 
     pub(crate) fn text(&self) -> &str {
-        &self.text
+        SourceNavigation::text(self)
     }
 
     pub(crate) fn is_macro_name(&self, node: M2Node<'_>) -> bool {
@@ -234,7 +118,7 @@ impl DocumentSnapshot {
 
     pub(crate) fn binding_at_position(&self, position: Position) -> Option<BindingView<'_>> {
         if let Some(reference) = self.documentation_reference_at(position) {
-            return self.documentation_symbol(reference);
+            return self.documentation_symbol(&reference);
         }
         let node = self.symbol_node_at_position(position)?;
         self.analysis.get_binding_at(node.text(), position)
@@ -247,14 +131,14 @@ impl DocumentSnapshot {
     /// highlight, and rename requests.
     pub(crate) fn target_symbol_at(&self, position: Position) -> Option<TargetSymbol<'_>> {
         let documentation_reference = self.documentation_reference_at(position);
-        let (name, range) = if let Some(reference) = documentation_reference {
-            (reference.name(&self.text), reference.range())
+        let (name, range) = if let Some(reference) = documentation_reference.as_ref() {
+            (reference.name(self.text()), reference.range())
         } else {
             let node = self.symbol_node_at_position(position)?;
-            (node.text(), self.range_for(node))
+            (node.text(), self.range_for_node(node))
         };
         let symbol = if let Some(reference) = documentation_reference {
-            self.documentation_symbol(reference)?
+            self.documentation_symbol(&reference)?
         } else {
             self.analysis.get_symbol_at(name, position)?
         };
@@ -279,26 +163,26 @@ impl DocumentSnapshot {
     ) -> Option<DocumentationReference> {
         self.documentation_references
             .iter()
-            .copied()
             .find(|reference| reference.contains(position))
+            .cloned()
     }
 
     pub(crate) fn documentation_symbol(
         &self,
-        reference: DocumentationReference,
+        reference: &DocumentationReference,
     ) -> Option<BindingView<'_>> {
         self.analysis
-            .documentation_symbol_at(reference.name(&self.text), reference.range().start)
+            .documentation_symbol_at(reference.name(self.text()), reference.range().start)
     }
 
     /// A real CST symbol or a backtick-delimited symbol mention under the
     /// cursor. The range always covers only the identifier text.
     pub(crate) fn symbol_occurrence_at(&self, position: Position) -> Option<(&str, Range)> {
         if let Some(reference) = self.documentation_reference_at(position) {
-            return Some((reference.name(&self.text), reference.range()));
+            return Some((reference.name(self.text()), reference.range()));
         }
         let node = self.symbol_node_at_position(position)?;
-        Some((node.text(), self.range_for(node)))
+        Some((node.text(), self.range_for_node(node)))
     }
 
     #[cfg(test)]
@@ -307,7 +191,7 @@ impl DocumentSnapshot {
         position: Position,
     ) -> Option<&ExpressionFact> {
         let node = self.node_at_position_minimal(position)?;
-        self.analysis.expression_fact(&self.text, node)
+        self.analysis.expression_fact(self, node)
     }
 
     pub(crate) fn callable_at_position(&self, position: Position) -> Option<&FunctionInfo> {
@@ -316,34 +200,14 @@ impl DocumentSnapshot {
     }
 
     pub(crate) fn root_node(&self) -> M2Node<'_> {
-        M2Node::new(self.tree.root_node(), &self.text)
-    }
-
-    pub(crate) fn range_for(&self, node: M2Node<'_>) -> Range {
-        self.span_for(node).range
-    }
-
-    pub(crate) fn span_for(&self, node: M2Node<'_>) -> DocumentSpan {
-        self.span_for_bytes(node.start_byte()..node.end_byte())
-    }
-
-    pub(crate) fn span_for_bytes(&self, bytes: ByteRange<usize>) -> DocumentSpan {
-        self.navigation.span(&self.text, bytes)
-    }
-
-    pub(crate) fn visible_ranges(&self, span: &DocumentSpan) -> Vec<Range> {
-        self.navigation.visible_ranges(&self.text, span)
-    }
-
-    pub(crate) fn point_for_position(&self, position: Position) -> Option<Point> {
-        self.navigation.point_for_position(&self.text, position)
+        M2Node::new(self.tree.root_node(), self.text())
     }
 
     pub(crate) fn node_at_position_minimal(&self, position: Position) -> Option<M2Node<'_>> {
         let point = self.point_for_position(position)?;
         self.root_node()
             .descendant_for_point_range(point, point)
-            .map(|node| M2Node::new(node, &self.text))
+            .map(|node| M2Node::new(node, self.text()))
     }
 
     pub(crate) fn symbol_node_at_position(&self, position: Position) -> Option<M2Node<'_>> {
@@ -362,7 +226,7 @@ impl DocumentSnapshot {
             root.descendant_for_point_range(point, next),
         ];
         for start in starts.into_iter().flatten() {
-            let mut node = M2Node::new(start, &self.text);
+            let mut node = M2Node::new(start, self.text());
             loop {
                 if node.kind.is_symbol_like() {
                     return Some(node);
@@ -395,18 +259,11 @@ impl DocumentSnapshot {
         replacement: &str,
         knowledge_provider: &(impl TypeKnowledgeProvider + ?Sized),
     ) -> Option<()> {
-        let start_byte = floor_char_boundary(
-            &self.text,
-            self.navigation.byte_for_position(&self.text, range.start)?,
-        );
-        let old_end_byte = floor_char_boundary(
-            &self.text,
-            self.navigation.byte_for_position(&self.text, range.end)?,
-        );
-        let start_position = self
-            .navigation
-            .point_for_position(&self.text, range.start)?;
-        let old_end_position = self.navigation.point_for_position(&self.text, range.end)?;
+        let old_bytes = self.bytes_for_range(range)?;
+        let start_byte = old_bytes.start;
+        let old_end_byte = old_bytes.end;
+        let start_position = self.point_for_byte(start_byte);
+        let old_end_position = self.point_for_byte(old_end_byte);
         let new_end_byte = start_byte + replacement.len();
         let new_end_position = advance_point(start_position, replacement);
 
@@ -421,26 +278,25 @@ impl DocumentSnapshot {
 
         let mut edited_tree = self.tree.clone();
         edited_tree.edit(&edit);
-        self.text
+        self.source
             .replace_range(start_byte..old_end_byte, replacement);
 
         let mut parser = Parser::new();
         parser
             .set_language(&tree_sitter_macaulay2::language())
             .ok()?;
-        let macro_syntax = MacroSyntax::scan(&self.text);
+        let macro_syntax = MacroSyntax::scan(self.text());
         let tree = if self.macro_syntax.has_macros() || macro_syntax.has_macros() {
             parser.parse(macro_syntax.parse_text(), None)?
         } else {
-            parser.parse(&self.text, Some(&edited_tree))?
+            parser.parse(self.text(), Some(&edited_tree))?
         };
-        let imported_packages = collect_imported_packages_in_tree(&self.text, &tree);
+        let imported_packages = collect_imported_packages_in_tree(self.text(), &tree);
         let knowledge = knowledge_provider.knowledge_for(&imported_packages);
-        let analysis = Analysis::new_with_knowledge(&tree, &self.text, &knowledge);
+        let analysis = Analysis::new_with_knowledge(&tree, &self.source, &knowledge);
         let (documentation_snippets, documentation_references) =
-            collect_documentation(&self.text, &tree);
+            collect_documentation(&self.source, &tree);
         self.imported_packages = imported_packages;
-        self.navigation = DocumentNavigation::new(&self.text);
         self.macro_syntax = macro_syntax;
         self.tree = tree;
         self.analysis = analysis;
@@ -654,7 +510,10 @@ mod tests {
             let node = document
                 .symbol_node_at_position(Position::new(2, character))
                 .expect("the surviving assignment should initially be on line 2");
-            assert_eq!(document.range_for(node).start, Position::new(2, character));
+            assert_eq!(
+                document.range_for_node(node).start,
+                Position::new(2, character)
+            );
         }
 
         document
@@ -674,7 +533,10 @@ mod tests {
                 .symbol_node_at_position(Position::new(0, character))
                 .expect("the surviving assignment should shift up by two lines");
             assert_eq!(node.text(), name);
-            assert_eq!(document.range_for(node).start, Position::new(0, character));
+            assert_eq!(
+                document.range_for_node(node).start,
+                Position::new(0, character)
+            );
         }
 
         for (name, character) in [("z", 0), ("x", 4)] {

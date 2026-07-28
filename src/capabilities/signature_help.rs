@@ -15,16 +15,15 @@ use crate::analysis::{Analysis, FunctionInfo, MethodInstallation};
 use crate::builtin_index::InstanceID;
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
+use crate::source::SourceNavigation;
 use crate::typesystem::{LspKnowledge, ResolvedSignature};
-use crate::util::byte_index_from_lsp_position;
 
 pub(crate) fn signature_help_response(
     document: &DocumentSnapshot,
     position: Position,
     knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Option<SignatureHelp> {
-    let text = document.text();
-    let cursor = byte_index_from_lsp_position(text, position)?;
+    let cursor = document.byte_for_position(position)?;
     let node = document.node_at_position_minimal(position)?;
 
     let (callable_node, argument_node) = enclosing_application(node, cursor)?;

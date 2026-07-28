@@ -4,6 +4,7 @@ use crate::builtin_index::InstanceID;
 use crate::capabilities::navigation::{reference_ranges_resolved, unbound_reference_ranges};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::source::SourceNavigation;
 use crate::typesystem::TypeKnowledge;
 use tower_lsp::lsp_types::{
     DocumentHighlight, DocumentHighlightKind, DocumentHighlightOptions, OneOf, Position,
@@ -135,7 +136,7 @@ fn semicolon_expression_highlight(
         markers
             .into_iter()
             .map(|marker| DocumentHighlight {
-                range: document.range_for(marker),
+                range: document.range_for_node(marker),
                 kind: Some(DocumentHighlightKind::TEXT),
             })
             .collect(),
@@ -243,7 +244,7 @@ fn control_transfer_highlights(
         nodes
             .into_iter()
             .map(|node| DocumentHighlight {
-                range: document.range_for(node),
+                range: document.range_for_node(node),
                 kind: Some(DocumentHighlightKind::TEXT),
             })
             .collect(),
@@ -303,7 +304,7 @@ fn keyword_sequence_highlights(
         keywords
             .into_iter()
             .map(|keyword| DocumentHighlight {
-                range: document.range_for(keyword),
+                range: document.range_for_node(keyword),
                 kind: Some(DocumentHighlightKind::TEXT),
             })
             .collect(),

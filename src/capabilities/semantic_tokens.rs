@@ -3,10 +3,11 @@
 use tower_lsp::lsp_types::*;
 
 use crate::analysis::BindingView;
-use crate::document::{DocumentSnapshot, DocumentSpan};
+use crate::document::DocumentSnapshot;
 use crate::documentation::DocumentationSnippet;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::source::{DocumentSpan, SourceNavigation};
 use crate::typesystem::{
     M2SemanticToken, M2SemanticTokenProvenance, M2SemanticTokenType, SemanticTokenKnowledge,
 };
@@ -82,8 +83,8 @@ pub(crate) fn collect_semantic_tokens(
             augments_syntax_tokens,
         );
         if !emitted_token && (node.kind.is_symbol_like() || syntax_token_type.is_some()) {
-            let source = document.span_for(node);
-            let position = source.range.start;
+            let source = document.span_for_node(node);
+            let position = source.range().start;
             let binding = analysis
                 .get_symbol_at(node.text(), position)
                 .map(|symbol| (symbol, position == symbol.range.start));
@@ -162,7 +163,10 @@ impl<'a> SemanticTokenEmitter<'a> {
         if spans.is_empty() {
             return false;
         }
-        spans.sort_by_key(|span| (span.source.bytes.start, span.source.bytes.end));
+        spans.sort_by_key(|span| {
+            let bytes = span.source.bytes();
+            (bytes.start, bytes.end)
+        });
 
         let emit_base =
             !augments_syntax_tokens || should_emit_syntax_token_when_augmenting(Some(base_type));
@@ -170,19 +174,18 @@ impl<'a> SemanticTokenEmitter<'a> {
         let mut emitted = false;
 
         for span in spans {
-            if span.source.bytes.start < cursor {
+            let span_bytes = span.source.bytes();
+            if span_bytes.start < cursor {
                 continue;
             }
-            if emit_base && cursor < span.source.bytes.start {
+            if emit_base && cursor < span_bytes.start {
                 emitted |= self.push(SemanticSpan {
-                    source: self
-                        .document
-                        .span_for_bytes(cursor..span.source.bytes.start),
+                    source: self.document.span_for_bytes(cursor..span_bytes.start),
                     token_type: base_type,
                     modifiers: 0,
                 });
             }
-            cursor = span.source.bytes.end;
+            cursor = span_bytes.end;
             emitted |= self.push(span);
         }
 
@@ -276,7 +279,6 @@ where
     W: WorkspaceDefinitionKnowledge + ?Sized,
 {
     let document = context.document;
-    let text = document.text();
     let analysis = document.analysis();
     let builtins = context.builtins;
     let workspace_index = context.workspace_index;
@@ -300,7 +302,7 @@ where
         token_type = Some(M2SemanticTokenType::Property);
     }
 
-    if token_type.is_none() && analysis.is_method_installation_codomain(node, text) {
+    if token_type.is_none() && analysis.is_method_installation_codomain(node, document) {
         token_type = Some(M2SemanticTokenType::Type);
         resolved_from_index = indexed_token.is_some();
     }
@@ -817,10 +819,13 @@ mod tests {
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
-        let line_lengths: Vec<u32> = text
-            .split('\n')
-            .map(|line| line.encode_utf16().count() as u32)
-            .collect();
+        let line_lengths = text
+            .match_indices('\n')
+            .map(|(byte, _)| document.position_for_byte(byte).character)
+            .chain(std::iter::once(
+                document.position_for_byte(text.len()).character,
+            ))
+            .collect::<Vec<_>>();
 
         // Decode the delta-encoded stream to absolute positions and assert every
         // token fits within its own source line.

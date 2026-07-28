@@ -28,6 +28,7 @@ mod package_index;
 mod partitioned_index;
 mod record_lsp;
 mod settings;
+mod source;
 mod typesystem;
 mod util;
 mod workspace_index;
@@ -185,7 +186,7 @@ impl Backend {
         &self,
         settings: ServerSettings,
         refresh_client: &(impl WorkspaceRefresh<InlayHintRefresh> + ?Sized),
-    ) -> tower_lsp::jsonrpc::Result<()> {
+    ) -> Result<()> {
         let previous = self.settings.replace(settings.clone());
 
         if previous.diagnostics() != settings.diagnostics() {
@@ -470,7 +471,7 @@ impl LanguageServer for Backend {
         let position = params.text_document_position.position;
         Ok(self
             .with_scoped_document(uri, |document, knowledge| {
-                completion_response(document.text(), position, document.analysis(), knowledge)
+                completion_response(document, position, knowledge)
             })
             .flatten())
     }
@@ -704,7 +705,7 @@ impl LanguageServer for Backend {
         let settings = self.settings.snapshot();
         Ok(self.with_document(&uri, |document| {
             document_formatting_text_edits(
-                document.text(),
+                document,
                 params.options.tab_size,
                 params.options.insert_spaces,
                 settings.formatting(),

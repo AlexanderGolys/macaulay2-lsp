@@ -1,0 +1,306 @@
+//! Indexed source text and the repository's single position-conversion API.
+
+use std::ops::Range as ByteRange;
+
+use tower_lsp::lsp_types::{Position, Range};
+use tree_sitter::Point;
+
+use crate::node_metadata::M2Node;
+
+/// Immutable coordinates for a source span in both parser-byte and LSP UTF-16
+/// space.
+///
+/// The fields stay private so the two representations can only be constructed
+/// together by [`SourceNavigation::span_for_bytes`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DocumentSpan {
+    bytes: ByteRange<usize>,
+    range: Range,
+}
+
+impl DocumentSpan {
+    /// The parser-oriented byte range of this span.
+    pub(crate) fn bytes(&self) -> ByteRange<usize> {
+        self.bytes.clone()
+    }
+
+    /// The protocol-oriented UTF-16 range of this span.
+    pub(crate) fn range(&self) -> Range {
+        self.range
+    }
+}
+
+/// Original source text paired with its cached line-content byte ranges.
+///
+/// Each cached range excludes the line ending. The source text itself is stored
+/// only once; the ranges are an index into it.
+#[derive(Debug)]
+pub(crate) struct DocumentSource {
+    text: String,
+    line_index: LineIndex,
+}
+
+impl DocumentSource {
+    /// Index one owned source snapshot.
+    pub(crate) fn new(text: String) -> Self {
+        let line_index = LineIndex::new(&text);
+        Self { text, line_index }
+    }
+
+    /// Replace one byte range and rebuild the line index exactly once.
+    pub(crate) fn replace_range(&mut self, bytes: ByteRange<usize>, replacement: &str) {
+        self.text.replace_range(bytes, replacement);
+        self.line_index = LineIndex::new(&self.text);
+    }
+}
+
+/// Cached byte ranges for every line's visible content.
+#[derive(Debug)]
+struct LineIndex {
+    content_ranges: Vec<ByteRange<usize>>,
+}
+
+impl LineIndex {
+    /// Discover line boundaries once for a source snapshot.
+    fn new(text: &str) -> Self {
+        let mut content_ranges = Vec::new();
+        let mut start_byte = 0;
+        for segment in text.split_inclusive('\n') {
+            let content = segment.strip_suffix('\n').unwrap_or(segment);
+            let content = content.strip_suffix('\r').unwrap_or(content);
+            content_ranges.push(start_byte..start_byte + content.len());
+            start_byte += segment.len();
+        }
+        if text.is_empty() || text.ends_with('\n') {
+            content_ranges.push(text.len()..text.len());
+        }
+        Self { content_ranges }
+    }
+
+    /// The indexed line containing `byte_index`, with line endings attributed to
+    /// the preceding line.
+    fn line_for_byte(&self, byte_index: usize) -> (usize, &ByteRange<usize>) {
+        let line_index = self
+            .content_ranges
+            .partition_point(|range| range.start <= byte_index)
+            .saturating_sub(1);
+        (line_index, &self.content_ranges[line_index])
+    }
+
+    /// The visible byte range for an LSP line number.
+    fn content_range(&self, line: u32) -> Option<&ByteRange<usize>> {
+        self.content_ranges.get(line as usize)
+    }
+}
+
+/// Navigation over source text using one cached line index.
+///
+/// Implementers expose their [`DocumentSource`]; every byte, Tree-sitter point,
+/// and LSP UTF-16 conversion is supplied here so capabilities cannot grow
+/// independent conversion formulas.
+pub(crate) trait SourceNavigation {
+    /// The indexed source snapshot backing this navigator.
+    fn source(&self) -> &DocumentSource;
+
+    /// The original source text.
+    fn text(&self) -> &str {
+        &self.source().text
+    }
+
+    /// Convert a source byte index to an LSP UTF-16 position.
+    fn position_for_byte(&self, byte_index: usize) -> Position {
+        let source = self.source();
+        let byte_index = floor_char_boundary(&source.text, byte_index);
+        let (line_index, line) = source.line_index.line_for_byte(byte_index);
+        let byte_index = byte_index.min(line.end);
+        Position::new(
+            line_index as u32,
+            utf16_len(&source.text[line.start..byte_index]),
+        )
+    }
+
+    /// Convert an LSP UTF-16 position to a source byte index.
+    fn byte_for_position(&self, position: Position) -> Option<usize> {
+        let source = self.source();
+        let line = source.line_index.content_range(position.line)?;
+        let content = &source.text[line.clone()];
+        Some(line.start + utf16_column_to_byte(content, position.character))
+    }
+
+    /// Convert an LSP UTF-16 range to its source byte range.
+    fn bytes_for_range(&self, range: Range) -> Option<ByteRange<usize>> {
+        let start = self.byte_for_position(range.start)?;
+        let end = self.byte_for_position(range.end)?;
+        (start <= end).then_some(start..end)
+    }
+
+    /// Convert a source byte index to a Tree-sitter byte-column point.
+    fn point_for_byte(&self, byte_index: usize) -> Point {
+        let source = self.source();
+        let byte_index = floor_char_boundary(&source.text, byte_index);
+        let (line_index, line) = source.line_index.line_for_byte(byte_index);
+        Point::new(line_index, byte_index - line.start)
+    }
+
+    /// Convert an LSP UTF-16 position to a Tree-sitter byte-column point.
+    fn point_for_position(&self, position: Position) -> Option<Point> {
+        let byte_index = self.byte_for_position(position)?;
+        Some(self.point_for_byte(byte_index))
+    }
+
+    /// Convert a byte range once and retain both coordinate representations.
+    fn span_for_bytes(&self, bytes: ByteRange<usize>) -> DocumentSpan {
+        DocumentSpan {
+            range: Range::new(
+                self.position_for_byte(bytes.start),
+                self.position_for_byte(bytes.end),
+            ),
+            bytes,
+        }
+    }
+
+    /// Convert one parser node to a dual-coordinate source span.
+    fn span_for_node(&self, node: M2Node<'_>) -> DocumentSpan {
+        self.span_for_bytes(node.start_byte()..node.end_byte())
+    }
+
+    /// Convert one byte range to its LSP UTF-16 range.
+    fn range_for_bytes(&self, bytes: ByteRange<usize>) -> Range {
+        self.span_for_bytes(bytes).range()
+    }
+
+    /// Convert one parser node to its LSP UTF-16 range.
+    fn range_for_node(&self, node: M2Node<'_>) -> Range {
+        self.span_for_node(node).range()
+    }
+
+    /// Convert one parser node's start to an LSP UTF-16 position.
+    fn position_for_node(&self, node: M2Node<'_>) -> Position {
+        self.position_for_byte(node.start_byte())
+    }
+
+    /// Slice source text using an LSP UTF-16 range.
+    fn text_in_range(&self, range: Range) -> Option<&str> {
+        self.text().get(self.bytes_for_range(range)?)
+    }
+
+    /// The full LSP range of the indexed source snapshot.
+    fn full_range(&self) -> Range {
+        self.range_for_bytes(0..self.text().len())
+    }
+
+    /// The range from a byte position through the end of its visible line.
+    fn remainder_of_line_range(&self, start_byte: usize) -> Range {
+        let source = self.source();
+        let start = self.position_for_byte(start_byte);
+        let line = source
+            .line_index
+            .content_range(start.line)
+            .expect("a byte within source text must belong to an indexed line");
+        Range::new(start, self.position_for_byte(line.end))
+    }
+
+    /// Split a possibly multiline span into legal single-line semantic-token
+    /// ranges, excluding line endings and empty lines.
+    fn visible_ranges(&self, span: &DocumentSpan) -> Vec<Range> {
+        let source = self.source();
+        let bytes = span.bytes();
+        let range = span.range();
+        let first_line = range.start.line as usize;
+        let last_line = range.end.line as usize;
+        let mut ranges = Vec::new();
+
+        for line_index in first_line..=last_line {
+            let line = &source.line_index.content_ranges[line_index];
+            let start_byte = if line_index == first_line {
+                bytes.start
+            } else {
+                line.start
+            }
+            .min(line.end);
+            let end_byte = if line_index == last_line {
+                bytes.end
+            } else {
+                line.end
+            }
+            .min(line.end);
+            if start_byte >= end_byte {
+                continue;
+            }
+
+            ranges.push(self.range_for_bytes(start_byte..end_byte));
+        }
+        ranges
+    }
+}
+
+impl SourceNavigation for DocumentSource {
+    fn source(&self) -> &DocumentSource {
+        self
+    }
+}
+
+/// Clamp a byte offset down to a valid UTF-8 character boundary.
+fn floor_char_boundary(text: &str, byte_index: usize) -> usize {
+    let mut byte_index = byte_index.min(text.len());
+    while byte_index > 0 && !text.is_char_boundary(byte_index) {
+        byte_index -= 1;
+    }
+    byte_index
+}
+
+/// Convert a UTF-16 column within one line to its byte offset.
+fn utf16_column_to_byte(line: &str, utf16_column: u32) -> usize {
+    let mut current_column = 0;
+
+    for (byte_index, character) in line.char_indices() {
+        let next_column = current_column + character.len_utf16() as u32;
+        if next_column > utf16_column {
+            return byte_index;
+        }
+        current_column = next_column;
+    }
+
+    line.len()
+}
+
+/// Count the UTF-16 code units in one valid source slice.
+fn utf16_len(text: &str) -> u32 {
+    text.encode_utf16().count() as u32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn navigation_converts_utf8_bytes_and_utf16_positions_both_ways() {
+        let source = DocumentSource::new("x\n😀 ideal\r\n".to_string());
+        let ideal_start = source.text().find("ideal").expect("fixture contains ideal");
+
+        assert_eq!(source.position_for_byte(ideal_start), Position::new(1, 3));
+        assert_eq!(
+            source.byte_for_position(Position::new(1, 3)),
+            Some(ideal_start)
+        );
+        assert_eq!(
+            source.full_range(),
+            Range::new(Position::new(0, 0), Position::new(2, 0))
+        );
+    }
+
+    #[test]
+    fn visible_ranges_split_multiline_spans_and_exclude_line_endings() {
+        let source = DocumentSource::new("aa\r\n😀\nbb".to_string());
+        let span = source.span_for_bytes(1..source.text().len() - 1);
+
+        assert_eq!(
+            source.visible_ranges(&span),
+            vec![
+                Range::new(Position::new(0, 1), Position::new(0, 2)),
+                Range::new(Position::new(1, 0), Position::new(1, 2)),
+                Range::new(Position::new(2, 0), Position::new(2, 1)),
+            ]
+        );
+    }
+}

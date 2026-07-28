@@ -10,8 +10,8 @@ use crate::document::{DocumentSnapshot, TargetSymbol};
 use crate::node_metadata::{NodeKind, NodeKindMetadata};
 use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
+use crate::source::SourceNavigation;
 use crate::typesystem::LspKnowledge;
-use crate::util::*;
 use crate::workspace_index::WorkspaceDefinitionKnowledge;
 
 /// The M2 keywords offered as completions — the control-flow, declaration, and
@@ -51,12 +51,12 @@ const COMPLETION_KEYWORDS: &[&str] = &[
 ];
 
 pub(crate) fn completion_response(
-    text: &str,
+    document: &DocumentSnapshot,
     position: Position,
-    analysis: &crate::analysis::Analysis,
     knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Option<CompletionResponse> {
-    let prefix = symbol_prefix_at(text, position)?;
+    let prefix = symbol_prefix_at(document, position)?;
+    let analysis = document.analysis();
     let mut items = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
@@ -186,7 +186,7 @@ pub(crate) fn goto_definition_response(
         }
     }
 
-    let node_text = if let Some(reference) = documentation_reference {
+    let node_text = if let Some(reference) = documentation_reference.as_ref() {
         reference.name(document.text())
     } else {
         if node.kind != NodeKind::Symbol {
@@ -196,6 +196,7 @@ pub(crate) fn goto_definition_response(
     };
 
     let local_definition = documentation_reference
+        .as_ref()
         .and_then(|reference| document.documentation_symbol(reference))
         .map(|symbol| symbol.range)
         .or_else(|| analysis.find_definition(node_text, position));
@@ -254,7 +255,7 @@ pub(crate) fn reference_ranges_resolved(
         if node.kind.is_symbol_like() {
             let node_text = node.text();
             if node_text == target_name {
-                let range = document.range_for(node);
+                let range = document.range_for_node(node);
                 if let Some(symbol) = analysis.get_symbol_at(node_text, range.start) {
                     if symbol.range == target_range
                         && (include_declaration || range != target_range)
@@ -270,7 +271,7 @@ pub(crate) fn reference_ranges_resolved(
             continue;
         }
         let range = reference.range();
-        if let Some(symbol) = document.documentation_symbol(*reference) {
+        if let Some(symbol) = document.documentation_symbol(reference) {
             if symbol.range == target_range && (include_declaration || range != target_range) {
                 references.push(range);
             }
@@ -361,13 +362,13 @@ pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -
     let mut references = Vec::new();
     for node in root_node.descendants() {
         if node.kind.is_symbol_like() && node.text() == name {
-            let position = document.range_for(node).start;
+            let position = document.position_for_node(node);
             // A use is global unless a local binding shadows the name here.
             let shadowed = analysis
                 .get_binding_at(name, position)
                 .is_some_and(|binding| binding.scope_idx != 0);
             if !shadowed {
-                references.push(document.range_for(node));
+                references.push(document.range_for_node(node));
             }
         }
     }
@@ -377,7 +378,7 @@ pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -
         }
         let range = reference.range();
         let shadowed = document
-            .documentation_symbol(*reference)
+            .documentation_symbol(reference)
             .is_some_and(|binding| binding.scope_idx != 0);
         if !shadowed {
             references.push(range);
@@ -398,7 +399,7 @@ pub(crate) fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) 
         .descendants()
         .filter(|node| node.kind.is_symbol_like() && node.text() == name)
         .filter_map(|node| {
-            let range = document.range_for(node);
+            let range = document.range_for_node(node);
             analysis
                 .get_binding_at(name, range.start)
                 .is_none()
@@ -414,7 +415,7 @@ pub(crate) fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) 
             .filter_map(|reference| {
                 let range = reference.range();
                 document
-                    .documentation_symbol(*reference)
+                    .documentation_symbol(reference)
                     .is_none()
                     .then_some(range)
             }),
@@ -424,10 +425,16 @@ pub(crate) fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) 
     references
 }
 
-pub(crate) fn symbol_prefix_at(text: &str, position: Position) -> Option<String> {
-    let line = text.lines().nth(position.line as usize)?;
-    let cursor = utf16_col_to_byte(line, position.character);
-    let start = line[..cursor]
+pub(crate) fn symbol_prefix_at(
+    source: &(impl SourceNavigation + ?Sized),
+    position: Position,
+) -> Option<String> {
+    let cursor = source.byte_for_position(position)?;
+    let line_start = source.text()[..cursor]
+        .rfind('\n')
+        .map_or(0, |index| index + 1);
+    let line_prefix = &source.text()[line_start..cursor];
+    let start = line_prefix
         .char_indices()
         .rev()
         .find_map(|(index, ch)| {
@@ -438,7 +445,7 @@ pub(crate) fn symbol_prefix_at(text: &str, position: Position) -> Option<String>
             }
         })
         .unwrap_or(0);
-    let prefix = &line[start..cursor];
+    let prefix = &line_prefix[start..];
     (!prefix.is_empty()).then(|| prefix.to_string())
 }
 
@@ -491,7 +498,7 @@ mod tests {
         let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
         let loaded = LoadedPackages::resolve(index.default_loaded(), text);
         let scoped = index.scoped(&loaded);
-        match completion_response(text, position, document.analysis(), &scoped) {
+        match completion_response(&document, position, &scoped) {
             Some(CompletionResponse::Array(items)) => {
                 items.into_iter().map(|item| item.label).collect()
             }
@@ -518,12 +525,14 @@ mod tests {
 
     #[test]
     fn symbol_prefix_uses_lsp_utf16_columns() {
+        let first = crate::source::DocumentSource::new("éideal".to_string());
         assert_eq!(
-            symbol_prefix_at("éideal", Position::new(0, 3)).as_deref(),
+            symbol_prefix_at(&first, Position::new(0, 3)).as_deref(),
             Some("éid")
         );
+        let second = crate::source::DocumentSource::new("😀 ideal".to_string());
         assert_eq!(
-            symbol_prefix_at("😀 ideal", Position::new(0, 7)).as_deref(),
+            symbol_prefix_at(&second, Position::new(0, 7)).as_deref(),
             Some("idea")
         );
     }

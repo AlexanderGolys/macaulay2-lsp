@@ -7,7 +7,7 @@ use tower_lsp::lsp_types::{
 use tree_sitter::Parser;
 
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::util::full_document_range;
+use crate::source::SourceNavigation;
 
 pub(crate) trait FormattingConfiguration {
     fn indent_width(&self) -> Option<u32>;
@@ -96,11 +96,12 @@ pub(crate) fn folding_range_provider_capability() -> Option<FoldingRangeProvider
 }
 
 pub(crate) fn document_formatting_text_edits(
-    text: &str,
+    source: &(impl SourceNavigation + ?Sized),
     tab_size: u32,
     insert_spaces: bool,
     configuration: &(impl FormattingConfiguration + ?Sized),
 ) -> Vec<TextEdit> {
+    let text = source.text();
     let options = FormatOptions::from_configuration(tab_size, insert_spaces, configuration);
     let formatted = format_document_text_with_options(text, &options);
     if formatted == text {
@@ -108,7 +109,7 @@ pub(crate) fn document_formatting_text_edits(
     }
 
     vec![TextEdit {
-        range: full_document_range(text),
+        range: source.full_range(),
         new_text: formatted,
     }]
 }

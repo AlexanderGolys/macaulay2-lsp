@@ -16,9 +16,12 @@ use crate::diagnostic_registry::M2Diagnostic;
 use crate::meta::{BindingRole, Meta, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 #[cfg(test)]
+use crate::source::DocumentSource;
+use crate::source::SourceNavigation;
+#[cfg(test)]
 use crate::typesystem::NoTypeKnowledge;
 use crate::typesystem::TypeKnowledge;
-use crate::util::{node_position, position_in_range, to_lsp_range};
+use crate::util::position_in_range;
 
 /// Snapshot-local identity of an interned source symbol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -95,13 +98,14 @@ pub struct Operator {
 /// Juxtaposition's operator token, e.g. the `SPACE` in `(SPACE, Ring, Array)`.
 pub const SPACE_OPERATOR: &str = "SPACE";
 
-/// The head of an M2 method key `(head, ...domain)`, mirroring how M2 stores
-/// installed methods.
+/// The callable or operator receiving an installed method.
+///
+/// Installation syntax affects the installed function's arity, not the
+/// identity of this head.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MethodHead {
     Function(String),
     Operator(Operator),
-    OperatorAssign(Operator),
 }
 
 /// Stable identity of a method installation within one immutable analysis
@@ -128,14 +132,16 @@ pub struct MethodInstallation {
     pub span: SpanKey,
     pub target: SpanKey,
     pub value: Option<SpanKey>,
+    /// Required arity of the installed function. Assignment handlers receive
+    /// the assigned value in addition to the operands in `domain`.
+    expected_rhs_arity: usize,
     pub rhs_lambda_dispatch: Option<Dispatch>,
 }
 
 impl MethodInstallation {
-    /// The argument count the right-hand-side function must take: one per domain
-    /// type, plus one for the assigned value `z` in an assignment-form install.
+    /// The argument count the right-hand-side function must take.
     pub fn expected_rhs_arity(&self) -> usize {
-        self.domain.len() + usize::from(matches!(self.head, MethodHead::OperatorAssign(_)))
+        self.expected_rhs_arity
     }
 }
 
@@ -443,9 +449,9 @@ pub struct SemanticRegistry {
 }
 
 impl SpanKey {
-    fn from_node(text: &str, node: M2Node) -> Self {
+    fn from_node(source: &(impl SourceNavigation + ?Sized), node: M2Node) -> Self {
         Self {
-            range: to_lsp_range(text, node.range()),
+            range: source.range_for_node(node),
         }
     }
 }
@@ -635,10 +641,14 @@ impl Analysis {
     }
 
     #[cfg(test)]
-    pub fn expression_fact(&self, text: &str, node: M2Node) -> Option<&ExpressionFact> {
+    pub fn expression_fact(
+        &self,
+        source: &(impl SourceNavigation + ?Sized),
+        node: M2Node,
+    ) -> Option<&ExpressionFact> {
         self.registry
             .expressions
-            .get(&SpanKey::from_node(text, node))
+            .get(&SpanKey::from_node(source, node))
     }
 
     pub(crate) fn function(&self, name: &str) -> Option<&FunctionInfo> {
@@ -653,8 +663,12 @@ impl Analysis {
         installation.codomain.as_ref().map(InstanceID::name)
     }
 
-    pub(crate) fn is_method_installation_codomain(&self, node: M2Node, text: &str) -> bool {
-        let span = SpanKey::from_node(text, node);
+    pub(crate) fn is_method_installation_codomain(
+        &self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+    ) -> bool {
+        let span = SpanKey::from_node(source, node);
         self.installations
             .iter()
             .any(|installation| installation.codomain_span.as_ref() == Some(&span))
@@ -774,12 +788,13 @@ impl Analysis {
 
     #[cfg(test)]
     pub fn new(tree: &Tree, text: &str) -> Self {
-        Self::new_with_knowledge(tree, text, &NoTypeKnowledge)
+        let source = DocumentSource::new(text.to_string());
+        Self::new_with_knowledge(tree, &source, &NoTypeKnowledge)
     }
 
     pub(crate) fn new_with_knowledge(
         tree: &Tree,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Self {
         let mut analysis = Analysis {
@@ -801,24 +816,24 @@ impl Analysis {
         // Analysis-first: derive the semantic metadata (scopes, expression facts,
         // method installations) BEFORE running diagnostics, which are almost
         // entirely semantic and consume that metadata rather than re-deriving it.
-        let root = M2Node::new(tree.root_node(), text);
-        analysis.build_scopes(root, text, 0, 0, builtins);
+        let root = M2Node::new(tree.root_node(), source.text());
+        analysis.build_scopes(root, source, 0, 0, builtins);
         // Scope construction needs source-ordered partial information. Once all
         // bindings and states exist, inference is stable and each node's final
         // type can be memoized for all semantic consumers in this snapshot.
         analysis.cache_types = true;
-        analysis.collect_expression_facts(root, text, builtins);
+        analysis.collect_expression_facts(root, source, builtins);
         analysis.collect_installation_diagnostics(builtins);
-        analysis.collect_install_form_diagnostics(root, text, builtins);
-        analysis.collect_diagnostics(root, text, builtins);
-        analysis.collect_unused_binding_diagnostics(root, text);
+        analysis.collect_install_form_diagnostics(root, source, builtins);
+        analysis.collect_diagnostics(root, source, builtins);
+        analysis.collect_unused_binding_diagnostics(root, source);
         analysis
     }
 
     fn build_scopes(
         &mut self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         current_scope_idx: usize,
         assignment_scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
@@ -828,14 +843,14 @@ impl Analysis {
 
         match node.kind {
             NodeKind::LambdaExpression => {
-                next_scope_idx = self.push_scope(node, text, Some(current_scope_idx), false);
+                next_scope_idx = self.push_scope(node, source, Some(current_scope_idx), false);
                 next_assignment_scope_idx = next_scope_idx;
 
                 if let Some(params_node) = node.child_by_field_name("parameters") {
                     let parameter_types = method_installation_parameter_types_for_function(node);
                     self.collect_parameters(
                         params_node,
-                        text,
+                        source,
                         next_scope_idx,
                         parameter_types.as_deref(),
                     );
@@ -848,7 +863,7 @@ impl Analysis {
 
                 if let (Some(left), Some(op)) = (left, op) {
                     let op_text = op.text();
-                    self.record_method_installation(node, text, builtins);
+                    self.record_method_installation(node, source, builtins);
                     let symbol_kind = match right {
                         Some(right) if right.kind == NodeKind::LambdaExpression => {
                             SymbolKind::FUNCTION
@@ -867,7 +882,7 @@ impl Analysis {
                         {
                             Some(InstanceID::new("MethodFunction"))
                         } else {
-                            self.type_of(right, text, current_scope_idx, builtins)
+                            self.type_of(right, source, current_scope_idx, builtins)
                                 .dispatch_id()
                         }
                     });
@@ -891,7 +906,7 @@ impl Analysis {
                         ":=" => self.collect_definitions(
                             left,
                             right,
-                            text,
+                            source,
                             DefinitionScope::Local,
                             SymbolRegistration {
                                 kind: symbol_kind,
@@ -912,7 +927,7 @@ impl Analysis {
                         "=" => self.collect_definitions(
                             left,
                             right,
-                            text,
+                            source,
                             DefinitionScope::Assign,
                             SymbolRegistration {
                                 kind: symbol_kind,
@@ -940,7 +955,7 @@ impl Analysis {
                             || builtins.is_subtype(type_name.name(), "Ring")
                         {
                             self.collect_ring_generator_bindings(
-                                ring_name, right, left, text, builtins,
+                                ring_name, right, left, source, builtins,
                             );
                         }
                     }
@@ -956,7 +971,7 @@ impl Analysis {
                     Some(policy) => {
                         let scope_idx = self.push_scope(
                             child,
-                            text,
+                            source,
                             Some(next_scope_idx),
                             policy.context_assignments_may_escape,
                         );
@@ -971,7 +986,7 @@ impl Analysis {
                 };
             self.build_scopes(
                 child,
-                text,
+                source,
                 child_scope_idx,
                 child_assignment_scope_idx,
                 builtins,
@@ -980,8 +995,12 @@ impl Analysis {
     }
 
     /// The installation characterized for the assignment spanning `node`, if any.
-    pub(crate) fn installation_for(&self, node: M2Node, text: &str) -> Option<&MethodInstallation> {
-        let span = SpanKey::from_node(text, node);
+    pub(crate) fn installation_for(
+        &self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+    ) -> Option<&MethodInstallation> {
+        let span = SpanKey::from_node(source, node);
         self.installations
             .iter()
             .find(|installation| installation.span == span)
@@ -991,11 +1010,15 @@ impl Analysis {
     /// `lhs := [Codomain =>] fn`, or `None` for an ordinary assignment/call. An
     /// explicit `Codomain => fn` return-type declaration is peeled to its `fn`, so
     /// the installation's value is the function, never the `Codomain =>` "Option".
-    fn installed_function<'tree>(&self, node: M2Node<'tree>, text: &str) -> Option<M2Node<'tree>> {
+    fn installed_function<'tree>(
+        &self,
+        node: M2Node<'tree>,
+        source: &(impl SourceNavigation + ?Sized),
+    ) -> Option<M2Node<'tree>> {
         if !node.is_assignment() {
             return None;
         }
-        self.installation_for(node, text)?;
+        self.installation_for(node, source)?;
         let right = node.child_by_field_name("right")?;
         Some(if right.is_option_assignment() {
             right.child_by_field_name("right").unwrap_or(right)
@@ -1018,23 +1041,24 @@ impl Analysis {
         &self,
         id: MethodInstallationId,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<MethodInstallation> {
         let operator = node.binary_operator()?;
         let left = node.child_by_field_name("left")?;
         let (head, domain) = self.installation_shape(left, builtins)?;
-        let span = SpanKey::from_node(text, node);
-        let target = SpanKey::from_node(text, left);
+        let operand_arity = domain.len();
+        let span = SpanKey::from_node(source, node);
+        let target = SpanKey::from_node(source, left);
         let right = node.child_by_field_name("right");
-        let value = right.map(|right| SpanKey::from_node(text, right));
+        let value = right.map(|right| SpanKey::from_node(source, right));
         let codomain_node = right
             .filter(|right| right.is_option_assignment())
             .and_then(|right| right.child_by_field_name("left"));
         let codomain = codomain_node
             .and_then(symbol_node_text)
             .map(InstanceID::new);
-        let codomain_span = codomain_node.map(|node| SpanKey::from_node(text, node));
+        let codomain_span = codomain_node.map(|node| SpanKey::from_node(source, node));
         // The RHS function shape, read once here so the arity diagnostic need not
         // re-walk the tree. Only a plain lambda RHS carries a checkable arity.
         let rhs_lambda_dispatch = node
@@ -1053,6 +1077,7 @@ impl Analysis {
                 span,
                 target,
                 value,
+                expected_rhs_arity: operand_arity,
                 rhs_lambda_dispatch,
             }),
             // `=` installs only the assignment form of a BINARY operator (incl.
@@ -1067,13 +1092,14 @@ impl Analysis {
                 {
                     Some(MethodInstallation {
                         id,
-                        head: MethodHead::OperatorAssign(op),
+                        head: MethodHead::Operator(op),
                         domain,
                         codomain,
                         codomain_span,
                         span,
                         target,
                         value,
+                        expected_rhs_arity: operand_arity + 1,
                         rhs_lambda_dispatch,
                     })
                 }
@@ -1223,24 +1249,24 @@ impl Analysis {
     fn collect_install_form_diagnostics(
         &mut self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         let mut diagnostics = Vec::new();
-        self.scan_install_form(node, text, builtins, &mut diagnostics);
+        self.scan_install_form(node, source, builtins, &mut diagnostics);
         self.diagnostics.extend(diagnostics);
     }
 
     fn scan_install_form(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
         out: &mut Vec<Diagnostic>,
     ) {
         if let Some(name) = self.illegal_equals_install_head(node, builtins) {
             out.push(M2Diagnostic::InstallNeedsColonEquals.at(
-                to_lsp_range(text, node.range()),
+                source.range_for_node(node),
                 format!(
                     "Installing a method on `{name}` must use `:=`, not `=`: M2 rejects this \
                      (\"no method for storing values of function {name}\"). Use `:=`."
@@ -1248,7 +1274,7 @@ impl Analysis {
             ));
         }
         for child in node.children() {
-            self.scan_install_form(child, text, builtins, out);
+            self.scan_install_form(child, source, builtins, out);
         }
     }
 
@@ -1300,7 +1326,7 @@ impl Analysis {
                     ));
                 }
             }
-            MethodHead::Operator(operator) | MethodHead::OperatorAssign(operator) => {
+            MethodHead::Operator(operator) => {
                 let form = fixity_form(operator.fixity);
                 if self.operator_form_is_flexible(&operator.token, form, builtins) == Some(false) {
                     out.push(M2Diagnostic::OperatorNotFlexible.at(
@@ -1405,7 +1431,7 @@ impl Analysis {
     fn collect_parameters(
         &mut self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         parameter_types: Option<&[InstanceID]>,
     ) {
@@ -1428,7 +1454,7 @@ impl Analysis {
                     scope_idx,
                     potential_export: false,
                 },
-                text,
+                source,
             );
         }
     }
@@ -1437,7 +1463,7 @@ impl Analysis {
         &mut self,
         node: M2Node,
         value_node: Option<M2Node>,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         definition_scope: DefinitionScope,
         registration: SymbolRegistration<'_>,
     ) {
@@ -1452,10 +1478,10 @@ impl Analysis {
                             value_node,
                             ..registration
                         },
-                        text,
+                        source,
                     ),
                     DefinitionScope::Assign => {
-                        let position = node_position(text, node);
+                        let position = source.position_for_node(node);
                         let binding_id = self
                             .registry
                             .resolve_symbol(name)
@@ -1475,7 +1501,7 @@ impl Analysis {
                                     value_node,
                                     ..registration
                                 },
-                                text,
+                                source,
                             );
                         } else {
                             self.add_symbol(
@@ -1485,7 +1511,7 @@ impl Analysis {
                                     value_node,
                                     ..registration
                                 },
-                                text,
+                                source,
                             );
                         }
                     }
@@ -1500,7 +1526,7 @@ impl Analysis {
                     self.collect_definitions(
                         child,
                         value_node,
-                        text,
+                        source,
                         definition_scope,
                         SymbolRegistration {
                             type_name: None,
@@ -1513,7 +1539,12 @@ impl Analysis {
         }
     }
 
-    fn add_symbol(&mut self, name: &str, registration: SymbolRegistration<'_>, text: &str) {
+    fn add_symbol(
+        &mut self,
+        name: &str,
+        registration: SymbolRegistration<'_>,
+        source: &(impl SourceNavigation + ?Sized),
+    ) {
         let SymbolRegistration {
             kind,
             role,
@@ -1531,7 +1562,7 @@ impl Analysis {
         }
         let binding_id = BindingId(self.registry.bindings.len() as u32);
         let state_id = BindingStateId(self.registry.binding_states.len() as u32);
-        let range = to_lsp_range(text, node.range());
+        let range = source.range_for_node(node);
         let binding = BindingInfo {
             binding_id,
             symbol: symbol_id,
@@ -1540,7 +1571,7 @@ impl Analysis {
             potential_export,
             range,
             scope_idx,
-            declaration_range: enclosing_definition_range(node, text),
+            declaration_range: enclosing_definition_range(node, source),
             definition_state: state_id,
         };
         let state = BindingStateInfo {
@@ -1549,8 +1580,8 @@ impl Analysis {
             kind,
             type_name,
             indexed_element_type,
-            value_range: value_node.map(|value| to_lsp_range(text, value.range())),
-            span: SpanKey::from_node(text, node),
+            value_range: value_node.map(|value| source.range_for_node(value)),
+            span: SpanKey::from_node(source, node),
             scope_idx,
         };
         self.registry.bindings.push(binding);
@@ -1571,7 +1602,7 @@ impl Analysis {
         &mut self,
         binding_id: BindingId,
         registration: SymbolRegistration<'_>,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
     ) {
         let Some(symbol) = self.binding(binding_id).map(|binding| binding.symbol) else {
             return;
@@ -1593,8 +1624,8 @@ impl Analysis {
             indexed_element_type: registration.indexed_element_type,
             value_range: registration
                 .value_node
-                .map(|value| to_lsp_range(text, value.range())),
-            span: SpanKey::from_node(text, registration.node),
+                .map(|value| source.range_for_node(value)),
+            span: SpanKey::from_node(source, registration.node),
             scope_idx: registration.scope_idx,
         });
         self.registry
@@ -1609,7 +1640,7 @@ impl Analysis {
         ring_name: &str,
         expression: M2Node,
         rebind_node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         let containers = expression
@@ -1618,7 +1649,7 @@ impl Analysis {
             .filter_map(|node| {
                 let head = node.child_by_field_name("left")?;
                 let variables = ring_constructor_variables(node)?;
-                self.type_of(head, text, 0, builtins)
+                self.type_of(head, source, 0, builtins)
                     .principal()
                     .is_some_and(|head_type| builtins.is_subtype(head_type.as_ref(), "Ring"))
                     .then_some(variables)
@@ -1638,7 +1669,7 @@ impl Analysis {
                     &generator.name,
                     generator.kind,
                     generator.node,
-                    text,
+                    source,
                 );
             }
         }
@@ -1651,7 +1682,7 @@ impl Analysis {
                 .unwrap_or_default();
             for generator in &generators {
                 let name = self.registry.symbol_name(generator.symbol).to_string();
-                self.register_ring_generator(ring_name, &name, generator.kind, rebind_node, text);
+                self.register_ring_generator(ring_name, &name, generator.kind, rebind_node, source);
             }
         }
 
@@ -1679,7 +1710,7 @@ impl Analysis {
         generator_name: &str,
         kind: RingGeneratorKind,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
     ) {
         match kind {
             RingGeneratorKind::Direct => {
@@ -1688,7 +1719,7 @@ impl Analysis {
                     node,
                     InstanceID::new(ring_name),
                     None,
-                    text,
+                    source,
                 );
             }
             RingGeneratorKind::IndexedTable => {
@@ -1697,7 +1728,7 @@ impl Analysis {
                     node,
                     InstanceID::new("IndexedVariableTable"),
                     Some(InstanceID::new(ring_name)),
-                    text,
+                    source,
                 );
             }
         }
@@ -1709,9 +1740,9 @@ impl Analysis {
         node: M2Node,
         type_name: InstanceID,
         indexed_element_type: Option<InstanceID>,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
     ) {
-        let position = node_position(text, node);
+        let position = source.position_for_node(node);
         let binding_id = self
             .registry
             .resolve_symbol(name)
@@ -1732,19 +1763,19 @@ impl Analysis {
             potential_export: true,
         };
         if let Some(binding_id) = binding_id {
-            self.add_binding_state(binding_id, registration, text);
+            self.add_binding_state(binding_id, registration, source);
         } else {
-            self.add_symbol(name, registration, text);
+            self.add_symbol(name, registration, source);
         }
     }
 
     pub fn local_method_installation_signature_at<'a>(
         &'a self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
     ) -> Option<(&'a FunctionInfo, &'a MethodInstallation)> {
         let assignment = method_installation_assignment_for_callable_node(node)?;
-        let installation = self.installation_for(assignment, text)?;
+        let installation = self.installation_for(assignment, source)?;
         let MethodHead::Function(name) = &installation.head else {
             return None;
         };
@@ -1758,21 +1789,26 @@ impl Analysis {
     pub fn infer_call_static_facts(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> CallStaticFacts {
-        let scope_idx = self.find_scope_at(node_position(text, node)).unwrap_or(0);
-        self.infer_call_facts(node, text, scope_idx, builtins)
+        let scope_idx = self
+            .find_scope_at(source.position_for_node(node))
+            .unwrap_or(0);
+        self.infer_call_facts(node, source, scope_idx, builtins)
     }
 
     pub fn infer_expression_static_type(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InstanceID> {
-        let scope_idx = self.find_scope_at(node_position(text, node)).unwrap_or(0);
-        self.type_of(node, text, scope_idx, builtins).dispatch_id()
+        let scope_idx = self
+            .find_scope_at(source.position_for_node(node))
+            .unwrap_or(0);
+        self.type_of(node, source, scope_idx, builtins)
+            .dispatch_id()
     }
 
     /// Project inferred types into the nominal names understood by the builtin
@@ -1845,11 +1881,11 @@ impl Analysis {
     fn record_method_installation(
         &mut self,
         assignment: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) {
         let id = MethodInstallationId(self.installations.len() as u32);
-        let Some(mut installation) = self.classify_installation(id, assignment, text, builtins)
+        let Some(mut installation) = self.classify_installation(id, assignment, source, builtins)
         else {
             return;
         };
@@ -1879,9 +1915,7 @@ impl Analysis {
                 }
                 name.as_str()
             }
-            MethodHead::Operator(operator) | MethodHead::OperatorAssign(operator) => {
-                operator.token.as_str()
-            }
+            MethodHead::Operator(operator) => operator.token.as_str(),
         };
         let symbol = self.registry.intern_symbol(name);
         let method = self
@@ -1904,11 +1938,11 @@ impl Analysis {
     fn push_scope(
         &mut self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         parent_idx: Option<usize>,
         context_assignments_may_escape: bool,
     ) -> usize {
-        let range = to_lsp_range(text, node.range());
+        let range = source.range_for_node(node);
         let scope_idx = self.registry.scopes.len();
         self.registry.scopes.push(ScopeInfo {
             range,
@@ -1917,19 +1951,19 @@ impl Analysis {
         });
         self.registry
             .node_scopes
-            .insert(SpanKey::from_node(text, node), scope_idx);
+            .insert(SpanKey::from_node(source, node), scope_idx);
         scope_idx
     }
 
     fn collect_expression_facts(
         &mut self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) {
-        let position = node_position(text, node);
+        let position = source.position_for_node(node);
         let scope_idx = self.find_scope_at(position).unwrap_or(0);
-        let key = SpanKey::from_node(text, node);
+        let key = SpanKey::from_node(source, node);
         self.registry.node_scopes.insert(key.clone(), scope_idx);
 
         // A method installation `lhs := [Codomain =>] fn` is not a value
@@ -1937,9 +1971,9 @@ impl Analysis {
         // declaration, not an `Option`. Type the whole node as the installed
         // function and descend only into the function body, so the install syntax
         // (the LHS and the `Codomain =>` wrapper) gets no misleading value hints.
-        if let Some(function) = self.installed_function(node, text) {
+        if let Some(function) = self.installed_function(node, source) {
             if let Some(kind) = expression_kind(node) {
-                let result_type = self.type_of(function, text, scope_idx, builtins);
+                let result_type = self.type_of(function, source, scope_idx, builtins);
                 self.registry.expressions.insert(
                     key.clone(),
                     ExpressionFact {
@@ -1951,15 +1985,15 @@ impl Analysis {
                     },
                 );
             }
-            self.collect_expression_facts(function, text, builtins);
+            self.collect_expression_facts(function, source, builtins);
             return;
         }
 
         if let Some(kind) = expression_kind(node) {
-            let result_type = self.type_of(node, text, scope_idx, builtins);
+            let result_type = self.type_of(node, source, scope_idx, builtins);
             let input_nodes = expression_inputs(node)
                 .into_iter()
-                .map(|child| SpanKey::from_node(text, child))
+                .map(|child| SpanKey::from_node(source, child))
                 .collect();
             let operator = expression_operator_text(node).map(ToString::to_string);
             self.registry.expressions.insert(
@@ -1973,21 +2007,22 @@ impl Analysis {
                 },
             );
 
-            if let Some(call_info) = self.call_info_for_expression(node, text, scope_idx, builtins)
+            if let Some(call_info) =
+                self.call_info_for_expression(node, source, scope_idx, builtins)
             {
                 self.registry.calls.insert(key.clone(), call_info);
             }
         }
 
         for child in node.children() {
-            self.collect_expression_facts(child, text, builtins);
+            self.collect_expression_facts(child, source, builtins);
         }
     }
 
     fn call_info_for_expression(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<CallInfo> {
@@ -2008,7 +2043,7 @@ impl Analysis {
             let callable_name = symbol_node_text(callable).map(ToString::to_string);
             let facts = self.infer_call_facts_for_callable(
                 argument,
-                text,
+                source,
                 scope_idx,
                 callable_name.as_deref(),
                 builtins,
@@ -2024,14 +2059,14 @@ impl Analysis {
         let right = node.child_by_field_name("right");
         let operand = node.child_by_field_name("operand");
         let argument_types = if let Some(operand) = operand {
-            vec![self.type_of(operand, text, scope_idx, builtins)]
+            vec![self.type_of(operand, source, scope_idx, builtins)]
         } else {
             vec![
                 left.map_or_else(InferredType::unknown, |child| {
-                    self.type_of(child, text, scope_idx, builtins)
+                    self.type_of(child, source, scope_idx, builtins)
                 }),
                 right.map_or_else(InferredType::unknown, |child| {
-                    self.type_of(child, text, scope_idx, builtins)
+                    self.type_of(child, source, scope_idx, builtins)
                 }),
             ]
         };
@@ -2049,12 +2084,12 @@ impl Analysis {
     fn type_of(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         if !self.cache_types {
-            return self.compute_type_of(node, text, scope_idx, builtins);
+            return self.compute_type_of(node, source, scope_idx, builtins);
         }
 
         let node_id = NodeFactId(node.id());
@@ -2069,7 +2104,7 @@ impl Analysis {
 
         #[cfg(test)]
         self.type_computations.fetch_add(1, Ordering::Relaxed);
-        let inferred = self.compute_type_of(node, text, scope_idx, builtins);
+        let inferred = self.compute_type_of(node, source, scope_idx, builtins);
         self.type_cache
             .write()
             .expect("type cache lock should not be poisoned")
@@ -2080,7 +2115,7 @@ impl Analysis {
     fn compute_type_of(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
@@ -2103,7 +2138,7 @@ impl Analysis {
             // `ZZ`, `(a;b)` is the type of `b`. With no final value (`(a;)`) it
             // evaluates to `null`, whose class is `Nothing`.
             NodeKind::ParenthesizedExpression => match parenthesized_value(node) {
-                Some(inner) => self.type_of(inner, text, scope_idx, builtins),
+                Some(inner) => self.type_of(inner, source, scope_idx, builtins),
                 None => InferredType::of("Nothing"),
             },
             NodeKind::StringLiteral => InferredType::of("String"),
@@ -2112,20 +2147,20 @@ impl Analysis {
             // A quote expression (`symbol +`, `local x`, `global y`,
             // `threadLocal z`) evaluates to the Symbol it names.
             NodeKind::QuoteExpression => InferredType::of("Symbol"),
-            NodeKind::Symbol => self.symbol_type(node, text, scope_idx, builtins),
+            NodeKind::Symbol => self.symbol_type(node, source, scope_idx, builtins),
             // An assignment evaluates to its right-hand side: `a = b` / `a := b`
             // (and destructuring `{x,y} := …`) take the type of the RHS.
             _ if node.is_assignment() => match node.child_by_field_name("right") {
-                Some(right) => self.type_of(right, text, scope_idx, builtins),
+                Some(right) => self.type_of(right, source, scope_idx, builtins),
                 None => InferredType::unknown(),
             },
             // `x => y` builds an `Option` object, whatever the operand types.
             _ if node.is_option_assignment() => InferredType::of("Option"),
             NodeKind::BinaryExpression => {
-                self.binary_expression_type(node, text, scope_idx, builtins)
+                self.binary_expression_type(node, source, scope_idx, builtins)
             }
             NodeKind::PrefixExpression | NodeKind::PostfixExpression => {
-                self.unary_operator_type(node, text, scope_idx, builtins)
+                self.unary_operator_type(node, source, scope_idx, builtins)
             }
             NodeKind::NewStatement => node
                 .child_by_field_name("type")
@@ -2135,11 +2170,11 @@ impl Analysis {
             // `if c then A [else B]` is whichever branch runs; with no `else`,
             // a false condition yields `null` (`Nothing`). The static type is the
             // join of the reachable branch types.
-            NodeKind::IfStatement => self.if_statement_type(node, text, scope_idx, builtins),
+            NodeKind::IfStatement => self.if_statement_type(node, source, scope_idx, builtins),
             // `try E [then A] [else B | except e do B]` is the success value
             // (`then A`, else `E`) joined with the failure value (`else`/`do B`,
             // else `null` since an unhandled error makes `try` evaluate to null).
-            NodeKind::TryStatement => self.try_statement_type(node, text, scope_idx, builtins),
+            NodeKind::TryStatement => self.try_statement_type(node, source, scope_idx, builtins),
             // A `for … list …` collects a `List`; a `for … do …` loop (and every
             // `while` loop) evaluates to `null` (`Nothing`).
             NodeKind::ForStatement => {
@@ -2156,14 +2191,14 @@ impl Analysis {
             // A control transfer evaluates (for the loop/function it escapes) to
             // its operand, or `null` (`Nothing`) when bare.
             kind if kind.is_control_transfer() => {
-                self.control_transfer_type(node, text, scope_idx, builtins)
+                self.control_transfer_type(node, source, scope_idx, builtins)
             }
             // A debug clause (`time E`, `break v`, …) passes through to the value
             // of its inner statement/expression.
             NodeKind::DebugClause => node
                 .named_children()
                 .next()
-                .map(|inner| self.type_of(inner, text, scope_idx, builtins))
+                .map(|inner| self.type_of(inner, source, scope_idx, builtins))
                 .unwrap_or_else(InferredType::unknown),
             _ => InferredType::unknown(),
         }
@@ -2175,16 +2210,16 @@ impl Analysis {
     fn if_statement_type(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         let then_type = clause_of(node, NodeKind::ThenClause)
             .and_then(clause_value)
-            .map(|value| self.type_of(value, text, scope_idx, builtins))
+            .map(|value| self.type_of(value, source, scope_idx, builtins))
             .unwrap_or_else(InferredType::unknown);
         let else_type = match clause_of(node, NodeKind::ElseClause).and_then(clause_value) {
-            Some(value) => self.type_of(value, text, scope_idx, builtins),
+            Some(value) => self.type_of(value, source, scope_idx, builtins),
             None => InferredType::of("Nothing"),
         };
         then_type.join(else_type, builtins)
@@ -2196,7 +2231,7 @@ impl Analysis {
     fn try_statement_type(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
@@ -2207,13 +2242,13 @@ impl Analysis {
             .and_then(clause_value)
             .or(body);
         let success = success_value
-            .map(|value| self.type_of(value, text, scope_idx, builtins))
+            .map(|value| self.type_of(value, source, scope_idx, builtins))
             .unwrap_or_else(InferredType::unknown);
         let failure_value = clause_of(node, NodeKind::ElseClause)
             .or_else(|| clause_of(node, NodeKind::DoClause))
             .and_then(clause_value);
         let failure = match failure_value {
-            Some(value) => self.type_of(value, text, scope_idx, builtins),
+            Some(value) => self.type_of(value, source, scope_idx, builtins),
             None => InferredType::of("Nothing"),
         };
         success.join(failure, builtins)
@@ -2224,12 +2259,12 @@ impl Analysis {
     fn control_transfer_type(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         match node.named_children().next() {
-            Some(operand) => self.type_of(operand, text, scope_idx, builtins),
+            Some(operand) => self.type_of(operand, source, scope_idx, builtins),
             None => InferredType::of("Nothing"),
         }
     }
@@ -2241,13 +2276,13 @@ impl Analysis {
     fn symbol_type(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         let name = node.text();
         if let Some(binding) =
-            self.get_binding_from_scope(name, scope_idx, node_position(text, node))
+            self.get_binding_from_scope(name, scope_idx, source.position_for_node(node))
         {
             if let Some(type_name) = &binding.state.type_name {
                 return InferredType::from_id(type_name.clone());
@@ -2269,12 +2304,12 @@ impl Analysis {
     fn binary_expression_type(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         if node.is_space_application() {
-            return self.application_type(node, text, scope_idx, builtins);
+            return self.application_type(node, source, scope_idx, builtins);
         }
 
         let operator = node.binary_operator();
@@ -2283,7 +2318,7 @@ impl Analysis {
 
         if let Some(operator) = operator {
             if let Some(result) =
-                self.special_operator_type(operator, left, right, text, scope_idx, builtins)
+                self.special_operator_type(operator, left, right, source, scope_idx, builtins)
             {
                 return result;
             }
@@ -2292,8 +2327,8 @@ impl Analysis {
         let (Some(operator), Some(left), Some(right)) = (operator, left, right) else {
             return InferredType::unknown();
         };
-        let left_type = self.type_of(left, text, scope_idx, builtins);
-        let right_type = self.type_of(right, text, scope_idx, builtins);
+        let left_type = self.type_of(left, source, scope_idx, builtins);
+        let right_type = self.type_of(right, source, scope_idx, builtins);
         self.dispatch_codomain(builtins, operator, &[left_type, right_type], &[])
     }
 
@@ -2308,12 +2343,12 @@ impl Analysis {
         operator: &str,
         left: Option<M2Node>,
         right: Option<M2Node>,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
         let left = left?;
-        let left_type = self.type_of(left, text, scope_idx, builtins);
+        let left_type = self.type_of(left, source, scope_idx, builtins);
         let left_name = left_type.principal()?;
 
         if operator == "_" {
@@ -2322,7 +2357,7 @@ impl Analysis {
             }
             if left_name.as_ref() == "IndexedVariableTable" {
                 if let Some(element_type) = self
-                    .get_binding_from_scope(left.text(), scope_idx, node_position(text, left))
+                    .get_binding_from_scope(left.text(), scope_idx, source.position_for_node(left))
                     .and_then(|binding| binding.state.indexed_element_type.as_ref())
                 {
                     return Some(InferredType::of(element_type.name()));
@@ -2336,7 +2371,7 @@ impl Analysis {
         }
 
         if operator == "/" && builtins.is_subtype(left_name.as_ref(), "Ring") {
-            let right_type = self.type_of(right?, text, scope_idx, builtins);
+            let right_type = self.type_of(right?, source, scope_idx, builtins);
             let right_name = right_type.principal()?;
             if right_name.as_ref() == "ZZ" {
                 return Some(InferredType::of("QuotientRing"));
@@ -2354,7 +2389,7 @@ impl Analysis {
     fn application_type(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
@@ -2367,7 +2402,7 @@ impl Analysis {
         let callable_name = symbol_node_text(callable_node);
         let call_facts = self.infer_call_facts_for_callable(
             argument_node,
-            text,
+            source,
             scope_idx,
             callable_name,
             builtins,
@@ -2388,7 +2423,7 @@ impl Analysis {
         // Otherwise the lattice decides whether the head is a function (delegating
         // to its signatures) or another SPACE method (`Ring × Array →
         // PolynomialRing`).
-        let head = self.type_of(callable_node, text, scope_idx, builtins);
+        let head = self.type_of(callable_node, source, scope_idx, builtins);
         let head_is_function = head
             .principal()
             .is_some_and(|head| builtins.is_subtype(head.as_ref(), "Function"));
@@ -2409,14 +2444,14 @@ impl Analysis {
         if let Some(result) = self.ring_application_with_trailing_operator_type(
             &head,
             argument_node,
-            text,
+            source,
             scope_idx,
             builtins,
         ) {
             return result;
         }
 
-        let argument_type = self.type_of(argument_node, text, scope_idx, builtins);
+        let argument_type = self.type_of(argument_node, source, scope_idx, builtins);
         self.dispatch_codomain(
             builtins,
             SPACE_OPERATOR,
@@ -2434,7 +2469,7 @@ impl Analysis {
         &self,
         head: &InferredType,
         argument: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
@@ -2450,7 +2485,7 @@ impl Analysis {
         }
         let trailing_operand = argument.child_by_field_name("right")?;
 
-        let variables_type = self.type_of(variables, text, scope_idx, builtins);
+        let variables_type = self.type_of(variables, source, scope_idx, builtins);
         let ring_type = self.dispatch_codomain(
             builtins,
             SPACE_OPERATOR,
@@ -2462,7 +2497,7 @@ impl Analysis {
             return None;
         }
 
-        let trailing_type = self.type_of(trailing_operand, text, scope_idx, builtins);
+        let trailing_type = self.type_of(trailing_operand, source, scope_idx, builtins);
         let result = builtins.resolve_call_return_type_with_options(
             operator,
             &[
@@ -2487,7 +2522,7 @@ impl Analysis {
     fn unary_operator_type(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
@@ -2496,7 +2531,7 @@ impl Analysis {
         else {
             return InferredType::unknown();
         };
-        let operand_type = self.type_of(operand, text, scope_idx, builtins);
+        let operand_type = self.type_of(operand, source, scope_idx, builtins);
         self.dispatch_codomain(builtins, operator, &[operand_type], &[])
     }
 
@@ -2533,17 +2568,17 @@ impl Analysis {
     fn infer_call_facts(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> CallStaticFacts {
-        self.infer_call_facts_for_callable(node, text, scope_idx, None, builtins)
+        self.infer_call_facts_for_callable(node, source, scope_idx, None, builtins)
     }
 
     fn infer_call_facts_for_callable(
         &self,
         node: M2Node,
-        text: &str,
+        source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         callable: Option<&str>,
         builtins: &(impl TypeKnowledge + ?Sized),
@@ -2561,7 +2596,7 @@ impl Analysis {
                 } else {
                     facts
                         .argument_types
-                        .push(self.type_of(child, text, scope_idx, builtins));
+                        .push(self.type_of(child, source, scope_idx, builtins));
                 }
             }
             return facts;
@@ -2575,7 +2610,7 @@ impl Analysis {
         }
 
         CallStaticFacts {
-            argument_types: vec![self.type_of(node, text, scope_idx, builtins)],
+            argument_types: vec![self.type_of(node, source, scope_idx, builtins)],
             literal_options: Vec::new(),
         }
     }
@@ -3087,15 +3122,18 @@ fn literal_option_assignment(node: M2Node) -> Option<(String, String)> {
     Some((key.to_string(), value.to_string()))
 }
 
-fn enclosing_definition_range(node: M2Node<'_>, text: &str) -> Range {
+fn enclosing_definition_range(
+    node: M2Node<'_>,
+    source: &(impl SourceNavigation + ?Sized),
+) -> Range {
     let mut current = node;
     while let Some(parent) = current.parent() {
         if parent.kind == NodeKind::Cell {
-            return to_lsp_range(text, parent.range());
+            return source.range_for_node(parent);
         }
         current = parent;
     }
-    to_lsp_range(text, node.range())
+    source.range_for_node(node)
 }
 
 fn literal_option_value(node: M2Node<'_>) -> Option<&str> {
@@ -3363,7 +3401,8 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        Analysis::new_with_knowledge(&tree, text, builtins)
+        let source = DocumentSource::new(text.to_string());
+        Analysis::new_with_knowledge(&tree, &source, builtins)
     }
 
     fn core_builtins() -> BuiltinData {
@@ -3383,10 +3422,11 @@ mod tests {
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_knowledge(&tree, text, builtins);
+        let source = DocumentSource::new(text.to_string());
+        let analysis = Analysis::new_with_knowledge(&tree, &source, builtins);
         let node = find(M2Node::new(tree.root_node(), text), kind)?;
         analysis
-            .expression_fact(text, node)
+            .expression_fact(&source, node)
             .and_then(|fact| fact.result_type.label())
     }
 
@@ -3423,6 +3463,7 @@ mod tests {
             MethodHead::Operator(binary_op("*"))
         );
         assert_eq!(domain_names(&analysis.installations[0]), vec!["R", "S"]);
+        assert_eq!(analysis.installations[0].expected_rhs_arity(), 2);
     }
 
     #[test]
@@ -3448,7 +3489,7 @@ mod tests {
         assert_eq!(analysis.installations.len(), 1);
         assert_eq!(
             analysis.installations[0].head,
-            MethodHead::OperatorAssign(binary_op("+"))
+            MethodHead::Operator(binary_op("+"))
         );
         assert_eq!(domain_names(&analysis.installations[0]), vec!["ZZ", "ZZ"]);
         // RHS must take domain.len() + 1 args (the assigned value `z`).
@@ -3477,9 +3518,10 @@ mod tests {
         assert_eq!(analysis.installations.len(), 1);
         assert_eq!(
             analysis.installations[0].head,
-            MethodHead::OperatorAssign(binary_op("+"))
+            MethodHead::Operator(binary_op("+"))
         );
         assert_eq!(domain_names(&analysis.installations[0]), vec!["X", "Y"]);
+        assert_eq!(analysis.installations[0].expected_rhs_arity(), 3);
     }
 
     #[test]
@@ -4850,7 +4892,8 @@ x
             .set_language(&tree_sitter_macaulay2::language())
             .expect("macaulay2 parser should load");
         let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new_with_knowledge(&tree, text, &builtins);
+        let source = DocumentSource::new(text.to_string());
+        let analysis = Analysis::new_with_knowledge(&tree, &source, &builtins);
         let assignment = tree
             .root_node()
             .descendant_for_byte_range(18, 23)
@@ -4862,21 +4905,21 @@ x
             text,
         );
         let fact = analysis
-            .expression_fact(text, binary)
+            .expression_fact(&source, binary)
             .expect("expression fact should be registered");
         assert_eq!(fact.kind, ExpressionKind::Expr);
         assert_eq!(fact.result_type, InferredType::of("ZZ"));
         let call = analysis
             .registry()
             .calls
-            .get(&SpanKey::from_node(text, binary))
+            .get(&SpanKey::from_node(&source, binary))
             .expect("call info should be registered");
         assert_eq!(call.callable_name.as_deref(), Some("+"));
 
         let computations = analysis.type_computation_count();
         assert_eq!(computations, analysis.cached_type_count());
         assert_eq!(
-            analysis.infer_expression_static_type(binary, text, &builtins),
+            analysis.infer_expression_static_type(binary, &source, &builtins),
             Some(InstanceID::new("ZZ"))
         );
         assert_eq!(
@@ -4935,10 +4978,11 @@ x
                 .expect("assignment node"),
             text,
         );
+        let source = DocumentSource::new(text.to_string());
         // The assignment evaluates to its right-hand side, so its expression
         // type is Array even though the target is written with `{}`.
         assert_eq!(
-            analysis.infer_expression_static_type(assignment, text, &NoTypeKnowledge),
+            analysis.infer_expression_static_type(assignment, &source, &NoTypeKnowledge),
             Some(InstanceID::new("Array"))
         );
     }
