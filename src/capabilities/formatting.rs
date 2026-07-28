@@ -4,9 +4,8 @@ use tower_lsp::lsp_types::{
     DocumentFormattingOptions, FoldingRange, FoldingRangeKind, FoldingRangeProviderCapability,
     OneOf, TextEdit,
 };
-use tree_sitter::Parser;
 
-use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::node_metadata::{M2Node, M2Parser, NodeKind, NodeKindMetadata};
 use crate::source::SourceNavigation;
 
 pub(crate) trait FormattingConfiguration {
@@ -173,18 +172,12 @@ fn format_control_flow(text: &str, options: &FormatOptions, newline: &'static st
         return text.to_string();
     }
 
-    let mut parser = Parser::new();
-    if parser
-        .set_language(&tree_sitter_macaulay2::language())
-        .is_err()
-    {
-        return text.to_string();
-    }
-    let Some(tree) = parser.parse(text, None) else {
+    let Some(mut parser) = M2Parser::new() else {
         return text.to_string();
     };
-
-    let root = M2Node::new(tree.root_node(), text);
+    let Some(root) = parser.parse(text) else {
+        return text.to_string();
+    };
     let mut edits = Vec::new();
     for clause in root.descendants().filter(|node| {
         matches!(
@@ -526,18 +519,13 @@ fn collect_line_break_candidates(
     options: &FormatOptions,
     rules: &(impl LineBreakRule + ?Sized),
 ) -> Vec<LineBreakCandidate> {
-    let mut parser = Parser::new();
-    if parser
-        .set_language(&tree_sitter_macaulay2::language())
-        .is_err()
-    {
+    let Some(mut parser) = M2Parser::new() else {
         return Vec::new();
-    }
-    let Some(tree) = parser.parse(text, None) else {
+    };
+    let Some(root) = parser.parse(text) else {
         return Vec::new();
     };
 
-    let root = M2Node::new(tree.root_node(), text);
     let mut candidates = Vec::new();
     for node in root.descendants() {
         rules.collect(node, text, options, &mut candidates);
@@ -651,28 +639,18 @@ struct TreeIndentLayout {
 impl TreeIndentLayout {
     fn build(text: &str, compact_factor_operators: bool) -> Self {
         let line_count = text.lines().count().max(1);
-        let mut parser = Parser::new();
-        if parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .is_err()
-        {
-            return Self {
-                depths: vec![0; line_count],
-                literal_rows: vec![false; line_count],
-                literal_start_rows: vec![false; line_count],
-                comment_folds: Vec::new(),
-            };
-        }
-        let Some(tree) = parser.parse(text, None) else {
-            return Self {
-                depths: vec![0; line_count],
-                literal_rows: vec![false; line_count],
-                literal_start_rows: vec![false; line_count],
-                comment_folds: Vec::new(),
-            };
+        let empty_layout = || Self {
+            depths: vec![0; line_count],
+            literal_rows: vec![false; line_count],
+            literal_start_rows: vec![false; line_count],
+            comment_folds: Vec::new(),
         };
-
-        let root = M2Node::new(tree.root_node(), text);
+        let Some(mut parser) = M2Parser::new() else {
+            return empty_layout();
+        };
+        let Some(root) = parser.parse(text) else {
+            return empty_layout();
+        };
         let brackets = collect_bracket_groups(root, line_count);
         let (literal_rows, literal_start_rows) = collect_literal_rows(root, line_count);
         let line_leads = line_leading_blank(text, line_count);
@@ -1156,24 +1134,15 @@ fn close_fold_range(
 }
 
 fn normalize_whitespace(text: &str, options: &FormatOptions) -> String {
-    let mut parser = Parser::new();
-    if parser
-        .set_language(&tree_sitter_macaulay2::language())
-        .is_err()
-    {
+    let Some(mut parser) = M2Parser::new() else {
         return text.to_string();
-    }
-    let Some(tree) = parser.parse(text, None) else {
+    };
+    let Some(root) = parser.parse(text) else {
         return text.to_string();
     };
 
     let mut edits = Vec::new();
-    collect_format_edits(
-        M2Node::new(tree.root_node(), text),
-        text,
-        options,
-        &mut edits,
-    );
+    collect_format_edits(root, text, options, &mut edits);
     apply_format_edits(text, edits)
 }
 
@@ -1902,10 +1871,7 @@ mod tests {
             max_line_width: Some(24),
             ..FormatOptions::default()
         };
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .unwrap();
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
 
         for source in [
             "result = concatenate(alpha, beta, gamma)\n",
@@ -1914,12 +1880,11 @@ mod tests {
             "nested = outer(alpha, inner(beta, gamma), delta)\n",
         ] {
             let formatted = format_document_text_with_options(source, &options);
-            let tree = parser.parse(&formatted, None).unwrap();
-
-            assert!(
-                !tree.root_node().has_error(),
-                "wrapped source should parse:\n{formatted}"
-            );
+            let has_error = parser
+                .parse(&formatted)
+                .map(|root| root.has_error())
+                .expect("formatted fixture should parse");
+            assert!(!has_error, "wrapped source should parse:\n{formatted}");
             assert_eq!(
                 format_document_text_with_options(&formatted, &options),
                 formatted

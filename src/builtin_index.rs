@@ -8,6 +8,7 @@
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result};
+use std::mem;
 
 use serde::Deserialize;
 
@@ -16,7 +17,6 @@ use serde::Deserialize;
 pub struct InstanceID(pub String);
 
 impl InstanceID {
-    /// Construct an identifier from an unqualified or package-qualified name.
     pub fn new(name: &str) -> Self {
         InstanceID(name.to_string())
     }
@@ -438,7 +438,7 @@ impl BuiltinIndex {
 
 fn base_record(raw: &mut RawRecord, aliases: Vec<String>, default_class: &str) -> Record {
     Record {
-        name: InstanceID(std::mem::take(&mut raw.name)),
+        name: InstanceID(mem::take(&mut raw.name)),
         class: InstanceID(
             raw.class
                 .take()

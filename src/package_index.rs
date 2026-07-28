@@ -4,10 +4,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use tower_lsp::lsp_types::{Location, Position, Range, Url};
-use tree_sitter::Parser;
 
 use crate::builtin_index::Record;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::{M2Node, M2Parser, NodeKind};
 use crate::record_lsp::record_source_file;
 
 #[derive(Debug, Clone)]
@@ -116,27 +115,19 @@ pub(crate) fn package_source_string(node: M2Node<'_>) -> Option<&str> {
 }
 
 pub(crate) fn collect_imported_packages(text: &str) -> Vec<String> {
-    let mut parser = Parser::new();
-    if parser
-        .set_language(&tree_sitter_macaulay2::language())
-        .is_err()
-    {
-        return Vec::new();
-    }
-    let Some(tree) = parser.parse(text, None) else {
+    let Some(mut parser) = M2Parser::new() else {
         return Vec::new();
     };
-    collect_imported_packages_in_tree(text, &tree)
+    parser
+        .parse(text)
+        .map(collect_imported_packages_in_tree)
+        .unwrap_or_default()
 }
 
 /// Walk an already-parsed tree for package-import calls, reusing the caller's
 /// parse rather than spinning up a fresh parser. The snapshot keeps its tree
 /// around, so per-version import collection costs one walk, not a re-parse.
-pub(crate) fn collect_imported_packages_in_tree(
-    text: &str,
-    tree: &tree_sitter::Tree,
-) -> Vec<String> {
-    let root = M2Node::new(tree.root_node(), text);
+pub(crate) fn collect_imported_packages_in_tree(root: M2Node<'_>) -> Vec<String> {
     let mut packages = Vec::new();
     let mut seen = HashSet::new();
     for node in root.descendants() {
@@ -170,7 +161,11 @@ fn binary_expression_left_symbol(node: M2Node<'_>) -> Option<&str> {
 
 #[cfg(test)]
 mod import_trigger_tests {
-    use super::collect_imported_packages;
+    use std::{env, fs};
+
+    use super::{
+        collect_imported_packages, package_source_string, M2Parser, NodeKind, SourceResolver,
+    };
 
     #[test]
     fn import_from_string_form_adds_the_package() {
@@ -211,5 +206,60 @@ mod import_trigger_tests {
             "loadPackage(ignored;\"AfterMuted\")\nloadPackage(,\"AfterNull\")\nloadPackage(\"Muted\";)\n",
         );
         assert_eq!(pkgs, vec!["AfterMuted".to_string()]);
+    }
+
+    #[test]
+    fn package_source_string_detects_import_like_calls() {
+        let text =
+            "needsPackage \"Graphs\"\nloadPackage(\"Normaliz\", Reload => true)\ndebug \"Core\"";
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse(text).expect("fixture should parse");
+        let packages = root
+            .descendants()
+            .filter(|node| node.kind == NodeKind::StringLiteral)
+            .filter_map(package_source_string)
+            .collect::<Vec<_>>();
+
+        assert_eq!(packages, vec!["Graphs", "Normaliz", "Core"]);
+    }
+
+    #[test]
+    fn imported_packages_are_deduplicated_in_source_order() {
+        let text = "needsPackage \"Graphs\"\nloadPackage(\"Normaliz\")\nneedsPackage \"Graphs\"";
+
+        assert_eq!(
+            collect_imported_packages(text),
+            vec!["Graphs".to_string(), "Normaliz".to_string()]
+        );
+    }
+
+    #[test]
+    fn source_resolver_finds_package_and_doc_files_from_configured_roots() {
+        let root = env::temp_dir().join(format!("m2-lsp-source-resolver-{}", std::process::id()));
+        let packages = root.join("Macaulay2").join("packages");
+        let docs = packages.join("Macaulay2Doc");
+        let core = root.join("Macaulay2").join("m2");
+        fs::create_dir_all(&docs).expect("test docs dir should be created");
+        fs::create_dir_all(&core).expect("test core dir should be created");
+        fs::write(packages.join("Graphs.m2"), "").expect("package fixture should write");
+        fs::write(docs.join("operators.m2"), "").expect("doc fixture should write");
+        fs::write(core.join("option.m2"), "").expect("core fixture should write");
+
+        let resolver = SourceResolver::new(vec![packages.clone()]);
+
+        assert_eq!(
+            resolver.resolve_package_file("Graphs"),
+            Some(packages.join("Graphs.m2"))
+        );
+        assert_eq!(
+            resolver.resolve_source_file("Macaulay2Doc/operators.m2"),
+            Some(docs.join("operators.m2"))
+        );
+        assert_eq!(
+            resolver.resolve_source_file("m2/option.m2"),
+            Some(core.join("option.m2"))
+        );
+
+        let _ = fs::remove_dir_all(root);
     }
 }

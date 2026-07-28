@@ -8,9 +8,8 @@
 use std::ops::Range as ByteRange;
 
 use tower_lsp::lsp_types::{Position, Range};
-use tree_sitter::{Parser, Tree};
 
-use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::node_metadata::{M2Node, M2Parser, NodeKind, NodeKindMetadata};
 use crate::source::{DocumentSpan, SourceNavigation};
 use crate::util::position_in_range;
 
@@ -53,17 +52,11 @@ impl DocumentationReference {
 
 pub(crate) fn collect_documentation(
     source: &(impl SourceNavigation + ?Sized),
-    tree: &Tree,
+    root: M2Node<'_>,
 ) -> (Vec<DocumentationSnippet>, Vec<DocumentationReference>) {
-    let text = source.text();
-    let root = M2Node::new(tree.root_node(), text);
-    let mut parser = Parser::new();
-    if parser
-        .set_language(&tree_sitter_macaulay2::language())
-        .is_err()
-    {
+    let Some(mut parser) = M2Parser::new() else {
         return (Vec::new(), Vec::new());
-    }
+    };
     let mut snippets = Vec::new();
     let mut references = Vec::new();
 
@@ -86,7 +79,7 @@ fn is_documentation_container(node: M2Node<'_>) -> bool {
 fn collect_backtick_snippets(
     node: M2Node<'_>,
     source: &(impl SourceNavigation + ?Sized),
-    parser: &mut Parser,
+    parser: &mut M2Parser,
     snippets: &mut Vec<DocumentationSnippet>,
     references: &mut Vec<DocumentationReference>,
 ) {
@@ -125,10 +118,9 @@ fn collect_backtick_snippets(
 
         let start_byte = node.start_byte() + content_start;
         let end_byte = node.start_byte() + close;
-        let Some(tree) = parser.parse(candidate, None) else {
+        let Some(root) = parser.parse(candidate) else {
             continue;
         };
-        let root = M2Node::new(tree.root_node(), candidate);
         references.extend(
             root.descendants()
                 .filter(|symbol| symbol.kind.is_symbol_like())
@@ -153,16 +145,12 @@ fn is_code_candidate(candidate: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tree_sitter::Parser;
 
     fn references(text: &str) -> Vec<(String, Range)> {
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("Macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
         let source = crate::source::DocumentSource::new(text.to_string());
-        collect_documentation(&source, &tree)
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse(text).expect("fixture should parse");
+        collect_documentation(&source, root)
             .1
             .into_iter()
             .map(|reference| (reference.name(text).to_string(), reference.range()))

@@ -650,4 +650,116 @@ mod tests {
         assert!(markup.value.contains("## Examples"));
         assert!(markup.value.contains("> **Example 1**"));
     }
+
+    #[test]
+    fn record_hover_includes_explicit_package_context() {
+        let knowledge = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
+        let record = knowledge
+            .get_record(&InstanceID::new("clearAll"))
+            .expect("clearAll should have builtin metadata");
+
+        let hover = record_hover_with_package_and_usage(record, Some("Core"), &knowledge, None);
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("record hover should use markdown");
+        };
+
+        assert!(markup.value.contains("Package: `Core`"));
+    }
+
+    #[test]
+    fn option_value_usage_lookup_resolves_from_possible_values() {
+        let corpus = concat!(
+            "{\"kind\":\"symbol\",\"name\":\"LongPolynomial\",\"class\":\"Symbol\"}\n",
+            "{\"kind\":\"methodFunction\",\"name\":\"gb\",\"options\":[{\"key\":\"Strategy\",\"possibleValues\":[\"LongPolynomial\"]}]}\n",
+        );
+        let knowledge = BuiltinData::load_from_index(corpus);
+
+        assert_eq!(
+            knowledge.option_value_usage_names("LongPolynomial", 8),
+            vec!["gb.Strategy"],
+        );
+    }
+
+    #[test]
+    fn record_hover_includes_documented_signatures_and_examples() {
+        let corpus = concat!(
+            "{\"kind\":\"methodFunction\",\"name\":\"kernel\",",
+            "\"methods\":[{\"domain\":[\"RingMap\"],\"typicalValue\":\"Ideal\"}],",
+            "\"markdown\":\"**Examples:**\\n```macaulay2\\nR = QQ[a..d];\\nker F\\n```\"}\n",
+        );
+        let knowledge = BuiltinData::load_from_index(corpus);
+        let record = knowledge
+            .get_record(&InstanceID::new("kernel"))
+            .expect("kernel should deserialize");
+
+        let hover = record_hover_with_package_and_usage(record, Some("Core"), &knowledge, None);
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("record hover should use markdown");
+        };
+
+        assert!(markup.value.contains("`(RingMap) -> Ideal`"));
+        assert!(markup.value.contains("> ```macaulay2\n> R = QQ[a..d];"));
+    }
+
+    #[test]
+    fn record_hover_includes_global_typical_value() {
+        let knowledge = BuiltinData::load_from_index(
+            "{\"kind\":\"methodFunction\",\"name\":\"method\",\"typical_value\":\"MethodFunction\"}\n",
+        );
+        let record = knowledge
+            .get_record(&InstanceID::new("method"))
+            .expect("method should deserialize");
+
+        let hover = record_hover_with_package_and_usage(record, Some("Core"), &knowledge, None);
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("record hover should use markdown");
+        };
+
+        assert!(markup.value.contains("Typical Value: `MethodFunction`"));
+    }
+
+    #[test]
+    fn record_hover_renders_documented_operator_signatures_in_operator_form() {
+        let knowledge = BuiltinData::load_from_index(
+            "{\"kind\":\"operator\",\"name\":\"=>\",\"operator\":{\"forms\":[\"binary\"]},\"methods\":[{\"domain\":[\"Thing\",\"Thing\"],\"typicalValue\":\"Option\"}]}\n",
+        );
+        let record = knowledge
+            .get_record(&InstanceID::new("=>"))
+            .expect("=> should have operator metadata");
+
+        let hover = record_hover_with_package_and_usage(record, Some("Core"), &knowledge, None);
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("record hover should use markdown");
+        };
+
+        assert!(markup.value.contains("`Thing => Thing -> Option`"));
+        assert!(!markup.value.contains("`Thing, Thing -> Option`"));
+    }
+
+    #[test]
+    fn record_hover_keeps_excluded_signatures_when_usage_is_pinned() {
+        let knowledge = BuiltinData::load_from_index(concat!(
+            "{\"kind\":\"methodFunction\",\"name\":\"f\",\"methods\":[",
+            "{\"domain\":[\"String\"],\"typicalValue\":\"File\"},",
+            "{\"domain\":[\"ZZ\"],\"typicalValue\":\"Ring\"}",
+            "]}\n",
+        ));
+        let record = knowledge
+            .get_record(&InstanceID::new("f"))
+            .expect("f should have builtin metadata");
+        let usage = knowledge
+            .resolve_call_signature_usage("f", &[Some(InstanceID::new("String"))])
+            .expect("f String should resolve to a documented installation");
+
+        let hover =
+            record_hover_with_package_and_usage(record, Some("Core"), &knowledge, Some(&usage));
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("record hover should use markdown");
+        };
+
+        assert!(markup.value.starts_with("**f** `(String) -> File`"));
+        assert!(!markup.value.contains("**Signature:**"));
+        assert!(markup.value.contains("**Other signatures for this call:**"));
+        assert!(markup.value.contains("`(ZZ) -> Ring`"));
+    }
 }

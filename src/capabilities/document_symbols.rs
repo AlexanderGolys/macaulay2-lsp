@@ -246,9 +246,8 @@ mod tests {
     use super::*;
     use crate::builtin_index::BuiltinData;
     use crate::document::DocumentSnapshot;
-    use crate::node_metadata::{M2Node, NodeKind};
+    use crate::node_metadata::{M2Node, M2Parser, NodeKind};
     use tower_lsp::lsp_types::{Position, Range};
-    use tree_sitter::Parser;
 
     fn document(text: &str, builtins: &BuiltinData) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), builtins).expect("fixture should parse")
@@ -452,13 +451,10 @@ mod tests {
 
         let text = include_str!("../../tests/fixtures/formatting_example.m2");
         let builtins = BuiltinData::empty();
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .unwrap();
-        let tree = parser.parse(text, None).expect("fixture should parse");
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse(text).expect("fixture should parse");
         let mut expected = Vec::new();
-        collect_static_top_level_bindings(M2Node::new(tree.root_node(), text), &mut expected);
+        collect_static_top_level_bindings(root, &mut expected);
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);

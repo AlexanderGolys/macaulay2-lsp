@@ -9,7 +9,6 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use tower_lsp::lsp_types::{Diagnostic, Position, Range, SymbolKind};
-use tree_sitter::Tree;
 
 use crate::builtin_index::InstanceID;
 use crate::diagnostic_registry::M2Diagnostic;
@@ -787,13 +786,13 @@ impl Analysis {
     }
 
     #[cfg(test)]
-    pub fn new(tree: &Tree, text: &str) -> Self {
-        let source = DocumentSource::new(text.to_string());
-        Self::new_with_knowledge(tree, &source, &NoTypeKnowledge)
+    pub fn new(root: M2Node<'_>) -> Self {
+        let source = DocumentSource::new(root.text().to_string());
+        Self::new_with_knowledge(root, &source, &NoTypeKnowledge)
     }
 
     pub(crate) fn new_with_knowledge(
-        tree: &Tree,
+        root: M2Node<'_>,
         source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Self {
@@ -816,7 +815,6 @@ impl Analysis {
         // Analysis-first: derive the semantic metadata (scopes, expression facts,
         // method installations) BEFORE running diagnostics, which are almost
         // entirely semantic and consume that metadata rather than re-deriving it.
-        let root = M2Node::new(tree.root_node(), source.text());
         analysis.build_scopes(root, source, 0, 0, builtins);
         // Scope construction needs source-ordered partial information. Once all
         // bindings and states exist, inference is stable and each node's final
@@ -3383,26 +3381,19 @@ mod tests {
         member_index_for_ambiguous_float_literal, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE,
     };
     use crate::diagnostic_registry::diagnostic_has_kind;
+    use crate::node_metadata::M2Parser;
     use tower_lsp::lsp_types::DiagnosticSeverity;
-    use tree_sitter::Parser;
 
     fn analyze(text: &str) -> Analysis {
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        Analysis::new(&tree, text)
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        Analysis::new(parser.parse(text).expect("fixture should parse"))
     }
 
     fn analyze_with_builtins(text: &str, builtins: &BuiltinData) -> Analysis {
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
         let source = DocumentSource::new(text.to_string());
-        Analysis::new_with_knowledge(&tree, &source, builtins)
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse(text).expect("fixture should parse");
+        Analysis::new_with_knowledge(root, &source, builtins)
     }
 
     fn core_builtins() -> BuiltinData {
@@ -3417,14 +3408,11 @@ mod tests {
             }
             node.children().find_map(|child| find(child, kind))
         }
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
         let source = DocumentSource::new(text.to_string());
-        let analysis = Analysis::new_with_knowledge(&tree, &source, builtins);
-        let node = find(M2Node::new(tree.root_node(), text), kind)?;
+        let mut parser = M2Parser::new()?;
+        let root = parser.parse(text)?;
+        let analysis = Analysis::new_with_knowledge(root, &source, builtins);
+        let node = find(root, kind)?;
         analysis
             .expression_fact(&source, node)
             .and_then(|fact| fact.result_type.label())
@@ -3546,18 +3534,14 @@ mod tests {
     }
 
     fn dispatch_of(src: &str) -> Option<Dispatch> {
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(src, None).expect("fixture should parse");
         fn first_lambda(node: M2Node) -> Option<M2Node> {
             if node.kind == NodeKind::LambdaExpression {
                 return Some(node);
             }
             node.named_children().find_map(first_lambda)
         }
-        function_dispatch(first_lambda(M2Node::new(tree.root_node(), src))?)
+        let mut parser = M2Parser::new()?;
+        function_dispatch(first_lambda(parser.parse(src)?)?)
     }
 
     #[test]
@@ -4887,23 +4871,16 @@ x
             "{\"kind\":\"operator\",\"name\":\"+\",\"operator\":{\"forms\":[\"binary\"]},\"methods\":[{\"domain\":[\"ZZ\",\"ZZ\"],\"typicalValue\":\"ZZ\"}]}\n",
         );
         let text = "x := 1\ny := 2\nz := x + y\n";
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
         let source = DocumentSource::new(text.to_string());
-        let analysis = Analysis::new_with_knowledge(&tree, &source, &builtins);
-        let assignment = tree
-            .root_node()
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse(text).expect("fixture should parse");
+        let analysis = Analysis::new_with_knowledge(root, &source, &builtins);
+        let assignment = root
             .descendant_for_byte_range(18, 23)
             .expect("assignment should exist");
-        let binary = M2Node::new(
-            assignment
-                .child_by_field_name("right")
-                .expect("assignment should have right-hand expression"),
-            text,
-        );
+        let binary = assignment
+            .child_by_field_name("right")
+            .expect("assignment should have right-hand expression");
         let fact = analysis
             .expression_fact(&source, binary)
             .expect("expression fact should be registered");
@@ -4964,21 +4941,13 @@ x
     #[test]
     fn parallel_assignment_expression_has_right_hand_side_type() {
         let text = "{a, b} = [1, 2]\n";
-        let analysis = analyze(text);
-        let tree = {
-            let mut parser = Parser::new();
-            parser
-                .set_language(&tree_sitter_macaulay2::language())
-                .expect("macaulay2 parser should load");
-            parser.parse(text, None).expect("parse")
-        };
-        let assignment = M2Node::new(
-            tree.root_node()
-                .descendant_for_byte_range(0, 15)
-                .expect("assignment node"),
-            text,
-        );
         let source = DocumentSource::new(text.to_string());
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse(text).expect("fixture should parse");
+        let analysis = Analysis::new(root);
+        let assignment = root
+            .descendant_for_byte_range(0, 15)
+            .expect("assignment node");
         // The assignment evaluates to its right-hand side, so its expression
         // type is Array even though the target is written with `{}`.
         assert_eq!(

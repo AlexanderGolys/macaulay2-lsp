@@ -758,11 +758,11 @@ mod tests {
     use super::*;
     use crate::builtin_index::BuiltinData;
     use crate::document::DocumentSnapshot;
+    use crate::node_metadata::M2Parser;
     use crate::partitioned_index::PackagePartitionedIndex;
     use crate::typesystem::TypeKnowledgeProvider;
     use crate::typesystem::{M2SemanticToken, M2SemanticTokenType};
     use crate::workspace_index::WorkspaceIndex;
-    use tree_sitter::Parser;
 
     fn document(text: &str, builtins: &BuiltinData) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), builtins).expect("fixture should parse")
@@ -1596,13 +1596,8 @@ mod tests {
         // value `7` is not a symbol, so it is not classified here.
         let text = "f(x, Strategy => 4, myKey => 7)";
         let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        let root = M2Node::new(tree.root_node(), text);
-
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse(text).expect("fixture should parse");
         let mut roles = Vec::new();
         for node in root.descendants() {
             if node.kind == NodeKind::Symbol {

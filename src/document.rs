@@ -2,9 +2,9 @@
 //! analysis for LSP requests.
 
 use crate::macro_syntax::MacroSyntax;
-use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::node_metadata::{M2Node, M2Parser, M2Tree, NodeKind, NodeKindMetadata};
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
-use tree_sitter::{InputEdit, Parser, Point, Tree};
+use tree_sitter::{InputEdit, Point};
 
 #[cfg(test)]
 use crate::analysis::ExpressionFact;
@@ -22,7 +22,7 @@ use crate::typesystem::TypeKnowledgeProvider;
 pub(crate) struct DocumentSnapshot {
     source: DocumentSource,
     macro_syntax: MacroSyntax,
-    tree: Tree,
+    tree: M2Tree,
     analysis: Analysis,
     imported_packages: Vec<String>,
     documentation_snippets: Vec<DocumentationSnippet>,
@@ -52,17 +52,15 @@ impl DocumentSnapshot {
         knowledge_provider: &(impl TypeKnowledgeProvider + ?Sized),
     ) -> Option<Self> {
         let source = DocumentSource::new(text);
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .ok()?;
+        let mut parser = M2Parser::new()?;
         let macro_syntax = MacroSyntax::scan(source.text());
-        let tree = parser.parse(macro_syntax.parse_text(), None)?;
-        let imported_packages = collect_imported_packages_in_tree(source.text(), &tree);
+        let tree = parser.parse_tree(macro_syntax.parse_text(), None)?;
+        let root = tree.root(source.text());
+        let imported_packages = collect_imported_packages_in_tree(root);
         let knowledge = knowledge_provider.knowledge_for(&imported_packages);
-        let analysis = Analysis::new_with_knowledge(&tree, &source, &knowledge);
+        let analysis = Analysis::new_with_knowledge(root, &source, &knowledge);
         let (documentation_snippets, documentation_references) =
-            collect_documentation(&source, &tree);
+            collect_documentation(&source, root);
         Some(Self {
             source,
             macro_syntax,
@@ -200,14 +198,12 @@ impl DocumentSnapshot {
     }
 
     pub(crate) fn root_node(&self) -> M2Node<'_> {
-        M2Node::new(self.tree.root_node(), self.text())
+        self.tree.root(self.text())
     }
 
     pub(crate) fn node_at_position_minimal(&self, position: Position) -> Option<M2Node<'_>> {
         let point = self.point_for_position(position)?;
-        self.root_node()
-            .descendant_for_point_range(point, point)
-            .map(|node| M2Node::new(node, self.text()))
+        self.root_node().descendant_for_point_range(point, point)
     }
 
     pub(crate) fn symbol_node_at_position(&self, position: Position) -> Option<M2Node<'_>> {
@@ -226,7 +222,7 @@ impl DocumentSnapshot {
             root.descendant_for_point_range(point, next),
         ];
         for start in starts.into_iter().flatten() {
-            let mut node = M2Node::new(start, self.text());
+            let mut node = start;
             loop {
                 if node.kind.is_symbol_like() {
                     return Some(node);
@@ -281,21 +277,19 @@ impl DocumentSnapshot {
         self.source
             .replace_range(start_byte..old_end_byte, replacement);
 
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .ok()?;
+        let mut parser = M2Parser::new()?;
         let macro_syntax = MacroSyntax::scan(self.text());
         let tree = if self.macro_syntax.has_macros() || macro_syntax.has_macros() {
-            parser.parse(macro_syntax.parse_text(), None)?
+            parser.parse_tree(macro_syntax.parse_text(), None)?
         } else {
-            parser.parse(self.text(), Some(&edited_tree))?
+            parser.parse_tree(self.text(), Some(&edited_tree))?
         };
-        let imported_packages = collect_imported_packages_in_tree(self.text(), &tree);
+        let root = tree.root(self.text());
+        let imported_packages = collect_imported_packages_in_tree(root);
         let knowledge = knowledge_provider.knowledge_for(&imported_packages);
-        let analysis = Analysis::new_with_knowledge(&tree, &self.source, &knowledge);
+        let analysis = Analysis::new_with_knowledge(root, &self.source, &knowledge);
         let (documentation_snippets, documentation_references) =
-            collect_documentation(&self.source, &tree);
+            collect_documentation(&self.source, root);
         self.imported_packages = imported_packages;
         self.macro_syntax = macro_syntax;
         self.tree = tree;

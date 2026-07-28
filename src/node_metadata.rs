@@ -1,7 +1,71 @@
 //! Typed, grammar-local access to Tree-sitter nodes used throughout the server.
 
 use std::{iter, ops::Deref};
-use tree_sitter::Node;
+use tree_sitter::{InputEdit, Node, Parser, Tree};
+
+/// A Macaulay2 parser with its language configured.
+///
+/// Parser construction and grammar selection are centralized here so syntax
+/// consumers receive typed [`M2Node`] roots instead of configuring Tree-sitter
+/// themselves.
+pub(crate) struct M2Parser {
+    parser: Parser,
+    tree: Option<M2Tree>,
+}
+
+impl M2Parser {
+    /// Construct a parser configured for the pinned Macaulay2 grammar.
+    pub(crate) fn new() -> Option<Self> {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .ok()?;
+        Some(Self { parser, tree: None })
+    }
+
+    /// Parse source and return its typed root.
+    ///
+    /// The parser retains the backing syntax tree. Consequently Rust prevents a
+    /// second parse through this parser while the returned root is still used.
+    pub(crate) fn parse<'tree>(&'tree mut self, source: &'tree str) -> Option<M2Node<'tree>> {
+        let tree = self.parser.parse(source, None).map(M2Tree::new)?;
+        self.tree = Some(tree);
+        self.tree.as_ref().map(|tree| tree.root(source))
+    }
+
+    /// Parse source into an opaque tree retained by long-lived document state.
+    pub(crate) fn parse_tree(&mut self, source: &str, old_tree: Option<&M2Tree>) -> Option<M2Tree> {
+        self.parser
+            .parse(source, old_tree.map(|tree| &tree.tree))
+            .map(M2Tree::new)
+    }
+}
+
+/// An owned Macaulay2 syntax tree.
+///
+/// The raw Tree-sitter tree remains private; consumers obtain a typed root with
+/// [`M2Tree::root`]. Document snapshots retain this wrapper to support
+/// incremental reparsing.
+#[derive(Debug, Clone)]
+pub(crate) struct M2Tree {
+    tree: Tree,
+}
+
+impl M2Tree {
+    fn new(tree: Tree) -> Self {
+        Self { tree }
+    }
+
+    /// Return the typed root paired with the source represented by this tree.
+    pub(crate) fn root<'tree>(&'tree self, source: &'tree str) -> M2Node<'tree> {
+        M2Node::new(self.tree.root_node(), source)
+    }
+
+    /// Apply an incremental source edit before reparsing.
+    pub(crate) fn edit(&mut self, edit: &InputEdit) {
+        self.tree.edit(edit);
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NodeKind {
@@ -399,6 +463,27 @@ impl<'tree> M2Node<'tree> {
             .into_iter()
     }
 
+    /// Return the smallest descendant spanning the requested byte range.
+    #[cfg(test)]
+    pub fn descendant_for_byte_range(&self, start: usize, end: usize) -> Option<M2Node<'tree>> {
+        let source = self.source;
+        self.node
+            .descendant_for_byte_range(start, end)
+            .map(|node| M2Node::new(node, source))
+    }
+
+    /// Return the smallest descendant spanning the requested point range.
+    pub fn descendant_for_point_range(
+        &self,
+        start: tree_sitter::Point,
+        end: tree_sitter::Point,
+    ) -> Option<M2Node<'tree>> {
+        let source = self.source;
+        self.node
+            .descendant_for_point_range(start, end)
+            .map(|node| M2Node::new(node, source))
+    }
+
     /// The semantic element slots of a comma-delimited collection.
     ///
     /// Grammar 4 exposes zero-width `null` nodes for empty comma slots, so they
@@ -506,8 +591,8 @@ mod cst_compliance_gate {
         path::{Path, PathBuf},
     };
 
-    /// Substrings that must not appear outside `node_metadata.rs`. Each is a way
-    /// to reach the raw tree-sitter node-type name or the unparsed source.
+    /// Substrings that must not appear outside `node_metadata.rs`. Each bypasses
+    /// the typed syntax or configured parser abstractions.
     const BANNED: &[(&str, &str)] = &[
         (
             ".kind()",
@@ -531,6 +616,7 @@ mod cst_compliance_gate {
             "strip_suffix('\"')",
             "byte-stripping string quotes; use `node.string_literal_inner_text()`",
         ),
+        (".set_language(", "raw parser configuration; use `M2Parser`"),
     ];
 
     fn rust_sources(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -545,7 +631,7 @@ mod cst_compliance_gate {
     }
 
     #[test]
-    fn no_raw_node_access_or_raw_code_reads_outside_node_metadata() {
+    fn no_raw_syntax_or_parser_access_outside_node_metadata() {
         let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
         let mut files = Vec::new();
         rust_sources(&src, &mut files);
@@ -565,6 +651,13 @@ mod cst_compliance_gate {
                 // banned form while describing the rule.
                 if line.trim_start().starts_with("//") {
                     continue;
+                }
+                if line.contains("Parser::new()") && !line.contains("M2Parser::new()") {
+                    violations.push(format!(
+                        "{}:{}: `Parser::new()` — raw parser construction; use `M2Parser`",
+                        file.display(),
+                        line_number + 1,
+                    ));
                 }
                 for (needle, why) in BANNED {
                     if line.contains(needle) {
@@ -592,16 +685,11 @@ mod descendants_tests {
     //! every migrated call site relies on (parent before children, source order
     //! across siblings, root yielded exactly once, empty file safe).
     use super::*;
-    use tree_sitter::Parser;
 
     fn kinds_of(text: &str) -> Vec<NodeKind> {
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        let root = M2Node::new(tree.root_node(), text);
-        root.descendants().map(|n| n.kind).collect()
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse(text).expect("fixture should parse");
+        root.descendants().map(|node| node.kind).collect()
     }
 
     #[test]
@@ -645,29 +733,20 @@ mod descendants_tests {
         // direct check against tree-sitter's own traversal: the total
         // descendant count (root included) must match the recursive child
         // count, so the iterator neither drops nor duplicates any node.
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
         let text = "x = (a, b)\ny = {1, 2, 3}\n";
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        let root = M2Node::new(tree.root_node(), text);
         fn count_via_children(n: M2Node<'_>) -> usize {
             1 + n.children().map(count_via_children).sum::<usize>()
         }
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse(text).expect("fixture should parse");
         assert_eq!(root.descendants().count(), count_via_children(root));
     }
 
     #[test]
     fn grammar_v4_exposes_muted_null_and_naked_sequence_shapes() {
         let text = "local if\nstep 1\nfinish\n(x;)\n(,a,,)\na,b\n";
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        let root = M2Node::new(tree.root_node(), text);
-
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse(text).expect("fixture should parse");
         let quote = root
             .descendants()
             .find(|node| node.kind == NodeKind::QuoteExpression)

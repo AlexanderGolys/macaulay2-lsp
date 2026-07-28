@@ -245,19 +245,15 @@ mod tests {
     use crate::analysis::Analysis;
     use crate::builtin_index::BuiltinData;
     use crate::meta::{BindingRole, Meta};
+    use crate::node_metadata::M2Parser;
     use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
     use crate::source::DocumentSource;
     use tower_lsp::lsp_types::{HoverContents, Position, SymbolKind};
-    use tree_sitter::Parser;
 
     #[test]
     fn local_hover_includes_known_static_type() {
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("Macaulay2 parser should load");
-        let tree = parser.parse("", None).expect("empty fixture should parse");
-        let analysis = Analysis::new(&tree, "");
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let analysis = Analysis::new(parser.parse("").expect("empty fixture should parse"));
         let symbol = Meta {
             symbol_kind: Some(SymbolKind::VARIABLE),
             binding_role: Some(BindingRole::Ordinary),
@@ -279,12 +275,8 @@ mod tests {
     #[test]
     fn local_hover_includes_method_signatures() {
         let text = "p = method(TypicalValue => List)\np(ZZ, ZZ) := (i, j) -> {i, j}\n";
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new(&tree, text);
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let analysis = Analysis::new(parser.parse(text).expect("fixture should parse"));
         let symbol = analysis
             .get_symbol_at("p", Position::new(1, 0))
             .expect("method symbol should be visible");
@@ -302,16 +294,13 @@ mod tests {
     #[test]
     fn local_method_installation_hover_pins_installed_signature() {
         let text = "p = method(TypicalValue => List)\np(ZZ, ZZ) := (i, j) -> {i, j}\np(CC, CC) := Array => (i, j) -> [i, j]\n";
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new(&tree, text);
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let tree = parser.parse_tree(text, None).expect("fixture should parse");
+        let root = tree.root(text);
+        let analysis = Analysis::new(root);
         let source = DocumentSource::new(text.to_string());
         let position = Position::new(1, 0);
-        let node = tree
-            .root_node()
+        let node = root
             .descendant_for_point_range(
                 tree_sitter::Point::new(1, 0),
                 tree_sitter::Point::new(1, 0),
@@ -321,7 +310,7 @@ mod tests {
             .get_symbol_at("p", position)
             .expect("method symbol should be visible");
         let (method, pinned_signature) = analysis
-            .local_method_installation_signature_at(M2Node::new(node, text), &source)
+            .local_method_installation_signature_at(node, &source)
             .expect("method installation should pin the installed signature");
 
         let hover = local_symbol_hover(
@@ -351,22 +340,19 @@ mod tests {
             "p ZZ := List => x -> x\n",
             "p ZZ := Array => x -> x\n",
         );
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("Macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
-        let analysis = Analysis::new(&tree, text);
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let tree = parser.parse_tree(text, None).expect("fixture should parse");
+        let root = tree.root(text);
+        let analysis = Analysis::new(root);
         let source = DocumentSource::new(text.to_string());
 
         for (line, expected_codomain) in [(1, "List"), (2, "Array")] {
             let point = tree_sitter::Point::new(line, 0);
-            let node = tree
-                .root_node()
+            let node = root
                 .descendant_for_point_range(point, point)
                 .expect("method name node should be found");
             let (_, installation) = analysis
-                .local_method_installation_signature_at(M2Node::new(node, text), &source)
+                .local_method_installation_signature_at(node, &source)
                 .expect("the source occurrence should resolve its installation identity");
             assert_eq!(
                 installation.codomain.as_ref().map(InstanceID::name),
@@ -452,29 +438,20 @@ mod tests {
         let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
         let loaded = LoadedPackages::resolve(index.default_loaded(), "");
         let scoped = index.scoped(&loaded);
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let tree = parser.parse_tree(text, None).expect("fixture should parse");
+        let root = tree.root(text);
         let source = DocumentSource::new(text.to_string());
-        let analysis = Analysis::new_with_knowledge(&tree, &source, &scoped);
-        let node = tree
-            .root_node()
+        let analysis = Analysis::new_with_knowledge(root, &source, &scoped);
+        let node = root
             .descendant_for_point_range(
                 tree_sitter::Point::new(0, 5),
                 tree_sitter::Point::new(0, 5),
             )
             .expect("openOut node should be found");
 
-        let usage = call_signature_usage_for_hover(
-            M2Node::new(node, text),
-            "openOut",
-            &source,
-            &analysis,
-            &scoped,
-        )
-        .expect("openOut hover should resolve usage signatures");
+        let usage = call_signature_usage_for_hover(node, "openOut", &source, &analysis, &scoped)
+            .expect("openOut hover should resolve usage signatures");
         let signature = usage
             .pinned
             .expect("openOut hover should pin the String installation");
@@ -503,21 +480,17 @@ mod tests {
         let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
         let loaded = LoadedPackages::resolve(index.default_loaded(), "");
         let scoped = index.scoped(&loaded);
-        let mut parser = Parser::new();
-        parser
-            .set_language(&tree_sitter_macaulay2::language())
-            .expect("macaulay2 parser should load");
-        let tree = parser.parse(text, None).expect("fixture should parse");
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let tree = parser.parse_tree(text, None).expect("fixture should parse");
+        let root = tree.root(text);
         let source = DocumentSource::new(text.to_string());
-        let analysis = Analysis::new_with_knowledge(&tree, &source, &scoped);
-        let node = tree
-            .root_node()
+        let analysis = Analysis::new_with_knowledge(root, &source, &scoped);
+        let node = root
             .descendant_for_point_range(
                 tree_sitter::Point::new(2, 7),
                 tree_sitter::Point::new(2, 7),
             )
             .expect("+ node should be found");
-        let node = M2Node::new(node, text);
         assert!(
             hoverable_symbol_or_operator_node(node),
             "operator tokens should be hoverable"
