@@ -11,6 +11,8 @@ use tree_sitter::{InputEdit, Parser, Point, Tree};
 #[cfg(test)]
 use crate::analysis::ExpressionFact;
 use crate::analysis::{Analysis, BindingView, FunctionInfo};
+#[cfg(test)]
+use crate::builtin_index::InstanceID;
 use crate::documentation::{collect_documentation, DocumentationReference, DocumentationSnippet};
 use crate::package_index::collect_imported_packages_in_tree;
 use crate::typesystem::TypeKnowledgeProvider;
@@ -537,7 +539,14 @@ mod tests {
             .analysis()
             .get_binding_at("y", Position::new(2, 0))
             .expect("imported callable result should bind y");
-        assert_eq!(imported_binding.state.type_name.as_deref(), Some("String"));
+        assert_eq!(
+            imported_binding
+                .state
+                .type_name
+                .as_ref()
+                .map(InstanceID::name),
+            Some("String")
+        );
 
         document
             .apply_changes(
@@ -554,7 +563,14 @@ mod tests {
             .analysis()
             .get_binding_at("y", Position::new(1, 0))
             .expect("the assignment should remain after removing the import");
-        assert_eq!(unimported_binding.state.type_name.as_deref(), Some("Thing"));
+        assert_eq!(
+            unimported_binding
+                .state
+                .type_name
+                .as_ref()
+                .map(InstanceID::name),
+            Some("Thing")
+        );
     }
 
     #[test]
@@ -619,14 +635,17 @@ mod tests {
             .analysis()
             .get_binding_at("x", Position::new(0, 0))
             .expect("the first assignment should create global x");
-        assert_eq!(first_x.state.type_name.as_deref(), Some("Symbol"));
+        assert_eq!(
+            first_x.state.type_name.as_ref().map(InstanceID::name),
+            Some("Symbol")
+        );
         for (name, character) in [("z", 0), ("x", 4), ("y", 8)] {
             let binding = document
                 .analysis()
                 .get_binding_at(name, Position::new(2, character))
                 .expect("the chained assignment should resolve the binding");
             assert_eq!(
-                binding.state.type_name.as_deref(),
+                binding.state.type_name.as_ref().map(InstanceID::name),
                 Some("ZZ"),
                 "{name} should have the source-ordered numeric type"
             );
@@ -664,7 +683,7 @@ mod tests {
                 .get_binding_at(name, Position::new(0, character))
                 .expect("the remaining assignment should create the binding");
             assert_eq!(
-                binding.state.type_name.as_deref(),
+                binding.state.type_name.as_ref().map(InstanceID::name),
                 Some("Symbol"),
                 "{name} must be retyped from the unresolved y"
             );
@@ -745,7 +764,7 @@ mod tests {
             installation
                 .codomain
                 .as_ref()
-                .map(crate::analysis::TypeRef::name),
+                .map(crate::builtin_index::InstanceID::name),
             Some("Ring")
         );
     }
@@ -811,7 +830,10 @@ mod tests {
             .binding_at_position(Position::new(3, 0))
             .expect("binding should resolve");
         assert_eq!(document.analysis().binding_name(binding), "y");
-        assert_eq!(binding.state.type_name.as_deref(), Some("Ring"));
+        assert_eq!(
+            binding.state.type_name.as_ref().map(InstanceID::name),
+            Some("Ring")
+        );
 
         let callable = document
             .callable_at_position(Position::new(1, 0))

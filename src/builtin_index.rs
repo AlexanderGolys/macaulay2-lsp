@@ -11,7 +11,7 @@ use std::fmt::{Display, Formatter, Result};
 
 use serde::Deserialize;
 
-/// Stable identifier for an indexed M2 object or type.
+/// Strongly typed nominal identifier used to resolve an M2 object.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InstanceID(pub String);
 
@@ -19,6 +19,11 @@ impl InstanceID {
     /// Construct an identifier from an unqualified or package-qualified name.
     pub fn new(name: &str) -> Self {
         InstanceID(name.to_string())
+    }
+
+    /// The object's lookup name.
+    pub fn name(&self) -> &str {
+        &self.0
     }
 }
 
@@ -52,7 +57,7 @@ pub struct Record {
     pub examples: Vec<CodeExample>,
     pub package: Option<String>,
     pub source_file: Option<String>,
-    pub typical_value: Option<String>,
+    pub typical_value: Option<InstanceID>,
     pub function_info: Option<FunctionInfo>,
     pub option_info: Option<OptionInfo>,
     pub operator_info: Option<OperatorInfo>,
@@ -313,8 +318,7 @@ impl BuiltinIndex {
                             );
                             MethodSignature {
                                 signature,
-                                codomain: concrete_codomain(method.typical_value.as_deref())
-                                    .map(InstanceID),
+                                codomain: concrete_codomain(method.typical_value.as_deref()),
                             }
                         })
                         .collect();
@@ -472,11 +476,11 @@ fn deref_ref(key: &str) -> String {
 /// typecheck information — returning them as a positive fact would pollute
 /// inference. This maps them to `None` ("unknown"), preserving the
 /// known-facts-only contract.
-fn concrete_codomain(raw_key: Option<&str>) -> Option<String> {
+fn concrete_codomain(raw_key: Option<&str>) -> Option<InstanceID> {
     let name = raw_key.map(deref_ref)?;
     match name.as_str() {
         "Thing" | "Any" => None,
-        _ => Some(name),
+        _ => Some(InstanceID(name)),
     }
 }
 
@@ -710,7 +714,7 @@ mod tests {
             }
             assert!(
                 !matches!(
-                    callable.typical_value.as_deref(),
+                    callable.typical_value.as_ref().map(InstanceID::name),
                     Some("Thing") | Some("Any")
                 ),
                 "callable '{}' has a Thing/Any typical_value",

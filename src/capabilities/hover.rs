@@ -2,7 +2,7 @@
 
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{Analysis, FunctionInfo, MethodInstallation, TypeRef};
+use crate::analysis::{Analysis, FunctionInfo, MethodInstallation};
 use crate::builtin_index::InstanceID;
 use crate::document::DocumentSnapshot;
 use crate::meta::{BindingRole, Metadata};
@@ -152,8 +152,8 @@ fn call_signature_usage_for_hover(
         let left = parent.child_by_field_name("left")?;
         let right = parent.child_by_field_name("right")?;
         vec![
-            analysis.infer_expression_static_type_name(left, text, knowledge),
-            analysis.infer_expression_static_type_name(right, text, knowledge),
+            analysis.infer_expression_static_type(left, text, knowledge),
+            analysis.infer_expression_static_type(right, text, knowledge),
         ]
     } else {
         return None;
@@ -225,7 +225,7 @@ fn local_method_signature_label(method: &FunctionInfo, signature: &MethodInstall
         signature
             .domain
             .iter()
-            .map(TypeRef::name)
+            .map(InstanceID::name)
             .collect::<Vec<_>>()
             .join(", ")
     );
@@ -365,7 +365,7 @@ mod tests {
                 .local_method_installation_signature_at(M2Node::new(node, text), text)
                 .expect("the source occurrence should resolve its installation identity");
             assert_eq!(
-                installation.codomain.as_ref().map(TypeRef::name),
+                installation.codomain.as_ref().map(InstanceID::name),
                 Some(expected_codomain)
             );
         }

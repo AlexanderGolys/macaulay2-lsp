@@ -84,7 +84,7 @@ fn binding_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<InlayHi
                 .value_range
                 .map(|value_range| value_range.end)
                 .unwrap_or(binding.range.end);
-            Some(type_hint(position, type_name))
+            Some(type_hint(position, type_name.name()))
         })
         .collect()
 }
@@ -101,7 +101,11 @@ fn expression_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<Inla
         .into_iter()
         .filter_map(|binding| {
             let end = binding.state.value_range?.end;
-            Some((end.line, end.character, binding.state.type_name.clone()?))
+            Some((
+                end.line,
+                end.character,
+                binding.state.type_name.as_ref()?.name().to_string(),
+            ))
         })
         .collect();
     analysis

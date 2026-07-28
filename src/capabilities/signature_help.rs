@@ -11,7 +11,7 @@ use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, SignatureHelp, SignatureInformation,
 };
 
-use crate::analysis::{Analysis, FunctionInfo, MethodInstallation, TypeRef};
+use crate::analysis::{Analysis, FunctionInfo, MethodInstallation};
 use crate::builtin_index::InstanceID;
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
@@ -178,13 +178,13 @@ fn local_signature_information(
     let domain = method
         .domain
         .iter()
-        .map(TypeRef::name)
+        .map(InstanceID::name)
         .map(ToString::to_string)
         .collect::<Vec<_>>();
     signature_information(
         callable,
         &domain,
-        method.codomain.as_ref().map(TypeRef::name),
+        method.codomain.as_ref().map(InstanceID::name),
     )
 }
 

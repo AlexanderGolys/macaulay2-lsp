@@ -24,9 +24,9 @@ pub(crate) trait TypeKnowledge {
     fn resolve_call_return_type_with_options(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
         options: &[(String, String)],
-    ) -> Option<String>;
+    ) -> Option<InstanceID>;
 
     fn is_subtype(&self, child: &str, parent: &str) -> bool;
 }
@@ -57,7 +57,7 @@ pub(crate) trait LspKnowledge: TypeKnowledge {
     fn resolve_call_signature_usage(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
     ) -> Option<SignatureUsage>;
 
     fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature>;
@@ -256,7 +256,7 @@ impl BuiltinData {
             return Vec::new();
         };
 
-        let general_output = record.typical_value.as_deref().map(InstanceID::new);
+        let general_output = record.typical_value.clone();
 
         let mut signatures = Vec::new();
         for method in &function_info.methods {
@@ -324,12 +324,12 @@ impl BuiltinData {
     pub fn resolve_call_return_type_with_options(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
         _literal_options: &[(String, String)],
-    ) -> Option<String> {
+    ) -> Option<InstanceID> {
         if let Some(signature) = self.resolve_call_signature(callable, argument_types) {
             if let [output_type] = signature.output_types.as_slice() {
-                return Some(output_type.0.clone());
+                return Some(output_type.clone());
             }
         }
 
@@ -343,7 +343,7 @@ impl BuiltinData {
     pub fn resolve_call_signature(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
     ) -> Option<ResolvedSignature> {
         let record = self.get_record(&InstanceID::new(callable))?;
         let mut specialized_candidates = Vec::new();
@@ -364,8 +364,7 @@ impl BuiltinData {
                 .zip(domain)
                 .all(|(argument_type, domain_type)| match argument_type {
                     Some(argument_type) => {
-                        argument_type == &domain_type.0
-                            || self.is_subtype(argument_type, domain_type)
+                        argument_type == domain_type || self.is_subtype(argument_type, domain_type)
                     }
                     None => false,
                 })
@@ -388,29 +387,9 @@ impl BuiltinData {
         };
         take_nonminimal_signatures(self, &mut candidates);
         candidates.sort_by(|left, right| {
-            let left_key = (
-                left.signature
-                    .iter()
-                    .map(|id| id.0.as_str())
-                    .collect::<Vec<_>>(),
-                left.output_types
-                    .iter()
-                    .map(|id| id.0.as_str())
-                    .collect::<Vec<_>>(),
-            );
-            let right_key = (
-                right
-                    .signature
-                    .iter()
-                    .map(|id| id.0.as_str())
-                    .collect::<Vec<_>>(),
-                right
-                    .output_types
-                    .iter()
-                    .map(|id| id.0.as_str())
-                    .collect::<Vec<_>>(),
-            );
-            left_key.cmp(&right_key)
+            left.signature
+                .cmp(&right.signature)
+                .then_with(|| left.output_types.cmp(&right.output_types))
         });
         candidates.dedup_by(|left, right| {
             left.signature == right.signature && left.output_types == right.output_types
@@ -427,7 +406,7 @@ impl BuiltinData {
     pub fn resolve_call_signature_usage(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
     ) -> Option<SignatureUsage> {
         let record = self.get_record(&InstanceID::new(callable))?;
         let mut possible = Vec::new();
@@ -518,9 +497,9 @@ impl TypeKnowledge for BuiltinData {
     fn resolve_call_return_type_with_options(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
         options: &[(String, String)],
-    ) -> Option<String> {
+    ) -> Option<InstanceID> {
         BuiltinData::resolve_call_return_type_with_options(self, callable, argument_types, options)
     }
 
@@ -541,9 +520,9 @@ impl<T: TypeKnowledge + ?Sized> TypeKnowledge for &T {
     fn resolve_call_return_type_with_options(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
         options: &[(String, String)],
-    ) -> Option<String> {
+    ) -> Option<InstanceID> {
         T::resolve_call_return_type_with_options(self, callable, argument_types, options)
     }
 
@@ -622,7 +601,7 @@ impl LspKnowledge for BuiltinData {
     fn resolve_call_signature_usage(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
     ) -> Option<SignatureUsage> {
         BuiltinData::resolve_call_signature_usage(self, callable, argument_types)
     }
@@ -669,9 +648,9 @@ impl TypeKnowledge for NoTypeKnowledge {
     fn resolve_call_return_type_with_options(
         &self,
         _callable: &str,
-        _argument_types: &[Option<String>],
+        _argument_types: &[Option<InstanceID>],
         _options: &[(String, String)],
-    ) -> Option<String> {
+    ) -> Option<InstanceID> {
         None
     }
 
@@ -735,15 +714,15 @@ fn signature_strictly_smaller(
 fn domain_possibly_matches(
     knowledge: &(impl TypeKnowledge + ?Sized),
     domain: &[InstanceID],
-    argument_types: &[Option<String>],
+    argument_types: &[Option<InstanceID>],
 ) -> bool {
     domain
         .iter()
         .zip(argument_types)
         .all(|(domain_type, argument_type)| {
             argument_type.as_ref().is_none_or(|argument_type| {
-                argument_type == &domain_type.0
-                    || knowledge.is_subtype(argument_type, domain_type.as_ref())
+                argument_type == domain_type
+                    || knowledge.is_subtype(argument_type.as_ref(), domain_type.as_ref())
             })
         })
 }
@@ -751,32 +730,15 @@ fn domain_possibly_matches(
 fn dedup_signatures(signatures: &mut Vec<ResolvedSignature>) {
     let mut seen = HashSet::new();
     signatures.retain(|signature| {
-        seen.insert((
-            signature
-                .signature
-                .iter()
-                .map(|id| id.0.clone())
-                .collect::<Vec<_>>(),
-            signature
-                .output_types
-                .iter()
-                .map(|id| id.0.clone())
-                .collect::<Vec<_>>(),
-        ))
+        seen.insert((signature.signature.clone(), signature.output_types.clone()))
     });
 }
 
-fn signature_domain_key(signature: &[InstanceID]) -> Option<Vec<String>> {
+fn signature_domain_key(signature: &[InstanceID]) -> Option<Vec<InstanceID>> {
     if signature.is_empty() {
         return None;
     }
-    Some(
-        signature
-            .iter()
-            .skip(1)
-            .map(|item| item.0.clone())
-            .collect(),
-    )
+    Some(signature.iter().skip(1).cloned().collect())
 }
 
 /// The LSP-standard token types emitted for M2 syntax and indexed metadata.
@@ -1071,24 +1033,27 @@ mod tests {
 
         // Exact match.
         assert_eq!(
-            builtins
-                .resolve_call_return_type_with_options("dim", &[Some("Ring".to_string())], &[],),
-            Some("ZZ".to_string())
+            builtins.resolve_call_return_type_with_options(
+                "dim",
+                &[Some(InstanceID::new("Ring"))],
+                &[],
+            ),
+            Some(InstanceID::new("ZZ"))
         );
         // Subtype dispatch: PolynomialRing has no own method, walks up to Ring's.
         assert_eq!(
             builtins.resolve_call_return_type_with_options(
                 "dim",
-                &[Some("PolynomialRing".to_string())],
+                &[Some(InstanceID::new("PolynomialRing"))],
                 &[],
             ),
-            Some("ZZ".to_string())
+            Some(InstanceID::new("ZZ"))
         );
         // No applicable method (Thing is a supertype, not a subtype) ⇒ silent.
         assert_eq!(
             builtins.resolve_call_return_type_with_options(
                 "dim",
-                &[Some("Thing".to_string())],
+                &[Some(InstanceID::new("Thing"))],
                 &[],
             ),
             None
@@ -1099,9 +1064,12 @@ mod tests {
     fn resolves_real_gb_codomain_from_the_type_index() {
         let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
         assert_eq!(
-            builtins
-                .resolve_call_return_type_with_options("gb", &[Some("Ideal".to_string())], &[],),
-            Some("GroebnerBasis".to_string())
+            builtins.resolve_call_return_type_with_options(
+                "gb",
+                &[Some(InstanceID::new("Ideal"))],
+                &[],
+            ),
+            Some(InstanceID::new("GroebnerBasis"))
         );
     }
 

@@ -1231,7 +1231,7 @@ mod tests {
             .get_record(&builtin_index::InstanceID::new("f"))
             .expect("f should have builtin metadata");
         let usage = builtins
-            .resolve_call_signature_usage("f", &[Some("String".to_string())])
+            .resolve_call_signature_usage("f", &[Some(builtin_index::InstanceID::new("String"))])
             .expect("f String should resolve to a documented installation");
 
         let hover =

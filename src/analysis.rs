@@ -20,9 +20,12 @@ use crate::typesystem::NoTypeKnowledge;
 use crate::typesystem::TypeKnowledge;
 use crate::util::{node_position, position_in_range, to_lsp_range};
 
+/// Snapshot-local identity of an interned source symbol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SymbolId(u32);
 
+/// Strongly typed, shared storage for a symbol spelling interned by a
+/// [`SemanticRegistry`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SymbolName(Arc<str>);
 
@@ -42,15 +45,25 @@ impl Borrow<str> for SymbolName {
     }
 }
 
+/// Snapshot-local identity of one lexical binding declaration.
+///
+/// Reassignments keep this identity and create new [`BindingStateId`] values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BindingId(u32);
 
+/// Snapshot-local identity of one source-ordered state of a binding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BindingStateId(u32);
 
+/// Typed parser-node identity used only to cache inferred types within one
+/// immutable syntax tree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct NodeFactId(usize);
 
+/// Complete semantic analysis of one immutable document snapshot.
+///
+/// It owns the normalized registry, characterized method installations,
+/// diagnostics, and the shared per-node type cache consumed by LSP features.
 #[derive(Debug)]
 pub struct Analysis {
     pub diagnostics: Vec<Diagnostic>,
@@ -60,23 +73,6 @@ pub struct Analysis {
     type_cache: RwLock<HashMap<NodeFactId, InferredType>>,
     #[cfg(test)]
     type_computations: AtomicUsize,
-}
-
-/// A lazily-resolved reference to a type in the unified universe (builtins ∪
-/// locally-defined). Holds the written or inferred name; resolution against the
-/// layered registry happens at query time, so the reference survives per-edit
-/// rebuilds with no dangling pointer into a dropped registry.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TypeRef(String);
-
-impl TypeRef {
-    pub fn new(name: impl Into<String>) -> Self {
-        Self(name.into())
-    }
-
-    pub fn name(&self) -> &str {
-        &self.0
-    }
 }
 
 /// Where an operator sits relative to its operand(s). Distinguishes the arity-1
@@ -124,10 +120,10 @@ pub struct MethodInstallationId(u32);
 pub struct MethodInstallation {
     pub id: MethodInstallationId,
     pub head: MethodHead,
-    pub domain: Vec<TypeRef>,
+    pub domain: Vec<InstanceID>,
     /// The effective codomain of this installation: an explicit declaration, or
     /// the method function's typical value at the installation site.
-    pub codomain: Option<TypeRef>,
+    pub codomain: Option<InstanceID>,
     pub codomain_span: Option<SpanKey>,
     pub span: SpanKey,
     pub target: SpanKey,
@@ -196,15 +192,21 @@ fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
     })
 }
 
+/// Semantic information about one locally defined callable.
+///
+/// Installed methods are referenced by identity in [`Analysis::installations`]
+/// so their source facts have one owner.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionInfo {
     pub symbol: SymbolId,
-    pub typical_value: Option<TypeRef>,
+    pub typical_value: Option<InstanceID>,
     pub methods: Vec<MethodInstallationId>,
     pub dispatch: Option<Dispatch>,
     kind: LocalFunctionKind,
 }
 
+/// Syntax-derived callable behavior used to decide whether method
+/// installations take effect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LocalFunctionKind {
     Unknown,
@@ -212,12 +214,16 @@ enum LocalFunctionKind {
     Method,
 }
 
+/// Static facts computed for one call after separating positional arguments
+/// from literal option assignments.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallStaticFacts {
     pub argument_types: Vec<InferredType>,
     pub literal_options: Vec<(String, String)>,
 }
 
+/// Value-semantic source location used to key facts independently of borrowed
+/// syntax-tree nodes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpanKey {
     pub range: Range,
@@ -275,12 +281,10 @@ impl InferredType {
         }
     }
 
-    /// The type name to feed the `Option<String>`-based type-registry dispatch
-    /// queries (that API is owned by the WIP type registry and left untouched).
-    /// `None` for a non-principal (joined) set, which the basic dispatch cannot
-    /// yet represent.
-    fn dispatch_name(&self) -> Option<String> {
-        self.principal().map(|only| only.0.clone())
+    /// The object identifier to feed nominal dispatch. `None` for a
+    /// non-principal (joined) set, which basic dispatch cannot yet represent.
+    fn dispatch_id(&self) -> Option<InstanceID> {
+        self.principal().cloned()
     }
 
     /// The hover/inlay label for this type. Every value has a class — the floor
@@ -321,6 +325,7 @@ impl InferredType {
     }
 }
 
+/// Normalized semantic category assigned to an expression fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExpressionKind {
     Literal,
@@ -331,6 +336,11 @@ pub enum ExpressionKind {
     ControlExpr,
 }
 
+/// Source-independent identity and declaration properties of one lexical
+/// binding.
+///
+/// Its value and inferred type at a particular point live in
+/// [`BindingStateInfo`] records.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingInfo {
     pub binding_id: BindingId,
@@ -344,20 +354,22 @@ pub struct BindingInfo {
     pub definition_state: BindingStateId,
 }
 
+/// One source-ordered value, kind, and inferred-type state of a binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingStateInfo {
     pub state_id: BindingStateId,
     pub binding_id: BindingId,
     pub kind: SymbolKind,
-    pub type_name: Option<String>,
+    pub type_name: Option<InstanceID>,
     /// For an `IndexedVariableTable` binding, the local ring type produced by
     /// subscripting the table after a ring constructor or `use`-style rebind.
-    pub indexed_element_type: Option<TypeRef>,
+    pub indexed_element_type: Option<InstanceID>,
     pub value_range: Option<Range>,
     pub span: SpanKey,
     pub scope_idx: usize,
 }
 
+/// A binding declaration paired with the state effective at a query position.
 #[derive(Debug, Clone, Copy)]
 pub struct BindingView<'a> {
     pub binding: &'a BindingInfo,
@@ -365,6 +377,7 @@ pub struct BindingView<'a> {
 }
 
 impl Deref for BindingView<'_> {
+    /// The binding declaration exposed by dereferencing the combined view.
     type Target = BindingInfo;
 
     fn deref(&self) -> &Self::Target {
@@ -377,11 +390,12 @@ impl Metadata for BindingView<'_> {
         Meta {
             symbol_kind: Some(self.state.kind),
             binding_role: Some(self.role),
-            type_name: self.state.type_name.as_deref(),
+            type_name: self.state.type_name.as_ref().map(InstanceID::name),
         }
     }
 }
 
+/// One lexical scope and its relationship to the enclosing scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopeInfo {
     pub range: Range,
@@ -391,6 +405,7 @@ pub struct ScopeInfo {
     pub context_assignments_may_escape: bool,
 }
 
+/// Stored semantic result for one value-producing source expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionFact {
     pub kind: ExpressionKind,
@@ -400,12 +415,16 @@ pub struct ExpressionFact {
     pub scope_idx: usize,
 }
 
+/// Stored callable identity and positional argument types for a call
+/// expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallInfo {
     pub callable_name: Option<String>,
     pub argument_types: Vec<InferredType>,
 }
 
+/// Canonical per-snapshot store of symbols, bindings, scopes, expressions, and
+/// the indexes that relate them.
 #[derive(Debug, Default)]
 pub struct SemanticRegistry {
     pub symbol_names: Vec<SymbolName>,
@@ -419,7 +438,7 @@ pub struct SemanticRegistry {
     pub expressions: HashMap<SpanKey, ExpressionFact>,
     pub calls: HashMap<SpanKey, CallInfo>,
     pub functions: HashMap<SymbolId, FunctionInfo>,
-    pub type_parents: HashMap<SymbolId, TypeRef>,
+    pub type_parents: HashMap<SymbolId, InstanceID>,
     ring_generators: HashMap<SymbolId, Vec<RingGenerator>>,
 }
 
@@ -631,7 +650,7 @@ impl Analysis {
         &'a self,
         installation: &'a MethodInstallation,
     ) -> Option<&'a str> {
-        installation.codomain.as_ref().map(TypeRef::name)
+        installation.codomain.as_ref().map(InstanceID::name)
     }
 
     pub(crate) fn is_method_installation_codomain(&self, node: M2Node, text: &str) -> bool {
@@ -846,14 +865,14 @@ impl Analysis {
                         if method_declaration_typical_value(right).is_some()
                             || is_method_call(right)
                         {
-                            Some("MethodFunction".to_string())
+                            Some(InstanceID::new("MethodFunction"))
                         } else {
                             self.type_of(right, text, current_scope_idx, builtins)
-                                .dispatch_name()
+                                .dispatch_id()
                         }
                     });
                     let parent_type = right.and_then(|right| {
-                        declared_type_parent(right, type_name.as_deref(), builtins)
+                        declared_type_parent(right, type_name.as_ref(), builtins)
                     });
 
                     if let (Some(right), Some(name)) =
@@ -877,9 +896,9 @@ impl Analysis {
                             SymbolRegistration {
                                 kind: symbol_kind,
                                 role: BindingRole::Ordinary,
-                                type_name: type_name.as_deref(),
+                                type_name: type_name.clone(),
                                 indexed_element_type: None,
-                                parent_type,
+                                parent_type: parent_type.clone(),
                                 node: left,
                                 value_node: right,
                                 scope_idx: current_scope_idx,
@@ -898,7 +917,7 @@ impl Analysis {
                             SymbolRegistration {
                                 kind: symbol_kind,
                                 role: BindingRole::Ordinary,
-                                type_name: type_name.as_deref(),
+                                type_name: type_name.clone(),
                                 indexed_element_type: None,
                                 parent_type,
                                 node: left,
@@ -914,10 +933,12 @@ impl Analysis {
 
                     if let (Some(right), Some(type_name), Some(ring_name)) = (
                         right,
-                        type_name.as_deref(),
+                        type_name.as_ref(),
                         single_symbol_assignment_target(left),
                     ) {
-                        if type_name == "Ring" || builtins.is_subtype(type_name, "Ring") {
+                        if type_name.name() == "Ring"
+                            || builtins.is_subtype(type_name.name(), "Ring")
+                        {
                             self.collect_ring_generator_bindings(
                                 ring_name, right, left, text, builtins,
                             );
@@ -1010,7 +1031,9 @@ impl Analysis {
         let codomain_node = right
             .filter(|right| right.is_option_assignment())
             .and_then(|right| right.child_by_field_name("left"));
-        let codomain = codomain_node.and_then(symbol_node_text).map(TypeRef::new);
+        let codomain = codomain_node
+            .and_then(symbol_node_text)
+            .map(InstanceID::new);
         let codomain_span = codomain_node.map(|node| SpanKey::from_node(text, node));
         // The RHS function shape, read once here so the arity diagnostic need not
         // re-walk the tree. Only a plain lambda RHS carries a checkable arity.
@@ -1067,7 +1090,7 @@ impl Analysis {
         &self,
         node: M2Node,
         builtins: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<(MethodHead, Vec<TypeRef>)> {
+    ) -> Option<(MethodHead, Vec<InstanceID>)> {
         // A parenthesized expression is identified with its final value, so
         // `(T op S) := f` installs exactly like `T op S := f`. A final `muted`
         // child means the group evaluates to null and is not an installation
@@ -1092,15 +1115,12 @@ impl Analysis {
                                 token: SPACE_OPERATOR.to_string(),
                                 fixity: Fixity::Binary,
                             }),
-                            vec![TypeRef::new(left_name), TypeRef::new(right_name)],
+                            vec![InstanceID::new(left_name), InstanceID::new(right_name)],
                         ))
                     } else {
                         Some((
                             MethodHead::Function(left_name.to_string()),
-                            method_installation_domain(right)?
-                                .into_iter()
-                                .map(TypeRef::new)
-                                .collect(),
+                            method_installation_domain(right)?,
                         ))
                     }
                 } else {
@@ -1115,8 +1135,8 @@ impl Analysis {
                             fixity: Fixity::Binary,
                         }),
                         vec![
-                            TypeRef::new(symbol_node_text(left)?),
-                            TypeRef::new(symbol_node_text(right)?),
+                            InstanceID::new(symbol_node_text(left)?),
+                            InstanceID::new(symbol_node_text(right)?),
                         ],
                     ))
                 }
@@ -1126,7 +1146,7 @@ impl Analysis {
                     token: operator_text(node)?.to_string(),
                     fixity: Fixity::Prefix,
                 }),
-                vec![TypeRef::new(symbol_node_text(
+                vec![InstanceID::new(symbol_node_text(
                     node.child_by_field_name("operand")?,
                 )?)],
             )),
@@ -1135,7 +1155,7 @@ impl Analysis {
                     token: operator_text(node)?.to_string(),
                     fixity: Fixity::Postfix,
                 }),
-                vec![TypeRef::new(symbol_node_text(
+                vec![InstanceID::new(symbol_node_text(
                     node.child_by_field_name("operand")?,
                 )?)],
             )),
@@ -1171,7 +1191,7 @@ impl Analysis {
                 binding
                     .state
                     .type_name
-                    .as_deref()
+                    .as_ref()
                     .is_some_and(|type_name| type_name_denotes_type(type_name, builtins))
             })
     }
@@ -1387,16 +1407,14 @@ impl Analysis {
         node: M2Node,
         text: &str,
         scope_idx: usize,
-        parameter_types: Option<&[String]>,
+        parameter_types: Option<&[InstanceID]>,
     ) {
         let mut parameter_nodes = Vec::new();
         collect_parameter_nodes(node, &mut parameter_nodes);
         let typed_parameters = parameter_types.filter(|types| types.len() == parameter_nodes.len());
         for (idx, parameter_node) in parameter_nodes.into_iter().enumerate() {
             let name = parameter_node.text();
-            let type_name = typed_parameters
-                .and_then(|types| types.get(idx))
-                .map(String::as_str);
+            let type_name = typed_parameters.and_then(|types| types.get(idx)).cloned();
             self.add_symbol(
                 name,
                 SymbolRegistration {
@@ -1486,7 +1504,7 @@ impl Analysis {
                         definition_scope,
                         SymbolRegistration {
                             type_name: None,
-                            ..registration
+                            ..registration.clone()
                         },
                     );
                 }
@@ -1509,9 +1527,7 @@ impl Analysis {
         } = registration;
         let symbol_id = self.registry.intern_symbol(name);
         if let Some(parent_type) = parent_type {
-            self.registry
-                .type_parents
-                .insert(symbol_id, TypeRef::new(parent_type));
+            self.registry.type_parents.insert(symbol_id, parent_type);
         }
         let binding_id = BindingId(self.registry.bindings.len() as u32);
         let state_id = BindingStateId(self.registry.binding_states.len() as u32);
@@ -1531,8 +1547,8 @@ impl Analysis {
             state_id,
             binding_id,
             kind,
-            type_name: type_name.map(ToString::to_string),
-            indexed_element_type: indexed_element_type.map(TypeRef::new),
+            type_name,
+            indexed_element_type,
             value_range: value_node.map(|value| to_lsp_range(text, value.range())),
             span: SpanKey::from_node(text, node),
             scope_idx,
@@ -1562,9 +1578,7 @@ impl Analysis {
         };
         match registration.parent_type {
             Some(parent_type) => {
-                self.registry
-                    .type_parents
-                    .insert(symbol, TypeRef::new(parent_type));
+                self.registry.type_parents.insert(symbol, parent_type);
             }
             None => {
                 self.registry.type_parents.remove(&symbol);
@@ -1575,8 +1589,8 @@ impl Analysis {
             state_id,
             binding_id,
             kind: registration.kind,
-            type_name: registration.type_name.map(ToString::to_string),
-            indexed_element_type: registration.indexed_element_type.map(TypeRef::new),
+            type_name: registration.type_name,
+            indexed_element_type: registration.indexed_element_type,
             value_range: registration
                 .value_node
                 .map(|value| to_lsp_range(text, value.range())),
@@ -1669,14 +1683,20 @@ impl Analysis {
     ) {
         match kind {
             RingGeneratorKind::Direct => {
-                self.register_dynamic_global(generator_name, node, ring_name, None, text);
+                self.register_dynamic_global(
+                    generator_name,
+                    node,
+                    InstanceID::new(ring_name),
+                    None,
+                    text,
+                );
             }
             RingGeneratorKind::IndexedTable => {
                 self.register_dynamic_global(
                     generator_name,
                     node,
-                    "IndexedVariableTable",
-                    Some(ring_name),
+                    InstanceID::new("IndexedVariableTable"),
+                    Some(InstanceID::new(ring_name)),
                     text,
                 );
             }
@@ -1687,8 +1707,8 @@ impl Analysis {
         &mut self,
         name: &str,
         node: M2Node,
-        type_name: &str,
-        indexed_element_type: Option<&str>,
+        type_name: InstanceID,
+        indexed_element_type: Option<InstanceID>,
         text: &str,
     ) {
         let position = node_position(text, node);
@@ -1745,45 +1765,43 @@ impl Analysis {
         self.infer_call_facts(node, text, scope_idx, builtins)
     }
 
-    pub fn infer_expression_static_type_name(
+    pub fn infer_expression_static_type(
         &self,
         node: M2Node,
         text: &str,
         builtins: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<String> {
+    ) -> Option<InstanceID> {
         let scope_idx = self.find_scope_at(node_position(text, node)).unwrap_or(0);
-        self.type_of(node, text, scope_idx, builtins)
-            .dispatch_name()
+        self.type_of(node, text, scope_idx, builtins).dispatch_id()
     }
 
     /// Project inferred types into the nominal names understood by the builtin
     /// dispatch table. Locally-created runtime types (most importantly a ring
     /// such as `R = QQ[x]`) walk through the local parent registry first, so an
     /// element whose exact class is `R` dispatches as a `RingElement`.
-    pub fn dispatch_argument_types(&self, facts: &CallStaticFacts) -> Vec<Option<String>> {
+    pub fn dispatch_argument_types(&self, facts: &CallStaticFacts) -> Vec<Option<InstanceID>> {
         facts
             .argument_types
             .iter()
-            .map(|inferred| self.dispatch_type_name(inferred))
+            .map(|inferred| self.dispatch_type_id(inferred))
             .collect()
     }
 
-    fn dispatch_type_name(&self, inferred: &InferredType) -> Option<String> {
-        let principal = inferred.principal()?;
-        let mut current = principal.as_ref();
+    fn dispatch_type_id(&self, inferred: &InferredType) -> Option<InstanceID> {
+        let mut current = inferred.principal()?.clone();
         let mut visited = HashSet::new();
 
-        while let Some(symbol) = self.registry.resolve_symbol(current) {
+        while let Some(symbol) = self.registry.resolve_symbol(current.name()) {
             if !visited.insert(symbol) {
                 return None;
             }
             let Some(parent) = self.registry.type_parents.get(&symbol) else {
                 break;
             };
-            current = parent.name();
+            current.clone_from(parent);
         }
 
-        Some(current.to_string())
+        Some(current)
     }
 
     /// Record the [`Dispatch`] shape of a lambda-defined local function on its
@@ -1805,7 +1823,7 @@ impl Analysis {
         function.kind = LocalFunctionKind::Plain;
     }
 
-    fn record_local_method_declaration(&mut self, name: &str, typical_value: Option<String>) {
+    fn record_local_method_declaration(&mut self, name: &str, typical_value: Option<InstanceID>) {
         let symbol = self.registry.intern_symbol(name);
         let method = self
             .registry
@@ -1818,7 +1836,7 @@ impl Analysis {
                 dispatch: None,
                 kind: LocalFunctionKind::Unknown,
             });
-        method.typical_value = typical_value.map(TypeRef::new);
+        method.typical_value = typical_value;
         method.kind = LocalFunctionKind::Method;
     }
 
@@ -2232,7 +2250,7 @@ impl Analysis {
             self.get_binding_from_scope(name, scope_idx, node_position(text, node))
         {
             if let Some(type_name) = &binding.state.type_name {
-                return InferredType::of(type_name);
+                return InferredType::from_id(type_name.clone());
             }
         }
 
@@ -2363,10 +2381,7 @@ impl Analysis {
             if self.is_local_function(callable) {
                 return self
                     .resolve_local_call_return_type(callable, &call_facts.argument_types, builtins)
-                    .map_or_else(
-                        || InferredType::of("Thing"),
-                        |return_type| InferredType::of(&return_type),
-                    );
+                    .map_or_else(|| InferredType::of("Thing"), InferredType::from_id);
             }
         }
 
@@ -2384,7 +2399,7 @@ impl Analysis {
                     &self.dispatch_argument_types(&call_facts),
                     &call_facts.literal_options,
                 ) {
-                    return InferredType::of(&return_type);
+                    return InferredType::from_id(return_type);
                 }
             }
             // Applying a function yields at least a Thing.
@@ -2451,12 +2466,12 @@ impl Analysis {
         let result = builtins.resolve_call_return_type_with_options(
             operator,
             &[
-                self.dispatch_type_name(&ring_type),
-                self.dispatch_type_name(&trailing_type),
+                self.dispatch_type_id(&ring_type),
+                self.dispatch_type_id(&trailing_type),
             ],
             &[],
         )?;
-        Some(InferredType::of(&result))
+        Some(InferredType::from_id(result))
     }
 
     /// Whether `name` resolves to a function tracked in the local registry — a
@@ -2497,17 +2512,17 @@ impl Analysis {
         options: &[(String, String)],
     ) -> InferredType {
         if let Some(return_type) = self.resolve_local_call_return_type(callable, args, builtins) {
-            return InferredType::of(&return_type);
+            return InferredType::from_id(return_type);
         }
         if let Some(return_type) = builtins.resolve_call_return_type_with_options(
             callable,
             &args
                 .iter()
-                .map(|argument| self.dispatch_type_name(argument))
+                .map(|argument| self.dispatch_type_id(argument))
                 .collect::<Vec<_>>(),
             options,
         ) {
-            return InferredType::of(&return_type);
+            return InferredType::from_id(return_type);
         }
         if builtins.get_record(&InstanceID::new(callable)).is_some() {
             return InferredType::of("Thing");
@@ -2589,24 +2604,21 @@ impl Analysis {
         callable: &str,
         argument_types: &[InferredType],
         builtins: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<String> {
+    ) -> Option<InstanceID> {
         let symbol = self.registry.resolve_symbol(callable)?;
         let method = self.registry.functions.get(&symbol)?;
         let matching_codomains = self
             .methods_for(method)
             .filter(|signature| self.signature_matches(signature, argument_types, builtins))
             .filter_map(|signature| signature.codomain.as_ref())
-            .map(|codomain| codomain.name().to_string())
+            .cloned()
             .collect::<HashSet<_>>();
 
         if matching_codomains.len() == 1 {
             return matching_codomains.into_iter().next();
         }
 
-        method
-            .typical_value
-            .as_ref()
-            .map(|typical_value| typical_value.name().to_string())
+        method.typical_value.clone()
     }
 
     fn signature_matches(
@@ -2620,7 +2632,7 @@ impl Analysis {
 
     fn signature_matches_domain(
         &self,
-        expected_domain: &[TypeRef],
+        expected_domain: &[InstanceID],
         argument_types: &[InferredType],
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
@@ -2631,17 +2643,17 @@ impl Analysis {
                 .all(|(expected, actual)| {
                     actual
                         .principal()
-                        .is_some_and(|actual| self.is_subtype(actual, expected.name(), builtins))
+                        .is_some_and(|actual| self.is_subtype(actual, expected, builtins))
                 })
     }
 
     fn is_subtype(
         &self,
         actual: &InstanceID,
-        expected: &str,
+        expected: &InstanceID,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
-        if actual.0 == expected || builtins.is_subtype(actual.as_ref(), expected) {
+        if actual == expected || builtins.is_subtype(actual.name(), expected.name()) {
             return true;
         }
 
@@ -2654,7 +2666,7 @@ impl Analysis {
             let Some(parent) = self.registry.type_parents.get(&symbol) else {
                 return false;
             };
-            if parent.name() == expected || builtins.is_subtype(parent.name(), expected) {
+            if parent == expected || builtins.is_subtype(parent.name(), expected.name()) {
                 return true;
             }
             current = parent.name();
@@ -2669,25 +2681,32 @@ impl Analysis {
     }
 }
 
+/// Binding-registration policy selected from the assignment operator.
 #[derive(Debug, Clone, Copy)]
 enum DefinitionScope {
     Local,
     Assign,
 }
 
-#[derive(Debug, Clone, Copy)]
+/// Complete input for creating a binding or adding a new state to one.
+///
+/// Keeping this packet typed ensures all registration paths pass through the
+/// same bookkeeping code.
+#[derive(Debug, Clone)]
 struct SymbolRegistration<'a> {
     kind: SymbolKind,
     role: BindingRole,
-    type_name: Option<&'a str>,
-    indexed_element_type: Option<&'a str>,
-    parent_type: Option<&'a str>,
+    type_name: Option<InstanceID>,
+    indexed_element_type: Option<InstanceID>,
+    parent_type: Option<InstanceID>,
     node: M2Node<'a>,
     value_node: Option<M2Node<'a>>,
     scope_idx: usize,
     potential_export: bool,
 }
 
+/// A ring-generator name and source node extracted from constructor syntax
+/// before it is registered as a binding.
 #[derive(Debug, Clone)]
 struct RingGeneratorBinding<'a> {
     name: String,
@@ -2695,12 +2714,15 @@ struct RingGeneratorBinding<'a> {
     node: M2Node<'a>,
 }
 
+/// Runtime binding shape produced for a ring generator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RingGeneratorKind {
     Direct,
     IndexedTable,
 }
 
+/// Compact reference to a registered generator retained for later ring
+/// rebinding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct RingGenerator {
     symbol: SymbolId,
@@ -2986,16 +3008,16 @@ fn declaration_symbol_kind(kind: SymbolKind, value: Option<M2Node<'_>>) -> Symbo
 
 fn declared_type_parent<'tree>(
     value: M2Node<'tree>,
-    type_name: Option<&str>,
+    type_name: Option<&InstanceID>,
     builtins: &(impl TypeKnowledge + ?Sized),
-) -> Option<&'tree str> {
-    if type_name
-        .is_some_and(|type_name| type_name == "Ring" || builtins.is_subtype(type_name, "Ring"))
-    {
+) -> Option<InstanceID> {
+    if type_name.is_some_and(|type_name| {
+        type_name.name() == "Ring" || builtins.is_subtype(type_name.name(), "Ring")
+    }) {
         // A ring value is itself a runtime type. Its elements have that ring as
         // their class, while the ring's instance hierarchy starts at
         // `RingElement` (`parent R === RingElement`).
-        return Some("RingElement");
+        return Some(InstanceID::new("RingElement"));
     }
     if value.kind != NodeKind::NewStatement
         || !type_name.is_some_and(|type_name| type_name_denotes_type(type_name, builtins))
@@ -3005,13 +3027,14 @@ fn declared_type_parent<'tree>(
     clause_of(value, NodeKind::OfClause)
         .and_then(clause_value)
         .and_then(symbol_node_text)
+        .map(InstanceID::new)
 }
 
 pub(crate) fn symbol_node_text<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
     node.kind.is_symbol_like().then(|| node.text())
 }
 
-fn method_declaration_typical_value(node: M2Node) -> Option<Option<String>> {
+fn method_declaration_typical_value(node: M2Node) -> Option<Option<InstanceID>> {
     if !node.is_space_application() {
         return None;
     }
@@ -3035,12 +3058,12 @@ fn is_method_call(node: M2Node) -> bool {
         == Some("method")
 }
 
-fn find_option_value(node: M2Node, option_name: &str) -> Option<String> {
+fn find_option_value(node: M2Node, option_name: &str) -> Option<InstanceID> {
     if node.is_option_assignment() {
         let left = node.child_by_field_name("left")?;
         let right = node.child_by_field_name("right")?;
         if symbol_node_text(left) == Some(option_name) {
-            return symbol_node_text(right).map(ToString::to_string);
+            return symbol_node_text(right).map(InstanceID::new);
         }
     }
 
@@ -3092,11 +3115,14 @@ fn operator_text(node: M2Node<'_>) -> Option<&str> {
 /// Whether `type_name` (an inferred static class or a referenced name) denotes a
 /// TYPE, i.e. is `Type` itself or one of its descendants (`SelfInitializingType`,
 /// …). Without the registry only the exact `Type` is recognized.
-fn type_name_denotes_type(type_name: &str, builtins: &(impl TypeKnowledge + ?Sized)) -> bool {
-    type_name == "Type" || builtins.is_subtype(type_name, "Type")
+fn type_name_denotes_type(
+    type_name: &InstanceID,
+    builtins: &(impl TypeKnowledge + ?Sized),
+) -> bool {
+    type_name.name() == "Type" || builtins.is_subtype(type_name.name(), "Type")
 }
 
-pub(crate) fn method_installation_signature(node: M2Node) -> Option<(String, Vec<String>)> {
+pub(crate) fn method_installation_signature(node: M2Node) -> Option<(String, Vec<InstanceID>)> {
     if !node.is_space_application() {
         return None;
     }
@@ -3108,7 +3134,9 @@ pub(crate) fn method_installation_signature(node: M2Node) -> Option<(String, Vec
     Some((callable.to_string(), domain))
 }
 
-fn method_installation_parameter_types_for_function(function_node: M2Node) -> Option<Vec<String>> {
+fn method_installation_parameter_types_for_function(
+    function_node: M2Node,
+) -> Option<Vec<InstanceID>> {
     let mut current = function_node;
     while let Some(parent) = current.parent() {
         if parent.kind == NodeKind::LambdaExpression {
@@ -3193,6 +3221,7 @@ fn is_loop_clause(kind: NodeKind) -> bool {
     )
 }
 
+/// Scope behavior contributed by one control-flow child.
 #[derive(Debug, Clone, Copy)]
 struct ChildScopePolicy {
     assignments_are_local: bool,
@@ -3251,7 +3280,7 @@ fn parenthesized_value(node: M2Node) -> Option<M2Node> {
     Some(current)
 }
 
-pub(crate) fn method_installation_domain(node: M2Node) -> Option<Vec<String>> {
+pub(crate) fn method_installation_domain(node: M2Node) -> Option<Vec<InstanceID>> {
     let node = parenthesized_value(node)?;
     if matches!(node.kind, NodeKind::Sequence | NodeKind::List) {
         // Each element is one dispatch position, so the arity is the count of
@@ -3264,16 +3293,12 @@ pub(crate) fn method_installation_domain(node: M2Node) -> Option<Vec<String>> {
         // named children and are not dispatch positions.
         let domain = node
             .collection_elements()
-            .map(|child| {
-                symbol_node_text(child)
-                    .unwrap_or_else(|| child.text())
-                    .to_string()
-            })
+            .map(|child| InstanceID::new(symbol_node_text(child).unwrap_or_else(|| child.text())))
             .collect::<Vec<_>>();
         return (!domain.is_empty()).then_some(domain);
     }
 
-    symbol_node_text(node).map(|name| vec![name.to_string()])
+    symbol_node_text(node).map(|name| vec![InstanceID::new(name)])
 }
 
 fn is_colon_equal_assignment_left(node: M2Node) -> bool {
@@ -3373,7 +3398,7 @@ mod tests {
     }
 
     fn domain_names(installation: &MethodInstallation) -> Vec<&str> {
-        installation.domain.iter().map(TypeRef::name).collect()
+        installation.domain.iter().map(InstanceID::name).collect()
     }
 
     #[test]
@@ -3690,7 +3715,10 @@ mod tests {
             .methods_for(f)
             .find(|method| domain_names(method) == vec!["CC", "CC"])
             .expect("(f, CC, CC) recorded");
-        assert_eq!(method.codomain.as_ref().map(TypeRef::name), Some("Array"));
+        assert_eq!(
+            method.codomain.as_ref().map(InstanceID::name),
+            Some("Array")
+        );
     }
 
     #[test]
@@ -4121,13 +4149,19 @@ mod tests {
             .get_binding_at("x", Position::new(1, 10))
             .expect("the earlier reference should resolve");
         assert_eq!(before.range.start, Position::new(0, 0));
-        assert_eq!(before.state.type_name.as_deref(), Some("ZZ"));
+        assert_eq!(
+            before.state.type_name.as_ref().map(InstanceID::name),
+            Some("ZZ")
+        );
 
         let after = analysis
             .get_binding_at("x", Position::new(3, 9))
             .expect("the later reference should resolve");
         assert_eq!(after.range.start, Position::new(0, 0));
-        assert_eq!(after.state.type_name.as_deref(), Some("FunctionClosure"));
+        assert_eq!(
+            after.state.type_name.as_ref().map(InstanceID::name),
+            Some("FunctionClosure")
+        );
         assert_eq!(before.binding_id, after.binding_id);
         assert_ne!(before.state.state_id, after.state.state_id);
     }
@@ -4150,20 +4184,26 @@ mod tests {
             .get_binding_at("x", Position::new(2, 12))
             .expect("the use before the local definition should see the outer binding");
         assert_eq!(before.range.start, Position::new(0, 0));
-        assert_eq!(before.state.type_name.as_deref(), Some("ZZ"));
+        assert_eq!(
+            before.state.type_name.as_ref().map(InstanceID::name),
+            Some("ZZ")
+        );
 
         let shadowed = analysis
             .get_binding_at("x", Position::new(4, 17))
             .expect("the use after the local definition should see the local binding");
         assert_eq!(shadowed.range.start, Position::new(3, 2));
-        assert_eq!(shadowed.state.type_name.as_deref(), Some("String"));
+        assert_eq!(
+            shadowed.state.type_name.as_ref().map(InstanceID::name),
+            Some("String")
+        );
 
         let rewritten = analysis
             .get_binding_at("x", Position::new(6, 16))
             .expect("the use after the local write should see its new state");
         assert_eq!(rewritten.range.start, Position::new(3, 2));
         assert_eq!(
-            rewritten.state.type_name.as_deref(),
+            rewritten.state.type_name.as_ref().map(InstanceID::name),
             Some("FunctionClosure")
         );
         assert_eq!(shadowed.binding_id, rewritten.binding_id);
@@ -4173,7 +4213,10 @@ mod tests {
             .get_binding_at("x", Position::new(8, 11))
             .expect("the nested shadow must not change the outer binding");
         assert_eq!(outside.range.start, Position::new(0, 0));
-        assert_eq!(outside.state.type_name.as_deref(), Some("ZZ"));
+        assert_eq!(
+            outside.state.type_name.as_ref().map(InstanceID::name),
+            Some("ZZ")
+        );
     }
 
     #[test]
@@ -4200,7 +4243,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("clearAll", Position::new(1, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Command")
         );
     }
@@ -4216,13 +4259,13 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("R", Position::new(3, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Ring")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("S", Position::new(4, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Ring")
         );
     }
@@ -4237,7 +4280,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("R", Position::new(2, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Ring")
         );
     }
@@ -4252,7 +4295,7 @@ mod tests {
         assert_eq!(
             analysis
                 .get_symbol_at("z", Position::new(3, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("ZZ")
         );
     }
@@ -4267,7 +4310,7 @@ mod tests {
             .expect("method declaration should create local method metadata");
 
         assert_eq!(
-            method.typical_value.as_ref().map(TypeRef::name),
+            method.typical_value.as_ref().map(InstanceID::name),
             Some("List")
         );
         assert_eq!(
@@ -4277,9 +4320,9 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![vec!["ZZ", "ZZ"], vec!["List", "ZZ"]]
         );
-        assert!(analysis
-            .methods_for(method)
-            .all(|signature| { signature.codomain.as_ref().map(TypeRef::name) == Some("List") }));
+        assert!(analysis.methods_for(method).all(|signature| {
+            signature.codomain.as_ref().map(InstanceID::name) == Some("List")
+        }));
         assert_eq!(
             analysis
                 .get_symbol_at("p", Position::new(1, 0))
@@ -4318,7 +4361,7 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("x", Position::new(4, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("MutableHashTable")
         );
     }
@@ -4359,7 +4402,7 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("x", Position::new(3, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("List")
         );
     }
@@ -4388,7 +4431,7 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("d", Position::new(1, 7))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("ZZ")
         );
     }
@@ -4400,13 +4443,13 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("x", Position::new(2, 4))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("ZZ")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(1, 12))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             None
         );
     }
@@ -4436,7 +4479,7 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(3, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Thing")
         );
     }
@@ -4450,7 +4493,7 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(1, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Symbol")
         );
     }
@@ -4467,7 +4510,7 @@ x
             .function("f")
             .expect("local method should be tracked");
         assert_eq!(
-            method.typical_value.as_ref().map(TypeRef::name),
+            method.typical_value.as_ref().map(InstanceID::name),
             Some("List")
         );
         assert_eq!(
@@ -4475,13 +4518,13 @@ x
                 .methods_for(method)
                 .next()
                 .and_then(|method| method.codomain.as_ref())
-                .map(TypeRef::name),
+                .map(InstanceID::name),
             Some("Ring")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(3, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Ring")
         );
     }
@@ -4496,7 +4539,7 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(1, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("String")
         );
     }
@@ -4523,7 +4566,7 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("S", Position::new(2, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Ring")
         );
     }
@@ -4562,7 +4605,7 @@ x
             assert_eq!(
                 analysis
                     .get_binding_at(name, Position::new(line, 0))
-                    .and_then(|symbol| symbol.state.type_name.as_deref()),
+                    .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
                 Some(expected),
                 "{name} should carry its runtime class or general algebraic class"
             );
@@ -4593,7 +4636,7 @@ x
             assert_eq!(
                 analysis
                     .get_symbol_at(name, Position::new(line, 0))
-                    .and_then(|symbol| symbol.state.type_name.as_deref()),
+                    .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
                 Some(expected),
                 "{name} should reflect indexed-variable installation"
             );
@@ -4650,7 +4693,7 @@ x
                 assert_eq!(
                     analysis
                         .get_symbol_at(name, Position::new(line, 0))
-                        .and_then(|symbol| symbol.state.type_name.as_deref()),
+                        .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
                     Some(expected),
                     "{name} in {text:?} should have runtime class {expected}"
                 );
@@ -4667,13 +4710,13 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("f", Position::new(3, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("RingElement")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("J", Position::new(4, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Ideal")
         );
     }
@@ -4702,7 +4745,7 @@ x
             assert_eq!(
                 analysis
                     .get_binding_at(name, Position::new(line, 0))
-                    .and_then(|symbol| symbol.state.type_name.as_deref()),
+                    .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
                 Some(expected),
                 "{name} should reflect quotient-ring dispatch and installation"
             );
@@ -4717,7 +4760,7 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("I", Position::new(1, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Ideal")
         );
     }
@@ -4731,37 +4774,37 @@ x
         assert_eq!(
             analysis
                 .get_symbol_at("l", Position::new(6, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("List")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("a", Position::new(7, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Array")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("b", Position::new(8, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("AngleBarList")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("e", Position::new(9, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Sequence")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("f", Position::new(10, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("ZZ")
         );
         assert_eq!(
             analysis
                 .get_symbol_at("g", Position::new(11, 0))
-                .and_then(|symbol| symbol.state.type_name.as_deref()),
+                .and_then(|symbol| symbol.state.type_name.as_ref().map(InstanceID::name)),
             Some("Sequence")
         );
     }
@@ -4775,13 +4818,16 @@ x
             .get_binding_at("y", Position::new(3, 0))
             .expect("binding should resolve through registry");
         assert_eq!(binding.scope_idx, 0);
-        assert_eq!(binding.state.type_name.as_deref(), Some("Ring"));
+        assert_eq!(
+            binding.state.type_name.as_ref().map(InstanceID::name),
+            Some("Ring")
+        );
 
         let callable = analysis
             .function("f")
             .expect("callable should be registered");
         assert_eq!(
-            callable.typical_value.as_ref().map(TypeRef::name),
+            callable.typical_value.as_ref().map(InstanceID::name),
             Some("List")
         );
         assert_eq!(callable.methods.len(), 1);
@@ -4790,7 +4836,7 @@ x
             .next()
             .expect("method installation should resolve");
         assert_eq!(domain_names(method), vec!["ZZ"]);
-        assert_eq!(method.codomain.as_ref().map(TypeRef::name), Some("Ring"));
+        assert_eq!(method.codomain.as_ref().map(InstanceID::name), Some("Ring"));
     }
 
     #[test]
@@ -4830,8 +4876,8 @@ x
         let computations = analysis.type_computation_count();
         assert_eq!(computations, analysis.cached_type_count());
         assert_eq!(
-            analysis.infer_expression_static_type_name(binary, text, &builtins),
-            Some("ZZ".to_string())
+            analysis.infer_expression_static_type(binary, text, &builtins),
+            Some(InstanceID::new("ZZ"))
         );
         assert_eq!(
             analysis.type_computation_count(),
@@ -4892,8 +4938,8 @@ x
         // The assignment evaluates to its right-hand side, so its expression
         // type is Array even though the target is written with `{}`.
         assert_eq!(
-            analysis.infer_expression_static_type_name(assignment, text, &NoTypeKnowledge),
-            Some("Array".to_string())
+            analysis.infer_expression_static_type(assignment, text, &NoTypeKnowledge),
+            Some(InstanceID::new("Array"))
         );
     }
 

@@ -25,7 +25,11 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
     {
         declarations.push(Declaration {
             name: analysis.symbol_name(binding.symbol).to_string(),
-            detail: binding.state.type_name.clone(),
+            detail: binding
+                .state
+                .type_name
+                .as_ref()
+                .map(|type_id| type_id.name().to_string()),
             kind: binding.declaration_kind,
             range: binding.declaration_range,
             selection_range: binding.range,

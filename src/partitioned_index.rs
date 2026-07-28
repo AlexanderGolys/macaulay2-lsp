@@ -155,7 +155,7 @@ impl<'a> ScopedIndex<'a> {
     pub fn resolve_call_signature_usage(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
     ) -> Option<SignatureUsage> {
         self.find_map(|_, data| data.resolve_call_signature_usage(callable, argument_types))
     }
@@ -211,9 +211,9 @@ impl TypeKnowledge for ScopedIndex<'_> {
     fn resolve_call_return_type_with_options(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
         options: &[(String, String)],
-    ) -> Option<String> {
+    ) -> Option<InstanceID> {
         self.find_map(|_, data| {
             data.resolve_call_return_type_with_options(callable, argument_types, options)
         })
@@ -274,7 +274,7 @@ impl LspKnowledge for ScopedIndex<'_> {
     fn resolve_call_signature_usage(
         &self,
         callable: &str,
-        argument_types: &[Option<String>],
+        argument_types: &[Option<InstanceID>],
     ) -> Option<SignatureUsage> {
         ScopedIndex::resolve_call_signature_usage(self, callable, argument_types)
     }

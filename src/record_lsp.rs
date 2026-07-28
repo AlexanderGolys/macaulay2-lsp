@@ -437,7 +437,10 @@ fn append_blockquote_fence(markdown: &mut String, language: &str, content: &str)
 }
 
 fn record_typical_value(record: &Record) -> Option<String> {
-    record.typical_value.clone()
+    record
+        .typical_value
+        .as_ref()
+        .map(|type_id| type_id.name().to_string())
 }
 
 fn signature_label(signature: &ResolvedSignature, operator_info: Option<&OperatorInfo>) -> String {
@@ -627,7 +630,10 @@ mod tests {
         let usage = knowledge
             .resolve_call_signature_usage(
                 "scan",
-                &[Some("BasicList".to_string()), Some("Function".to_string())],
+                &[
+                    Some(InstanceID::new("BasicList")),
+                    Some(InstanceID::new("Function")),
+                ],
             )
             .expect("scan should resolve the BasicList, Function usage");
         let hover =

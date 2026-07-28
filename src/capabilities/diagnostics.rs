@@ -131,8 +131,11 @@ impl Analysis {
                 }
             }
             _ => {
-                let inferred = self.infer_expression_static_type_name(argument, text, builtins);
-                if inferred.is_none() || inferred.as_deref() == Some("Symbol") {
+                let inferred = self.infer_expression_static_type(argument, text, builtins);
+                if inferred
+                    .as_ref()
+                    .is_none_or(|type_id| type_id.name() == "Symbol")
+                {
                     self.diagnostics
                         .push(M2Diagnostic::ProtectComputedSymbol.at(
                             to_lsp_range(text, argument.range()),
