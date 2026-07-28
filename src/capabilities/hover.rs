@@ -8,8 +8,8 @@ use crate::document::DocumentSnapshot;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKindMetadata};
 use crate::record_lsp::record_hover_with_package_and_usage;
+use crate::record_lsp::{LspKnowledge, SignatureUsage};
 use crate::source::SourceNavigation;
-use crate::typesystem::LspKnowledge;
 
 /// The hover at `position`: a local symbol renders its binding info and local
 /// method signatures; a builtin/package object renders its record from the
@@ -134,7 +134,7 @@ fn call_signature_usage_for_hover(
     source: &(impl SourceNavigation + ?Sized),
     analysis: &crate::analysis::Analysis,
     knowledge: &(impl LspKnowledge + ?Sized),
-) -> Option<crate::typesystem::SignatureUsage> {
+) -> Option<SignatureUsage> {
     let parent = node.parent()?;
 
     let argument_types = if parent.is_space_application() {

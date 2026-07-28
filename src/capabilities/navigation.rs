@@ -10,8 +10,8 @@ use crate::document::{DocumentSnapshot, TargetSymbol};
 use crate::node_metadata::{NodeKind, NodeKindMetadata};
 use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
+use crate::record_lsp::LspKnowledge;
 use crate::source::SourceNavigation;
-use crate::typesystem::LspKnowledge;
 use crate::workspace_index::WorkspaceDefinitionKnowledge;
 
 /// The M2 keywords offered as completions — the control-flow, declaration, and
@@ -791,7 +791,7 @@ mod tests {
                 &self,
                 _name: &str,
                 _exclude: &Url,
-            ) -> Option<crate::typesystem::M2SemanticTokenType> {
+            ) -> Option<crate::semantic_token::M2SemanticTokenType> {
                 None
             }
         }

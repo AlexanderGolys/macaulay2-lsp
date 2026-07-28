@@ -15,8 +15,8 @@ use crate::analysis::{Analysis, FunctionInfo, MethodInstallation};
 use crate::builtin_index::InstanceID;
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
+use crate::record_lsp::{LspKnowledge, ResolvedSignature};
 use crate::source::SourceNavigation;
-use crate::typesystem::{LspKnowledge, ResolvedSignature};
 
 pub(crate) fn signature_help_response(
     document: &DocumentSnapshot,
@@ -146,7 +146,11 @@ fn signature_informations(
         .map(|signature| builtin_signature_information(callable, signature))
         .collect();
     for method in knowledge.undocumented_installed_methods(record) {
-        let domain = method_domain(&method.signature);
+        let domain = method
+            .domain
+            .iter()
+            .map(|name| name.0.clone())
+            .collect::<Vec<_>>();
         signatures.push(signature_information(callable, &domain, None));
     }
     signatures

@@ -1,9 +1,429 @@
 //! Conversion of indexed builtin records into LSP-facing hover and symbol data.
 
+use std::collections::{HashMap, HashSet};
+
 use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, SymbolKind};
 
-use crate::builtin_index::{OperatorInfo, Record};
-use crate::typesystem::{LspKnowledge, ResolvedSignature, SignatureUsage};
+use crate::builtin_index::{
+    BuiltinData, CodeExample, InstanceID, MethodSignature, OperatorInfo, Record,
+};
+use crate::typesystem::{domain_strictly_smaller, effective_method_codomain, TypeKnowledge};
+
+/// One callable signature after indexed type and documentation facts are
+/// prepared for LSP presentation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedSignature {
+    pub signature: Vec<InstanceID>,
+    pub output_types: Vec<InstanceID>,
+    pub is_specialized: bool,
+    pub examples: Vec<CodeExample>,
+    pub doc_key: Option<InstanceID>,
+}
+
+/// Indexed queries used by hover, completion, navigation, and signature help.
+pub trait LspKnowledge: TypeKnowledge {
+    /// Resolve an object and report the loaded package that supplied it.
+    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, &Record)>;
+
+    /// Return visible names beginning with `prefix`.
+    fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)>;
+
+    /// Return visible names containing `query`.
+    fn matching_names(&self, query: &str, limit: usize) -> Vec<(String, String)>;
+
+    /// Partition callable signatures by their applicability to a call site.
+    fn resolve_call_signature_usage(
+        &self,
+        callable: &str,
+        argument_types: &[Option<InstanceID>],
+    ) -> Option<SignatureUsage>;
+
+    /// Return signatures with their documented output facts.
+    fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature>;
+
+    /// Return installed methods not represented by a resolved documented
+    /// signature.
+    fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature>;
+
+    /// Return callables that accept `option_name`.
+    fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String>;
+
+    /// Return callable/option slots that admit `value_name`.
+    fn option_value_usage_names(&self, value_name: &str, limit: usize) -> Vec<String>;
+
+    /// Return pre-rendered documentation for an object.
+    fn doc_markdown(&self, name: &InstanceID) -> Option<String>;
+}
+
+/// Package-addressed record lookup used by static type-hierarchy navigation.
+pub trait PartitionedTypeKnowledge {
+    /// Borrow `name` from one explicit package partition.
+    fn get_record_from_package(&self, package: &str, name: &InstanceID) -> Option<&Record>;
+}
+
+/// Installed signatures partitioned by their applicability at one call site.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SignatureUsage {
+    pub pinned: Option<ResolvedSignature>,
+    pub possible: Vec<ResolvedSignature>,
+    pub excluded: Vec<ResolvedSignature>,
+}
+
+impl BuiltinData {
+    /// Primary names beginning with `prefix`, in corpus order and capped at
+    /// `limit`.
+    pub fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<&str> {
+        if prefix.is_empty() || limit == 0 {
+            return Vec::new();
+        }
+
+        self.index
+            .records()
+            .iter()
+            .map(|record| record.name.0.as_str())
+            .filter(|name| name.starts_with(prefix))
+            .take(limit)
+            .collect()
+    }
+
+    /// Primary names containing `query` case-insensitively, capped at `limit`.
+    pub fn matching_names(&self, query: &str, limit: usize) -> Vec<&str> {
+        if query.is_empty() || limit == 0 {
+            return Vec::new();
+        }
+
+        let query = query.to_lowercase();
+        self.index
+            .records()
+            .iter()
+            .map(|record| record.name.0.as_str())
+            .filter(|name| name.to_lowercase().contains(&query))
+            .take(limit)
+            .collect()
+    }
+
+    /// The pre-rendered hover markdown for `name` or one of its aliases.
+    pub fn doc_markdown(&self, name: &InstanceID) -> Option<&str> {
+        self.get_record(name)?.markdown.as_deref()
+    }
+
+    /// Return callables which document `option_name`, with package qualifiers
+    /// stripped for matching and display.
+    pub fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String> {
+        if limit == 0 {
+            return Vec::new();
+        }
+
+        let option_name = option_name
+            .rsplit_once('$')
+            .map_or(option_name, |(_, name)| name);
+        let mut usages = Vec::new();
+        for record in self.index.records() {
+            let Some(callable) = record.callable() else {
+                continue;
+            };
+            if !callable
+                .options
+                .iter()
+                .any(|option| option.name.0 == option_name)
+            {
+                continue;
+            }
+
+            let display_name = record
+                .name
+                .0
+                .rsplit_once('$')
+                .map_or(record.name.0.as_str(), |(_, name)| name);
+            if !usages.iter().any(|usage| usage == display_name) {
+                usages.push(display_name.to_string());
+            }
+            if usages.len() == limit {
+                break;
+            }
+        }
+
+        usages
+    }
+
+    /// Return `callable.option` slots that admit `value_name` in indexed facts.
+    pub fn option_value_usage_names(&self, value_name: &str, limit: usize) -> Vec<String> {
+        if limit == 0 {
+            return Vec::new();
+        }
+
+        let value_name = value_name
+            .rsplit_once('$')
+            .map_or(value_name, |(_, name)| name);
+        self.option_facts
+            .option_value_usages
+            .get(value_name)
+            .into_iter()
+            .flat_map(|usages| usages.iter())
+            .map(|usage| format!("{}.{}", usage.callable, usage.option))
+            .take(limit)
+            .collect()
+    }
+
+    /// Resolve indexed method codomains into their LSP-facing representation.
+    pub fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
+        let Some(callable) = record.callable() else {
+            return Vec::new();
+        };
+        let mut signatures = callable
+            .methods
+            .iter()
+            .filter_map(|method| {
+                let (codomain, is_specialized) = effective_method_codomain(callable, method)?;
+                let mut signature = Vec::with_capacity(method.domain.len() + 1);
+                signature.push(record.name.clone());
+                signature.extend(method.domain.iter().cloned());
+                Some(ResolvedSignature {
+                    signature,
+                    output_types: vec![codomain.clone()],
+                    is_specialized,
+                    examples: Vec::new(),
+                    doc_key: None,
+                })
+            })
+            .collect::<Vec<_>>();
+
+        if signatures.is_empty() {
+            if let Some(codomain) = &callable.typical_value {
+                signatures.push(ResolvedSignature {
+                    signature: vec![record.name.clone()],
+                    output_types: vec![codomain.clone()],
+                    is_specialized: false,
+                    examples: Vec::new(),
+                    doc_key: None,
+                });
+            }
+        }
+
+        signatures
+    }
+
+    /// Installed method domains not represented by a resolved documented
+    /// signature.
+    pub fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature> {
+        let Some(callable) = record.callable() else {
+            return Vec::new();
+        };
+
+        let documented_domains: HashSet<_> = self
+            .documented_signatures(record)
+            .iter()
+            .filter_map(|method| signature_domain_key(&method.signature))
+            .collect();
+
+        callable
+            .methods
+            .iter()
+            .filter(|method| !documented_domains.contains(&method.domain))
+            .cloned()
+            .collect()
+    }
+
+    /// Partition installed signatures into possible and excluded candidates;
+    /// pin one only when every argument type is known and unambiguous.
+    pub fn resolve_call_signature_usage(
+        &self,
+        callable: &str,
+        argument_types: &[Option<InstanceID>],
+    ) -> Option<SignatureUsage> {
+        let record = self.get_record(&InstanceID::new(callable))?;
+        let mut possible = Vec::new();
+        let mut excluded = Vec::new();
+
+        for signature in self.all_installed_signatures(record) {
+            if signature.signature.first().map(|name| name.0.as_str()) != Some(callable) {
+                continue;
+            }
+            let domain = signature.signature.get(1..).unwrap_or_default();
+            if domain.len() != argument_types.len() {
+                continue;
+            }
+
+            if domain_possibly_matches(self, domain, argument_types) {
+                possible.push(signature);
+            } else {
+                excluded.push(signature);
+            }
+        }
+
+        dedup_signatures(&mut possible);
+        dedup_signatures(&mut excluded);
+        excluded.extend(take_nonminimal_signatures(self, &mut possible));
+
+        let all_arguments_known = argument_types.iter().all(Option::is_some);
+        let pinned = if all_arguments_known && possible.len() == 1 {
+            Some(possible.remove(0))
+        } else {
+            None
+        };
+
+        if pinned.is_none() && possible.is_empty() && excluded.is_empty() {
+            None
+        } else {
+            Some(SignatureUsage {
+                pinned,
+                possible,
+                excluded,
+            })
+        }
+    }
+
+    fn all_installed_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
+        let Some(callable) = record.callable() else {
+            return Vec::new();
+        };
+
+        let documented_by_domain: HashMap<_, _> = self
+            .documented_signatures(record)
+            .into_iter()
+            .filter_map(|signature| {
+                signature_domain_key(&signature.signature).map(|key| (key, signature))
+            })
+            .collect();
+
+        let mut signatures = Vec::new();
+        for method in &callable.methods {
+            if let Some(documented_signature) = documented_by_domain.get(&method.domain) {
+                signatures.push(documented_signature.clone());
+            } else {
+                let mut signature = Vec::with_capacity(method.domain.len() + 1);
+                signature.push(record.name.clone());
+                signature.extend(method.domain.iter().cloned());
+                signatures.push(ResolvedSignature {
+                    signature,
+                    output_types: Vec::new(),
+                    is_specialized: false,
+                    examples: Vec::new(),
+                    doc_key: None,
+                });
+            }
+        }
+
+        signatures
+    }
+}
+
+impl LspKnowledge for BuiltinData {
+    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, &Record)> {
+        let record = BuiltinData::get_record(self, name)?;
+        let package = record.package.clone().unwrap_or_else(|| "Core".to_string());
+        Some((package, record))
+    }
+
+    fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)> {
+        BuiltinData::names_with_prefix(self, prefix, limit)
+            .into_iter()
+            .map(|name| {
+                let package = BuiltinData::get_record(self, &InstanceID::new(name))
+                    .and_then(|record| record.package.clone())
+                    .unwrap_or_else(|| "Core".to_string());
+                (package, name.to_string())
+            })
+            .collect()
+    }
+
+    fn matching_names(&self, query: &str, limit: usize) -> Vec<(String, String)> {
+        BuiltinData::matching_names(self, query, limit)
+            .into_iter()
+            .map(|name| {
+                let package = BuiltinData::get_record(self, &InstanceID::new(name))
+                    .and_then(|record| record.package.clone())
+                    .unwrap_or_else(|| "Core".to_string());
+                (package, name.to_string())
+            })
+            .collect()
+    }
+
+    fn resolve_call_signature_usage(
+        &self,
+        callable: &str,
+        argument_types: &[Option<InstanceID>],
+    ) -> Option<SignatureUsage> {
+        BuiltinData::resolve_call_signature_usage(self, callable, argument_types)
+    }
+
+    fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
+        BuiltinData::documented_signatures(self, record)
+    }
+
+    fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature> {
+        BuiltinData::undocumented_installed_methods(self, record)
+    }
+
+    fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String> {
+        BuiltinData::option_usage_names(self, option_name, limit)
+    }
+
+    fn option_value_usage_names(&self, value_name: &str, limit: usize) -> Vec<String> {
+        BuiltinData::option_value_usage_names(self, value_name, limit)
+    }
+
+    fn doc_markdown(&self, name: &InstanceID) -> Option<String> {
+        BuiltinData::doc_markdown(self, name).map(str::to_string)
+    }
+}
+
+fn domain_possibly_matches(
+    knowledge: &(impl TypeKnowledge + ?Sized),
+    domain: &[InstanceID],
+    argument_types: &[Option<InstanceID>],
+) -> bool {
+    domain
+        .iter()
+        .zip(argument_types)
+        .all(|(domain_type, argument_type)| {
+            argument_type.as_ref().is_none_or(|argument_type| {
+                argument_type == domain_type
+                    || knowledge.is_subtype(argument_type.as_ref(), domain_type.as_ref())
+            })
+        })
+}
+
+fn dedup_signatures(signatures: &mut Vec<ResolvedSignature>) {
+    let mut seen = HashSet::new();
+    signatures.retain(|signature| {
+        seen.insert((signature.signature.clone(), signature.output_types.clone()))
+    });
+}
+
+fn take_nonminimal_signatures(
+    knowledge: &(impl TypeKnowledge + ?Sized),
+    signatures: &mut Vec<ResolvedSignature>,
+) -> Vec<ResolvedSignature> {
+    let originals = signatures.clone();
+    let mut dominated = Vec::new();
+    signatures.retain(|candidate| {
+        let candidate_domain = signature_domain(&candidate.signature);
+        let is_dominated = originals.iter().any(|other| {
+            domain_strictly_smaller(
+                knowledge,
+                signature_domain(&other.signature),
+                candidate_domain,
+            )
+        });
+        if is_dominated {
+            dominated.push(candidate.clone());
+        }
+        !is_dominated
+    });
+    dominated
+}
+
+fn signature_domain(signature: &[InstanceID]) -> &[InstanceID] {
+    signature.get(1..).unwrap_or_default()
+}
+
+fn signature_domain_key(signature: &[InstanceID]) -> Option<Vec<InstanceID>> {
+    if signature.is_empty() {
+        return None;
+    }
+    Some(signature_domain(signature).to_vec())
+}
 
 pub(crate) fn record_package(record: &Record) -> Option<&str> {
     record.package.as_deref()
@@ -14,11 +434,11 @@ pub(crate) fn record_source_file(record: &Record) -> Option<&str> {
 }
 
 pub(crate) fn record_symbol_kind(record: &Record) -> SymbolKind {
-    if record.type_info.is_some() {
+    if record.type_info().is_some() {
         return SymbolKind::CLASS;
     }
 
-    if record.function_info.is_some() {
+    if record.callable().is_some() {
         return SymbolKind::FUNCTION;
     }
 
@@ -53,12 +473,7 @@ fn record_hover_markdown(
 ) -> String {
     let title_signature = usage
         .and_then(|usage| usage.pinned.as_ref())
-        .map(|signature| {
-            format!(
-                " `{}`",
-                signature_label(signature, record.operator_info.as_ref())
-            )
-        })
+        .map(|signature| format!(" `{}`", signature_label(signature, record.operator_info())))
         .unwrap_or_default();
     let mut markdown = format!("**{}**{}\n", record.name, title_signature);
 
@@ -104,20 +519,20 @@ fn record_hover_markdown(
             &mut markdown,
             "Other signatures for this call",
             &usage.excluded,
-            record.operator_info.as_ref(),
+            record.operator_info(),
         );
     } else if let Some(usage) = usage {
         append_usage_signature_section(
             &mut markdown,
             "Possible signatures for this call",
             &usage.possible,
-            record.operator_info.as_ref(),
+            record.operator_info(),
         );
         append_usage_signature_section(
             &mut markdown,
             "Other signatures for this call",
             &usage.excluded,
-            record.operator_info.as_ref(),
+            record.operator_info(),
         );
     } else {
         append_record_signatures(&mut markdown, record, knowledge);
@@ -155,24 +570,27 @@ fn append_record_signatures(
     record: &Record,
     knowledge: &(impl LspKnowledge + ?Sized),
 ) {
-    if record.function_info.is_none() {
+    if record.callable().is_none() {
         return;
     }
 
     let mut labels = knowledge
         .documented_signatures(record)
         .iter()
-        .map(|signature| signature_label(signature, record.operator_info.as_ref()))
+        .map(|signature| signature_label(signature, record.operator_info()))
         .collect::<Vec<_>>();
     for method in knowledge.undocumented_installed_methods(record) {
+        let mut signature = Vec::with_capacity(method.domain.len() + 1);
+        signature.push(record.name.clone());
+        signature.extend(method.domain);
         let signature = ResolvedSignature {
-            signature: method.signature,
+            signature,
             output_types: Vec::new(),
             is_specialized: false,
             examples: Vec::new(),
             doc_key: None,
         };
-        let label = signature_label(&signature, record.operator_info.as_ref());
+        let label = signature_label(&signature, record.operator_info());
         if !labels.contains(&label) {
             labels.push(label);
         }
@@ -438,8 +856,8 @@ fn append_blockquote_fence(markdown: &mut String, language: &str, content: &str)
 
 fn record_typical_value(record: &Record) -> Option<String> {
     record
-        .typical_value
-        .as_ref()
+        .callable()
+        .and_then(|info| info.typical_value.as_ref())
         .map(|type_id| type_id.name().to_string())
 }
 
@@ -519,6 +937,22 @@ fn operator_method_key(method_key: &str) -> Option<(&str, bool)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prefix_search_does_not_require_sorted_names() {
+        let corpus = concat!(
+            "{\"kind\":\"type\",\"name\":\"ZZ\"}\n",
+            "{\"kind\":\"symbol\",\"name\":\"about\"}\n",
+            "{\"kind\":\"type\",\"name\":\"Ring\"}\n",
+            "{\"kind\":\"methodFunction\",\"name\":\"coefficient\"}\n",
+        );
+        let builtins = BuiltinData::load_from_index(corpus);
+
+        assert_eq!(builtins.names_with_prefix("ab", 8), vec!["about"]);
+        assert_eq!(builtins.names_with_prefix("co", 8), vec!["coefficient"]);
+        assert_eq!(builtins.names_with_prefix("R", 8), vec!["Ring"]);
+        assert_eq!(builtins.names_with_prefix("Z", 8), vec!["ZZ"]);
+    }
     use crate::builtin_index::{BuiltinData, InstanceID};
     use tower_lsp::lsp_types::HoverContents;
 

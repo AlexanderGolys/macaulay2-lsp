@@ -7,10 +7,10 @@ use crate::document::DocumentSnapshot;
 use crate::documentation::DocumentationSnippet;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::source::{DocumentSpan, SourceNavigation};
-use crate::typesystem::{
+use crate::semantic_token::{
     M2SemanticToken, M2SemanticTokenProvenance, M2SemanticTokenType, SemanticTokenKnowledge,
 };
+use crate::source::{DocumentSpan, SourceNavigation};
 use crate::workspace_index::WorkspaceDefinitionKnowledge;
 
 pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
@@ -760,8 +760,8 @@ mod tests {
     use crate::document::DocumentSnapshot;
     use crate::node_metadata::M2Parser;
     use crate::partitioned_index::PackagePartitionedIndex;
+    use crate::semantic_token::{M2SemanticToken, M2SemanticTokenType};
     use crate::typesystem::TypeKnowledgeProvider;
-    use crate::typesystem::{M2SemanticToken, M2SemanticTokenType};
     use crate::workspace_index::WorkspaceIndex;
 
     fn document(text: &str, builtins: &BuiltinData) -> DocumentSnapshot {

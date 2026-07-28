@@ -398,3 +398,23 @@ fn ambiguous_float_member_access_range(
 ) -> Option<LspRange> {
     ambiguous_float_member_access_rewrite(node).map(|_| source.range_for_node(node))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::member_index_for_ambiguous_float_literal;
+
+    #[test]
+    fn ambiguous_member_access_helper_requires_dot_prefixed_float() {
+        assert_eq!(
+            member_index_for_ambiguous_float_literal(".3"),
+            Some("3".to_string())
+        );
+        assert_eq!(
+            member_index_for_ambiguous_float_literal(".123"),
+            Some("123".to_string())
+        );
+        assert_eq!(member_index_for_ambiguous_float_literal("3"), None);
+        assert_eq!(member_index_for_ambiguous_float_literal("."), None);
+        assert_eq!(member_index_for_ambiguous_float_literal(".3e2"), None);
+    }
+}

@@ -16,7 +16,8 @@ use tower_lsp::lsp_types::{Location, Range, Url};
 use crate::analysis::SymbolName;
 use crate::capabilities::semantic_tokens::local_symbol_semantic_token_type;
 use crate::document::DocumentSnapshot;
-use crate::typesystem::{M2SemanticTokenType, SemanticTokenKnowledge, TypeKnowledgeProvider};
+use crate::semantic_token::{M2SemanticTokenType, SemanticTokenKnowledge};
+use crate::typesystem::TypeKnowledgeProvider;
 
 #[derive(Debug, Clone)]
 struct DefLocation {

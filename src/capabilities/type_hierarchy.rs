@@ -13,8 +13,8 @@ use crate::builtin_index::{InstanceID, Record};
 use crate::document::DocumentSnapshot;
 use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
+use crate::record_lsp::{LspKnowledge, PartitionedTypeKnowledge};
 use crate::source::SourceNavigation;
-use crate::typesystem::{LspKnowledge, PartitionedTypeKnowledge};
 
 pub(crate) const TYPE_HIERARCHY_METHOD: &str = "textDocument/prepareTypeHierarchy";
 
@@ -51,7 +51,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
         let range = document.range_for_node(node);
 
         let (package, record) = scoped.get_record_with_package(&InstanceID::new(name))?;
-        record.type_info.as_ref()?;
+        record.type_info()?;
 
         Some(vec![self.item(
             &package,
@@ -73,8 +73,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
         // vec, not `None`.
         let resolved = (|| {
             let parent_name = record
-                .type_info
-                .as_ref()?
+                .type_info()?
                 .parent_type
                 .as_ref()
                 .filter(|parent| parent != &&record.name)?;
@@ -91,7 +90,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
         let (package, record) = self.record(package, &item.name)?;
 
         let mut items = Vec::new();
-        if let Some(type_info) = &record.type_info {
+        if let Some(type_info) = record.type_info() {
             for subtype in &type_info.subtypes {
                 if subtype == &record.name {
                     continue;
@@ -123,7 +122,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
         let record = self
             .knowledge
             .get_record_from_package(package, &InstanceID::new(name))?;
-        record.type_info.as_ref()?;
+        record.type_info()?;
         Some((package.to_string(), record))
     }
 
@@ -159,8 +158,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
             .or_else(|| location.as_ref().map(|location| location.range))
             .unwrap_or_else(|| Range::new(Position::new(0, 0), Position::new(0, 0)));
         let detail = record
-            .type_info
-            .as_ref()
+            .type_info()
             .and_then(|type_info| type_info.parent_type.as_ref())
             .filter(|parent| parent != &&record.name)
             .map(|parent| format!("Parent: {parent}"));

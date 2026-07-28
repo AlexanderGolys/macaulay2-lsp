@@ -463,15 +463,6 @@ impl<'tree> M2Node<'tree> {
             .into_iter()
     }
 
-    /// Return the smallest descendant spanning the requested byte range.
-    #[cfg(test)]
-    pub fn descendant_for_byte_range(&self, start: usize, end: usize) -> Option<M2Node<'tree>> {
-        let source = self.source;
-        self.node
-            .descendant_for_byte_range(start, end)
-            .map(|node| M2Node::new(node, source))
-    }
-
     /// Return the smallest descendant spanning the requested point range.
     pub fn descendant_for_point_range(
         &self,

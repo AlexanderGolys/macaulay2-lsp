@@ -45,6 +45,10 @@ impl AsRef<str> for InstanceID {
     }
 }
 
+/// Opaque identity of one object in the unified semantic object population.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ObjectId(u32);
+
 /// One executable example attached to a corpus record or method signature.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeExample(pub String);
@@ -52,76 +56,118 @@ pub struct CodeExample(pub String);
 /// The canonical metadata for one builtin M2 object.
 #[derive(Debug, Clone)]
 pub struct Record {
+    pub id: ObjectId,
     pub name: InstanceID,
     pub class: InstanceID,
     pub examples: Vec<CodeExample>,
     pub package: Option<String>,
     pub source_file: Option<String>,
-    pub typical_value: Option<InstanceID>,
-    pub function_info: Option<FunctionInfo>,
-    pub option_info: Option<OptionInfo>,
-    pub operator_info: Option<OperatorInfo>,
-    pub type_info: Option<TypeInfo>,
+    pub data: ObjectData,
     pub protected: Option<bool>,
     aliases: Vec<String>,
-    pub(crate) markdown: Option<String>,
+    pub markdown: Option<String>,
+}
+
+/// The mutually exclusive semantic shape of one indexed M2 object.
+#[derive(Debug, Clone)]
+pub enum ObjectData {
+    Plain,
+    Type(TypeInfo),
+    Callable(CallableInfo),
 }
 
 /// Callable metadata derived from the callable's corpus record.
 #[derive(Debug, Clone)]
-pub struct FunctionInfo {
-    /// Whether the indexed callable accepts runtime method installations.
-    /// This comes directly from the corpus record kind, not its runtime class.
-    pub is_method_function: bool,
+pub struct CallableInfo {
+    pub kind: CallableKind,
+    pub typical_value: Option<InstanceID>,
     pub methods: Vec<MethodSignature>,
+    pub options: Vec<CallableOption>,
 }
 
-/// The documented options accepted by a callable.
+/// The callable form encoded by the corpus, with operator metadata nested under
+/// the callable it specializes.
 #[derive(Debug, Clone)]
-pub struct OptionInfo {
-    pub options: Vec<MethodOption>,
+pub enum CallableKind {
+    Function,
+    MethodFunction,
+    Operator(OperatorInfo),
+}
+
+impl Record {
+    /// Borrow this object's callable facts when it is callable.
+    pub fn callable(&self) -> Option<&CallableInfo> {
+        match &self.data {
+            ObjectData::Callable(callable) => Some(callable),
+            ObjectData::Plain | ObjectData::Type(_) => None,
+        }
+    }
+
+    /// Borrow this object's type-hierarchy facts when it is a type.
+    pub fn type_info(&self) -> Option<&TypeInfo> {
+        match &self.data {
+            ObjectData::Type(type_info) => Some(type_info),
+            ObjectData::Plain | ObjectData::Callable(_) => None,
+        }
+    }
+
+    /// Borrow this callable's operator facts when it is an operator.
+    pub fn operator_info(&self) -> Option<&OperatorInfo> {
+        self.callable()?.operator_info()
+    }
+}
+
+impl CallableInfo {
+    /// Whether this callable was indexed as a method function.
+    pub fn is_method_function(&self) -> bool {
+        matches!(self.kind, CallableKind::MethodFunction)
+    }
+
+    /// Borrow the operator specialization carried by this callable.
+    pub fn operator_info(&self) -> Option<&OperatorInfo> {
+        match &self.kind {
+            CallableKind::Operator(operator) => Some(operator),
+            CallableKind::Function | CallableKind::MethodFunction => None,
+        }
+    }
 }
 
 /// One option key and its structured value constraints.
 #[derive(Debug, Clone)]
-pub struct MethodOption {
+pub struct CallableOption {
     pub name: InstanceID,
-    pub(crate) possible_values: Vec<InstanceID>,
+    pub possible_values: Vec<InstanceID>,
 }
 
 /// Reverse option relationships indexed from the canonical callable records.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct OptionFacts {
-    pub(crate) option_value_usages: HashMap<InstanceID, Vec<OptionValueUsage>>,
-    pub(crate) option_values_by_slot: HashMap<OptionSlot, Vec<InstanceID>>,
+pub struct OptionFacts {
+    pub option_value_usages: HashMap<InstanceID, Vec<OptionValueUsage>>,
+    pub option_values_by_slot: HashMap<OptionSlot, Vec<InstanceID>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct OptionSlot {
-    pub(crate) callable: InstanceID,
-    pub(crate) option: InstanceID,
+pub struct OptionSlot {
+    pub callable: InstanceID,
+    pub option: InstanceID,
 }
 
 /// A callable/option slot that admits a particular indexed option value.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OptionValueUsage {
-    pub(crate) callable: InstanceID,
-    pub(crate) option: InstanceID,
+pub struct OptionValueUsage {
+    pub callable: InstanceID,
+    pub option: InstanceID,
 }
 
 impl OptionFacts {
     fn from_records(records: &[Record]) -> Self {
         let mut facts = OptionFacts::default();
         for record in records {
-            if record.function_info.is_none() {
+            let Some(callable) = record.callable() else {
                 continue;
-            }
+            };
             let callable_id = record.name.clone();
-            for option in record
-                .option_info
-                .iter()
-                .flat_map(|option_info| &option_info.options)
-            {
+            for option in &callable.options {
                 let option_id = option.name.clone();
                 let slot = OptionSlot {
                     callable: callable_id.clone(),
@@ -159,11 +205,11 @@ impl OptionFacts {
     }
 }
 
-/// An installed method domain: callable name followed by its argument types.
+/// The argument domain and optional codomain of one installed method.
 #[derive(Debug, Clone)]
 pub struct MethodSignature {
-    pub signature: Vec<InstanceID>,
-    pub(crate) codomain: Option<InstanceID>,
+    pub domain: Vec<InstanceID>,
+    pub codomain: Option<InstanceID>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
@@ -203,14 +249,16 @@ impl OperatorInfo {
 pub struct TypeInfo {
     pub subtypes: Vec<InstanceID>,
     pub parent_type: Option<InstanceID>,
-    pub(crate) ancestors: Vec<InstanceID>,
+    pub ancestors: Vec<InstanceID>,
 }
 
 /// Canonical record population plus name/alias lookup and corpus-global metadata.
 #[derive(Debug, Clone, Default)]
 pub struct BuiltinIndex {
     records: Vec<Record>,
-    record_index_by_name: HashMap<InstanceID, usize>,
+    record_index_by_id: HashMap<ObjectId, usize>,
+    record_index_by_name: HashMap<InstanceID, ObjectId>,
+    next_object_id: u32,
     default_loaded: Vec<String>,
 }
 
@@ -218,29 +266,46 @@ pub struct BuiltinIndex {
 /// that same population.
 #[derive(Debug, Clone)]
 pub struct BuiltinData {
-    pub(crate) index: BuiltinIndex,
-    pub(crate) option_facts: OptionFacts,
+    pub index: BuiltinIndex,
+    pub option_facts: OptionFacts,
 }
 
 impl BuiltinData {
-    pub(crate) fn from_index(index: BuiltinIndex) -> Self {
+    /// Number of primary records; aliases do not increase this count.
+    pub fn len(&self) -> usize {
+        self.index.records().len()
+    }
+
+    pub fn from_index(index: BuiltinIndex) -> Self {
         let option_facts = OptionFacts::from_records(index.records());
         BuiltinData {
             index,
             option_facts,
         }
     }
+
+    /// Build a `BuiltinData` over one complete test corpus.
+    #[cfg(test)]
+    pub fn load_from_index(corpus: &str) -> Self {
+        Self::from_index(BuiltinIndex::load(corpus))
+    }
+
+    /// Empty object and type knowledge for tests.
+    #[cfg(test)]
+    pub fn empty() -> Self {
+        Self::from_index(BuiltinIndex::default())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct PackageName(String);
+pub struct PackageName(String);
 
 impl PackageName {
     fn from_record(record: &Record) -> Self {
         Self(record.package.as_deref().unwrap_or("Core").to_string())
     }
 
-    pub(crate) fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         &self.0
     }
 }
@@ -276,7 +341,8 @@ impl BuiltinIndex {
 
             match raw.kind.as_str() {
                 "type" => {
-                    let mut record = base_record(&mut raw, keys, "Type");
+                    let object_id = index.allocate_object_id();
+                    let mut record = base_record(object_id, &mut raw, keys, "Type");
                     let parent_type = raw.parent.as_deref().map(deref_ref).map(InstanceID);
                     let mut ancestors: Vec<_> = raw
                         .ancestors
@@ -288,7 +354,7 @@ impl BuiltinIndex {
                     }
                     ancestors.sort();
                     ancestors.dedup();
-                    record.type_info = Some(TypeInfo {
+                    record.data = ObjectData::Type(TypeInfo {
                         parent_type,
                         ancestors,
                         subtypes: raw
@@ -300,53 +366,52 @@ impl BuiltinIndex {
                     index.insert(record);
                 }
                 "function" | "methodFunction" | "operator" => {
+                    let object_id = index.allocate_object_id();
                     let is_operator = raw.kind == "operator";
-                    let is_method_function = raw.kind == "methodFunction";
                     let default_class = if is_operator { "Keyword" } else { "Function" };
-                    let mut record = base_record(&mut raw, keys, default_class);
+                    let mut record = base_record(object_id, &mut raw, keys, default_class);
                     let methods = raw
                         .methods
                         .into_iter()
-                        .map(|method| {
-                            let mut signature = Vec::with_capacity(method.domain.len() + 1);
-                            signature.push(record.name.clone());
-                            signature.extend(
-                                method
-                                    .domain
-                                    .iter()
-                                    .map(|domain| InstanceID(deref_ref(domain))),
-                            );
-                            MethodSignature {
-                                signature,
-                                codomain: concrete_codomain(method.typical_value.as_deref()),
-                            }
+                        .map(|method| MethodSignature {
+                            domain: method
+                                .domain
+                                .iter()
+                                .map(|domain| InstanceID(deref_ref(domain)))
+                                .collect(),
+                            codomain: concrete_codomain(method.typical_value.as_deref()),
                         })
                         .collect();
-                    record.typical_value = concrete_codomain(raw.typical_value.as_deref());
-                    record.function_info = Some(FunctionInfo {
-                        is_method_function,
+                    let kind = match raw.kind.as_str() {
+                        "function" => CallableKind::Function,
+                        "methodFunction" => CallableKind::MethodFunction,
+                        "operator" => {
+                            let operator = raw.operator.take().unwrap_or_else(|| {
+                                panic!("operator record '{}' has no operator metadata", record.name)
+                            });
+                            CallableKind::Operator(OperatorInfo {
+                                method_symbol: record.name.clone(),
+                                forms: operator
+                                    .forms
+                                    .iter()
+                                    .map(|form| capitalize_form(form))
+                                    .collect(),
+                                form_attributes: operator.attributes,
+                            })
+                        }
+                        _ => unreachable!("callable branch only accepts callable record kinds"),
+                    };
+                    record.data = ObjectData::Callable(CallableInfo {
+                        kind,
+                        typical_value: concrete_codomain(raw.typical_value.as_deref()),
                         methods,
+                        options: raw.options.into_iter().map(CallableOption::from).collect(),
                     });
-                    if !raw.options.is_empty() {
-                        record.option_info = Some(OptionInfo {
-                            options: raw.options.into_iter().map(MethodOption::from).collect(),
-                        });
-                    }
-                    if let Some(operator) = raw.operator {
-                        record.operator_info = Some(OperatorInfo {
-                            method_symbol: record.name.clone(),
-                            forms: operator
-                                .forms
-                                .iter()
-                                .map(|form| capitalize_form(form))
-                                .collect(),
-                            form_attributes: operator.attributes,
-                        });
-                    }
                     index.insert(record);
                 }
                 "symbol" | "object" | "table" => {
-                    let record = base_record(&mut raw, keys, "Thing");
+                    let object_id = index.allocate_object_id();
+                    let record = base_record(object_id, &mut raw, keys, "Thing");
                     index.insert(record);
                 }
                 "meta" => {
@@ -360,21 +425,51 @@ impl BuiltinIndex {
         index
     }
 
+    fn allocate_object_id(&mut self) -> ObjectId {
+        let object_id = ObjectId(self.next_object_id);
+        self.next_object_id = self
+            .next_object_id
+            .checked_add(1)
+            .expect("object identity space exhausted");
+        object_id
+    }
+
     fn insert(&mut self, record: Record) {
-        let id = self.records.len();
-        self.record_index_by_name.insert(record.name.clone(), id);
+        let object_id = record.id;
+        let record_index = self.records.len();
+        let previous = self.record_index_by_id.insert(object_id, record_index);
+        assert!(
+            previous.is_none(),
+            "object ID {object_id:?} inserted more than once"
+        );
+        self.record_index_by_name
+            .insert(record.name.clone(), object_id);
         for alias in &record.aliases {
             self.record_index_by_name
                 .entry(InstanceID::new(alias))
-                .or_insert(id);
+                .or_insert(object_id);
         }
+        self.next_object_id = self.next_object_id.max(
+            object_id
+                .0
+                .checked_add(1)
+                .expect("object identity space exhausted"),
+        );
         self.records.push(record);
     }
 
-    pub fn record(&self, name: &InstanceID) -> Option<&Record> {
-        self.record_index_by_name
-            .get(name)
+    pub fn object(&self, object_id: ObjectId) -> Option<&Record> {
+        self.record_index_by_id
+            .get(&object_id)
             .and_then(|index| self.records.get(*index))
+    }
+
+    pub fn object_id(&self, name: &InstanceID) -> Option<ObjectId> {
+        self.record_index_by_name.get(name).copied()
+    }
+
+    pub fn record(&self, name: &InstanceID) -> Option<&Record> {
+        self.object(self.object_id(name)?)
     }
 
     pub fn records(&self) -> &[Record] {
@@ -384,13 +479,13 @@ impl BuiltinIndex {
     #[cfg(test)]
     pub fn type_entry(&self, name: &str) -> Option<&Record> {
         self.record(&InstanceID::new(name))
-            .filter(|record| record.type_info.is_some())
+            .filter(|record| record.type_info().is_some())
     }
 
     #[cfg(test)]
     pub fn callable(&self, name: &str) -> Option<&Record> {
         self.record(&InstanceID::new(name))
-            .filter(|record| record.function_info.is_some())
+            .filter(|record| record.callable().is_some())
     }
 
     /// Packages M2 loads at a fresh start (`loadedPackages`), read from the
@@ -405,7 +500,7 @@ impl BuiltinIndex {
     pub fn type_count(&self) -> usize {
         self.records
             .iter()
-            .filter(|record| record.type_info.is_some())
+            .filter(|record| record.type_info().is_some())
             .count()
     }
 
@@ -413,7 +508,7 @@ impl BuiltinIndex {
     pub fn callable_count(&self) -> usize {
         self.records
             .iter()
-            .filter(|record| record.function_info.is_some())
+            .filter(|record| record.callable().is_some())
             .count()
     }
 
@@ -422,9 +517,7 @@ impl BuiltinIndex {
     /// lookups within a partition behave exactly like a single-package load.
     /// Entries with no package bucket under `"Core"` (the loaded-set floor).
     /// `default_loaded` is corpus-global and is not propagated to sub-indexes.
-    pub(crate) fn into_package_partitions(
-        self,
-    ) -> (HashMap<PackageName, BuiltinIndex>, Vec<String>) {
+    pub fn into_package_partitions(self) -> (HashMap<PackageName, BuiltinIndex>, Vec<String>) {
         let mut partitions = HashMap::new();
         for record in self.records {
             partitions
@@ -436,8 +529,14 @@ impl BuiltinIndex {
     }
 }
 
-fn base_record(raw: &mut RawRecord, aliases: Vec<String>, default_class: &str) -> Record {
+fn base_record(
+    id: ObjectId,
+    raw: &mut RawRecord,
+    aliases: Vec<String>,
+    default_class: &str,
+) -> Record {
     Record {
+        id,
         name: InstanceID(mem::take(&mut raw.name)),
         class: InstanceID(
             raw.class
@@ -448,11 +547,7 @@ fn base_record(raw: &mut RawRecord, aliases: Vec<String>, default_class: &str) -
         examples: Vec::new(),
         package: raw.package.take().map(|package| deref_ref(&package)),
         source_file: None,
-        typical_value: None,
-        function_info: None,
-        option_info: None,
-        operator_info: None,
-        type_info: None,
+        data: ObjectData::Plain,
         protected: raw.protected,
         aliases,
         markdown: raw.markdown.take().filter(|markdown| !markdown.is_empty()),
@@ -527,7 +622,7 @@ struct RawMethod {
     typical_value: Option<String>,
 }
 
-/// Wire-format optional argument metadata. Conversion into `MethodOption` keeps
+/// Wire-format optional argument metadata. Conversion into `CallableOption` keeps
 /// Serde details at the JSONL boundary.
 #[derive(Debug, Deserialize)]
 struct RawOptionSpec {
@@ -536,9 +631,9 @@ struct RawOptionSpec {
     possible_values: Vec<String>,
 }
 
-impl From<RawOptionSpec> for MethodOption {
+impl From<RawOptionSpec> for CallableOption {
     fn from(raw: RawOptionSpec) -> Self {
-        MethodOption {
+        CallableOption {
             name: InstanceID::new(&raw.key),
             possible_values: raw.possible_values.into_iter().map(InstanceID).collect(),
         }
@@ -582,8 +677,7 @@ mod tests {
         let zz = index.type_entry("ZZ").expect("ZZ type present");
         assert_eq!(zz.package.as_deref(), Some("Core")); // $Core$Core -> Core
         assert!(zz
-            .type_info
-            .as_ref()
+            .type_info()
             .expect("ZZ type facts")
             .ancestors
             .iter()
@@ -596,8 +690,8 @@ mod tests {
 
         // methodFunction record -> callable, with a deref'd codomain
         let beta = index.callable("Beta").expect("Beta callable present");
-        let beta_info = beta.function_info.as_ref().expect("Beta callable facts");
-        assert!(beta_info.is_method_function);
+        let beta_info = beta.callable().expect("Beta callable facts");
+        assert!(beta_info.is_method_function());
         assert!(beta_info
             .methods
             .iter()
@@ -605,18 +699,15 @@ mod tests {
 
         // operator record -> callable + capitalized forms from the `operator` object
         let minus = index.callable("-").expect("- operator present");
-        let minus_operator = minus.operator_info.as_ref().expect("- operator facts");
+        let minus_operator = minus.operator_info().expect("- operator facts");
         assert!(minus_operator.forms.contains(&"Binary".to_string()));
         assert!(minus_operator.forms.contains(&"Prefix".to_string()));
 
         let method_constructor = index.callable("method").expect("method function present");
-        assert!(
-            !method_constructor
-                .function_info
-                .as_ref()
-                .expect("method callable facts")
-                .is_method_function
-        );
+        assert!(!method_constructor
+            .callable()
+            .expect("method callable facts")
+            .is_method_function());
     }
 
     #[test]
@@ -638,25 +729,55 @@ mod tests {
             index.callable("Core$gb").map(|c| c.name.0.as_str()),
             Some("gb")
         );
+        let canonical_id = index
+            .object_id(&InstanceID::new("gb"))
+            .expect("gb has an object identity");
+        assert_eq!(
+            index.object_id(&InstanceID::new("Core$gb")),
+            Some(canonical_id),
+            "an alias resolves to the canonical object's identity"
+        );
+        assert_eq!(
+            index.object(canonical_id).map(|record| &record.name),
+            Some(&InstanceID::new("gb"))
+        );
     }
 
     #[test]
     fn parses_callable_signatures() {
         let index = index();
         let gb = index.callable("gb").expect("gb is a callable");
-        assert!(gb.operator_info.is_none());
+        assert!(gb.operator_info().is_none());
         // gb dispatches on Ideal/Module/Matrix, all returning a GroebnerBasis;
         // subtype matching uses canonical type records, while codomains stay on methods.
         assert!(gb
-            .function_info
-            .as_ref()
+            .callable()
             .expect("gb callable facts")
             .methods
             .iter()
             .any(|method| {
-                method.signature[1..] == [InstanceID::new("Ideal")]
+                method.domain == [InstanceID::new("Ideal")]
                     && method.codomain.as_ref().map(AsRef::as_ref) == Some("GroebnerBasis")
             }));
+    }
+
+    #[test]
+    fn operator_flexibility_is_per_form() {
+        let index = index();
+
+        let greater = index
+            .record(&InstanceID::new(">"))
+            .and_then(Record::operator_info)
+            .expect("> operator should carry operator info");
+        assert!(greater.is_flexible("prefix"));
+        assert!(!greater.is_flexible("binary"));
+
+        let minus = index
+            .record(&InstanceID::new("-"))
+            .and_then(Record::operator_info)
+            .expect("- operator should carry operator info");
+        assert!(minus.is_flexible("binary"));
+        assert!(minus.is_flexible("prefix"));
     }
 
     #[test]
@@ -664,12 +785,7 @@ mod tests {
         let index = index();
         // Each canonical type record carries its normalized ancestor chain.
         if let Some(zz) = index.type_entry("ZZ") {
-            assert!(!zz
-                .type_info
-                .as_ref()
-                .expect("ZZ type facts")
-                .ancestors
-                .is_empty());
+            assert!(!zz.type_info().expect("ZZ type facts").ancestors.is_empty());
         }
     }
 
@@ -694,14 +810,9 @@ mod tests {
         for callable in index
             .records()
             .iter()
-            .filter(|record| record.function_info.is_some())
+            .filter(|record| record.callable().is_some())
         {
-            for method in &callable
-                .function_info
-                .as_ref()
-                .expect("callable facts")
-                .methods
-            {
+            for method in &callable.callable().expect("callable facts").methods {
                 assert!(
                     !matches!(
                         method.codomain.as_ref().map(AsRef::as_ref),
@@ -709,12 +820,15 @@ mod tests {
                     ),
                     "callable '{}' has a Thing/Any signature codomain (domain={:?})",
                     callable.name,
-                    &method.signature[1..],
+                    &method.domain,
                 );
             }
             assert!(
                 !matches!(
-                    callable.typical_value.as_ref().map(InstanceID::name),
+                    callable
+                        .callable()
+                        .and_then(|info| info.typical_value.as_ref())
+                        .map(InstanceID::name),
                     Some("Thing") | Some("Any")
                 ),
                 "callable '{}' has a Thing/Any typical_value",
@@ -726,19 +840,19 @@ mod tests {
         // `$Core$Thing` — must be dropped to None after load.
         let next = index.callable("next").expect("next callable present");
         let next_iter_sig = next
-            .function_info
-            .as_ref()
+            .callable()
             .expect("next callable facts")
             .methods
             .iter()
-            .find(|method| method.signature[1..] == [InstanceID::new("Iterator")])
+            .find(|method| method.domain == [InstanceID::new("Iterator")])
             .expect("next(Iterator) signature present");
         assert_eq!(
             next_iter_sig.codomain, None,
             "next(Iterator) codomain must be None, not Thing"
         );
         assert_eq!(
-            next.typical_value, None,
+            next.callable().expect("next callable facts").typical_value,
+            None,
             "next typical_value must be None, not Thing"
         );
     }
@@ -781,6 +895,9 @@ mod tests {
             r#"{"kind":"function","name":"fooFn","package":"$FooPkg$FooPkg"}"#,
         );
         let index = BuiltinIndex::load(corpus);
+        let foo_type_id = index
+            .object_id(&InstanceID::new("FooType"))
+            .expect("combined index contains FooType");
         let (parts, _) = index.into_package_partitions();
 
         let core = parts.get("Core").expect("Core partition present");
@@ -794,6 +911,15 @@ mod tests {
         assert!(foo.type_entry("FooType").is_some());
         assert!(foo.callable("fooFn").is_some());
         assert!(foo.type_entry("ZZ").is_none(), "ZZ is not in FooPkg");
+        assert_eq!(
+            foo.object_id(&InstanceID::new("FooType")),
+            Some(foo_type_id),
+            "partitioning preserves canonical object identity"
+        );
+        assert_eq!(
+            foo.object(foo_type_id).map(|record| &record.name),
+            Some(&InstanceID::new("FooType"))
+        );
     }
 
     #[test]

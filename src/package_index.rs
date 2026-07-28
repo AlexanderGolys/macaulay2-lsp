@@ -1,6 +1,7 @@
 //! Imported-package discovery and configured source-file resolution.
 
 use std::collections::HashSet;
+use std::env;
 use std::path::{Path, PathBuf};
 
 use tower_lsp::lsp_types::{Location, Position, Range, Url};
@@ -21,8 +22,8 @@ impl SourceResolver {
     /// degrade to nothing when it is unset.
     pub(crate) fn from_environment() -> Self {
         let mut roots = Vec::new();
-        if let Some(paths) = std::env::var_os("M2_LSP_SOURCE_PATH") {
-            roots.extend(std::env::split_paths(&paths));
+        if let Some(paths) = env::var_os("M2_LSP_SOURCE_PATH") {
+            roots.extend(env::split_paths(&paths));
         }
         Self::new(roots)
     }

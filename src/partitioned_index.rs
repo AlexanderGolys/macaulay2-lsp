@@ -7,14 +7,18 @@
 use std::collections::HashMap;
 
 use crate::builtin_index::{
-    BuiltinData, BuiltinIndex, InstanceID, MethodSignature, PackageName, Record,
+    BuiltinData, BuiltinIndex, InstanceID, MethodSignature, ObjectId, PackageName, Record,
 };
+use crate::object_registry::ObjectKnowledge;
 use crate::package_index::collect_imported_packages;
-use crate::typesystem::{
-    semantic_token_for_static_type_from_knowledge, semantic_token_from_knowledge, LspKnowledge,
-    M2SemanticToken, PartitionedTypeKnowledge, ResolvedSignature, SemanticTokenKnowledge,
-    SignatureUsage, TypeKnowledge, TypeKnowledgeProvider,
+use crate::record_lsp::{
+    LspKnowledge, PartitionedTypeKnowledge, ResolvedSignature, SignatureUsage,
 };
+use crate::semantic_token::{
+    semantic_token_for_static_type_from_knowledge, semantic_token_from_knowledge, M2SemanticToken,
+    SemanticTokenKnowledge,
+};
+use crate::typesystem::{TypeKnowledge, TypeKnowledgeProvider};
 
 /// Every shipped package's `BuiltinData`, keyed by home package, plus the
 /// default-loaded baseline. Built once from the single embedded corpus.
@@ -148,10 +152,6 @@ impl<'a> ScopedIndex<'a> {
         self.find_map(|package, data| data.get_record(name).map(|record| (package, record)))
     }
 
-    pub fn get_record(&self, name: &InstanceID) -> Option<&'a Record> {
-        self.get_record_with_package(name).map(|(_, record)| record)
-    }
-
     pub fn resolve_call_signature_usage(
         &self,
         callable: &str,
@@ -204,10 +204,6 @@ impl TypeKnowledge for ScopedIndex<'_> {
         true
     }
 
-    fn get_record(&self, name: &InstanceID) -> Option<&Record> {
-        ScopedIndex::get_record(self, name)
-    }
-
     fn resolve_call_return_type_with_options(
         &self,
         callable: &str,
@@ -223,6 +219,16 @@ impl TypeKnowledge for ScopedIndex<'_> {
         self.partitions
             .iter()
             .any(|(_, data)| data.is_subtype(child, parent))
+    }
+}
+
+impl ObjectKnowledge for ScopedIndex<'_> {
+    fn object(&self, object_id: ObjectId) -> Option<&Record> {
+        self.find_map(|_, data| data.object(object_id))
+    }
+
+    fn resolve_object(&self, name: &InstanceID) -> Option<ObjectId> {
+        self.find_map(|_, data| data.object_id(name))
     }
 }
 
@@ -435,6 +441,13 @@ mod tests {
         let scoped = index.scoped(&baseline);
         assert!(scoped.get_record(&InstanceID::new("ZZ")).is_some());
         assert!(scoped.get_record(&InstanceID::new("toJSON")).is_none());
+        let zz_id = scoped
+            .resolve_object(&InstanceID::new("ZZ"))
+            .expect("loaded objects resolve to identities");
+        assert_eq!(
+            scoped.object(zz_id).map(|record| &record.name),
+            Some(&InstanceID::new("ZZ"))
+        );
 
         // Import JSON: now toJSON resolves, tagged with its package.
         let loaded = LoadedPackages::resolve(index.default_loaded(), "needsPackage \"JSON\"");
