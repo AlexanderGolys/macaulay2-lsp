@@ -11,12 +11,13 @@ use std::sync::{Arc, RwLock};
 use tower_lsp::lsp_types::{Diagnostic, Position, Range, SymbolKind};
 use tree_sitter::Tree;
 
+use crate::builtin_index::InstanceID;
 use crate::diagnostic_registry::M2Diagnostic;
 use crate::meta::{BindingRole, Meta, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 #[cfg(test)]
 use crate::typesystem::NoTypeKnowledge;
-use crate::typesystem::{InstanceID, TypeKnowledge};
+use crate::typesystem::TypeKnowledge;
 use crate::util::{node_position, position_in_range, to_lsp_range};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -59,13 +60,6 @@ pub struct Analysis {
     type_cache: RwLock<HashMap<NodeFactId, InferredType>>,
     #[cfg(test)]
     type_computations: AtomicUsize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MethodInfo {
-    pub domain: Vec<String>,
-    pub codomain: Option<String>,
-    pub range: Range,
 }
 
 /// A lazily-resolved reference to a type in the unified universe (builtins ∪
@@ -114,19 +108,28 @@ pub enum MethodHead {
     OperatorAssign(Operator),
 }
 
+/// Stable identity of a method installation within one immutable analysis
+/// snapshot. Source positions belong to [`MethodInstallation`]; semantic
+/// records refer to installations through this typed identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MethodInstallationId(u32);
+
 /// A characterized method installation — the single source of truth for "this
 /// assignment installs a method", produced once during analysis and consumed by
 /// every capability instead of each re-deciding it from raw syntax.
 ///
-/// `domain` is the tuple of dispatch types (e.g. `[ZZ, String]`). `range` is the
-/// span of the whole assignment so a consumer can match a node to its fact.
+/// `domain` is the tuple of dispatch types (e.g. `[ZZ, String]`). `span` is the
+/// source span of the whole assignment within this analysis snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MethodInstallation {
+    pub id: MethodInstallationId,
     pub head: MethodHead,
     pub domain: Vec<TypeRef>,
+    /// The effective codomain of this installation: an explicit declaration, or
+    /// the method function's typical value at the installation site.
     pub codomain: Option<TypeRef>,
     pub codomain_span: Option<SpanKey>,
-    pub range: Range,
+    pub span: SpanKey,
     pub target: SpanKey,
     pub value: Option<SpanKey>,
     pub rhs_lambda_dispatch: Option<Dispatch>,
@@ -140,40 +143,11 @@ impl MethodInstallation {
     }
 }
 
-/// The classes whose instances are method functions — the only functions a method
-/// install actually attaches a method to. Installing on any other function class
-/// (`FunctionClosure`, `CompiledFunction`, …) compiles but has no effect, so we
-/// warn and record nothing. `method(Options => …)` yields `MethodFunctionWithOptions`;
-/// we currently tag every `method(…)` as `MethodFunction`, which is still in this
-/// set, so the distinction does not change the verdict.
-const METHOD_FUNCTION_CLASSES: [&str; 4] = [
-    "MethodFunction",
-    "MethodFunctionBinary",
-    "MethodFunctionSingle",
-    "MethodFunctionWithOptions",
-];
-
 /// Strip a corpus `$Package$Name` qualifier down to the bare class name, so a
 /// builtin class (`$Core$CompiledFunction`) and a locally-inferred class
 /// (`FunctionClosure`) compare on the same footing.
 fn bare_class_name(name: &str) -> &str {
     name.rsplit_once('$').map_or(name, |(_, bare)| bare)
-}
-
-/// Whether a bare class name is one of the method-function classes.
-fn is_method_function_class(class: &str) -> bool {
-    METHOD_FUNCTION_CLASSES.contains(&bare_class_name(class))
-}
-
-/// Map a resolved function's class to its installation head kind: a
-/// method-function class accepts method installs, any other function class
-/// does not.
-fn head_function_kind_of_class(class: &str) -> HeadFunctionKind {
-    if is_method_function_class(class) {
-        HeadFunctionKind::MethodFunction
-    } else {
-        HeadFunctionKind::NonMethodFunction
-    }
 }
 
 /// How an installation head resolves with respect to method-function-ness — the
@@ -225,24 +199,23 @@ fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionInfo {
     pub symbol: SymbolId,
-    pub range: Range,
-    pub typical_value: Option<String>,
-    pub methods: Vec<MethodInfo>,
+    pub typical_value: Option<TypeRef>,
+    pub methods: Vec<MethodInstallationId>,
     pub dispatch: Option<Dispatch>,
+    kind: LocalFunctionKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LocalFunctionKind {
+    Unknown,
+    Plain,
+    Method,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallStaticFacts {
     pub argument_types: Vec<InferredType>,
     pub literal_options: Vec<(String, String)>,
-}
-
-impl CallStaticFacts {
-    /// The argument types in the `Option<String>` form the type-registry dispatch
-    /// queries consume.
-    pub fn dispatch_argument_types(&self) -> Vec<Option<String>> {
-        dispatch_names(&self.argument_types)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -348,12 +321,6 @@ impl InferredType {
     }
 }
 
-/// Project inferred argument types into the `Option<String>` form the type
-/// registry's dispatch queries consume.
-fn dispatch_names(types: &[InferredType]) -> Vec<Option<String>> {
-    types.iter().map(InferredType::dispatch_name).collect()
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExpressionKind {
     Literal,
@@ -383,6 +350,9 @@ pub struct BindingStateInfo {
     pub binding_id: BindingId,
     pub kind: SymbolKind,
     pub type_name: Option<String>,
+    /// For an `IndexedVariableTable` binding, the local ring type produced by
+    /// subscripting the table after a ring constructor or `use`-style rebind.
+    pub indexed_element_type: Option<TypeRef>,
     pub value_range: Option<Range>,
     pub span: SpanKey,
     pub scope_idx: usize,
@@ -434,7 +404,6 @@ pub struct ExpressionFact {
 pub struct CallInfo {
     pub callable_name: Option<String>,
     pub argument_types: Vec<InferredType>,
-    pub candidate_methods: Vec<MethodInfo>,
 }
 
 #[derive(Debug, Default)]
@@ -451,6 +420,7 @@ pub struct SemanticRegistry {
     pub calls: HashMap<SpanKey, CallInfo>,
     pub functions: HashMap<SymbolId, FunctionInfo>,
     pub type_parents: HashMap<SymbolId, TypeRef>,
+    ring_generators: HashMap<SymbolId, Vec<RingGenerator>>,
 }
 
 impl SpanKey {
@@ -661,29 +631,7 @@ impl Analysis {
         &'a self,
         installation: &'a MethodInstallation,
     ) -> Option<&'a str> {
-        if let Some(codomain) = &installation.codomain {
-            return Some(codomain.name());
-        }
-
-        let MethodHead::Function(name) = &installation.head else {
-            return None;
-        };
-        let function = self.function(name)?;
-        function
-            .methods
-            .iter()
-            .rev()
-            .find(|method| {
-                method.range == installation.range
-                    && method.domain.len() == installation.domain.len()
-                    && method
-                        .domain
-                        .iter()
-                        .zip(&installation.domain)
-                        .all(|(actual, expected)| actual == expected.name())
-            })
-            .and_then(|method| method.codomain.as_deref())
-            .or(function.typical_value.as_deref())
+        installation.codomain.as_ref().map(TypeRef::name)
     }
 
     pub(crate) fn is_method_installation_codomain(&self, node: M2Node, text: &str) -> bool {
@@ -695,6 +643,20 @@ impl Analysis {
 
     pub fn function_by_symbol(&self, symbol: SymbolId) -> Option<&FunctionInfo> {
         self.registry.functions.get(&symbol)
+    }
+
+    pub fn methods_for<'a>(
+        &'a self,
+        function: &'a FunctionInfo,
+    ) -> impl Iterator<Item = &'a MethodInstallation> + 'a {
+        function
+            .methods
+            .iter()
+            .filter_map(|id| self.method_installation(*id))
+    }
+
+    fn method_installation(&self, id: MethodInstallationId) -> Option<&MethodInstallation> {
+        self.installations.get(id.0 as usize)
     }
 
     pub fn symbol_name(&self, symbol: SymbolId) -> &str {
@@ -827,7 +789,6 @@ impl Analysis {
         // type can be memoized for all semantic consumers in this snapshot.
         analysis.cache_types = true;
         analysis.collect_expression_facts(root, text, builtins);
-        analysis.collect_installations(root, text, builtins);
         analysis.collect_installation_diagnostics(builtins);
         analysis.collect_install_form_diagnostics(root, text, builtins);
         analysis.collect_diagnostics(root, text, builtins);
@@ -868,9 +829,7 @@ impl Analysis {
 
                 if let (Some(left), Some(op)) = (left, op) {
                     let op_text = op.text();
-                    if op_text == ":=" {
-                        self.collect_local_method_installation(node, left, right, text, builtins);
-                    }
+                    self.record_method_installation(node, text, builtins);
                     let symbol_kind = match right {
                         Some(right) if right.kind == NodeKind::LambdaExpression => {
                             SymbolKind::FUNCTION
@@ -901,10 +860,10 @@ impl Analysis {
                         (right, single_symbol_assignment_target(left))
                     {
                         if let Some(typical_value) = method_declaration_typical_value(right) {
-                            self.record_local_method_declaration(name, typical_value, left, text);
+                            self.record_local_method_declaration(name, typical_value);
                         } else if right.kind == NodeKind::LambdaExpression {
                             if let Some(dispatch) = function_dispatch(right) {
-                                self.record_local_function_dispatch(name, dispatch, left, text);
+                                self.record_local_function_dispatch(name, dispatch);
                             }
                         }
                     }
@@ -919,6 +878,7 @@ impl Analysis {
                                 kind: symbol_kind,
                                 role: BindingRole::Ordinary,
                                 type_name: type_name.as_deref(),
+                                indexed_element_type: None,
                                 parent_type,
                                 node: left,
                                 value_node: right,
@@ -939,6 +899,7 @@ impl Analysis {
                                 kind: symbol_kind,
                                 role: BindingRole::Ordinary,
                                 type_name: type_name.as_deref(),
+                                indexed_element_type: None,
                                 parent_type,
                                 node: left,
                                 value_node: right,
@@ -951,9 +912,15 @@ impl Analysis {
                         _ => {}
                     }
 
-                    if let (Some(right), Some(type_name)) = (right, type_name.as_deref()) {
+                    if let (Some(right), Some(type_name), Some(ring_name)) = (
+                        right,
+                        type_name.as_deref(),
+                        single_symbol_assignment_target(left),
+                    ) {
                         if type_name == "Ring" || builtins.is_subtype(type_name, "Ring") {
-                            self.collect_ring_generator_bindings(right, text, builtins);
+                            self.collect_ring_generator_bindings(
+                                ring_name, right, left, text, builtins,
+                            );
                         }
                     }
                 }
@@ -991,48 +958,23 @@ impl Analysis {
         }
     }
 
-    /// Walk the tree once, characterizing every method installation into
-    /// `self.installations`. This is the only place the install-vs-call decision
-    /// is made; capabilities read the result.
-    fn collect_installations(
-        &mut self,
-        node: M2Node,
-        text: &str,
-        builtins: &(impl TypeKnowledge + ?Sized),
-    ) {
-        if node.is_assignment() {
-            if let Some(installation) = self.classify_installation(node, text, builtins) {
-                self.installations.push(installation);
-            }
-        }
-
-        for child in node.children() {
-            self.collect_installations(child, text, builtins);
-        }
-    }
-
     /// The installation characterized for the assignment spanning `node`, if any.
     pub(crate) fn installation_for(&self, node: M2Node, text: &str) -> Option<&MethodInstallation> {
-        let range = to_lsp_range(text, node.range());
+        let span = SpanKey::from_node(text, node);
         self.installations
             .iter()
-            .find(|installation| installation.range == range)
+            .find(|installation| installation.span == span)
     }
 
     /// The function being installed by a method-installation assignment
     /// `lhs := [Codomain =>] fn`, or `None` for an ordinary assignment/call. An
     /// explicit `Codomain => fn` return-type declaration is peeled to its `fn`, so
     /// the installation's value is the function, never the `Codomain =>` "Option".
-    fn installed_function<'tree>(
-        &self,
-        node: M2Node<'tree>,
-        text: &str,
-        builtins: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<M2Node<'tree>> {
+    fn installed_function<'tree>(&self, node: M2Node<'tree>, text: &str) -> Option<M2Node<'tree>> {
         if !node.is_assignment() {
             return None;
         }
-        self.classify_installation(node, text, builtins)?;
+        self.installation_for(node, text)?;
         let right = node.child_by_field_name("right")?;
         Some(if right.is_option_assignment() {
             right.child_by_field_name("right").unwrap_or(right)
@@ -1051,8 +993,9 @@ impl Analysis {
     /// - `=` installs ONLY the assignment-operator form `T1 op T2 = f`, and only
     ///   when both operands are types — otherwise the identical syntax assigns
     ///   `f` to the lvalue `T1 op T2`, which is a call.
-    pub(crate) fn classify_installation(
+    fn classify_installation(
         &self,
+        id: MethodInstallationId,
         node: M2Node,
         text: &str,
         builtins: &(impl TypeKnowledge + ?Sized),
@@ -1060,7 +1003,7 @@ impl Analysis {
         let operator = node.binary_operator()?;
         let left = node.child_by_field_name("left")?;
         let (head, domain) = self.installation_shape(left, builtins)?;
-        let range = to_lsp_range(text, node.range());
+        let span = SpanKey::from_node(text, node);
         let target = SpanKey::from_node(text, left);
         let right = node.child_by_field_name("right");
         let value = right.map(|right| SpanKey::from_node(text, right));
@@ -1079,11 +1022,12 @@ impl Analysis {
         match operator {
             // `:=` installs by shape alone — no type check on the operands.
             ":=" => Some(MethodInstallation {
+                id,
                 head,
                 domain,
                 codomain,
                 codomain_span,
-                range,
+                span,
                 target,
                 value,
                 rhs_lambda_dispatch,
@@ -1099,11 +1043,12 @@ impl Analysis {
                             .all(|operand| self.operand_is_type(operand.name(), builtins)) =>
                 {
                     Some(MethodInstallation {
+                        id,
                         head: MethodHead::OperatorAssign(op),
                         domain,
                         codomain,
                         codomain_span,
-                        range,
+                        span,
                         target,
                         value,
                         rhs_lambda_dispatch,
@@ -1231,10 +1176,9 @@ impl Analysis {
             })
     }
 
-    /// Emit a diagnostic for every characterized installation that M2 would
-    /// reject or silently ignore. Runs after [`collect_installations`] so it only
-    /// consumes the stored facts; the type universe (builtins ∪ local) is queried
-    /// here because validity depends on the head's class and the operator corpus.
+    /// Emit a diagnostic for every stored installation that M2 would reject or
+    /// silently ignore. Installation shapes were characterized during the
+    /// source-ordered scope pass; this phase only consumes those facts.
     fn collect_installation_diagnostics(&mut self, builtins: &(impl TypeKnowledge + ?Sized)) {
         // Validity hinges on the type universe: adjacency `A B := …` is a SPACE
         // operator install when `A` is a type but a function-head install
@@ -1327,7 +1271,7 @@ impl Analysis {
             MethodHead::Function(name) => {
                 if self.head_function_kind(name, builtins) == HeadFunctionKind::NonMethodFunction {
                     out.push(M2Diagnostic::InstallNoEffect.at(
-                        installation.range,
+                        installation.span.range,
                         format!(
                             "Installing a method on `{name}` has no effect: `{name}` is not a \
                              method function. Define it with `{name} = method()` to make method \
@@ -1340,7 +1284,7 @@ impl Analysis {
                 let form = fixity_form(operator.fixity);
                 if self.operator_form_is_flexible(&operator.token, form, builtins) == Some(false) {
                     out.push(M2Diagnostic::OperatorNotFlexible.at(
-                        installation.range,
+                        installation.span.range,
                         format!(
                             "Cannot install a method on the {form} operator `{}`: it is not \
                              flexible, so M2 rejects the assignment.",
@@ -1357,7 +1301,7 @@ impl Analysis {
             let expected = installation.expected_rhs_arity();
             if actual != expected {
                 out.push(M2Diagnostic::InstallArity.at(
-                    installation.range,
+                    installation.span.range,
                     format!(
                         "This method's function takes {actual} argument(s) but the installation \
                          expects {expected}. Match the domain arity or use a variadic `x -> …`."
@@ -1388,27 +1332,32 @@ impl Analysis {
         name: &str,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> HeadFunctionKind {
-        // A local binding of `name` as a function shadows any builtin — its
-        // inferred class (`"FunctionClosure"` for a lambda, `"MethodFunction"`
-        // for `method()`) decides method-function-ness.
-        if let Some(class) = self.local_function_class(name) {
-            return head_function_kind_of_class(class);
+        // A local function binding shadows any builtin. Its callable kind is
+        // recorded from the defining syntax, without reverse-engineering the
+        // behavior from a runtime class-name catalog.
+        if let Some(kind) = self.local_function_kind(name) {
+            return match kind {
+                LocalFunctionKind::Method => HeadFunctionKind::MethodFunction,
+                LocalFunctionKind::Plain => HeadFunctionKind::NonMethodFunction,
+                LocalFunctionKind::Unknown => HeadFunctionKind::Unknown,
+            };
         }
-        // Otherwise a builtin record heads a function iff it carries
-        // `function_info`; its `class` then decides method-function-ness.
+        // The generated index records whether a builtin is a method function
+        // directly from its corpus kind.
         if let Some(record) = builtins.get_record(&InstanceID::new(name)) {
-            if record.function_info.is_some() {
-                return head_function_kind_of_class(&record.class.0);
+            if let Some(function) = &record.function_info {
+                return if function.is_method_function {
+                    HeadFunctionKind::MethodFunction
+                } else {
+                    HeadFunctionKind::NonMethodFunction
+                };
             }
         }
         // Not resolvable as a function — stay silent (monotone).
         HeadFunctionKind::Unknown
     }
 
-    /// The inferred class of a locally-bound function named `name` (the most
-    /// recent `FUNCTION` binding's `type_name`), or `None` when `name` is not
-    /// bound as a local function.
-    fn local_function_class(&self, name: &str) -> Option<&str> {
+    fn local_function_kind(&self, name: &str) -> Option<LocalFunctionKind> {
         let symbol = self.registry.resolve_symbol(name)?;
         self.registry
             .bindings_by_symbol
@@ -1424,8 +1373,13 @@ impl Analysis {
                     .rev()
             })
             .filter_map(|state_id| self.binding_state(*state_id))
-            .find(|binding| binding.kind == SymbolKind::FUNCTION)
-            .and_then(|binding| binding.type_name.as_deref())
+            .find(|binding| binding.kind == SymbolKind::FUNCTION)?;
+        Some(
+            self.registry
+                .functions
+                .get(&symbol)
+                .map_or(LocalFunctionKind::Unknown, |function| function.kind),
+        )
     }
 
     fn collect_parameters(
@@ -1449,6 +1403,7 @@ impl Analysis {
                     kind: SymbolKind::VARIABLE,
                     role: BindingRole::Parameter,
                     type_name,
+                    indexed_element_type: None,
                     parent_type: None,
                     node: parameter_node,
                     value_node: None,
@@ -1545,6 +1500,7 @@ impl Analysis {
             kind,
             role,
             type_name,
+            indexed_element_type,
             parent_type,
             node,
             value_node,
@@ -1576,6 +1532,7 @@ impl Analysis {
             binding_id,
             kind,
             type_name: type_name.map(ToString::to_string),
+            indexed_element_type: indexed_element_type.map(TypeRef::new),
             value_range: value_node.map(|value| to_lsp_range(text, value.range())),
             span: SpanKey::from_node(text, node),
             scope_idx,
@@ -1619,6 +1576,7 @@ impl Analysis {
             binding_id,
             kind: registration.kind,
             type_name: registration.type_name.map(ToString::to_string),
+            indexed_element_type: registration.indexed_element_type.map(TypeRef::new),
             value_range: registration
                 .value_node
                 .map(|value| to_lsp_range(text, value.range())),
@@ -1634,7 +1592,9 @@ impl Analysis {
 
     fn collect_ring_generator_bindings(
         &mut self,
+        ring_name: &str,
         expression: M2Node,
+        rebind_node: M2Node,
         text: &str,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) {
@@ -1643,10 +1603,7 @@ impl Analysis {
             .filter(|node| node.is_space_application())
             .filter_map(|node| {
                 let head = node.child_by_field_name("left")?;
-                let variables = node.child_by_field_name("right")?;
-                if !matches!(variables.kind, NodeKind::Array | NodeKind::List) {
-                    return None;
-                }
+                let variables = ring_constructor_variables(node)?;
                 self.type_of(head, text, 0, builtins)
                     .principal()
                     .is_some_and(|head_type| builtins.is_subtype(head_type.as_ref(), "Ring"))
@@ -1654,19 +1611,86 @@ impl Analysis {
             })
             .collect::<Vec<_>>();
 
+        let mut generators = Vec::new();
         for container in containers {
             for generator in ring_generator_bindings(container) {
-                self.register_dynamic_global(
+                let symbol = self.registry.intern_symbol(&generator.name);
+                generators.push(RingGenerator {
+                    symbol,
+                    kind: generator.kind,
+                });
+                self.register_ring_generator(
+                    ring_name,
                     &generator.name,
+                    generator.kind,
                     generator.node,
-                    generator.type_name,
+                    text,
+                );
+            }
+        }
+
+        if generators.is_empty() {
+            generators = self
+                .ring_source_symbol(expression)
+                .and_then(|source| self.registry.resolve_symbol(source))
+                .and_then(|source| self.registry.ring_generators.get(&source).cloned())
+                .unwrap_or_default();
+            for generator in &generators {
+                let name = self.registry.symbol_name(generator.symbol).to_string();
+                self.register_ring_generator(ring_name, &name, generator.kind, rebind_node, text);
+            }
+        }
+
+        let ring = self.registry.intern_symbol(ring_name);
+        self.registry.ring_generators.insert(ring, generators);
+    }
+
+    fn ring_source_symbol<'tree>(&self, expression: M2Node<'tree>) -> Option<&'tree str> {
+        let expression = parenthesized_value(expression).unwrap_or(expression);
+        if expression.kind.is_symbol_like() {
+            return Some(expression.text());
+        }
+        if expression.binary_operator() == Some("/") {
+            return expression
+                .child_by_field_name("left")
+                .filter(|left| left.kind.is_symbol_like())
+                .map(|left| left.text());
+        }
+        None
+    }
+
+    fn register_ring_generator(
+        &mut self,
+        ring_name: &str,
+        generator_name: &str,
+        kind: RingGeneratorKind,
+        node: M2Node,
+        text: &str,
+    ) {
+        match kind {
+            RingGeneratorKind::Direct => {
+                self.register_dynamic_global(generator_name, node, ring_name, None, text);
+            }
+            RingGeneratorKind::IndexedTable => {
+                self.register_dynamic_global(
+                    generator_name,
+                    node,
+                    "IndexedVariableTable",
+                    Some(ring_name),
                     text,
                 );
             }
         }
     }
 
-    fn register_dynamic_global(&mut self, name: &str, node: M2Node, type_name: &str, text: &str) {
+    fn register_dynamic_global(
+        &mut self,
+        name: &str,
+        node: M2Node,
+        type_name: &str,
+        indexed_element_type: Option<&str>,
+        text: &str,
+    ) {
         let position = node_position(text, node);
         let binding_id = self
             .registry
@@ -1680,6 +1704,7 @@ impl Analysis {
             kind: SymbolKind::VARIABLE,
             role: BindingRole::Ordinary,
             type_name: Some(type_name),
+            indexed_element_type,
             parent_type: None,
             node,
             value_node: None,
@@ -1697,26 +1722,17 @@ impl Analysis {
         &'a self,
         node: M2Node,
         text: &str,
-    ) -> Option<(&'a FunctionInfo, &'a MethodInfo)> {
-        let installation = method_installation_expression_for_callable_node(node)?;
-        let (name, domain) = method_installation_signature(installation)?;
-        let symbol = self.registry.resolve_symbol(&name)?;
-        let method = self.registry.functions.get(&symbol)?;
-        let installation_range = to_lsp_range(text, installation.range());
-        let signature = method
+    ) -> Option<(&'a FunctionInfo, &'a MethodInstallation)> {
+        let assignment = method_installation_assignment_for_callable_node(node)?;
+        let installation = self.installation_for(assignment, text)?;
+        let MethodHead::Function(name) = &installation.head else {
+            return None;
+        };
+        let method = self.function(name)?;
+        method
             .methods
-            .iter()
-            .rev()
-            .find(|signature| signature.domain == domain && signature.range == installation_range)
-            .or_else(|| {
-                method
-                    .methods
-                    .iter()
-                    .rev()
-                    .find(|signature| signature.domain == domain)
-            })?;
-
-        Some((method, signature))
+            .contains(&installation.id)
+            .then_some((method, installation))
     }
 
     pub fn infer_call_static_facts(
@@ -1740,16 +1756,39 @@ impl Analysis {
             .dispatch_name()
     }
 
+    /// Project inferred types into the nominal names understood by the builtin
+    /// dispatch table. Locally-created runtime types (most importantly a ring
+    /// such as `R = QQ[x]`) walk through the local parent registry first, so an
+    /// element whose exact class is `R` dispatches as a `RingElement`.
+    pub fn dispatch_argument_types(&self, facts: &CallStaticFacts) -> Vec<Option<String>> {
+        facts
+            .argument_types
+            .iter()
+            .map(|inferred| self.dispatch_type_name(inferred))
+            .collect()
+    }
+
+    fn dispatch_type_name(&self, inferred: &InferredType) -> Option<String> {
+        let principal = inferred.principal()?;
+        let mut current = principal.as_ref();
+        let mut visited = HashSet::new();
+
+        while let Some(symbol) = self.registry.resolve_symbol(current) {
+            if !visited.insert(symbol) {
+                return None;
+            }
+            let Some(parent) = self.registry.type_parents.get(&symbol) else {
+                break;
+            };
+            current = parent.name();
+        }
+
+        Some(current.to_string())
+    }
+
     /// Record the [`Dispatch`] shape of a lambda-defined local function on its
     /// function record, creating the record if this is its first mention.
-    fn record_local_function_dispatch(
-        &mut self,
-        name: &str,
-        dispatch: Dispatch,
-        node: M2Node,
-        text: &str,
-    ) {
-        let range = to_lsp_range(text, node.range());
+    fn record_local_function_dispatch(&mut self, name: &str, dispatch: Dispatch) {
         let symbol = self.registry.intern_symbol(name);
         let function = self
             .registry
@@ -1757,23 +1796,16 @@ impl Analysis {
             .entry(symbol)
             .or_insert_with(|| FunctionInfo {
                 symbol,
-                range,
                 typical_value: None,
                 methods: Vec::new(),
                 dispatch: None,
+                kind: LocalFunctionKind::Unknown,
             });
-        function.range = range;
         function.dispatch = Some(dispatch);
+        function.kind = LocalFunctionKind::Plain;
     }
 
-    fn record_local_method_declaration(
-        &mut self,
-        name: &str,
-        typical_value: Option<String>,
-        node: M2Node,
-        text: &str,
-    ) {
-        let range = to_lsp_range(text, node.range());
+    fn record_local_method_declaration(&mut self, name: &str, typical_value: Option<String>) {
         let symbol = self.registry.intern_symbol(name);
         let method = self
             .registry
@@ -1781,27 +1813,46 @@ impl Analysis {
             .entry(symbol)
             .or_insert_with(|| FunctionInfo {
                 symbol,
-                range,
                 typical_value: None,
                 methods: Vec::new(),
                 dispatch: None,
+                kind: LocalFunctionKind::Unknown,
             });
-        method.range = range;
-        method.typical_value = typical_value;
+        method.typical_value = typical_value.map(TypeRef::new);
+        method.kind = LocalFunctionKind::Method;
     }
 
-    fn collect_local_method_installation(
+    /// Characterize an assignment once, retain its source fact, and attach that
+    /// fact to the local callable registry when the installation takes effect.
+    fn record_method_installation(
         &mut self,
         assignment: M2Node,
-        target: M2Node,
-        right: Option<M2Node>,
         text: &str,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) {
-        let Some((head, domain)) = self.installation_shape(target, builtins) else {
+        let id = MethodInstallationId(self.installations.len() as u32);
+        let Some(mut installation) = self.classify_installation(id, assignment, text, builtins)
+        else {
             return;
         };
-        let name = match &head {
+
+        // Preserve M2's distinct assignment-method form: only `:=` contributes
+        // a callable signature here. `=` installations are retained for
+        // diagnostics/document symbols but are not ordinary call methods.
+        if assignment.binary_operator() == Some(":=") {
+            self.attach_method_installation(&mut installation, builtins);
+        }
+
+        debug_assert_eq!(installation.id.0 as usize, self.installations.len());
+        self.installations.push(installation);
+    }
+
+    fn attach_method_installation(
+        &mut self,
+        installation: &mut MethodInstallation,
+        builtins: &(impl TypeKnowledge + ?Sized),
+    ) {
+        let name = match &installation.head {
             MethodHead::Function(name) => {
                 // An install on a non-method-function compiles but has no effect,
                 // so it creates no method record.
@@ -1814,11 +1865,6 @@ impl Analysis {
                 operator.token.as_str()
             }
         };
-        let domain: Vec<String> = domain
-            .into_iter()
-            .map(|type_ref| type_ref.name().to_string())
-            .collect();
-        let range = to_lsp_range(text, assignment.range());
         let symbol = self.registry.intern_symbol(name);
         let method = self
             .registry
@@ -1826,19 +1872,15 @@ impl Analysis {
             .entry(symbol)
             .or_insert_with(|| FunctionInfo {
                 symbol,
-                range,
                 typical_value: None,
                 methods: Vec::new(),
                 dispatch: None,
+                kind: LocalFunctionKind::Unknown,
             });
-        let codomain = right
-            .and_then(explicit_method_installation_codomain)
-            .or_else(|| method.typical_value.clone());
-        method.methods.push(MethodInfo {
-            domain: domain.clone(),
-            codomain: codomain.clone(),
-            range,
-        });
+        if installation.codomain.is_none() {
+            installation.codomain.clone_from(&method.typical_value);
+        }
+        method.methods.push(installation.id);
     }
 
     fn push_scope(
@@ -1877,7 +1919,7 @@ impl Analysis {
         // declaration, not an `Option`. Type the whole node as the installed
         // function and descend only into the function body, so the install syntax
         // (the LHS and the `Codomain =>` wrapper) gets no misleading value hints.
-        if let Some(function) = self.installed_function(node, text, builtins) {
+        if let Some(function) = self.installed_function(node, text) {
             if let Some(kind) = expression_kind(node) {
                 let result_type = self.type_of(function, text, scope_idx, builtins);
                 self.registry.expressions.insert(
@@ -1953,29 +1995,9 @@ impl Analysis {
                 callable_name.as_deref(),
                 builtins,
             );
-            let candidate_methods = callable_name
-                .as_deref()
-                .and_then(|name| self.registry.resolve_symbol(name))
-                .and_then(|symbol| self.registry.functions.get(&symbol))
-                .map(|callable| {
-                    callable
-                        .methods
-                        .iter()
-                        .filter(|signature| {
-                            self.signature_matches_domain(
-                                &signature.domain,
-                                &facts.argument_types,
-                                builtins,
-                            )
-                        })
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default();
             return Some(CallInfo {
                 callable_name,
                 argument_types: facts.argument_types,
-                candidate_methods,
             });
         }
 
@@ -1998,25 +2020,6 @@ impl Analysis {
 
         Some(CallInfo {
             callable_name: Some(operator.to_string()),
-            candidate_methods: self
-                .registry
-                .resolve_symbol(operator)
-                .and_then(|symbol| self.registry.functions.get(&symbol))
-                .map(|callable| {
-                    callable
-                        .methods
-                        .iter()
-                        .filter(|signature| {
-                            self.signature_matches_domain(
-                                &signature.domain,
-                                &argument_types,
-                                builtins,
-                            )
-                        })
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default(),
             argument_types,
         })
     }
@@ -2234,7 +2237,7 @@ impl Analysis {
         }
 
         if let Some(record) = builtins.get_record(&InstanceID::new(name)) {
-            return InferredType::from_id(record.class);
+            return InferredType::from_id(record.class.clone());
         }
 
         InferredType::of("Symbol")
@@ -2291,7 +2294,8 @@ impl Analysis {
         scope_idx: usize,
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
-        let left_type = self.type_of(left?, text, scope_idx, builtins);
+        let left = left?;
+        let left_type = self.type_of(left, text, scope_idx, builtins);
         let left_name = left_type.principal()?;
 
         if operator == "_" {
@@ -2299,6 +2303,12 @@ impl Analysis {
                 return Some(InferredType::of("IndexedVariable"));
             }
             if left_name.as_ref() == "IndexedVariableTable" {
+                if let Some(element_type) = self
+                    .get_binding_from_scope(left.text(), scope_idx, node_position(text, left))
+                    .and_then(|binding| binding.state.indexed_element_type.as_ref())
+                {
+                    return Some(InferredType::of(element_type.name()));
+                }
                 return Some(InferredType::of("RingElement"));
             }
         }
@@ -2371,7 +2381,7 @@ impl Analysis {
             if let Some(callable) = callable_name {
                 if let Some(return_type) = builtins.resolve_call_return_type_with_options(
                     callable,
-                    &call_facts.dispatch_argument_types(),
+                    &self.dispatch_argument_types(&call_facts),
                     &call_facts.literal_options,
                 ) {
                     return InferredType::of(&return_type);
@@ -2381,6 +2391,16 @@ impl Analysis {
             return InferredType::of("Thing");
         }
 
+        if let Some(result) = self.ring_application_with_trailing_operator_type(
+            &head,
+            argument_node,
+            text,
+            scope_idx,
+            builtins,
+        ) {
+            return result;
+        }
+
         let argument_type = self.type_of(argument_node, text, scope_idx, builtins);
         self.dispatch_codomain(
             builtins,
@@ -2388,6 +2408,55 @@ impl Analysis {
             &[head, argument_type],
             &call_facts.literal_options,
         )
+    }
+
+    /// Square-bracket ring construction binds specially in Macaulay2 source:
+    /// `R[x]/I` has a CST shaped like `R SPACE ([x] / I)`, while evaluation
+    /// constructs `R[x]` before applying `/ I`. Preserve the parser's grouping,
+    /// but lower that one type-directed application chain through the same
+    /// dispatch table used for ordinary operators.
+    fn ring_application_with_trailing_operator_type(
+        &self,
+        head: &InferredType,
+        argument: M2Node,
+        text: &str,
+        scope_idx: usize,
+        builtins: &(impl TypeKnowledge + ?Sized),
+    ) -> Option<InferredType> {
+        let head_name = head.principal()?;
+        if !builtins.is_subtype(head_name.as_ref(), "Ring") {
+            return None;
+        }
+
+        let operator = argument.binary_operator()?;
+        let variables = argument.child_by_field_name("left")?;
+        if !variables.kind.is_collection_expression() {
+            return None;
+        }
+        let trailing_operand = argument.child_by_field_name("right")?;
+
+        let variables_type = self.type_of(variables, text, scope_idx, builtins);
+        let ring_type = self.dispatch_codomain(
+            builtins,
+            SPACE_OPERATOR,
+            &[head.clone(), variables_type],
+            &[],
+        );
+        let ring_name = ring_type.principal()?;
+        if !builtins.is_subtype(ring_name.as_ref(), "Ring") {
+            return None;
+        }
+
+        let trailing_type = self.type_of(trailing_operand, text, scope_idx, builtins);
+        let result = builtins.resolve_call_return_type_with_options(
+            operator,
+            &[
+                self.dispatch_type_name(&ring_type),
+                self.dispatch_type_name(&trailing_type),
+            ],
+            &[],
+        )?;
+        Some(InferredType::of(&result))
     }
 
     /// Whether `name` resolves to a function tracked in the local registry — a
@@ -2430,9 +2499,14 @@ impl Analysis {
         if let Some(return_type) = self.resolve_local_call_return_type(callable, args, builtins) {
             return InferredType::of(&return_type);
         }
-        if let Some(return_type) =
-            builtins.resolve_call_return_type_with_options(callable, &dispatch_names(args), options)
-        {
+        if let Some(return_type) = builtins.resolve_call_return_type_with_options(
+            callable,
+            &args
+                .iter()
+                .map(|argument| self.dispatch_type_name(argument))
+                .collect::<Vec<_>>(),
+            options,
+        ) {
             return InferredType::of(&return_type);
         }
         if builtins.get_record(&InstanceID::new(callable)).is_some() {
@@ -2518,28 +2592,26 @@ impl Analysis {
     ) -> Option<String> {
         let symbol = self.registry.resolve_symbol(callable)?;
         let method = self.registry.functions.get(&symbol)?;
-        let matching_codomains = method
-            .methods
-            .iter()
+        let matching_codomains = self
+            .methods_for(method)
             .filter(|signature| self.signature_matches(signature, argument_types, builtins))
-            .filter_map(|signature| {
-                signature
-                    .codomain
-                    .clone()
-                    .or_else(|| method.typical_value.clone())
-            })
+            .filter_map(|signature| signature.codomain.as_ref())
+            .map(|codomain| codomain.name().to_string())
             .collect::<HashSet<_>>();
 
         if matching_codomains.len() == 1 {
             return matching_codomains.into_iter().next();
         }
 
-        method.typical_value.clone()
+        method
+            .typical_value
+            .as_ref()
+            .map(|typical_value| typical_value.name().to_string())
     }
 
     fn signature_matches(
         &self,
-        signature: &MethodInfo,
+        signature: &MethodInstallation,
         argument_types: &[InferredType],
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
@@ -2548,7 +2620,7 @@ impl Analysis {
 
     fn signature_matches_domain(
         &self,
-        expected_domain: &[String],
+        expected_domain: &[TypeRef],
         argument_types: &[InferredType],
         builtins: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
@@ -2559,7 +2631,7 @@ impl Analysis {
                 .all(|(expected, actual)| {
                     actual
                         .principal()
-                        .is_some_and(|actual| self.is_subtype(actual, expected, builtins))
+                        .is_some_and(|actual| self.is_subtype(actual, expected.name(), builtins))
                 })
     }
 
@@ -2608,6 +2680,7 @@ struct SymbolRegistration<'a> {
     kind: SymbolKind,
     role: BindingRole,
     type_name: Option<&'a str>,
+    indexed_element_type: Option<&'a str>,
     parent_type: Option<&'a str>,
     node: M2Node<'a>,
     value_node: Option<M2Node<'a>>,
@@ -2618,8 +2691,30 @@ struct SymbolRegistration<'a> {
 #[derive(Debug, Clone)]
 struct RingGeneratorBinding<'a> {
     name: String,
-    type_name: &'static str,
+    kind: RingGeneratorKind,
     node: M2Node<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RingGeneratorKind {
+    Direct,
+    IndexedTable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RingGenerator {
+    symbol: SymbolId,
+    kind: RingGeneratorKind,
+}
+
+fn ring_constructor_variables(application: M2Node<'_>) -> Option<M2Node<'_>> {
+    let argument = application.child_by_field_name("right")?;
+    if argument.kind.is_collection_expression() {
+        return Some(argument);
+    }
+    argument
+        .child_by_field_name("left")
+        .filter(|left| left.kind.is_collection_expression())
 }
 
 fn ring_generator_bindings(container: M2Node<'_>) -> Vec<RingGeneratorBinding<'_>> {
@@ -2639,7 +2734,7 @@ fn ring_generator_bindings(container: M2Node<'_>) -> Vec<RingGeneratorBinding<'_
                         &mut bindings,
                         RingGeneratorBinding {
                             name,
-                            type_name: "IndexedVariableTable",
+                            kind: RingGeneratorKind::IndexedTable,
                             node: variables,
                         },
                     );
@@ -2681,7 +2776,7 @@ fn collect_ring_generator_spec<'tree>(
             bindings,
             RingGeneratorBinding {
                 name: node.text().to_string(),
-                type_name: "RingElement",
+                kind: RingGeneratorKind::Direct,
                 node,
             },
         );
@@ -2697,7 +2792,7 @@ fn collect_ring_generator_spec<'tree>(
                 bindings,
                 RingGeneratorBinding {
                     name: base.text().to_string(),
-                    type_name: "IndexedVariableTable",
+                    kind: RingGeneratorKind::IndexedTable,
                     node: base,
                 },
             );
@@ -2717,7 +2812,7 @@ fn collect_ring_generator_spec<'tree>(
                         bindings,
                         RingGeneratorBinding {
                             name: left_base.text().to_string(),
-                            type_name: "IndexedVariableTable",
+                            kind: RingGeneratorKind::IndexedTable,
                             node,
                         },
                     );
@@ -2731,7 +2826,7 @@ fn collect_ring_generator_spec<'tree>(
                         bindings,
                         RingGeneratorBinding {
                             name,
-                            type_name: "RingElement",
+                            kind: RingGeneratorKind::Direct,
                             node,
                         },
                     );
@@ -2894,6 +2989,14 @@ fn declared_type_parent<'tree>(
     type_name: Option<&str>,
     builtins: &(impl TypeKnowledge + ?Sized),
 ) -> Option<&'tree str> {
+    if type_name
+        .is_some_and(|type_name| type_name == "Ring" || builtins.is_subtype(type_name, "Ring"))
+    {
+        // A ring value is itself a runtime type. Its elements have that ring as
+        // their class, while the ring's instance hierarchy starts at
+        // `RingElement` (`parent R === RingElement`).
+        return Some("RingElement");
+    }
     if value.kind != NodeKind::NewStatement
         || !type_name.is_some_and(|type_name| type_name_denotes_type(type_name, builtins))
     {
@@ -2980,15 +3083,6 @@ fn literal_option_value(node: M2Node<'_>) -> Option<&str> {
     }
 }
 
-fn explicit_method_installation_codomain(node: M2Node) -> Option<String> {
-    if !node.is_option_assignment() {
-        return None;
-    }
-
-    let codomain = node.child_by_field_name("left")?;
-    symbol_node_text(codomain).map(ToString::to_string)
-}
-
 /// The operator token of a prefix/postfix expression, e.g. `-` in `-X` / `X-`.
 fn operator_text(node: M2Node<'_>) -> Option<&str> {
     let operator = node.child_by_field_name("operator")?;
@@ -3040,7 +3134,7 @@ fn method_installation_parameter_types_for_function(function_node: M2Node) -> Op
     None
 }
 
-fn method_installation_expression_for_callable_node<'tree>(
+fn method_installation_assignment_for_callable_node<'tree>(
     node: M2Node<'tree>,
 ) -> Option<M2Node<'tree>> {
     let mut current = node;
@@ -3057,7 +3151,7 @@ fn method_installation_expression_for_callable_node<'tree>(
         }
 
         if is_colon_equal_assignment_left(current) {
-            return Some(current);
+            return current.parent();
         }
     }
 
@@ -3221,11 +3315,11 @@ fn is_range_smaller(a: Range, b: Range) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::builtin_index::BuiltinData;
     use crate::capabilities::diagnostics::{
         member_index_for_ambiguous_float_literal, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE,
     };
     use crate::diagnostic_registry::diagnostic_has_kind;
-    use crate::typesystem::BuiltinData;
     use tower_lsp::lsp_types::DiagnosticSeverity;
     use tree_sitter::Parser;
 
@@ -3522,6 +3616,35 @@ mod tests {
     }
 
     #[test]
+    fn builtin_method_function_kind_drives_installation_behavior() {
+        let builtins = BuiltinData::load_from_index(concat!(
+            "{\"kind\":\"methodFunction\",\"name\":\"f\"}\n",
+            "{\"kind\":\"function\",\"name\":\"g\"}\n",
+        ));
+        let analysis = analyze_with_builtins("f ZZ := x -> x\ng ZZ := x -> x\n", &builtins);
+
+        let f = analysis
+            .function("f")
+            .expect("the method-function install should attach");
+        assert_eq!(analysis.methods_for(f).count(), 1);
+        assert!(
+            analysis.function("g").is_none(),
+            "a plain function must not acquire a method record"
+        );
+        assert_eq!(
+            analysis
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| {
+                    diagnostic_has_kind(diagnostic, M2Diagnostic::InstallNoEffect)
+                })
+                .map(|diagnostic| diagnostic.range.start.line)
+                .collect::<Vec<_>>(),
+            vec![1]
+        );
+    }
+
+    #[test]
     fn no_effect_install_records_no_method() {
         // The no-effect install must not create a method record on the lambda.
         let builtins = core_builtins();
@@ -3563,12 +3686,11 @@ mod tests {
             &builtins,
         );
         let f = analysis.function("f").expect("f is a recorded function");
-        let method = f
-            .methods
-            .iter()
-            .find(|method| method.domain == vec!["CC".to_string(), "CC".to_string()])
+        let method = analysis
+            .methods_for(f)
+            .find(|method| domain_names(method) == vec!["CC", "CC"])
             .expect("(f, CC, CC) recorded");
-        assert_eq!(method.codomain.as_deref(), Some("Array"));
+        assert_eq!(method.codomain.as_ref().map(TypeRef::name), Some("Array"));
     }
 
     #[test]
@@ -3582,13 +3704,16 @@ mod tests {
             &builtins,
         );
         let p = analysis.function("p").expect("p is a recorded function");
-        let domains: Vec<&Vec<String>> = p.methods.iter().map(|method| &method.domain).collect();
+        let domains = analysis
+            .methods_for(p)
+            .map(domain_names)
+            .collect::<Vec<_>>();
         assert!(
-            domains.contains(&&vec!["ZZ".to_string(), "ZZ".to_string()]),
+            domains.contains(&vec!["ZZ", "ZZ"]),
             "missing (p, ZZ, ZZ); got {domains:?}"
         );
         assert!(
-            domains.contains(&&vec!["List".to_string(), "ZZ".to_string()]),
+            domains.contains(&vec!["List", "ZZ"]),
             "missing (p, List, ZZ); got {domains:?}"
         );
     }
@@ -4141,22 +4266,20 @@ mod tests {
             .function("p")
             .expect("method declaration should create local method metadata");
 
-        assert_eq!(method.typical_value.as_deref(), Some("List"));
         assert_eq!(
-            method
-                .methods
-                .iter()
-                .map(|signature| signature.domain.clone())
-                .collect::<Vec<_>>(),
-            vec![
-                vec!["ZZ".to_string(), "ZZ".to_string()],
-                vec!["List".to_string(), "ZZ".to_string()]
-            ]
+            method.typical_value.as_ref().map(TypeRef::name),
+            Some("List")
         );
-        assert!(method
-            .methods
-            .iter()
-            .all(|signature| signature.codomain.as_deref() == Some("List")));
+        assert_eq!(
+            analysis
+                .methods_for(method)
+                .map(domain_names)
+                .collect::<Vec<_>>(),
+            vec![vec!["ZZ", "ZZ"], vec!["List", "ZZ"]]
+        );
+        assert!(analysis
+            .methods_for(method)
+            .all(|signature| { signature.codomain.as_ref().map(TypeRef::name) == Some("List") }));
         assert_eq!(
             analysis
                 .get_symbol_at("p", Position::new(1, 0))
@@ -4184,11 +4307,13 @@ x
             .expect("the locally installed operator should be registered");
         assert_eq!(operator.methods.len(), 1);
         assert_eq!(
-            operator.methods[0].domain,
-            vec![
-                "MutableHashTable".to_string(),
-                "MutableHashTable".to_string()
-            ]
+            domain_names(
+                analysis
+                    .methods_for(operator)
+                    .next()
+                    .expect("the operator signature should resolve")
+            ),
+            vec!["MutableHashTable", "MutableHashTable"]
         );
         assert_eq!(
             analysis
@@ -4247,9 +4372,13 @@ x
         // recorded arity (and with it every downstream check).
         let analysis = analyze("f = method()\nf(ZZ, a.b) := (x, y) -> x\n");
         let method = analysis.function("f").expect("method should be tracked");
+        let installation = analysis
+            .methods_for(method)
+            .next()
+            .expect("method installation should resolve");
 
-        assert_eq!(method.methods[0].domain.len(), 2);
-        assert_eq!(method.methods[0].domain[0], "ZZ");
+        assert_eq!(installation.domain.len(), 2);
+        assert_eq!(installation.domain[0].name(), "ZZ");
     }
 
     #[test]
@@ -4292,7 +4421,15 @@ x
             .function("f")
             .expect("method declaration should be tracked");
         assert_eq!(method.typical_value, None);
-        assert_eq!(method.methods[0].domain, vec!["ZZ"]);
+        assert_eq!(
+            domain_names(
+                analysis
+                    .methods_for(method)
+                    .next()
+                    .expect("method installation should resolve")
+            ),
+            vec!["ZZ"]
+        );
         // A method whose codomain is unrecorded returns `Thing` (≡ a null
         // `typicalValue` under the lower-bound reading) — applying a function
         // yields at least a `Thing`, not "unknown".
@@ -4329,8 +4466,18 @@ x
         let method = analysis
             .function("f")
             .expect("local method should be tracked");
-        assert_eq!(method.typical_value.as_deref(), Some("List"));
-        assert_eq!(method.methods[0].codomain.as_deref(), Some("Ring"));
+        assert_eq!(
+            method.typical_value.as_ref().map(TypeRef::name),
+            Some("List")
+        );
+        assert_eq!(
+            analysis
+                .methods_for(method)
+                .next()
+                .and_then(|method| method.codomain.as_ref())
+                .map(TypeRef::name),
+            Some("Ring")
+        );
         assert_eq!(
             analysis
                 .get_symbol_at("y", Position::new(3, 0))
@@ -4403,8 +4550,8 @@ x
         let analysis = analyze_with_builtins(text, &builtins);
 
         for (name, line, expected) in [
-            ("a", 6, "RingElement"),
-            ("b", 7, "RingElement"),
+            ("a", 6, "Q"),
+            ("b", 7, "Q"),
             ("R", 8, "PolynomialRing"),
             ("I", 9, "Ideal"),
             ("Q", 10, "QuotientRing"),
@@ -4414,10 +4561,10 @@ x
         ] {
             assert_eq!(
                 analysis
-                    .get_symbol_at(name, Position::new(line, 0))
+                    .get_binding_at(name, Position::new(line, 0))
                     .and_then(|symbol| symbol.state.type_name.as_deref()),
                 Some(expected),
-                "{name} should carry its runtime algebraic class"
+                "{name} should carry its runtime class or general algebraic class"
             );
         }
     }
@@ -4438,8 +4585,8 @@ x
 
         for (name, line, expected) in [
             ("before", 0, "IndexedVariable"),
-            ("after", 2, "RingElement"),
-            ("generated", 4, "RingElement"),
+            ("after", 2, "S"),
+            ("generated", 4, "V"),
             ("t", 5, "IndexedVariableTable"),
             ("S", 6, "PolynomialRing"),
         ] {
@@ -4449,6 +4596,115 @@ x
                     .and_then(|symbol| symbol.state.type_name.as_deref()),
                 Some(expected),
                 "{name} should reflect indexed-variable installation"
+            );
+        }
+    }
+
+    #[test]
+    fn polynomial_ring_forms_follow_space_dispatch_and_install_runtime_types() {
+        let builtins = core_builtins();
+
+        for (text, value_checks) in [
+            (
+                "R = QQ[x]\nx\nR\n",
+                vec![("x", 1, "R"), ("R", 2, "PolynomialRing")],
+            ),
+            (
+                "R = QQ[x..z]\nx\ny\nz\nR\n",
+                vec![
+                    ("x", 1, "R"),
+                    ("y", 2, "R"),
+                    ("z", 3, "R"),
+                    ("R", 4, "PolynomialRing"),
+                ],
+            ),
+            (
+                "R = QQ[x_1]\na = x_1\nx\nR\na\n",
+                vec![
+                    ("x", 2, "IndexedVariableTable"),
+                    ("R", 3, "PolynomialRing"),
+                    ("a", 4, "R"),
+                ],
+            ),
+            (
+                "R = QQ[x_1..x_5]\na = x_1\nb = x_5\nx\nR\na\nb\n",
+                vec![
+                    ("x", 3, "IndexedVariableTable"),
+                    ("R", 4, "PolynomialRing"),
+                    ("a", 5, "R"),
+                    ("b", 6, "R"),
+                ],
+            ),
+            (
+                "R = QQ[x_(1,1)..x_(2,2)]\na = x_(1,1)\nb = x_(2,2)\nx\nR\na\nb\n",
+                vec![
+                    ("x", 3, "IndexedVariableTable"),
+                    ("R", 4, "PolynomialRing"),
+                    ("a", 5, "R"),
+                    ("b", 6, "R"),
+                ],
+            ),
+        ] {
+            let analysis = analyze_with_builtins(text, &builtins);
+            for (name, line, expected) in value_checks {
+                assert_eq!(
+                    analysis
+                        .get_symbol_at(name, Position::new(line, 0))
+                        .and_then(|symbol| symbol.state.type_name.as_deref()),
+                    Some(expected),
+                    "{name} in {text:?} should have runtime class {expected}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn local_ring_element_types_dispatch_through_ring_element_parent() {
+        let builtins = core_builtins();
+        let text = "R = QQ[x]\nf = x^2\nJ = ideal(f)\nf\nJ\n";
+        let analysis = analyze_with_builtins(text, &builtins);
+
+        assert_eq!(
+            analysis
+                .get_symbol_at("f", Position::new(3, 0))
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
+            Some("RingElement")
+        );
+        assert_eq!(
+            analysis
+                .get_symbol_at("J", Position::new(4, 0))
+                .and_then(|symbol| symbol.state.type_name.as_deref()),
+            Some("Ideal")
+        );
+    }
+
+    #[test]
+    fn polynomial_ring_quotients_infer_and_rebind_the_installed_generators() {
+        let builtins = core_builtins();
+        let text = concat!(
+            "A = QQ[x]\n",
+            "J = ideal(x^2)\n",
+            "Q = A/J\n",
+            "x\n",
+            "Q\n",
+            "T = QQ[y]/J\n",
+            "y\n",
+            "T\n",
+        );
+        let analysis = analyze_with_builtins(text, &builtins);
+
+        for (name, line, expected) in [
+            ("x", 3, "Q"),
+            ("Q", 4, "QuotientRing"),
+            ("T", 7, "QuotientRing"),
+            ("y", 6, "T"),
+        ] {
+            assert_eq!(
+                analysis
+                    .get_binding_at(name, Position::new(line, 0))
+                    .and_then(|symbol| symbol.state.type_name.as_deref()),
+                Some(expected),
+                "{name} should reflect quotient-ring dispatch and installation"
             );
         }
     }
@@ -4524,10 +4780,17 @@ x
         let callable = analysis
             .function("f")
             .expect("callable should be registered");
-        assert_eq!(callable.typical_value.as_deref(), Some("List"));
+        assert_eq!(
+            callable.typical_value.as_ref().map(TypeRef::name),
+            Some("List")
+        );
         assert_eq!(callable.methods.len(), 1);
-        assert_eq!(callable.methods[0].domain, vec!["ZZ"]);
-        assert_eq!(callable.methods[0].codomain.as_deref(), Some("Ring"));
+        let method = analysis
+            .methods_for(callable)
+            .next()
+            .expect("method installation should resolve");
+        assert_eq!(domain_names(method), vec!["ZZ"]);
+        assert_eq!(method.codomain.as_ref().map(TypeRef::name), Some("Ring"));
     }
 
     #[test]

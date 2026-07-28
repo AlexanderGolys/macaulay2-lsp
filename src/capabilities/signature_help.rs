@@ -11,10 +11,11 @@ use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, SignatureHelp, SignatureInformation,
 };
 
-use crate::analysis::{Analysis, FunctionInfo, MethodInfo};
+use crate::analysis::{Analysis, FunctionInfo, MethodInstallation, TypeRef};
+use crate::builtin_index::InstanceID;
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
-use crate::typesystem::{InstanceID, LspKnowledge, ResolvedSignature};
+use crate::typesystem::{LspKnowledge, ResolvedSignature};
 use crate::util::byte_index_from_lsp_position;
 
 pub(crate) fn signature_help_response(
@@ -129,7 +130,7 @@ fn signature_informations(
     knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Vec<SignatureInformation> {
     if let Some(function) = analysis.function(callable) {
-        let local = local_signatures(callable, function);
+        let local = local_signatures(callable, analysis, function);
         if !local.is_empty() {
             return local;
         }
@@ -141,11 +142,11 @@ fn signature_informations(
     // Documented signatures carry a codomain; undocumented installed methods
     // (the rest) carry only a domain. Both are real call shapes worth showing.
     let mut signatures: Vec<SignatureInformation> = knowledge
-        .documented_signatures(&record)
+        .documented_signatures(record)
         .iter()
         .map(|signature| builtin_signature_information(callable, signature))
         .collect();
-    for method in knowledge.undocumented_installed_methods(&record) {
+    for method in knowledge.undocumented_installed_methods(record) {
         let domain = method_domain(&method.signature);
         signatures.push(signature_information(callable, &domain, None));
     }
@@ -159,16 +160,32 @@ fn method_domain(signature: &[InstanceID]) -> Vec<String> {
 }
 
 /// Signatures from a locally-defined method function's installed methods.
-fn local_signatures(callable: &str, function: &FunctionInfo) -> Vec<SignatureInformation> {
-    function
-        .methods
-        .iter()
+fn local_signatures(
+    callable: &str,
+    analysis: &Analysis,
+    function: &FunctionInfo,
+) -> Vec<SignatureInformation> {
+    analysis
+        .methods_for(function)
         .map(|method| local_signature_information(callable, method))
         .collect()
 }
 
-fn local_signature_information(callable: &str, method: &MethodInfo) -> SignatureInformation {
-    signature_information(callable, &method.domain, method.codomain.as_deref())
+fn local_signature_information(
+    callable: &str,
+    method: &MethodInstallation,
+) -> SignatureInformation {
+    let domain = method
+        .domain
+        .iter()
+        .map(TypeRef::name)
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    signature_information(
+        callable,
+        &domain,
+        method.codomain.as_ref().map(TypeRef::name),
+    )
 }
 
 fn builtin_signature_information(
@@ -212,8 +229,8 @@ fn signature_information(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::builtin_index::BuiltinData;
     use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
-    use crate::typesystem::BuiltinData;
 
     fn help(text: &str, position: Position) -> Option<SignatureHelp> {
         let document = DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())

@@ -125,7 +125,8 @@ Cargo.toml
 src/
   main.rs                 LSP server entry point and request handlers
   analysis.rs             scopes, bindings, installations, type inference
-  typesystem.rs           builtin records, dispatch, signatures
+  builtin_index.rs        canonical builtin records and corpus loading
+  typesystem.rs           type relations, dispatch, signatures
   diagnostic_registry.rs  the single registry of every diagnostic
   document.rs             per-document snapshot and incremental edits
   partitioned_index.rs    package-partitioned builtin index + scoped view

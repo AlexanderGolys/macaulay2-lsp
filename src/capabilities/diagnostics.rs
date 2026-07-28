@@ -7,11 +7,12 @@ use tower_lsp::lsp_types::{Position, Range as LspRange, SymbolKind};
 use tower_lsp::Client;
 
 use crate::analysis::{symbol_node_text, Analysis};
+use crate::builtin_index::InstanceID;
 use crate::diagnostic_registry::{DiagnosticPolicy, M2Diagnostic};
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::typesystem::{InstanceID, TypeKnowledge};
+use crate::typesystem::TypeKnowledge;
 use crate::util::{node_position, to_lsp_range, utf16_len_for_byte_span};
 
 pub(crate) const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =

@@ -191,12 +191,6 @@ impl<'tree> M2Node<'tree> {
         &self.source[self.node.start_byte()..self.node.end_byte()]
     }
 
-    /// The source buffer this node carries, for constructing sibling/related
-    /// nodes that must share the same source (e.g. the root node of the tree).
-    pub fn source(&self) -> &'tree str {
-        self.source
-    }
-
     /// The grammar's raw node-type name. PRIVATE on purpose: node-type names are
     /// an implementation detail of the grammar (which is renamed from time to
     /// time), so they must never be referenced outside this module. Classify with

@@ -1,9 +1,10 @@
 //! In-document highlighting for resolved symbols and compound-statement words.
 
+use crate::builtin_index::InstanceID;
 use crate::capabilities::navigation::{reference_ranges_resolved, unbound_reference_ranges};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::typesystem::{InstanceID, TypeKnowledge};
+use crate::typesystem::TypeKnowledge;
 use tower_lsp::lsp_types::{
     DocumentHighlight, DocumentHighlightKind, DocumentHighlightOptions, OneOf, Position,
 };
@@ -380,7 +381,7 @@ fn statement_keyword_tokens(statement: M2Node<'_>) -> Vec<M2Node<'_>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::typesystem::BuiltinData;
+    use crate::builtin_index::BuiltinData;
 
     fn document(text: &str) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())

@@ -9,10 +9,11 @@ use tower::Service;
 use tower_lsp::jsonrpc::{Request, Response};
 use tower_lsp::lsp_types::{Position, Range, TypeHierarchyItem, Url};
 
+use crate::builtin_index::{InstanceID, Record};
 use crate::document::DocumentSnapshot;
 use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
-use crate::typesystem::{InstanceID, LspKnowledge, PartitionedTypeKnowledge, Record};
+use crate::typesystem::{LspKnowledge, PartitionedTypeKnowledge};
 
 pub(crate) const TYPE_HIERARCHY_METHOD: &str = "textDocument/prepareTypeHierarchy";
 
@@ -53,7 +54,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
 
         Some(vec![self.item(
             &package,
-            &record,
+            record,
             Some(uri.clone()),
             Some(range),
         )])
@@ -77,7 +78,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
                 .as_ref()
                 .filter(|parent| parent != &&record.name)?;
             let (parent_package, parent_record) = self.related_record(&package, parent_name)?;
-            Some(self.item(&parent_package, &parent_record, None, None))
+            Some(self.item(&parent_package, parent_record, None, None))
         })();
         Some(resolved.into_iter().collect())
     }
@@ -97,7 +98,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
                 if let Some((subtype_package, subtype_record)) =
                     self.related_record(&package, subtype)
                 {
-                    items.push(self.item(&subtype_package, &subtype_record, None, None));
+                    items.push(self.item(&subtype_package, subtype_record, None, None));
                 }
             }
         }
@@ -116,7 +117,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
 
     /// Resolve the originating record itself, ensuring it carries type info (a
     /// non-type record has no hierarchy edges).
-    fn record(&self, package: Option<&str>, name: &str) -> Option<(String, Record)> {
+    fn record(&self, package: Option<&str>, name: &str) -> Option<(String, &Record)> {
         let package = package.unwrap_or("Core");
         let record = self
             .knowledge
@@ -128,7 +129,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
     /// Resolve a related type (parent/subtype) record, preferring the
     /// originating package's partition and falling back to Core (cross-package
     /// edges into the Core lattice resolve there).
-    fn related_record(&self, package: &str, name: &InstanceID) -> Option<(String, Record)> {
+    fn related_record(&self, package: &str, name: &InstanceID) -> Option<(String, &Record)> {
         if let Some(record) = self.knowledge.get_record_from_package(package, name) {
             return Some((package.to_string(), record));
         }

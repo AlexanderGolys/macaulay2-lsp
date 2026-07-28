@@ -2,16 +2,14 @@
 
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{Analysis, BindingView};
-use crate::document::DocumentSnapshot;
+use crate::analysis::BindingView;
+use crate::document::{DocumentSnapshot, DocumentSpan};
 use crate::documentation::DocumentationSnippet;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::typesystem::{
-    AlgebraicSemanticKind, M2SemanticToken, M2SemanticTokenProvenance, M2SemanticTokenType,
-    SemanticTokenKnowledge,
+    M2SemanticToken, M2SemanticTokenProvenance, M2SemanticTokenType, SemanticTokenKnowledge,
 };
-use crate::util::*;
 use crate::workspace_index::WorkspaceDefinitionKnowledge;
 
 pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
@@ -36,22 +34,13 @@ pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
 ];
 
 pub(crate) const LEGEND_MODIFIERS: &[SemanticTokenModifier] = &[
-    SemanticTokenModifier::new("option"),         // 0
-    SemanticTokenModifier::new("command"),        // 1
-    SemanticTokenModifier::new("file"),           // 2
-    SemanticTokenModifier::DECLARATION,           // 3
-    SemanticTokenModifier::DEFAULT_LIBRARY,       // 4
-    SemanticTokenModifier::new("builtin"),        // 5
-    SemanticTokenModifier::new("macro"),          // 6
-    SemanticTokenModifier::new("ring"),           // 7
-    SemanticTokenModifier::new("polynomialRing"), // 8
-    SemanticTokenModifier::new("quotientRing"),   // 9
-    SemanticTokenModifier::new("ringElement"),    // 10
-    SemanticTokenModifier::new("ideal"),          // 11
-    SemanticTokenModifier::new("monomialIdeal"),  // 12
-    SemanticTokenModifier::new("module"),         // 13
-    SemanticTokenModifier::new("matrix"),         // 14
-    SemanticTokenModifier::new("ringMap"),        // 15
+    SemanticTokenModifier::new("option"),   // 0
+    SemanticTokenModifier::new("command"),  // 1
+    SemanticTokenModifier::new("file"),     // 2
+    SemanticTokenModifier::DECLARATION,     // 3
+    SemanticTokenModifier::DEFAULT_LIBRARY, // 4
+    SemanticTokenModifier::new("builtin"),  // 5
+    SemanticTokenModifier::new("macro"),    // 6
 ];
 
 pub(crate) const OPTION_MODIFIER: u32 = 1 << 0;
@@ -61,53 +50,6 @@ pub(crate) const DECLARATION_MODIFIER: u32 = 1 << 3;
 pub(crate) const DEFAULT_LIBRARY_MODIFIER: u32 = 1 << 4;
 pub(crate) const BUILTIN_MODIFIER: u32 = 1 << 5;
 pub(crate) const MACRO_MODIFIER: u32 = 1 << 6;
-pub(crate) const RING_MODIFIER: u32 = 1 << 7;
-pub(crate) const POLYNOMIAL_RING_MODIFIER: u32 = 1 << 8;
-pub(crate) const QUOTIENT_RING_MODIFIER: u32 = 1 << 9;
-pub(crate) const RING_ELEMENT_MODIFIER: u32 = 1 << 10;
-pub(crate) const IDEAL_MODIFIER: u32 = 1 << 11;
-pub(crate) const MONOMIAL_IDEAL_MODIFIER: u32 = 1 << 12;
-pub(crate) const MODULE_MODIFIER: u32 = 1 << 13;
-pub(crate) const MATRIX_MODIFIER: u32 = 1 << 14;
-pub(crate) const RING_MAP_MODIFIER: u32 = 1 << 15;
-
-/// The LSP semantic-tokens protocol forbids a single token from spanning more
-/// than one line. A multi-line string or comment therefore has to be emitted as
-/// one token per line it covers. Split a node's byte span into `(row,
-/// start_char, length)` triples — all columns in UTF-16 units, the protocol's
-/// unit — taking the precomputed `start_char` for the first line and column 0
-/// for every continuation line. The newline (and any `\r`) is excluded so a
-/// token never reaches past the visible end of its line.
-fn token_line_spans(
-    text: &str,
-    start_byte: usize,
-    end_byte: usize,
-    start_row: u32,
-    start_char: u32,
-) -> Vec<(u32, u32, u32)> {
-    let span = &text[start_byte..end_byte];
-    if !span.contains('\n') {
-        return vec![(
-            start_row,
-            start_char,
-            utf16_len_for_byte_span(text, start_byte, end_byte),
-        )];
-    }
-    let mut spans = Vec::new();
-    let mut row = start_row;
-    for (index, line) in span.split_inclusive('\n').enumerate() {
-        let content = line.trim_end_matches('\n').trim_end_matches('\r');
-        let column = if index == 0 { start_char } else { 0 };
-        let length = content.encode_utf16().count() as u32;
-        if length > 0 {
-            spans.push((row, column, length));
-        }
-        if line.ends_with('\n') {
-            row += 1;
-        }
-    }
-    spans
-}
 
 pub(crate) fn collect_semantic_tokens(
     document: &DocumentSnapshot,
@@ -119,60 +61,41 @@ pub(crate) fn collect_semantic_tokens(
     let text = document.text();
     let analysis = document.analysis();
     let root_node = document.root_node();
+    let classifier = SemanticTokenClassifier {
+        document,
+        builtins,
+        workspace_index,
+        uri,
+    };
+    let mut emitter = SemanticTokenEmitter::new(document);
 
-    let mut tokens = Vec::new();
     let mut cursor = root_node.walk();
-    let mut prev_line = 0;
-    let mut prev_start = 0;
     let mut reached_root = false;
 
     while !reached_root {
         let node = M2Node::new(cursor.node(), text);
         let syntax_token_type = syntax_semantic_token_type(node);
 
-        let mut emitted_token = emit_documentation_container_tokens(
+        let mut emitted_token = emitter.emit_documentation_container_tokens(
             node,
             syntax_token_type,
-            document,
             augments_syntax_tokens,
-            &mut tokens,
-            &mut prev_line,
-            &mut prev_start,
         );
         if !emitted_token && (node.kind.is_symbol_like() || syntax_token_type.is_some()) {
-            let start_byte = node.start_byte();
-            let end_byte = node.end_byte();
-            let start_pos = node.start_position();
-            let line_start_byte = start_byte.saturating_sub(start_pos.column);
-            let start_char = utf16_len_for_byte_span(text, line_start_byte, start_byte);
-            let position = Position::new(start_pos.row as u32, start_char);
+            let source = document.span_for(node);
+            let position = source.range.start;
             let binding = analysis
                 .get_symbol_at(node.text(), position)
                 .map(|symbol| (symbol, position == symbol.range.start));
             let emit_syntax = !augments_syntax_tokens
                 || should_emit_syntax_token_when_augmenting(syntax_token_type);
 
-            if let Some((token_type, modifiers)) = classify_semantic_node(
-                node,
-                text,
-                analysis,
-                binding,
-                builtins,
-                workspace_index,
-                uri,
-                emit_syntax,
-                document.is_macro_name(node),
-            ) {
-                emitted_token = push_semantic_span(
-                    text,
-                    start_byte,
-                    end_byte,
-                    token_type as u32,
+            if let Some((token_type, modifiers)) = classifier.classify(node, binding, emit_syntax) {
+                emitted_token = emitter.push(SemanticSpan {
+                    source,
+                    token_type,
                     modifiers,
-                    &mut tokens,
-                    &mut prev_line,
-                    &mut prev_start,
-                );
+                });
             }
         }
 
@@ -193,126 +116,170 @@ pub(crate) fn collect_semantic_tokens(
         }
     }
 
-    tokens
+    emitter.finish()
 }
 
-#[allow(clippy::too_many_arguments)]
-fn emit_documentation_container_tokens(
-    node: M2Node<'_>,
-    syntax_token_type: Option<M2SemanticTokenType>,
-    document: &DocumentSnapshot,
-    augments_syntax_tokens: bool,
-    tokens: &mut Vec<SemanticToken>,
-    prev_line: &mut u32,
-    prev_start: &mut u32,
-) -> bool {
-    let Some(base_type) = syntax_token_type.filter(|token_type| {
-        matches!(
-            token_type,
-            M2SemanticTokenType::Comment | M2SemanticTokenType::String
-        )
-    }) else {
-        return false;
-    };
-
-    let snippets = document
-        .documentation_snippets()
-        .iter()
-        .filter(|snippet| {
-            let (start, end) = snippet.byte_span();
-            node.start_byte() <= start && end <= node.end_byte()
-        })
-        .collect::<Vec<_>>();
-    if snippets.is_empty() {
-        return false;
-    }
-
-    let text = document.text();
-    let emit_base =
-        !augments_syntax_tokens || should_emit_syntax_token_when_augmenting(Some(base_type));
-    let mut cursor = node.start_byte();
-    let mut emitted = false;
-    let mut spans = snippets
-        .into_iter()
-        .map(documentation_snippet_semantic_span)
-        .collect::<Vec<_>>();
-    spans.sort_by_key(|span| (span.start_byte, span.end_byte));
-
-    for span in spans {
-        if span.start_byte < cursor {
-            continue;
-        }
-        if emit_base && cursor < span.start_byte {
-            emitted |= push_semantic_span(
-                text,
-                cursor,
-                span.start_byte,
-                base_type as u32,
-                0,
-                tokens,
-                prev_line,
-                prev_start,
-            );
-        }
-        emitted |= push_semantic_span(
-            text,
-            span.start_byte,
-            span.end_byte,
-            span.token_type as u32,
-            span.modifiers,
-            tokens,
-            prev_line,
-            prev_start,
-        );
-        cursor = span.end_byte;
-    }
-
-    if emitted && emit_base && cursor < node.end_byte() {
-        emitted |= push_semantic_span(
-            text,
-            cursor,
-            node.end_byte(),
-            base_type as u32,
-            0,
-            tokens,
-            prev_line,
-            prev_start,
-        );
-    }
-
-    emitted
+struct SemanticTokenEmitter<'a> {
+    document: &'a DocumentSnapshot,
+    tokens: Vec<SemanticToken>,
+    previous: Position,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+impl<'a> SemanticTokenEmitter<'a> {
+    fn new(document: &'a DocumentSnapshot) -> Self {
+        Self {
+            document,
+            tokens: Vec::new(),
+            previous: Position::new(0, 0),
+        }
+    }
+
+    fn emit_documentation_container_tokens(
+        &mut self,
+        node: M2Node<'_>,
+        syntax_token_type: Option<M2SemanticTokenType>,
+        augments_syntax_tokens: bool,
+    ) -> bool {
+        let Some(base_type) = syntax_token_type.filter(|token_type| {
+            matches!(
+                token_type,
+                M2SemanticTokenType::Comment | M2SemanticTokenType::String
+            )
+        }) else {
+            return false;
+        };
+
+        let mut spans = self
+            .document
+            .documentation_snippets()
+            .iter()
+            .filter(|snippet| {
+                let (start, end) = snippet.byte_span();
+                node.start_byte() <= start && end <= node.end_byte()
+            })
+            .map(|snippet| documentation_snippet_semantic_span(self.document, snippet))
+            .collect::<Vec<_>>();
+        if spans.is_empty() {
+            return false;
+        }
+        spans.sort_by_key(|span| (span.source.bytes.start, span.source.bytes.end));
+
+        let emit_base =
+            !augments_syntax_tokens || should_emit_syntax_token_when_augmenting(Some(base_type));
+        let mut cursor = node.start_byte();
+        let mut emitted = false;
+
+        for span in spans {
+            if span.source.bytes.start < cursor {
+                continue;
+            }
+            if emit_base && cursor < span.source.bytes.start {
+                emitted |= self.push(SemanticSpan {
+                    source: self
+                        .document
+                        .span_for_bytes(cursor..span.source.bytes.start),
+                    token_type: base_type,
+                    modifiers: 0,
+                });
+            }
+            cursor = span.source.bytes.end;
+            emitted |= self.push(span);
+        }
+
+        if emitted && emit_base && cursor < node.end_byte() {
+            emitted |= self.push(SemanticSpan {
+                source: self.document.span_for_bytes(cursor..node.end_byte()),
+                token_type: base_type,
+                modifiers: 0,
+            });
+        }
+
+        emitted
+    }
+
+    fn push(&mut self, span: SemanticSpan) -> bool {
+        let mut emitted = false;
+        for range in self.document.visible_ranges(&span.source) {
+            let delta_line = range.start.line - self.previous.line;
+            let delta_start = if delta_line == 0 {
+                range.start.character - self.previous.character
+            } else {
+                range.start.character
+            };
+            self.tokens.push(SemanticToken {
+                delta_line,
+                delta_start,
+                length: range.end.character - range.start.character,
+                token_type: span.token_type as u32,
+                token_modifiers_bitset: span.modifiers,
+            });
+            self.previous = range.start;
+            emitted = true;
+        }
+        emitted
+    }
+
+    fn finish(self) -> Vec<SemanticToken> {
+        self.tokens
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct SemanticSpan {
-    start_byte: usize,
-    end_byte: usize,
+    source: DocumentSpan,
     token_type: M2SemanticTokenType,
     modifiers: u32,
 }
 
-fn documentation_snippet_semantic_span(snippet: &DocumentationSnippet) -> SemanticSpan {
+fn documentation_snippet_semantic_span(
+    document: &DocumentSnapshot,
+    snippet: &DocumentationSnippet,
+) -> SemanticSpan {
     let (start_byte, end_byte) = snippet.byte_span();
     SemanticSpan {
-        start_byte,
-        end_byte,
+        source: document.span_for_bytes(start_byte..end_byte),
         token_type: M2SemanticTokenType::Property,
         modifiers: 0,
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn classify_semantic_node(
+struct SemanticTokenClassifier<'a, B: ?Sized, W: ?Sized> {
+    document: &'a DocumentSnapshot,
+    builtins: &'a B,
+    workspace_index: &'a W,
+    uri: &'a Url,
+}
+
+impl<B, W> SemanticTokenClassifier<'_, B, W>
+where
+    B: SemanticTokenKnowledge + ?Sized,
+    W: WorkspaceDefinitionKnowledge + ?Sized,
+{
+    fn classify(
+        &self,
+        node: M2Node<'_>,
+        binding: Option<(BindingView<'_>, bool)>,
+        emit_syntax: bool,
+    ) -> Option<(M2SemanticTokenType, u32)> {
+        classify_semantic_node(self, node, binding, emit_syntax)
+    }
+}
+
+fn classify_semantic_node<B, W>(
+    context: &SemanticTokenClassifier<'_, B, W>,
     node: M2Node<'_>,
-    text: &str,
-    analysis: &Analysis,
     binding: Option<(BindingView<'_>, bool)>,
-    builtins: &(impl SemanticTokenKnowledge + ?Sized),
-    workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
-    uri: &Url,
     emit_syntax: bool,
-    is_macro_name: bool,
-) -> Option<(M2SemanticTokenType, u32)> {
+) -> Option<(M2SemanticTokenType, u32)>
+where
+    B: SemanticTokenKnowledge + ?Sized,
+    W: WorkspaceDefinitionKnowledge + ?Sized,
+{
+    let document = context.document;
+    let text = document.text();
+    let analysis = document.analysis();
+    let builtins = context.builtins;
+    let workspace_index = context.workspace_index;
     let node_text = node.text();
     let syntax_token_type = syntax_semantic_token_type(node);
     let indexed_token = node
@@ -324,7 +291,7 @@ fn classify_semantic_node(
     let mut modifiers = 0;
     let mut resolved_from_index = false;
 
-    if is_macro_name {
+    if document.is_macro_name(node) {
         token_type = Some(M2SemanticTokenType::Method);
         modifiers |= MACRO_MODIFIER;
     }
@@ -378,7 +345,7 @@ fn classify_semantic_node(
     }
 
     if token_type.is_none() {
-        token_type = workspace_index.semantic_token_type(node_text, uri);
+        token_type = workspace_index.semantic_token_type(node_text, context.uri);
     }
 
     if token_type.is_none() && emit_syntax {
@@ -389,52 +356,6 @@ fn classify_semantic_node(
         modifiers |= indexed_semantic_token_modifiers(&indexed_token?);
     }
     token_type.map(|token_type| (token_type, modifiers))
-}
-
-#[allow(clippy::too_many_arguments)]
-fn push_semantic_span(
-    text: &str,
-    start_byte: usize,
-    end_byte: usize,
-    token_type: u32,
-    modifiers: u32,
-    tokens: &mut Vec<SemanticToken>,
-    prev_line: &mut u32,
-    prev_start: &mut u32,
-) -> bool {
-    if start_byte >= end_byte {
-        return false;
-    }
-
-    let start_point = tree_sitter_point_from_byte_index(text, start_byte);
-    let line_start_byte = start_byte.saturating_sub(start_point.column);
-    let start_char = utf16_len_for_byte_span(text, line_start_byte, start_byte);
-    let mut emitted = false;
-    for (line, line_start_char, length) in token_line_spans(
-        text,
-        start_byte,
-        end_byte,
-        start_point.row as u32,
-        start_char,
-    ) {
-        let delta_line = line - *prev_line;
-        let delta_start = if delta_line == 0 {
-            line_start_char - *prev_start
-        } else {
-            line_start_char
-        };
-        tokens.push(SemanticToken {
-            delta_line,
-            delta_start,
-            length,
-            token_type,
-            token_modifiers_bitset: modifiers,
-        });
-        *prev_line = line;
-        *prev_start = line_start_char;
-        emitted = true;
-    }
-    emitted
 }
 
 pub(crate) fn option_assignment_role(
@@ -513,23 +434,7 @@ pub(crate) fn builtin_semantic_token_modifiers(token: &M2SemanticToken) -> u32 {
     if token.is_file {
         modifiers |= FILE_MODIFIER;
     }
-    modifiers |= algebraic_semantic_token_modifier(token.algebraic_kind);
     modifiers
-}
-
-fn algebraic_semantic_token_modifier(kind: Option<AlgebraicSemanticKind>) -> u32 {
-    match kind {
-        None => 0,
-        Some(AlgebraicSemanticKind::Ring) => RING_MODIFIER,
-        Some(AlgebraicSemanticKind::PolynomialRing) => POLYNOMIAL_RING_MODIFIER,
-        Some(AlgebraicSemanticKind::QuotientRing) => QUOTIENT_RING_MODIFIER,
-        Some(AlgebraicSemanticKind::RingElement) => RING_ELEMENT_MODIFIER,
-        Some(AlgebraicSemanticKind::Ideal) => IDEAL_MODIFIER,
-        Some(AlgebraicSemanticKind::MonomialIdeal) => MONOMIAL_IDEAL_MODIFIER,
-        Some(AlgebraicSemanticKind::Module) => MODULE_MODIFIER,
-        Some(AlgebraicSemanticKind::Matrix) => MATRIX_MODIFIER,
-        Some(AlgebraicSemanticKind::RingMap) => RING_MAP_MODIFIER,
-    }
 }
 
 fn indexed_semantic_token_modifiers(token: &M2SemanticToken) -> u32 {
@@ -547,8 +452,18 @@ fn static_type_semantic_token_for_local_symbol(
     type_name: &str,
     builtins: &(impl SemanticTokenKnowledge + ?Sized),
 ) -> Option<M2SemanticToken> {
-    let token = builtins.semantic_token_for_static_type(type_name)?;
+    let mut token = builtins.semantic_token_for_static_type(type_name)?;
     match symbol.meta().symbol_kind {
+        // A ring value (`R = QQ[x]`) is itself the runtime type of its elements,
+        // but it is not an M2 class declaration. Keep actual classes, including
+        // locally declared and function-produced classes, as `class`.
+        Some(SymbolKind::VARIABLE)
+            if token.token_type == M2SemanticTokenType::Class
+                && builtins.is_subtype(type_name, "Ring") =>
+        {
+            token.token_type = M2SemanticTokenType::Type;
+            Some(token)
+        }
         Some(SymbolKind::VARIABLE)
             if matches!(
                 token.token_type,
@@ -839,10 +754,11 @@ fn is_method_installation_lhs(node: M2Node<'_>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::builtin_index::BuiltinData;
     use crate::document::DocumentSnapshot;
     use crate::partitioned_index::PackagePartitionedIndex;
     use crate::typesystem::TypeKnowledgeProvider;
-    use crate::typesystem::{BuiltinData, M2SemanticToken, M2SemanticTokenType};
+    use crate::typesystem::{M2SemanticToken, M2SemanticTokenType};
     use crate::workspace_index::WorkspaceIndex;
     use tree_sitter::Parser;
 
@@ -1612,7 +1528,6 @@ mod tests {
     fn builtin_type_tokens_do_not_use_custom_type_modifier() {
         let token = M2SemanticToken {
             token_type: M2SemanticTokenType::Type,
-            algebraic_kind: None,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1629,7 +1544,6 @@ mod tests {
     fn builtin_class_tokens_do_not_use_custom_type_modifier() {
         let token = M2SemanticToken {
             token_type: M2SemanticTokenType::Class,
-            algebraic_kind: None,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1646,7 +1560,6 @@ mod tests {
     fn builtin_function_role_does_not_bake_in_provenance_modifier() {
         let token = M2SemanticToken {
             token_type: M2SemanticTokenType::Function,
-            algebraic_kind: None,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1761,7 +1674,7 @@ mod tests {
     }
 
     #[test]
-    fn algebraic_values_keep_standard_bases_and_specific_modifiers() {
+    fn algebraic_values_use_general_standard_roles_without_class_modifiers() {
         let text = concat!(
             "R = QQ[x,y]\n",
             "I = ideal(x^2,y)\n",
@@ -1773,21 +1686,17 @@ mod tests {
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
-        for (line, token_type, modifier) in [
-            (0, M2SemanticTokenType::Type, POLYNOMIAL_RING_MODIFIER),
-            (1, M2SemanticTokenType::Variable, IDEAL_MODIFIER),
-            (2, M2SemanticTokenType::Type, QUOTIENT_RING_MODIFIER),
-            (3, M2SemanticTokenType::Variable, MODULE_MODIFIER),
-            (4, M2SemanticTokenType::Variable, RING_ELEMENT_MODIFIER),
+        for (line, token_type) in [
+            (0, M2SemanticTokenType::Type),
+            (1, M2SemanticTokenType::Variable),
+            (2, M2SemanticTokenType::Type),
+            (3, M2SemanticTokenType::Variable),
+            (4, M2SemanticTokenType::Variable),
         ] {
             let token = token_at(&tokens, line, 0)
                 .unwrap_or_else(|| panic!("line {line} should carry an algebraic token"));
             assert_eq!(token.token_type, token_type as u32, "line {line}");
-            assert_eq!(
-                token.token_modifiers_bitset & modifier,
-                modifier,
-                "line {line}"
-            );
+            assert_eq!(token.token_modifiers_bitset & !DECLARATION_MODIFIER, 0);
         }
     }
 
@@ -1798,14 +1707,13 @@ mod tests {
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
-        for (line, modifier) in [
-            (0, POLYNOMIAL_RING_MODIFIER),
-            (1, IDEAL_MODIFIER),
-            (2, RING_ELEMENT_MODIFIER),
-        ] {
+        for line in 0..=2 {
             let token = token_at(&tokens, line, 0).expect("class name should be highlighted");
             assert_eq!(token.token_type, M2SemanticTokenType::Class as u32);
-            assert_eq!(token.token_modifiers_bitset & modifier, modifier);
+            assert_eq!(
+                token.token_modifiers_bitset, DEFAULT_LIBRARY_MODIFIER,
+                "class names should retain only their indexed provenance"
+            );
         }
     }
 
@@ -1861,15 +1769,6 @@ mod tests {
                 SemanticTokenModifier::DEFAULT_LIBRARY,
                 SemanticTokenModifier::new("builtin"),
                 SemanticTokenModifier::new("macro"),
-                SemanticTokenModifier::new("ring"),
-                SemanticTokenModifier::new("polynomialRing"),
-                SemanticTokenModifier::new("quotientRing"),
-                SemanticTokenModifier::new("ringElement"),
-                SemanticTokenModifier::new("ideal"),
-                SemanticTokenModifier::new("monomialIdeal"),
-                SemanticTokenModifier::new("module"),
-                SemanticTokenModifier::new("matrix"),
-                SemanticTokenModifier::new("ringMap"),
             ]
         );
         assert_eq!(OPTION_MODIFIER, 1 << 0);
@@ -1879,15 +1778,6 @@ mod tests {
         assert_eq!(DEFAULT_LIBRARY_MODIFIER, 1 << 4);
         assert_eq!(BUILTIN_MODIFIER, 1 << 5);
         assert_eq!(MACRO_MODIFIER, 1 << 6);
-        assert_eq!(RING_MODIFIER, 1 << 7);
-        assert_eq!(POLYNOMIAL_RING_MODIFIER, 1 << 8);
-        assert_eq!(QUOTIENT_RING_MODIFIER, 1 << 9);
-        assert_eq!(RING_ELEMENT_MODIFIER, 1 << 10);
-        assert_eq!(IDEAL_MODIFIER, 1 << 11);
-        assert_eq!(MONOMIAL_IDEAL_MODIFIER, 1 << 12);
-        assert_eq!(MODULE_MODIFIER, 1 << 13);
-        assert_eq!(MATRIX_MODIFIER, 1 << 14);
-        assert_eq!(RING_MAP_MODIFIER, 1 << 15);
     }
 
     #[test]

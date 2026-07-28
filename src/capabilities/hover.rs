@@ -2,12 +2,13 @@
 
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{FunctionInfo, MethodInfo};
+use crate::analysis::{Analysis, FunctionInfo, MethodInstallation, TypeRef};
+use crate::builtin_index::InstanceID;
 use crate::document::DocumentSnapshot;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKindMetadata};
 use crate::record_lsp::record_hover_with_package_and_usage;
-use crate::typesystem::{InstanceID, LspKnowledge};
+use crate::typesystem::LspKnowledge;
 
 /// The hover at `position`: a local symbol renders its binding info and local
 /// method signatures; a builtin/package object renders its record from the
@@ -23,11 +24,17 @@ pub(crate) fn hover_response(
     if let Some(reference) = document.documentation_reference_at(position) {
         let name = reference.name(text);
         let mut hover = if let Some(symbol) = document.documentation_symbol(reference) {
-            local_symbol_hover(name, &symbol, document.callable_at_position(position), None)
+            local_symbol_hover(
+                name,
+                &symbol,
+                analysis,
+                document.callable_at_position(position),
+                None,
+            )
         } else {
             let (package, record) =
                 knowledge.get_record_with_package(&InstanceID(name.to_string()))?;
-            record_hover_with_package_and_usage(&record, Some(&package), knowledge, None)
+            record_hover_with_package_and_usage(record, Some(&package), knowledge, None)
         };
         hover.range = Some(reference.range());
         return Some(hover);
@@ -52,6 +59,7 @@ pub(crate) fn hover_response(
         return Some(local_symbol_hover(
             node_text,
             &symbol,
+            analysis,
             local_method,
             pinned_signature,
         ));
@@ -64,7 +72,7 @@ pub(crate) fn hover_response(
     let signature_usage =
         call_signature_usage_for_hover(node, node_text, text, analysis, knowledge);
     Some(record_hover_with_package_and_usage(
-        &record,
+        record,
         Some(&package),
         knowledge,
         signature_usage.as_ref(),
@@ -76,8 +84,9 @@ pub(crate) fn hover_response(
 fn local_symbol_hover(
     name: &str,
     symbol: &(impl Metadata + ?Sized),
+    analysis: &Analysis,
     method: Option<&FunctionInfo>,
-    pinned_signature: Option<&MethodInfo>,
+    pinned_signature: Option<&MethodInstallation>,
 ) -> Hover {
     let meta = symbol.meta();
     let title_signature = method
@@ -100,7 +109,7 @@ fn local_symbol_hover(
         _ => "User-defined symbol",
     };
     let signatures = method
-        .map(|method| local_method_signatures_markdown(method, pinned_signature))
+        .map(|method| local_method_signatures_markdown(analysis, method, pinned_signature))
         .unwrap_or_default();
     let markdown = format!(
         "**{}**{}{}\n\n{}{}",
@@ -134,9 +143,8 @@ fn call_signature_usage_for_hover(
         }
 
         let argument = parent.child_by_field_name("right")?;
-        analysis
-            .infer_call_static_facts(argument, text, knowledge)
-            .dispatch_argument_types()
+        let facts = analysis.infer_call_static_facts(argument, text, knowledge);
+        analysis.dispatch_argument_types(&facts)
     } else if parent
         .child_by_field_name("operator")
         .is_some_and(|operator| operator.id() == node.id())
@@ -165,14 +173,14 @@ fn hoverable_symbol_or_operator_node(node: M2Node) -> bool {
 }
 
 fn local_method_signatures_markdown(
+    analysis: &Analysis,
     method: &FunctionInfo,
-    pinned_signature: Option<&MethodInfo>,
+    pinned_signature: Option<&MethodInstallation>,
 ) -> String {
     if let Some(pinned_signature) = pinned_signature {
         let mut lines = Vec::new();
-        let excluded = method
-            .methods
-            .iter()
+        let excluded = analysis
+            .methods_for(method)
             .filter(|signature| {
                 signature.domain != pinned_signature.domain
                     || signature.codomain != pinned_signature.codomain
@@ -197,12 +205,12 @@ fn local_method_signatures_markdown(
         return method
             .typical_value
             .as_ref()
-            .map(|codomain| format!("\n\nCodomain: `{codomain}`"))
+            .map(|codomain| format!("\n\nCodomain: `{}`", codomain.name()))
             .unwrap_or_default();
     }
 
     let mut lines = vec!["\n\n**Methods:**".to_string()];
-    for signature in &method.methods {
+    for signature in analysis.methods_for(method) {
         lines.push(format!(
             "- `{}`",
             local_method_signature_label(method, signature)
@@ -211,13 +219,21 @@ fn local_method_signatures_markdown(
     lines.join("\n")
 }
 
-fn local_method_signature_label(method: &FunctionInfo, signature: &MethodInfo) -> String {
-    let domain = format!("({})", signature.domain.join(", "));
+fn local_method_signature_label(method: &FunctionInfo, signature: &MethodInstallation) -> String {
+    let domain = format!(
+        "({})",
+        signature
+            .domain
+            .iter()
+            .map(TypeRef::name)
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
     let codomain = signature
         .codomain
         .as_ref()
         .or(method.typical_value.as_ref())
-        .map(|codomain| format!(" -> {codomain}"))
+        .map(|codomain| format!(" -> {}", codomain.name()))
         .unwrap_or_default();
     format!("{domain}{codomain}")
 }
@@ -226,21 +242,27 @@ fn local_method_signature_label(method: &FunctionInfo, signature: &MethodInfo) -
 mod tests {
     use super::*;
     use crate::analysis::Analysis;
+    use crate::builtin_index::BuiltinData;
     use crate::meta::{BindingRole, Meta};
     use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
-    use crate::typesystem::BuiltinData;
     use tower_lsp::lsp_types::{HoverContents, Position, SymbolKind};
     use tree_sitter::Parser;
 
     #[test]
     fn local_hover_includes_known_static_type() {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("Macaulay2 parser should load");
+        let tree = parser.parse("", None).expect("empty fixture should parse");
+        let analysis = Analysis::new(&tree, "");
         let symbol = Meta {
             symbol_kind: Some(SymbolKind::VARIABLE),
             binding_role: Some(BindingRole::Ordinary),
             type_name: Some("Package"),
         };
 
-        let hover = local_symbol_hover("Doc", &symbol, None, None);
+        let hover = local_symbol_hover("Doc", &symbol, &analysis, None, None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("local hover should use markdown");
         };
@@ -266,7 +288,7 @@ mod tests {
             .expect("method symbol should be visible");
         let method = analysis.function("p").expect("method should be registered");
 
-        let hover = local_symbol_hover("p", &symbol, Some(method), None);
+        let hover = local_symbol_hover("p", &symbol, &analysis, Some(method), None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("local hover should use markdown");
         };
@@ -299,7 +321,13 @@ mod tests {
             .local_method_installation_signature_at(M2Node::new(node, text), text)
             .expect("method installation should pin the installed signature");
 
-        let hover = local_symbol_hover("p", &symbol, Some(method), Some(pinned_signature));
+        let hover = local_symbol_hover(
+            "p",
+            &symbol,
+            &analysis,
+            Some(method),
+            Some(pinned_signature),
+        );
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("local hover should use markdown");
         };
@@ -311,6 +339,36 @@ mod tests {
         assert!(markup.value.contains("**Other signatures for this call:**"));
         assert!(markup.value.contains("`(CC, CC) -> Array`"));
         assert!(!markup.value.contains("**Methods:**"));
+    }
+
+    #[test]
+    fn repeated_domain_installations_pin_their_own_source_fact() {
+        let text = concat!(
+            "p = method()\n",
+            "p ZZ := List => x -> x\n",
+            "p ZZ := Array => x -> x\n",
+        );
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_macaulay2::language())
+            .expect("Macaulay2 parser should load");
+        let tree = parser.parse(text, None).expect("fixture should parse");
+        let analysis = Analysis::new(&tree, text);
+
+        for (line, expected_codomain) in [(1, "List"), (2, "Array")] {
+            let point = tree_sitter::Point::new(line, 0);
+            let node = tree
+                .root_node()
+                .descendant_for_point_range(point, point)
+                .expect("method name node should be found");
+            let (_, installation) = analysis
+                .local_method_installation_signature_at(M2Node::new(node, text), text)
+                .expect("the source occurrence should resolve its installation identity");
+            assert_eq!(
+                installation.codomain.as_ref().map(TypeRef::name),
+                Some(expected_codomain)
+            );
+        }
     }
 
     #[test]

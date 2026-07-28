@@ -5,11 +5,12 @@ use std::collections::HashMap;
 
 use tower_lsp::lsp_types::*;
 
+use crate::builtin_index::{InstanceID, Record};
 use crate::document::{DocumentSnapshot, TargetSymbol};
 use crate::node_metadata::{NodeKind, NodeKindMetadata};
 use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
-use crate::typesystem::{InstanceID, LspKnowledge, Record};
+use crate::typesystem::LspKnowledge;
 use crate::util::*;
 use crate::workspace_index::WorkspaceDefinitionKnowledge;
 
@@ -138,13 +139,13 @@ pub(crate) fn workspace_symbols_response(
         let Some(record) = knowledge.get_record(&InstanceID::new(&name)) else {
             continue;
         };
-        let Some(location) = record_location(&record) else {
+        let Some(location) = record_location(record) else {
             continue;
         };
         if seen.insert(workspace_symbol_dedupe_key(&package, &name)) {
             symbols.push(SymbolInformation {
                 name,
-                kind: record_symbol_kind(&record),
+                kind: record_symbol_kind(record),
                 tags: None,
                 deprecated: None,
                 location,
@@ -213,7 +214,7 @@ pub(crate) fn goto_definition_response(
     }
 
     if let Some(record) = knowledge.get_record(&InstanceID(node_text.to_string())) {
-        if let Some(location) = record_location(&record) {
+        if let Some(location) = record_location(record) {
             return Some(GotoDefinitionResponse::Scalar(location));
         }
     }
@@ -468,8 +469,11 @@ mod tests {
     use tower_lsp::lsp_types::{Position, Range};
 
     fn document(text: &str) -> DocumentSnapshot {
-        DocumentSnapshot::from_text(text.to_string(), &crate::typesystem::BuiltinData::empty())
-            .expect("fixture should parse")
+        DocumentSnapshot::from_text(
+            text.to_string(),
+            &crate::builtin_index::BuiltinData::empty(),
+        )
+        .expect("fixture should parse")
     }
 
     #[test]

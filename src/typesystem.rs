@@ -1,185 +1,13 @@
-//! Indexed Macaulay2 builtin metadata, static type relations, and the compact
-//! queries shared by LSP capabilities.
+//! Static type relations, dispatch, and semantic queries over the canonical
+//! builtin records owned by `builtin_index`.
 //!
-//! This module does not evaluate Macaulay2. It combines generated corpus facts
-//! with the type lattice to answer conservative questions about known objects,
-//! method signatures, option values, hover text, and semantic-token roles.
+//! This module does not evaluate Macaulay2. It queries generated corpus facts
+//! to answer conservative questions about known objects, method signatures,
+//! type relations, option values, hover text, and semantic-token roles.
 
-use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
-use std::fmt::{self, Display};
 
-use crate::builtin_index::{register_entry_keys, IndexedEntry, OperatorForm};
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-/// Stable identifier for an indexed M2 object or type.
-pub struct InstanceID(pub String);
-
-impl InstanceID {
-    /// Construct an identifier from an unqualified or package-qualified name.
-    pub fn new(name: &str) -> Self {
-        InstanceID(name.to_string())
-    }
-}
-
-impl Display for InstanceID {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl Borrow<str> for InstanceID {
-    fn borrow(&self) -> &str {
-        &self.0
-    }
-}
-
-impl AsRef<str> for InstanceID {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// One executable example attached to a corpus record or method signature.
-pub struct CodeExample(pub String);
-
-#[derive(Debug, Clone)]
-/// The normalized metadata known for one builtin object, type, or callable.
-pub struct Record {
-    pub name: InstanceID,
-    pub class: InstanceID,
-    pub description_short: Option<String>,
-    pub examples: Vec<CodeExample>,
-    pub package: Option<String>,
-    pub source_file: Option<String>,
-    pub typical_value: Option<String>,
-    pub function_info: Option<FunctionInfo>,
-    pub option_info: Option<OptionInfo>,
-    pub operator_info: Option<OperatorInfo>,
-    pub type_info: Option<TypeInfo>,
-    pub protected: Option<bool>,
-}
-
-#[derive(Debug, Clone)]
-/// Callable metadata, separating installed methods from richer documentation.
-pub struct FunctionInfo {
-    pub methods: Vec<MethodSignature>,
-    pub documented_methods: Vec<DocumentedMethodSignature>,
-    pub general_signature: Option<DocumentedMethodSignature>,
-}
-
-#[derive(Debug, Clone)]
-/// The documented options accepted by a callable.
-pub struct OptionInfo {
-    pub options: Vec<MethodOption>,
-}
-
-#[derive(Debug, Clone)]
-/// One option key and, when available, its textual default value.
-pub struct MethodOption {
-    pub name: InstanceID,
-}
-
-#[derive(Debug, Clone)]
-/// An installed method domain: callable name followed by its argument types.
-pub struct MethodSignature {
-    pub signature: Vec<InstanceID>,
-}
-
-#[derive(Debug, Clone)]
-/// A method signature enriched with codomain, examples, and documentation key.
-pub struct DocumentedMethodSignature {
-    pub signature: Vec<InstanceID>,
-    pub output_types: Vec<InstanceID>,
-    pub examples: Vec<CodeExample>,
-    pub doc_key: Option<InstanceID>,
-}
-
-#[derive(Debug, Clone)]
-/// Parser and runtime metadata for an operator-backed callable.
-pub struct OperatorInfo {
-    pub method_symbol: InstanceID,
-    pub forms: Vec<String>,
-    pub form_attributes: HashMap<OperatorForm, Vec<String>>,
-}
-
-/// The operator attribute marking a form as accepting runtime method
-/// installation (`X op Y := …`).
-const FLEXIBLE_ATTRIBUTE: &str = "Flexible";
-
-impl OperatorInfo {
-    /// Whether this operator accepts a method installed on the given form
-    /// (`"binary"`/`"prefix"`/`"postfix"`) — i.e. that form is `Flexible`.
-    pub fn is_flexible(&self, form: &str) -> bool {
-        self.form_attributes
-            .get(form)
-            .is_some_and(|attributes| attributes.iter().any(|a| a == FLEXIBLE_ATTRIBUTE))
-    }
-}
-
-#[derive(Debug, Clone)]
-/// Direct hierarchy and instance facts for an indexed M2 type.
-pub struct TypeInfo {
-    pub subtypes: Vec<InstanceID>,
-    pub parent_type: Option<InstanceID>,
-}
-
-/// Two-sided type hierarchy: `ancestors` (sorted, for upward `is_subtype`/lub/glb
-/// queries) and `children` (immediate subtypes, for the downward `type_hierarchy`
-/// view). Instance checks only ever walk upward; `children` is read straight, not
-/// recomputed.
-#[derive(Debug, Clone, Default)]
-pub struct TypeLattice {
-    ancestors: HashMap<InstanceID, Vec<InstanceID>>,
-}
-
-impl TypeLattice {
-    /// Build the lattice from the `m2-index.jsonl` type records: each carries its
-    /// full ancestor chain, sorted here for binary search.
-    pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
-        let mut ancestors: HashMap<InstanceID, Vec<InstanceID>> = HashMap::new();
-
-        for entry in index.types() {
-            let id = InstanceID::new(&entry.name);
-            // The corpus `ancestors` field is the is-a chain ABOVE the immediate
-            // parent (verified against M2: `ancestors Array` = {Array, VisibleList,
-            // BasicList, Thing}, while the field carries only {BasicList, Thing}).
-            // Fold the immediate `parent` in so `is_subtype(child, parent)` holds
-            // for the direct edge — otherwise it only ever succeeds reflexively.
-            let mut chain: Vec<InstanceID> =
-                entry.ancestors.iter().map(|a| InstanceID::new(a)).collect();
-            if let Some(parent) = &entry.immediate_parent {
-                chain.push(InstanceID::new(parent));
-            }
-            chain.sort();
-            chain.dedup();
-            ancestors.insert(id, chain);
-        }
-
-        TypeLattice { ancestors }
-    }
-
-    pub fn is_subtype(&self, child: &str, parent: &str) -> bool {
-        child == parent
-            || self.ancestors.get(child).is_some_and(|chain| {
-                chain
-                    .binary_search_by(|candidate| candidate.as_ref().cmp(parent))
-                    .is_ok()
-            })
-    }
-}
-
-#[derive(Debug, Clone)]
-/// In-memory view of the generated builtin corpus used by one LSP workspace.
-pub struct BuiltinData {
-    primary_names: Vec<InstanceID>,
-    record_index_by_name: HashMap<InstanceID, usize>,
-    records: Vec<Record>,
-    hover_markdown_by_name: HashMap<InstanceID, String>,
-    type_facts: TypeFacts,
-    type_lattice: TypeLattice,
-}
+use crate::builtin_index::{BuiltinData, CodeExample, InstanceID, MethodSignature, Record};
 
 /// The semantic facts analysis needs from an external symbol/type index.
 ///
@@ -191,7 +19,7 @@ pub struct BuiltinData {
 pub(crate) trait TypeKnowledge {
     fn is_available(&self) -> bool;
 
-    fn get_record(&self, name: &InstanceID) -> Option<Record>;
+    fn get_record(&self, name: &InstanceID) -> Option<&Record>;
 
     fn resolve_call_return_type_with_options(
         &self,
@@ -220,7 +48,7 @@ pub(crate) trait SemanticTokenKnowledge: TypeKnowledge {
 }
 
 pub(crate) trait LspKnowledge: TypeKnowledge {
-    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, Record)>;
+    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, &Record)>;
 
     fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)>;
 
@@ -244,7 +72,7 @@ pub(crate) trait LspKnowledge: TypeKnowledge {
 }
 
 pub(crate) trait PartitionedTypeKnowledge {
-    fn get_record_from_package(&self, package: &str, name: &InstanceID) -> Option<Record>;
+    fn get_record_from_package(&self, package: &str, name: &InstanceID) -> Option<&Record>;
 }
 
 /// Supplies the semantic index for one document's imported-package set.
@@ -264,8 +92,8 @@ pub(crate) trait TypeKnowledgeProvider {
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct NoTypeKnowledge;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 /// One callable signature after documentation and indexed type facts are merged.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedSignature {
     pub signature: Vec<InstanceID>,
     pub output_types: Vec<InstanceID>,
@@ -274,115 +102,18 @@ pub struct ResolvedSignature {
     pub doc_key: Option<InstanceID>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
 /// Installed signatures partitioned by their applicability at one call site.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SignatureUsage {
     pub pinned: Option<ResolvedSignature>,
     pub possible: Vec<ResolvedSignature>,
     pub excluded: Vec<ResolvedSignature>,
 }
 
-#[derive(Debug, Clone, Default)]
-/// Compact option-value facts derived from the type index.
-pub struct TypeFacts {
-    signature_codomains: HashMap<SignatureKey, InstanceID>,
-    option_value_usages: HashMap<InstanceID, Vec<OptionValueUsage>>,
-    option_values_by_slot: HashMap<OptionSlot, Vec<InstanceID>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct SignatureKey {
-    callable: InstanceID,
-    domain: Vec<InstanceID>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct OptionSlot {
-    callable: InstanceID,
-    option: InstanceID,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// A callable/option slot that admits a particular indexed option value.
-pub struct OptionValueUsage {
-    pub callable: InstanceID,
-    pub option: InstanceID,
-}
-
-impl TypeFacts {
-    /// Build the typecheck facts from the `m2-index.jsonl` callable records.
-    pub fn from_type_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
-        let mut facts = TypeFacts::default();
-        for callable in index.callables() {
-            let callable_id = InstanceID::new(&callable.name);
-            for signature in &callable.signatures {
-                let Some(codomain) = signature.codomain.as_ref() else {
-                    continue;
-                };
-                facts.signature_codomains.insert(
-                    SignatureKey {
-                        callable: callable_id.clone(),
-                        domain: signature
-                            .domain
-                            .iter()
-                            .map(|name| InstanceID::new(name))
-                            .collect(),
-                    },
-                    InstanceID::new(codomain),
-                );
-            }
-            for option in &callable.options {
-                let option_id = InstanceID::new(&option.key);
-                let slot = OptionSlot {
-                    callable: callable_id.clone(),
-                    option: option_id.clone(),
-                };
-                for value in &option.possible_values {
-                    let value_id = InstanceID::new(value);
-                    facts
-                        .option_values_by_slot
-                        .entry(slot.clone())
-                        .or_default()
-                        .push(value_id.clone());
-                    facts
-                        .option_value_usages
-                        .entry(value_id)
-                        .or_default()
-                        .push(OptionValueUsage {
-                            callable: callable_id.clone(),
-                            option: option_id.clone(),
-                        });
-                }
-            }
-        }
-        for usages in facts.option_value_usages.values_mut() {
-            usages.sort_by(|left, right| {
-                (left.callable.0.as_str(), left.option.0.as_str())
-                    .cmp(&(right.callable.0.as_str(), right.option.0.as_str()))
-            });
-            usages.dedup();
-        }
-        for values in facts.option_values_by_slot.values_mut() {
-            values.sort();
-            values.dedup();
-        }
-        facts
-    }
-
-    fn signature_codomain(&self, signature: &[InstanceID]) -> Option<&str> {
-        self.signature_codomains
-            .get(&SignatureKey {
-                callable: signature.first()?.clone(),
-                domain: signature[1..].to_vec(),
-            })
-            .map(|codomain| codomain.0.as_str())
-    }
-}
-
 impl BuiltinData {
     /// Number of primary records; aliases do not increase this count.
     pub fn len(&self) -> usize {
-        self.primary_names.len()
+        self.index.records().len()
     }
 
     /// Primary names beginning with `prefix`, in corpus order and capped at `limit`.
@@ -391,9 +122,10 @@ impl BuiltinData {
             return Vec::new();
         }
 
-        self.primary_names
+        self.index
+            .records()
             .iter()
-            .map(|name| name.0.as_str())
+            .map(|record| record.name.0.as_str())
             .filter(|name| name.starts_with(prefix))
             .take(limit)
             .collect()
@@ -406,28 +138,26 @@ impl BuiltinData {
         }
 
         let query = query.to_lowercase();
-        self.primary_names
+        self.index
+            .records()
             .iter()
-            .map(|name| name.0.as_str())
+            .map(|record| record.name.0.as_str())
             .filter(|name| name.to_lowercase().contains(&query))
             .take(limit)
             .collect()
     }
 
-    /// Clone the record named by `name`, resolving aliases through the same map
-    /// used for all builtin lookups.
-    pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
-        let index = *self.record_index_by_name.get(name)?;
-        self.records.get(index).cloned()
+    /// Borrow the record named by `name`, resolving aliases through the canonical
+    /// index.
+    pub fn get_record(&self, name: &InstanceID) -> Option<&Record> {
+        self.index.record(name)
     }
 
     /// The pre-rendered hover markdown for `name` (or one of its aliases), if the
     /// docs asset carried an entry. Typecheck records hold no doc text. Aliases
     /// resolve to the record's primary name, under which the docs are keyed.
     pub fn doc_markdown(&self, name: &InstanceID) -> Option<&str> {
-        let index = *self.record_index_by_name.get(name)?;
-        let primary = self.primary_names.get(index)?;
-        self.hover_markdown_by_name.get(primary).map(String::as_str)
+        self.get_record(name)?.markdown.as_deref()
     }
 
     /// Return callables which document `option_name`, with package qualifiers
@@ -441,10 +171,7 @@ impl BuiltinData {
             .rsplit_once('$')
             .map_or(option_name, |(_, name)| name);
         let mut usages = Vec::new();
-        for (index, name) in self.primary_names.iter().enumerate() {
-            let Some(record) = self.records.get(index) else {
-                continue;
-            };
+        for record in self.index.records() {
             let Some(option_info) = &record.option_info else {
                 continue;
             };
@@ -456,10 +183,11 @@ impl BuiltinData {
                 continue;
             }
 
-            let display_name = name
+            let display_name = record
+                .name
                 .0
                 .rsplit_once('$')
-                .map_or(name.0.as_str(), |(_, name)| name);
+                .map_or(record.name.0.as_str(), |(_, name)| name);
             if !usages.iter().any(|usage| usage == display_name) {
                 usages.push(display_name.to_string());
             }
@@ -480,7 +208,7 @@ impl BuiltinData {
         let value_name = value_name
             .rsplit_once('$')
             .map_or(value_name, |(_, name)| name);
-        self.type_facts
+        self.option_facts
             .option_value_usages
             .get(value_name)
             .into_iter()
@@ -514,79 +242,54 @@ impl BuiltinData {
             .rsplit_once('$')
             .map_or(value_name, |(_, name)| name);
 
-        self.type_facts
+        self.option_facts
             .option_values_by_slot
             .iter()
             .filter(|(slot, _)| slot.option.0 == option_key)
             .any(|(_, values)| values.iter().any(|value| value.0 == value_name))
     }
 
-    /// Merge installed methods with documentation and static codomain facts.
-    /// Specialized domains win over a general documented signature.
+    /// Resolve installed method codomains, falling back to the callable's
+    /// function-level typical value when a method has no more precise result.
     pub fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
         let Some(function_info) = &record.function_info else {
             return Vec::new();
         };
 
-        let specialized_by_domain: HashMap<_, _> = function_info
-            .documented_methods
-            .iter()
-            .filter(|method| !method.output_types.is_empty())
-            .filter_map(|method| signature_domain_key(&method.signature).map(|key| (key, method)))
-            .collect();
-        let general_outputs = function_info
-            .general_signature
-            .as_ref()
-            .filter(|method| !method.output_types.is_empty())
-            .map(|method| method.output_types.clone());
+        let general_output = record.typical_value.as_deref().map(InstanceID::new);
 
         let mut signatures = Vec::new();
         for method in &function_info.methods {
-            let Some(domain_key) = signature_domain_key(&method.signature) else {
+            if signature_domain_key(&method.signature).is_none() {
                 continue;
-            };
-            if let Some(documented_method) = specialized_by_domain.get(&domain_key) {
-                signatures.push(ResolvedSignature {
-                    signature: documented_method.signature.clone(),
-                    output_types: documented_method.output_types.clone(),
-                    is_specialized: true,
-                    examples: documented_method.examples.clone(),
-                    doc_key: documented_method.doc_key.clone(),
-                });
-            } else if let Some(codomain) = self.type_facts.signature_codomain(&method.signature) {
+            }
+            if let Some(codomain) = &method.codomain {
                 signatures.push(ResolvedSignature {
                     signature: method.signature.clone(),
-                    output_types: vec![InstanceID::new(codomain)],
+                    output_types: vec![codomain.clone()],
                     is_specialized: true,
                     examples: Vec::new(),
                     doc_key: None,
                 });
-            } else if let Some(output_types) = &general_outputs {
-                let general_signature = function_info.general_signature.as_ref();
+            } else if let Some(output_type) = &general_output {
                 signatures.push(ResolvedSignature {
                     signature: method.signature.clone(),
-                    output_types: output_types.clone(),
+                    output_types: vec![output_type.clone()],
                     is_specialized: false,
-                    examples: general_signature
-                        .map(|signature| signature.examples.clone())
-                        .unwrap_or_default(),
-                    doc_key: general_signature.and_then(|signature| signature.doc_key.clone()),
+                    examples: Vec::new(),
+                    doc_key: None,
                 });
             }
         }
 
-        if signatures.is_empty() {
-            if let Some(general_signature) = &function_info.general_signature {
-                if !general_signature.output_types.is_empty() {
-                    signatures.push(ResolvedSignature {
-                        signature: general_signature.signature.clone(),
-                        output_types: general_signature.output_types.clone(),
-                        is_specialized: false,
-                        examples: general_signature.examples.clone(),
-                        doc_key: general_signature.doc_key.clone(),
-                    });
-                }
-            }
+        if signatures.is_empty() && general_output.is_some() {
+            signatures.push(ResolvedSignature {
+                signature: vec![record.name.clone()],
+                output_types: general_output.into_iter().collect(),
+                is_specialized: false,
+                examples: Vec::new(),
+                doc_key: None,
+            });
         }
 
         signatures
@@ -630,25 +333,9 @@ impl BuiltinData {
             }
         }
 
-        let record = self.get_record(&InstanceID::new(callable))?;
-        let unknown_domain_candidates = record
-            .function_info
-            .as_ref()
-            .and_then(|info| info.general_signature.as_ref())
-            .and_then(|signature| match signature.output_types.as_slice() {
-                [output_type] => Some(vec![output_type.0.clone()]),
-                _ => None,
-            })
-            .unwrap_or_default();
-
-        let mut candidates = unknown_domain_candidates;
-        candidates.sort();
-        candidates.dedup();
-        if let [output_type] = candidates.as_slice() {
-            Some(output_type.clone())
-        } else {
-            None
-        }
+        self.get_record(&InstanceID::new(callable))?
+            .typical_value
+            .clone()
     }
 
     /// Resolve a call only when its known argument types select one signature.
@@ -661,7 +348,7 @@ impl BuiltinData {
         let record = self.get_record(&InstanceID::new(callable))?;
         let mut specialized_candidates = Vec::new();
         let mut general_candidates = Vec::new();
-        for signature in self.documented_signatures(&record) {
+        for signature in self.documented_signatures(record) {
             if signature.signature.first().map(|name| name.0.as_str()) != Some(callable) {
                 continue;
             }
@@ -746,7 +433,7 @@ impl BuiltinData {
         let mut possible = Vec::new();
         let mut excluded = Vec::new();
 
-        for signature in self.all_installed_signatures(&record) {
+        for signature in self.all_installed_signatures(record) {
             if signature.signature.first().map(|name| name.0.as_str()) != Some(callable) {
                 continue;
             }
@@ -824,7 +511,7 @@ impl TypeKnowledge for BuiltinData {
         true
     }
 
-    fn get_record(&self, name: &InstanceID) -> Option<Record> {
+    fn get_record(&self, name: &InstanceID) -> Option<&Record> {
         BuiltinData::get_record(self, name)
     }
 
@@ -847,7 +534,7 @@ impl<T: TypeKnowledge + ?Sized> TypeKnowledge for &T {
         T::is_available(self)
     }
 
-    fn get_record(&self, name: &InstanceID) -> Option<Record> {
+    fn get_record(&self, name: &InstanceID) -> Option<&Record> {
         T::get_record(self, name)
     }
 
@@ -902,7 +589,7 @@ impl<T: SemanticTokenKnowledge + ?Sized> SemanticTokenKnowledge for &T {
 }
 
 impl LspKnowledge for BuiltinData {
-    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, Record)> {
+    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, &Record)> {
         let record = BuiltinData::get_record(self, name)?;
         let package = record.package.clone().unwrap_or_else(|| "Core".to_string());
         Some((package, record))
@@ -913,7 +600,7 @@ impl LspKnowledge for BuiltinData {
             .into_iter()
             .map(|name| {
                 let package = BuiltinData::get_record(self, &InstanceID::new(name))
-                    .and_then(|record| record.package)
+                    .and_then(|record| record.package.clone())
                     .unwrap_or_else(|| "Core".to_string());
                 (package, name.to_string())
             })
@@ -925,7 +612,7 @@ impl LspKnowledge for BuiltinData {
             .into_iter()
             .map(|name| {
                 let package = BuiltinData::get_record(self, &InstanceID::new(name))
-                    .and_then(|record| record.package)
+                    .and_then(|record| record.package.clone())
                     .unwrap_or_else(|| "Core".to_string());
                 (package, name.to_string())
             })
@@ -975,7 +662,7 @@ impl TypeKnowledge for NoTypeKnowledge {
         false
     }
 
-    fn get_record(&self, _name: &InstanceID) -> Option<Record> {
+    fn get_record(&self, _name: &InstanceID) -> Option<&Record> {
         None
     }
 
@@ -1092,47 +779,8 @@ fn signature_domain_key(signature: &[InstanceID]) -> Option<Vec<String>> {
     )
 }
 
-impl Record {
-    /// A record with only its identity known — used when a `details` line fails
-    /// to parse, or as the base for records synthesized from the typecheck index.
-    fn unknown(name: InstanceID) -> Self {
-        Record {
-            name,
-            class: InstanceID::new("Thing"),
-            description_short: None,
-            examples: Vec::new(),
-            package: None,
-            source_file: None,
-            typical_value: None,
-            function_info: None,
-            option_info: None,
-            operator_info: None,
-            type_info: None,
-            protected: None,
-        }
-    }
-
-    pub fn option_role(&self) -> Option<&'static str> {
-        if self.has_description("option value")
-            || self.has_description("value of an optional argument")
-        {
-            Some("value")
-        } else if self.has_description("an optional argument") {
-            Some("key")
-        } else {
-            None
-        }
-    }
-
-    fn has_description(&self, needle: &str) -> bool {
-        self.description_short
-            .as_deref()
-            .is_some_and(|description| description.contains(needle))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// The LSP-standard token types emitted for M2 syntax and indexed metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum M2SemanticTokenType {
     Type = 0,
@@ -1160,38 +808,10 @@ pub enum M2SemanticTokenProvenance {
     Builtin,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AlgebraicSemanticKind {
-    Ring,
-    PolynomialRing,
-    QuotientRing,
-    RingElement,
-    Ideal,
-    MonomialIdeal,
-    Module,
-    Matrix,
-    RingMap,
-}
-
-impl AlgebraicSemanticKind {
-    pub fn standard_token_type(self) -> M2SemanticTokenType {
-        match self {
-            Self::Ring | Self::PolynomialRing | Self::QuotientRing => M2SemanticTokenType::Type,
-            Self::RingElement
-            | Self::Ideal
-            | Self::MonomialIdeal
-            | Self::Module
-            | Self::Matrix
-            | Self::RingMap => M2SemanticTokenType::Variable,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// A semantic-token role plus M2-specific modifier facts for one identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct M2SemanticToken {
     pub token_type: M2SemanticTokenType,
-    pub algebraic_kind: Option<AlgebraicSemanticKind>,
     pub is_command: bool,
     pub is_file: bool,
     pub is_manipulator: bool,
@@ -1199,175 +819,20 @@ pub struct M2SemanticToken {
     pub provenance: M2SemanticTokenProvenance,
 }
 
-/// Conversion contract from one typed index entry into the common feature
-/// record. Shared identity/class/package handling lives here; each entry kind
-/// contributes only the facts it actually owns.
-trait RecordEntry: IndexedEntry {
-    fn default_class(&self) -> &'static str;
-
-    fn add_facts(&self, _record: &mut Record) {}
-
-    fn to_record(&self) -> Record {
-        let mut record = Record::unknown(InstanceID::new(self.name()));
-        record.class = InstanceID::new(self.class().unwrap_or(self.default_class()));
-        record.package = self.package().map(ToString::to_string);
-        self.add_facts(&mut record);
-        record
-    }
-}
-
-impl RecordEntry for crate::builtin_index::TypeEntry {
-    fn default_class(&self) -> &'static str {
-        "Type"
-    }
-
-    fn add_facts(&self, record: &mut Record) {
-        record.type_info = Some(TypeInfo {
-            subtypes: self
-                .subtypes
-                .iter()
-                .map(|subtype| InstanceID::new(subtype))
-                .collect(),
-            parent_type: self.immediate_parent.as_deref().map(InstanceID::new),
-        });
-    }
-}
-
-impl RecordEntry for crate::builtin_index::CallableEntry {
-    fn default_class(&self) -> &'static str {
-        if self.is_operator {
-            "Keyword"
-        } else {
-            "Function"
-        }
-    }
-
-    fn add_facts(&self, record: &mut Record) {
-        let methods = self
-            .signatures
-            .iter()
-            .map(|signature| {
-                let mut method = Vec::with_capacity(signature.domain.len() + 1);
-                method.push(InstanceID::new(self.name()));
-                method.extend(signature.domain.iter().map(|part| InstanceID::new(part)));
-                MethodSignature { signature: method }
-            })
-            .collect();
-
-        let general_signature =
-            self.typical_value
-                .as_ref()
-                .map(|typical_value| DocumentedMethodSignature {
-                    signature: vec![InstanceID::new(self.name())],
-                    output_types: vec![InstanceID::new(typical_value)],
-                    examples: Vec::new(),
-                    doc_key: None,
-                });
-
-        record.function_info = Some(FunctionInfo {
-            methods,
-            documented_methods: Vec::new(),
-            general_signature,
-        });
-
-        if !self.options.is_empty() {
-            record.option_info = Some(OptionInfo {
-                options: self
-                    .options
-                    .iter()
-                    .map(|option| MethodOption {
-                        name: InstanceID::new(&option.key),
-                    })
-                    .collect(),
-            });
-        }
-
-        if self.is_operator {
-            record.operator_info = Some(OperatorInfo {
-                method_symbol: InstanceID::new(self.name()),
-                forms: self.operator_forms.clone(),
-                form_attributes: self.operator_attributes.clone(),
-            });
-        }
-
-        record.typical_value.clone_from(&self.typical_value);
-    }
-}
-
-impl RecordEntry for crate::builtin_index::ObjectEntry {
-    fn default_class(&self) -> &'static str {
-        "Thing"
-    }
-
-    fn add_facts(&self, record: &mut Record) {
-        record.protected = self.protected;
-    }
-}
-
-#[derive(Default)]
-struct BuiltinDataBuilder {
-    primary_names: Vec<InstanceID>,
-    record_index_by_name: HashMap<InstanceID, usize>,
-    records: Vec<Record>,
-    hover_markdown_by_name: HashMap<InstanceID, String>,
-}
-
-impl BuiltinDataBuilder {
-    fn append<T: RecordEntry>(&mut self, entries: &[T]) {
-        for entry in entries {
-            let id = self.records.len();
-            register_entry_keys(&mut self.record_index_by_name, entry, id, InstanceID::new);
-            let name = InstanceID::new(entry.name());
-            self.primary_names.push(name.clone());
-            if let Some(markdown) = entry.markdown() {
-                self.hover_markdown_by_name
-                    .entry(name)
-                    .or_insert_with(|| markdown.to_string());
-            }
-            self.records.push(entry.to_record());
-        }
-    }
-
-    fn finish(self, type_facts: TypeFacts, type_lattice: TypeLattice) -> BuiltinData {
-        BuiltinData {
-            primary_names: self.primary_names,
-            record_index_by_name: self.record_index_by_name,
-            records: self.records,
-            hover_markdown_by_name: self.hover_markdown_by_name,
-            type_facts,
-            type_lattice,
-        }
-    }
-}
-
 impl BuiltinData {
-    /// Build a `BuiltinData` from an already-parsed `BuiltinIndex`. Hover
-    /// markdown is folded into each entry by the corpus generator, so the docs
-    /// map is built here from the entries themselves — no separate docs asset.
-    pub fn from_index(index: &crate::builtin_index::BuiltinIndex) -> Self {
-        let type_lattice = TypeLattice::from_type_index(index);
-        let type_facts = TypeFacts::from_type_index(index);
-
-        let mut records = BuiltinDataBuilder::default();
-        records.append(index.types());
-        records.append(index.callables());
-        records.append(index.objects());
-        records.finish(type_facts, type_lattice)
-    }
-
     /// Build a `BuiltinData` over the whole combined corpus (`m2-index.jsonl`).
     /// Production routes through `PackagePartitionedIndex::from_corpus` and uses
     /// only the Core partition; this whole-corpus convenience is for tests.
     #[cfg(test)]
     pub fn load_from_index(corpus: &str) -> Self {
-        Self::from_index(&crate::builtin_index::BuiltinIndex::load(corpus))
+        Self::from_index(crate::builtin_index::BuiltinIndex::load(corpus))
     }
 
     /// An empty index — no records, no facts, empty lattice. For tests and
     /// snapshots that need a `BuiltinData` placeholder with no builtin knowledge.
     #[cfg(test)]
     pub fn empty() -> Self {
-        Self::from_index(&crate::builtin_index::BuiltinIndex::default())
+        Self::from_index(crate::builtin_index::BuiltinIndex::default())
     }
 
     /// Classify an indexed object by its runtime class and hierarchy for LSP
@@ -1381,10 +846,21 @@ impl BuiltinData {
         semantic_token_for_static_type_from_knowledge(self, type_name)
     }
 
-    /// Check if child is a subtype of parent (inclusive), using the precomputed lattice.
+    /// Check if child is a subtype of parent (inclusive), using the normalized
+    /// ancestor chain stored on the canonical type record.
     pub fn is_subtype(&self, child: impl AsRef<str>, parent: impl AsRef<str>) -> bool {
-        self.type_lattice
-            .is_subtype(child.as_ref(), parent.as_ref())
+        let child = child.as_ref();
+        let parent = parent.as_ref();
+        child == parent
+            || self
+                .get_record(&InstanceID::new(child))
+                .and_then(|record| record.type_info.as_ref())
+                .is_some_and(|type_info| {
+                    type_info
+                        .ancestors
+                        .binary_search_by(|candidate| candidate.as_ref().cmp(parent))
+                        .is_ok()
+                })
     }
 }
 
@@ -1403,8 +879,6 @@ pub(crate) fn semantic_token_from_knowledge(
         || knowledge.is_subtype(data_type.as_ref(), "CompiledFunctionClosure");
     let is_constructor =
         indexed_name_is_constructor(knowledge, &record.name.0) && !is_manipulator && !is_command;
-    let algebraic_kind = algebraic_semantic_kind(knowledge, record.name.as_ref())
-        .or_else(|| algebraic_semantic_kind(knowledge, data_type.as_ref()));
     let provenance = if is_compiled_function {
         M2SemanticTokenProvenance::Builtin
     } else if record.package.as_deref() == Some("Core") {
@@ -1416,14 +890,13 @@ pub(crate) fn semantic_token_from_knowledge(
     // An indexed type whose own class is `Type` is an M2 class (for example
     // `Array`). Other type-valued objects, such as `ZZ` whose class is `Ring`,
     // keep the standard `type` role.
-    if record_is_type_like(&record) {
+    if record_is_type_like(record) {
         return Some(M2SemanticToken {
             token_type: if data_type.as_ref() == "Type" {
                 M2SemanticTokenType::Class
             } else {
                 M2SemanticTokenType::Type
             },
-            algebraic_kind,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1455,7 +928,6 @@ pub(crate) fn semantic_token_from_knowledge(
 
         Some(M2SemanticToken {
             token_type,
-            algebraic_kind,
             is_command,
             is_file: false,
             is_manipulator,
@@ -1465,7 +937,6 @@ pub(crate) fn semantic_token_from_knowledge(
     } else if knowledge.is_subtype(data_type.as_ref(), "Package") {
         Some(M2SemanticToken {
             token_type: M2SemanticTokenType::Namespace,
-            algebraic_kind,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1487,7 +958,6 @@ pub(crate) fn semantic_token_from_knowledge(
 
         Some(M2SemanticToken {
             token_type,
-            algebraic_kind,
             is_command: false,
             is_file,
             is_manipulator: false,
@@ -1496,14 +966,9 @@ pub(crate) fn semantic_token_from_knowledge(
         })
     } else {
         // Every remaining indexed object is still a known global value. Its
-        // runtime class has no standard LSP role, so retain `variable` and let
-        // provenance/type modifiers specialize it.
+        // runtime class has no standard LSP role, so retain `variable`.
         Some(M2SemanticToken {
-            token_type: algebraic_kind.map_or(
-                M2SemanticTokenType::Variable,
-                AlgebraicSemanticKind::standard_token_type,
-            ),
-            algebraic_kind,
+            token_type: M2SemanticTokenType::Variable,
             is_command: false,
             is_file: false,
             is_manipulator: false,
@@ -1521,11 +986,8 @@ pub(crate) fn semantic_token_for_static_type_from_knowledge(
     let is_file = knowledge.is_subtype(type_name, "File");
     let is_manipulator = knowledge.is_subtype(type_name, "Manipulator");
     let is_type_valued = knowledge.is_subtype(type_name, "Type");
-    let algebraic_kind = algebraic_semantic_kind(knowledge, type_name);
 
-    let token_type = if let Some(kind) = algebraic_kind {
-        kind.standard_token_type()
-    } else if type_name.starts_with("MethodFunction") {
+    let token_type = if type_name.starts_with("MethodFunction") {
         M2SemanticTokenType::Method
     } else if knowledge.is_subtype(type_name, "Package") {
         M2SemanticTokenType::Namespace
@@ -1560,33 +1022,11 @@ pub(crate) fn semantic_token_for_static_type_from_knowledge(
 
     Some(M2SemanticToken {
         token_type,
-        algebraic_kind,
         is_command,
         is_file,
         is_manipulator,
         is_constructor: false,
         provenance: M2SemanticTokenProvenance::None,
-    })
-}
-
-pub(crate) fn algebraic_semantic_kind(
-    knowledge: &(impl TypeKnowledge + ?Sized),
-    type_name: &str,
-) -> Option<AlgebraicSemanticKind> {
-    [
-        ("QuotientRing", AlgebraicSemanticKind::QuotientRing),
-        ("PolynomialRing", AlgebraicSemanticKind::PolynomialRing),
-        ("MonomialIdeal", AlgebraicSemanticKind::MonomialIdeal),
-        ("Ideal", AlgebraicSemanticKind::Ideal),
-        ("Matrix", AlgebraicSemanticKind::Matrix),
-        ("Module", AlgebraicSemanticKind::Module),
-        ("RingMap", AlgebraicSemanticKind::RingMap),
-        ("RingElement", AlgebraicSemanticKind::RingElement),
-        ("Ring", AlgebraicSemanticKind::Ring),
-    ]
-    .into_iter()
-    .find_map(|(ancestor, kind)| {
-        (type_name == ancestor || knowledge.is_subtype(type_name, ancestor)).then_some(kind)
     })
 }
 
@@ -1601,7 +1041,7 @@ fn indexed_name_is_constructor(knowledge: &(impl TypeKnowledge + ?Sized), name: 
 
     knowledge
         .get_record(&InstanceID::new(target_name))
-        .is_some_and(|record| record_is_type_like(&record))
+        .is_some_and(record_is_type_like)
 }
 
 fn record_is_type_like(record: &Record) -> bool {
@@ -1749,7 +1189,7 @@ mod tests {
         assert_eq!(
             builtins
                 .get_record(&InstanceID::new("pi"))
-                .map(|record| record.class.0),
+                .map(|record| record.class.0.clone()),
             Some("Constant".to_string()),
             "objects should be pooled as records carrying their class"
         );
@@ -1774,7 +1214,7 @@ mod tests {
         // `>` is flexible as a prefix but NOT as a binary — the asymmetric case.
         let greater = builtins
             .get_record(&InstanceID::new(">"))
-            .and_then(|record| record.operator_info)
+            .and_then(|record| record.operator_info.clone())
             .expect("> operator should carry operator info");
         assert!(greater.is_flexible("prefix"), "> is flexible as a prefix");
         assert!(
@@ -1785,7 +1225,7 @@ mod tests {
         // `-` is flexible in both forms.
         let minus = builtins
             .get_record(&InstanceID::new("-"))
-            .and_then(|record| record.operator_info)
+            .and_then(|record| record.operator_info.clone())
             .expect("- operator should carry operator info");
         assert!(minus.is_flexible("binary"), "- is flexible as a binary");
         assert!(minus.is_flexible("prefix"), "- is flexible as a prefix");

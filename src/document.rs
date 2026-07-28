@@ -1,6 +1,8 @@
 //! Versioned document snapshots that combine source text, parse tree, and
 //! analysis for LSP requests.
 
+use std::ops::Range as ByteRange;
+
 use crate::macro_syntax::MacroSyntax;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
@@ -12,20 +14,138 @@ use crate::analysis::{Analysis, BindingView, FunctionInfo};
 use crate::documentation::{collect_documentation, DocumentationReference, DocumentationSnippet};
 use crate::package_index::collect_imported_packages_in_tree;
 use crate::typesystem::TypeKnowledgeProvider;
-use crate::util::{
-    byte_index_from_lsp_position, floor_char_boundary, node_range,
-    tree_sitter_point_from_byte_index, tree_sitter_point_from_lsp_position,
-};
+use crate::util::{floor_char_boundary, utf16_col_to_byte, utf16_len_for_byte_span};
 
 #[derive(Debug)]
 pub(crate) struct DocumentSnapshot {
     text: String,
+    navigation: DocumentNavigation,
     macro_syntax: MacroSyntax,
     tree: Tree,
     analysis: Analysis,
     imported_packages: Vec<String>,
     documentation_snippets: Vec<DocumentationSnippet>,
     documentation_references: Vec<DocumentationReference>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DocumentSpan {
+    pub bytes: ByteRange<usize>,
+    pub range: Range,
+}
+
+#[derive(Debug)]
+struct DocumentNavigation {
+    lines: Vec<DocumentLine>,
+}
+
+#[derive(Debug)]
+struct DocumentLine {
+    start_byte: usize,
+    content_end_byte: usize,
+}
+
+impl DocumentNavigation {
+    fn new(text: &str) -> Self {
+        let mut lines = Vec::new();
+        let mut start_byte = 0;
+        for segment in text.split_inclusive('\n') {
+            let content = segment.strip_suffix('\n').unwrap_or(segment);
+            let content = content.strip_suffix('\r').unwrap_or(content);
+            lines.push(DocumentLine {
+                start_byte,
+                content_end_byte: start_byte + content.len(),
+            });
+            start_byte += segment.len();
+        }
+        if text.is_empty() || text.ends_with('\n') {
+            lines.push(DocumentLine {
+                start_byte: text.len(),
+                content_end_byte: text.len(),
+            });
+        }
+        Self { lines }
+    }
+
+    fn line_for_byte(&self, byte_index: usize) -> (usize, &DocumentLine) {
+        let line_index = self
+            .lines
+            .partition_point(|line| line.start_byte <= byte_index)
+            .saturating_sub(1);
+        (line_index, &self.lines[line_index])
+    }
+
+    fn position_for_byte(&self, text: &str, byte_index: usize) -> Position {
+        let byte_index = floor_char_boundary(text, byte_index);
+        let (line_index, line) = self.line_for_byte(byte_index);
+        let byte_index = byte_index.min(line.content_end_byte);
+        Position::new(
+            line_index as u32,
+            utf16_len_for_byte_span(text, line.start_byte, byte_index),
+        )
+    }
+
+    fn byte_for_position(&self, text: &str, position: Position) -> Option<usize> {
+        let line = self.lines.get(position.line as usize)?;
+        let content = &text[line.start_byte..line.content_end_byte];
+        Some(line.start_byte + utf16_col_to_byte(content, position.character))
+    }
+
+    fn point_for_position(&self, text: &str, position: Position) -> Option<Point> {
+        let line = self.lines.get(position.line as usize)?;
+        let byte_index = self.byte_for_position(text, position)?;
+        Some(Point::new(
+            position.line as usize,
+            byte_index - line.start_byte,
+        ))
+    }
+
+    fn span(&self, text: &str, bytes: ByteRange<usize>) -> DocumentSpan {
+        DocumentSpan {
+            range: Range::new(
+                self.position_for_byte(text, bytes.start),
+                self.position_for_byte(text, bytes.end),
+            ),
+            bytes,
+        }
+    }
+
+    fn visible_ranges(&self, text: &str, span: &DocumentSpan) -> Vec<Range> {
+        let mut ranges = Vec::new();
+        let first_line = span.range.start.line as usize;
+        let last_line = span.range.end.line as usize;
+
+        for line_index in first_line..=last_line {
+            let line = &self.lines[line_index];
+            let start_byte = if line_index == first_line {
+                span.bytes.start
+            } else {
+                line.start_byte
+            }
+            .min(line.content_end_byte);
+            let end_byte = if line_index == last_line {
+                span.bytes.end
+            } else {
+                line.content_end_byte
+            }
+            .min(line.content_end_byte);
+            if start_byte >= end_byte {
+                continue;
+            }
+
+            let start = if line_index == first_line {
+                span.range.start
+            } else {
+                Position::new(line_index as u32, 0)
+            };
+            let length = utf16_len_for_byte_span(text, start_byte, end_byte);
+            ranges.push(Range::new(
+                start,
+                Position::new(start.line, start.character + length),
+            ));
+        }
+        ranges
+    }
 }
 
 /// The common first step of every reference / highlight / rename request: the
@@ -55,8 +175,10 @@ impl DocumentSnapshot {
         let analysis = Analysis::new_with_knowledge(&tree, &text, &knowledge);
         let (documentation_snippets, documentation_references) =
             collect_documentation(&text, &tree);
+        let navigation = DocumentNavigation::new(&text);
         Some(Self {
             text,
+            navigation,
             macro_syntax,
             tree,
             analysis,
@@ -196,11 +318,23 @@ impl DocumentSnapshot {
     }
 
     pub(crate) fn range_for(&self, node: M2Node<'_>) -> Range {
-        node_range(node)
+        self.span_for(node).range
+    }
+
+    pub(crate) fn span_for(&self, node: M2Node<'_>) -> DocumentSpan {
+        self.span_for_bytes(node.start_byte()..node.end_byte())
+    }
+
+    pub(crate) fn span_for_bytes(&self, bytes: ByteRange<usize>) -> DocumentSpan {
+        self.navigation.span(&self.text, bytes)
+    }
+
+    pub(crate) fn visible_ranges(&self, span: &DocumentSpan) -> Vec<Range> {
+        self.navigation.visible_ranges(&self.text, span)
     }
 
     pub(crate) fn point_for_position(&self, position: Position) -> Option<Point> {
-        tree_sitter_point_from_lsp_position(&self.text, position)
+        self.navigation.point_for_position(&self.text, position)
     }
 
     pub(crate) fn node_at_position_minimal(&self, position: Position) -> Option<M2Node<'_>> {
@@ -261,14 +395,16 @@ impl DocumentSnapshot {
     ) -> Option<()> {
         let start_byte = floor_char_boundary(
             &self.text,
-            byte_index_from_lsp_position(&self.text, range.start)?,
+            self.navigation.byte_for_position(&self.text, range.start)?,
         );
         let old_end_byte = floor_char_boundary(
             &self.text,
-            byte_index_from_lsp_position(&self.text, range.end)?,
+            self.navigation.byte_for_position(&self.text, range.end)?,
         );
-        let start_position = tree_sitter_point_from_byte_index(&self.text, start_byte);
-        let old_end_position = tree_sitter_point_from_byte_index(&self.text, old_end_byte);
+        let start_position = self
+            .navigation
+            .point_for_position(&self.text, range.start)?;
+        let old_end_position = self.navigation.point_for_position(&self.text, range.end)?;
         let new_end_byte = start_byte + replacement.len();
         let new_end_position = advance_point(start_position, replacement);
 
@@ -302,6 +438,7 @@ impl DocumentSnapshot {
         let (documentation_snippets, documentation_references) =
             collect_documentation(&self.text, &tree);
         self.imported_packages = imported_packages;
+        self.navigation = DocumentNavigation::new(&self.text);
         self.macro_syntax = macro_syntax;
         self.tree = tree;
         self.analysis = analysis;
@@ -330,8 +467,8 @@ fn advance_point(start: Point, inserted_text: &str) -> Point {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::builtin_index::BuiltinData;
     use crate::partitioned_index::PackagePartitionedIndex;
-    use crate::typesystem::BuiltinData;
 
     fn builtins() -> BuiltinData {
         BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"))
@@ -561,6 +698,55 @@ mod tests {
                 .keys()
                 .all(|span| span.range.start.line == 0),
             "retained expression facts must shift from line 2 to line 0"
+        );
+    }
+
+    #[test]
+    fn moving_a_method_installation_rebuilds_its_source_span_and_identity_link() {
+        let builtins = builtins();
+        let mut document = DocumentSnapshot::from_text(
+            "f = method()\nf ZZ := Ring => x -> x\n".to_string(),
+            &builtins,
+        )
+        .expect("fixture should parse");
+
+        let callable = document
+            .analysis()
+            .function("f")
+            .expect("method function should be registered");
+        assert_eq!(
+            callable.methods,
+            vec![document.analysis().installations[0].id]
+        );
+        assert_eq!(
+            document.analysis().installations[0].span.range.start.line,
+            1
+        );
+
+        document
+            .apply_changes(
+                &[TextDocumentContentChangeEvent {
+                    range: Some(Range::new(Position::new(0, 0), Position::new(0, 0))),
+                    range_length: None,
+                    text: "-- moved down\n".to_string(),
+                }],
+                &builtins,
+            )
+            .expect("insertion should rebuild the document snapshot");
+
+        let callable = document
+            .analysis()
+            .function("f")
+            .expect("shifted method function should be registered");
+        let installation = &document.analysis().installations[0];
+        assert_eq!(callable.methods, vec![installation.id]);
+        assert_eq!(installation.span.range.start.line, 2);
+        assert_eq!(
+            installation
+                .codomain
+                .as_ref()
+                .map(crate::analysis::TypeRef::name),
+            Some("Ring")
         );
     }
 

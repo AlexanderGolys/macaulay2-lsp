@@ -6,13 +6,14 @@
 
 use std::collections::HashMap;
 
-use crate::builtin_index::{BuiltinIndex, PackageName};
+use crate::builtin_index::{
+    BuiltinData, BuiltinIndex, InstanceID, MethodSignature, PackageName, Record,
+};
 use crate::package_index::collect_imported_packages;
 use crate::typesystem::{
-    semantic_token_for_static_type_from_knowledge, semantic_token_from_knowledge, BuiltinData,
-    InstanceID, LspKnowledge, M2SemanticToken, MethodSignature, PartitionedTypeKnowledge, Record,
-    ResolvedSignature, SemanticTokenKnowledge, SignatureUsage, TypeKnowledge,
-    TypeKnowledgeProvider,
+    semantic_token_for_static_type_from_knowledge, semantic_token_from_knowledge, LspKnowledge,
+    M2SemanticToken, PartitionedTypeKnowledge, ResolvedSignature, SemanticTokenKnowledge,
+    SignatureUsage, TypeKnowledge, TypeKnowledgeProvider,
 };
 
 /// Every shipped package's `BuiltinData`, keyed by home package, plus the
@@ -30,14 +31,13 @@ impl PackagePartitionedIndex {
     /// without it is corrupt, so we fail fast rather than guess.
     pub fn from_corpus(corpus: &str) -> Self {
         let index = BuiltinIndex::load(corpus);
-        let sub_indexes = index.partition_by_package();
+        let (sub_indexes, default_loaded) = index.into_package_partitions();
 
         let partitions = sub_indexes
-            .iter()
-            .map(|(package, sub_index)| (package.clone(), BuiltinData::from_index(sub_index)))
+            .into_iter()
+            .map(|(package, sub_index)| (package, BuiltinData::from_index(sub_index)))
             .collect();
 
-        let default_loaded = index.default_loaded();
         assert!(
             !default_loaded.is_empty(),
             "corpus is missing the mandatory leading `meta` record with default_loaded"
@@ -45,7 +45,7 @@ impl PackagePartitionedIndex {
 
         PackagePartitionedIndex {
             partitions,
-            default_loaded: default_loaded.to_vec(),
+            default_loaded,
         }
     }
 
@@ -90,7 +90,7 @@ impl TypeKnowledgeProvider for PackagePartitionedIndex {
 }
 
 impl PartitionedTypeKnowledge for PackagePartitionedIndex {
-    fn get_record_from_package(&self, package: &str, name: &InstanceID) -> Option<Record> {
+    fn get_record_from_package(&self, package: &str, name: &InstanceID) -> Option<&Record> {
         self.partition(package)?.get_record(name)
     }
 }
@@ -144,11 +144,11 @@ impl<'a> ScopedIndex<'a> {
             .find_map(|(package, data)| query(package, data))
     }
 
-    pub fn get_record_with_package(&self, name: &InstanceID) -> Option<(&'a str, Record)> {
+    pub fn get_record_with_package(&self, name: &InstanceID) -> Option<(&'a str, &'a Record)> {
         self.find_map(|package, data| data.get_record(name).map(|record| (package, record)))
     }
 
-    pub fn get_record(&self, name: &InstanceID) -> Option<Record> {
+    pub fn get_record(&self, name: &InstanceID) -> Option<&'a Record> {
         self.get_record_with_package(name).map(|(_, record)| record)
     }
 
@@ -204,7 +204,7 @@ impl TypeKnowledge for ScopedIndex<'_> {
         true
     }
 
-    fn get_record(&self, name: &InstanceID) -> Option<Record> {
+    fn get_record(&self, name: &InstanceID) -> Option<&Record> {
         ScopedIndex::get_record(self, name)
     }
 
@@ -252,7 +252,7 @@ impl SemanticTokenKnowledge for ScopedIndex<'_> {
 }
 
 impl LspKnowledge for ScopedIndex<'_> {
-    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, Record)> {
+    fn get_record_with_package(&self, name: &InstanceID) -> Option<(String, &Record)> {
         ScopedIndex::get_record_with_package(self, name)
             .map(|(package, record)| (package.to_string(), record))
     }
@@ -333,9 +333,7 @@ mod tests {
     fn from_corpus_builds_a_core_partition() {
         let index = PackagePartitionedIndex::from_corpus(corpus());
         let core = index.partition("Core").expect("Core partition present");
-        assert!(core
-            .get_record(&crate::typesystem::InstanceID::new("ZZ"))
-            .is_some());
+        assert!(core.get_record(&InstanceID::new("ZZ")).is_some());
     }
 
     #[test]
@@ -377,12 +375,8 @@ mod tests {
 
         // JSON ships as its own partition with its symbols...
         let json = index.partition("JSON").expect("JSON partition present");
-        assert!(json
-            .get_record(&crate::typesystem::InstanceID::new("toJSON"))
-            .is_some());
-        assert!(json
-            .get_record(&crate::typesystem::InstanceID::new("fromJSON"))
-            .is_some());
+        assert!(json.get_record(&InstanceID::new("toJSON")).is_some());
+        assert!(json.get_record(&InstanceID::new("fromJSON")).is_some());
 
         // ...but it is NOT autoloaded: absent from the default-loaded baseline...
         assert!(
@@ -393,9 +387,7 @@ mod tests {
         // ...and absent from the Core partition (so self.builtins won't resolve
         // it until P3 routes imports through loaded partitions).
         let core = index.partition("Core").expect("Core partition present");
-        assert!(core
-            .get_record(&crate::typesystem::InstanceID::new("toJSON"))
-            .is_none());
+        assert!(core.get_record(&InstanceID::new("toJSON")).is_none());
     }
 
     #[test]

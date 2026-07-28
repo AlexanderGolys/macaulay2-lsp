@@ -121,7 +121,7 @@ fn expression_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<Inla
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::typesystem::BuiltinData;
+    use crate::builtin_index::BuiltinData;
     use tower_lsp::lsp_types::Position;
 
     fn hints(text: &str, expression_types: bool) -> Vec<InlayHint> {

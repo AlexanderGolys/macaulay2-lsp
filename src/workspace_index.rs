@@ -6,6 +6,7 @@
 //! file's global definitions is a faithful model: a name used in one file and
 //! defined at the top level of another resolves across the project.
 
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
@@ -80,13 +81,10 @@ impl WorkspaceIndex {
                 let Ok(uri) = Url::from_file_path(&path) else {
                     continue;
                 };
-                // A file already in the index is owned by an open buffer (indexed
-                // live) or was already visited this scan; don't overwrite it with
-                // potentially stale disk content.
                 if self.names_by_file.contains_key(&uri) {
                     continue;
                 }
-                let Ok(text) = std::fs::read_to_string(&path) else {
+                let Ok(text) = fs::read_to_string(&path) else {
                     continue;
                 };
                 self.index_file(&uri, &text, knowledge_provider);
@@ -188,7 +186,7 @@ impl WorkspaceDefinitionKnowledge for WorkspaceIndex {
 
 /// Recursively collect `.m2` files, skipping hidden, build, and vendored dirs.
 fn collect_m2_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
+    let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
     for entry in entries.flatten() {
@@ -238,8 +236,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::builtin_index::BuiltinData;
     use crate::partitioned_index::PackagePartitionedIndex;
-    use crate::typesystem::BuiltinData;
 
     #[test]
     fn indexes_and_looks_up_cross_file_definitions() {

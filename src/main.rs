@@ -804,10 +804,10 @@ mod tests {
 
     use super::*;
     use crate::analysis::Analysis;
+    use crate::builtin_index::BuiltinData;
     use crate::capabilities::formatting::FormattingConfiguration;
     use crate::diagnostic_registry::M2Diagnostic;
     use crate::record_lsp::record_hover_with_package_and_usage;
-    use crate::typesystem::BuiltinData;
     use tower::Service;
     use tower_lsp::jsonrpc::{Request as JsonRpcRequest, Response as JsonRpcResponse};
     use tree_sitter::Parser;
@@ -868,7 +868,7 @@ mod tests {
             service
                 .inner()
                 .with_scoped_document(&uri, |_, knowledge| knowledge
-                    .get_record(&typesystem::InstanceID::new("toJSON"))
+                    .get_record(&builtin_index::InstanceID::new("toJSON"))
                     .is_some()),
             Some(true)
         );
@@ -1128,10 +1128,10 @@ mod tests {
     fn record_hover_includes_explicit_package_context() {
         let builtins = BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"));
         let record = builtins
-            .get_record(&typesystem::InstanceID::new("clearAll"))
+            .get_record(&builtin_index::InstanceID::new("clearAll"))
             .expect("clearAll should have builtin metadata");
 
-        let hover = record_hover_with_package_and_usage(&record, Some("Core"), &builtins, None);
+        let hover = record_hover_with_package_and_usage(record, Some("Core"), &builtins, None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };
@@ -1165,10 +1165,10 @@ mod tests {
         );
         let builtins = BuiltinData::load_from_index(corpus);
         let record = builtins
-            .get_record(&typesystem::InstanceID::new("kernel"))
+            .get_record(&builtin_index::InstanceID::new("kernel"))
             .expect("kernel should deserialize");
 
-        let hover = record_hover_with_package_and_usage(&record, Some("Core"), &builtins, None);
+        let hover = record_hover_with_package_and_usage(record, Some("Core"), &builtins, None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };
@@ -1189,10 +1189,10 @@ mod tests {
             "{\"kind\":\"methodFunction\",\"name\":\"method\",\"typical_value\":\"MethodFunction\"}\n",
         );
         let record = builtins
-            .get_record(&typesystem::InstanceID::new("method"))
+            .get_record(&builtin_index::InstanceID::new("method"))
             .expect("method should deserialize");
 
-        let hover = record_hover_with_package_and_usage(&record, Some("Core"), &builtins, None);
+        let hover = record_hover_with_package_and_usage(record, Some("Core"), &builtins, None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };
@@ -1206,10 +1206,10 @@ mod tests {
             "{\"kind\":\"operator\",\"name\":\"=>\",\"operator\":{\"forms\":[\"binary\"]},\"methods\":[{\"domain\":[\"Thing\",\"Thing\"],\"typicalValue\":\"Option\"}]}\n",
         );
         let record = builtins
-            .get_record(&typesystem::InstanceID::new("=>"))
+            .get_record(&builtin_index::InstanceID::new("=>"))
             .expect("=> should have operator metadata");
 
-        let hover = record_hover_with_package_and_usage(&record, Some("Core"), &builtins, None);
+        let hover = record_hover_with_package_and_usage(record, Some("Core"), &builtins, None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };
@@ -1228,14 +1228,14 @@ mod tests {
             "]}\n",
         ));
         let record = builtins
-            .get_record(&typesystem::InstanceID::new("f"))
+            .get_record(&builtin_index::InstanceID::new("f"))
             .expect("f should have builtin metadata");
         let usage = builtins
             .resolve_call_signature_usage("f", &[Some("String".to_string())])
             .expect("f String should resolve to a documented installation");
 
         let hover =
-            record_hover_with_package_and_usage(&record, Some("Core"), &builtins, Some(&usage));
+            record_hover_with_package_and_usage(record, Some("Core"), &builtins, Some(&usage));
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };

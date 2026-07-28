@@ -6,9 +6,9 @@ use std::path::{Path, PathBuf};
 use tower_lsp::lsp_types::{Location, Position, Range, Url};
 use tree_sitter::Parser;
 
+use crate::builtin_index::Record;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::record_lsp::record_source_file;
-use crate::typesystem::Record;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SourceResolver {

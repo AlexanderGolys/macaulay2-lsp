@@ -45,14 +45,14 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
         let scope_idx = registry
             .expressions
             .get(&SpanKey {
-                range: installation.range,
+                range: installation.span.range,
             })
             .map_or(0, |fact| fact.scope_idx);
         declarations.push(Declaration {
             name: name.to_string(),
             detail: Some(method_signature_detail(analysis, installation, name)),
             kind: SymbolKind::METHOD,
-            range: installation.range,
+            range: installation.span.range,
             selection_range: installation.target.range,
             scope_idx,
             child_scope_idx: installation
@@ -246,9 +246,9 @@ fn build_scope_symbols(scope_idx: usize, by_scope: &mut [Vec<Declaration>]) -> V
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::builtin_index::BuiltinData;
     use crate::document::DocumentSnapshot;
     use crate::node_metadata::{M2Node, NodeKind};
-    use crate::typesystem::BuiltinData;
     use tower_lsp::lsp_types::{Position, Range};
     use tree_sitter::Parser;
 

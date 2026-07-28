@@ -53,11 +53,6 @@ pub(crate) fn byte_index_from_lsp_position(text: &str, position: Position) -> Op
     None
 }
 
-pub(crate) fn tree_sitter_point_from_lsp_position(text: &str, position: Position) -> Option<Point> {
-    let byte_index = byte_index_from_lsp_position(text, position)?;
-    Some(tree_sitter_point_from_byte_index(text, byte_index))
-}
-
 pub(crate) fn tree_sitter_point_from_byte_index(text: &str, byte_index: usize) -> Point {
     let byte_index = floor_char_boundary(text, byte_index);
     let prefix = &text[..byte_index];
@@ -82,10 +77,6 @@ pub(crate) fn to_lsp_range(text: &str, range: tree_sitter::Range) -> Range {
             utf16_len_for_byte_span(text, end_line_byte, range.end_byte),
         ),
     )
-}
-
-pub(crate) fn node_range(node: M2Node<'_>) -> Range {
-    to_lsp_range(node.source(), node.range())
 }
 
 pub(crate) fn range_from_byte_span(text: &str, start_byte: usize, end_byte: usize) -> Range {
@@ -146,17 +137,6 @@ pub(crate) fn full_document_range(text: &str) -> Range {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn tree_sitter_points_convert_utf16_to_byte_columns() {
-        let point = tree_sitter_point_from_lsp_position("é ideal", Position::new(0, 3))
-            .expect("position should be on the first line");
-        assert_eq!(point.column, 4);
-
-        let point = tree_sitter_point_from_lsp_position("😀 ideal", Position::new(0, 3))
-            .expect("position should be on the first line");
-        assert_eq!(point.column, 5);
-    }
 
     #[test]
     fn semantic_token_spans_use_utf16_units() {

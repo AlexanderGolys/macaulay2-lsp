@@ -2,7 +2,8 @@
 
 use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, SymbolKind};
 
-use crate::typesystem::{LspKnowledge, OperatorInfo, Record, ResolvedSignature, SignatureUsage};
+use crate::builtin_index::{OperatorInfo, Record};
+use crate::typesystem::{LspKnowledge, ResolvedSignature, SignatureUsage};
 
 pub(crate) fn record_package(record: &Record) -> Option<&str> {
     record.package.as_deref()
@@ -68,36 +69,30 @@ fn record_hover_markdown(
     markdown.push_str(&metadata.join(" · "));
     markdown.push_str("\n\n");
 
-    if let Some(option_role) = record.option_role() {
-        markdown.push_str(&format!("Option Role: `{option_role}`\n"));
-
-        match option_role {
-            "key" => {
-                let usages = knowledge.option_usage_names(&record.name.0, 8);
-                if !usages.is_empty() {
-                    markdown.push_str("**Accepted By Methods:**\n");
-                    for usage in usages {
-                        markdown.push_str(&format!("- `{usage}`\n"));
-                    }
-                    markdown.push('\n');
-                }
+    let option_key_usages = knowledge.option_usage_names(&record.name.0, 8);
+    let option_value_usages = knowledge.option_value_usage_names(&record.name.0, 8);
+    if !option_key_usages.is_empty() || !option_value_usages.is_empty() {
+        let role = match (option_key_usages.is_empty(), option_value_usages.is_empty()) {
+            (false, false) => "key, value",
+            (false, true) => "key",
+            (true, false) => "value",
+            (true, true) => unreachable!(),
+        };
+        markdown.push_str(&format!("Option Role: `{role}`\n"));
+        if !option_key_usages.is_empty() {
+            markdown.push_str("**Accepted By Methods:**\n");
+            for usage in option_key_usages {
+                markdown.push_str(&format!("- `{usage}`\n"));
             }
-            "value" => {
-                let usages = knowledge.option_value_usage_names(&record.name.0, 8);
-                if !usages.is_empty() {
-                    markdown.push_str("**Valid As Option Value:**\n");
-                    for usage in usages {
-                        markdown.push_str(&format!("- `{usage}`\n"));
-                    }
-                    markdown.push('\n');
-                }
-            }
-            _ => {}
+            markdown.push('\n');
         }
-    }
-
-    if let Some(desc) = &record.description_short {
-        markdown.push_str(&format!("{}\n\n", desc));
+        if !option_value_usages.is_empty() {
+            markdown.push_str("**Valid As Option Value:**\n");
+            for usage in option_value_usages {
+                markdown.push_str(&format!("- `{usage}`\n"));
+            }
+            markdown.push('\n');
+        }
     }
 
     if let Some(typical_value) = record_typical_value(record) {
@@ -136,7 +131,7 @@ fn record_hover_markdown(
 
     let mut documentation = HoverDocumentation::default();
     if let Some(doc) = knowledge.doc_markdown(&record.name) {
-        documentation = compact_documentation_markdown(&doc, record.description_short.as_deref());
+        documentation = compact_documentation_markdown(&doc);
         if !documentation.markdown.is_empty() {
             markdown.push_str("---\n\n");
             markdown.push_str(&documentation.markdown);
@@ -240,34 +235,21 @@ struct MarkdownFence {
     content: String,
 }
 
-fn compact_documentation_markdown(
-    documentation: &str,
-    description_short: Option<&str>,
-) -> HoverDocumentation {
+fn compact_documentation_markdown(documentation: &str) -> HoverDocumentation {
     let mut compact = HoverDocumentation::default();
     let mut section_name = String::new();
     let mut section_lines = Vec::new();
 
     for line in documentation.lines() {
         if let Some(heading) = documentation_section_heading(line) {
-            append_documentation_section(
-                &mut compact,
-                &section_name,
-                &section_lines,
-                description_short,
-            );
+            append_documentation_section(&mut compact, &section_name, &section_lines);
             section_name = heading.to_string();
             section_lines.clear();
         } else {
             section_lines.push(line);
         }
     }
-    append_documentation_section(
-        &mut compact,
-        &section_name,
-        &section_lines,
-        description_short,
-    );
+    append_documentation_section(&mut compact, &section_name, &section_lines);
     compact.markdown = compact.markdown.trim().to_string();
     compact
 }
@@ -281,7 +263,6 @@ fn append_documentation_section(
     compact: &mut HoverDocumentation,
     section_name: &str,
     lines: &[&str],
-    description_short: Option<&str>,
 ) {
     if matches!(section_name, "Methods" | "Method details") {
         return;
@@ -307,9 +288,7 @@ fn append_documentation_section(
         .filter(|line| !line.contains("_undocumented_"))
         .filter(|line| {
             if section_name.is_empty() {
-                !line.starts_with("# ")
-                    && !is_documentation_metadata(line)
-                    && description_short.is_none_or(|description| line.trim() != description.trim())
+                !line.starts_with("# ") && !is_documentation_metadata(line)
             } else {
                 true
             }
@@ -458,24 +437,7 @@ fn append_blockquote_fence(markdown: &mut String, language: &str, content: &str)
 }
 
 fn record_typical_value(record: &Record) -> Option<String> {
-    if let Some(typical_value) = &record.typical_value {
-        return Some(typical_value.clone());
-    }
-
-    record
-        .function_info
-        .as_ref()
-        .and_then(|info| info.general_signature.as_ref())
-        .and_then(|signature| {
-            (!signature.output_types.is_empty()).then(|| {
-                signature
-                    .output_types
-                    .iter()
-                    .map(|output| output.0.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" | ")
-            })
-        })
+    record.typical_value.clone()
 }
 
 fn signature_label(signature: &ResolvedSignature, operator_info: Option<&OperatorInfo>) -> String {
@@ -554,7 +516,7 @@ fn operator_method_key(method_key: &str) -> Option<(&str, bool)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::typesystem::{BuiltinData, InstanceID};
+    use crate::builtin_index::{BuiltinData, InstanceID};
     use tower_lsp::lsp_types::HoverContents;
 
     #[test]
@@ -578,7 +540,7 @@ mod tests {
         let record = knowledge
             .get_record(&InstanceID::new("scan"))
             .expect("scan should deserialize");
-        let hover = record_hover_with_package_and_usage(&record, Some("Core"), &knowledge, None);
+        let hover = record_hover_with_package_and_usage(record, Some("Core"), &knowledge, None);
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };
@@ -612,13 +574,48 @@ mod tests {
             "```text\no1 = 42\n```\n",
         );
 
-        let compact = compact_documentation_markdown(documentation, None);
+        let compact = compact_documentation_markdown(documentation);
 
         assert_eq!(compact.markdown.matches("> **Example").count(), 1);
         assert!(compact
             .markdown
             .contains("> ```macaulay2\n> value = computation()\n> ```"));
         assert!(compact.markdown.contains("> ```text\n> o1 = 42\n> ```"));
+    }
+
+    #[test]
+    fn option_roles_come_from_structured_option_relationships() {
+        let corpus = concat!(
+            "{\"kind\":\"function\",\"name\":\"compute\",\"options\":[",
+            "{\"key\":\"Strategy\",\"possibleValues\":[\"Fast\"]}]}\n",
+            "{\"kind\":\"symbol\",\"name\":\"Strategy\",\"class\":\"$Core$Symbol\"}\n",
+            "{\"kind\":\"symbol\",\"name\":\"Fast\",\"class\":\"$Core$Symbol\"}\n",
+        );
+        let knowledge = BuiltinData::load_from_index(corpus);
+
+        let key = knowledge
+            .get_record(&InstanceID::new("Strategy"))
+            .expect("option key should load");
+        let key_hover = record_hover_with_package_and_usage(key, None, &knowledge, None);
+        let HoverContents::Markup(key_markup) = key_hover.contents else {
+            panic!("record hover should use markdown");
+        };
+        assert!(key_markup.value.contains("Option Role: `key`"));
+        assert!(key_markup
+            .value
+            .contains("**Accepted By Methods:**\n- `compute`"));
+
+        let value = knowledge
+            .get_record(&InstanceID::new("Fast"))
+            .expect("option value should load");
+        let value_hover = record_hover_with_package_and_usage(value, None, &knowledge, None);
+        let HoverContents::Markup(value_markup) = value_hover.contents else {
+            panic!("record hover should use markdown");
+        };
+        assert!(value_markup.value.contains("Option Role: `value`"));
+        assert!(value_markup
+            .value
+            .contains("**Valid As Option Value:**\n- `compute.Strategy`"));
     }
 
     #[test]
@@ -634,7 +631,7 @@ mod tests {
             )
             .expect("scan should resolve the BasicList, Function usage");
         let hover =
-            record_hover_with_package_and_usage(&record, Some("Core"), &knowledge, Some(&usage));
+            record_hover_with_package_and_usage(record, Some("Core"), &knowledge, Some(&usage));
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("record hover should use markdown");
         };
