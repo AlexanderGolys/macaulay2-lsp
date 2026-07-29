@@ -7,13 +7,13 @@ use tower_lsp::lsp_types::{Range as LspRange, SymbolKind};
 use tower_lsp::Client;
 
 use crate::analysis::{symbol_node_text, Analysis};
-use crate::builtin_index::InstanceID;
 use crate::diagnostic_registry::{DiagnosticPolicy, M2Diagnostic};
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
-use crate::typesystem::TypeKnowledge;
+use crate::typesystem::{PositionedTypeKnowledge, TypeKnowledge};
 
 pub(crate) const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
     "This is parsed like function call: dot followed immediately by digits are always parsed
@@ -56,7 +56,7 @@ impl Analysis {
         &mut self,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
-        builtins: &(impl TypeKnowledge + ?Sized),
+        builtins: &(impl PositionedTypeKnowledge + ?Sized),
     ) {
         if node.is_error() {
             self.diagnostics.push(M2Diagnostic::SyntaxError.at(
@@ -80,7 +80,8 @@ impl Analysis {
         // Runs independently of the chain above: any node may be an option pair,
         // and an option `=>` is never an error/missing/assignment node.
         self.diagnose_option_key_convention(node, source);
-        self.diagnose_protect_argument(node, source, builtins);
+        let knowledge = builtins.at_position(source.position_for_node(node));
+        self.diagnose_protect_argument(node, source, &knowledge);
 
         for child in node.children() {
             self.collect_diagnostics(child, source, builtins);
@@ -118,7 +119,7 @@ impl Analysis {
                 let name = argument.text();
                 let position = source.position_for_node(argument);
                 let has_source_binding = self.binding_id_at(name, position).is_some();
-                let has_builtin_binding = builtins.get_record(&InstanceID::new(name)).is_some();
+                let has_builtin_binding = builtins.get_record(&ObjectName::new(name)).is_some();
                 if has_source_binding || has_builtin_binding {
                     self.diagnostics
                         .push(M2Diagnostic::ProtectAssignedSymbol.at(
@@ -297,7 +298,7 @@ impl Analysis {
             })
             .filter(|binding| !used_bindings.contains(&binding.binding_id))
             .filter_map(|binding| {
-                let name = self.symbol_name(binding.symbol);
+                let name = binding.name.name();
                 if name.starts_with('_') {
                     return None;
                 }

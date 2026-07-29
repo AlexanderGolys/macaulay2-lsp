@@ -547,11 +547,11 @@ pub(crate) fn refactor_try_statement(try_node: M2Node<'_>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtin_index::BuiltinData;
     use crate::document::DocumentSnapshot;
+    use crate::object_registry::ObjectRegistry;
 
     fn document(text: &str) -> DocumentSnapshot {
-        DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
+        DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
             .expect("fixture should parse")
     }
 

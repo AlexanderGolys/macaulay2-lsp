@@ -2,11 +2,11 @@
 
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{Analysis, FunctionInfo, MethodInstallation};
-use crate::builtin_index::InstanceID;
+use crate::analysis::{Analysis, FunctionInfo, Method, MethodInstallation};
 use crate::document::DocumentSnapshot;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKindMetadata};
+use crate::object_registry::ObjectName;
 use crate::record_lsp::record_hover_with_package_and_usage;
 use crate::record_lsp::{LspKnowledge, SignatureUsage};
 use crate::source::SourceNavigation;
@@ -34,7 +34,7 @@ pub(crate) fn hover_response(
             )
         } else {
             let (package, record) =
-                knowledge.get_record_with_package(&InstanceID(name.to_string()))?;
+                knowledge.get_record_with_package(&ObjectName(name.to_string()))?;
             record_hover_with_package_and_usage(record, Some(&package), knowledge, None)
         };
         hover.range = Some(reference.range());
@@ -49,10 +49,10 @@ pub(crate) fn hover_response(
 
     let node_text = node.text();
 
-    if let Some(symbol) = analysis.get_symbol_at(node_text, position) {
+    if let Some(symbol) = document.source_symbol_at(node_text, position) {
         let local_installation_signature = analysis
             .local_method_installation_signature_at(node, document)
-            .filter(|(method, _)| analysis.symbol_name(method.symbol) == node_text);
+            .filter(|(method, _)| method.name.name() == node_text);
         let local_method = local_installation_signature
             .map(|(method, _)| method)
             .or_else(|| document.callable_at_position(position));
@@ -69,7 +69,7 @@ pub(crate) fn hover_response(
     // Render from the partition that owns the record so an imported package
     // object shows its own documentation/signatures, not only a Core lookup.
     let (package, record) =
-        knowledge.get_record_with_package(&InstanceID(node_text.to_string()))?;
+        knowledge.get_record_with_package(&ObjectName(node_text.to_string()))?;
     let signature_usage =
         call_signature_usage_for_hover(node, node_text, document, analysis, knowledge);
     Some(record_hover_with_package_and_usage(
@@ -93,7 +93,10 @@ fn local_symbol_hover(
     let title_signature = method
         .zip(pinned_signature)
         .map(|(method, signature)| {
-            format!(" `{}`", local_method_signature_label(method, signature))
+            format!(
+                " `{}`",
+                local_method_signature_label(method, &signature.method)
+            )
         })
         .unwrap_or_default();
     let type_line = meta
@@ -145,7 +148,7 @@ fn call_signature_usage_for_hover(
 
         let argument = parent.child_by_field_name("right")?;
         let facts = analysis.infer_call_static_facts(argument, source, knowledge);
-        analysis.dispatch_argument_types(&facts)
+        analysis.dispatch_argument_types(&facts, knowledge)
     } else if parent
         .child_by_field_name("operator")
         .is_some_and(|operator| operator.id() == node.id())
@@ -183,8 +186,8 @@ fn local_method_signatures_markdown(
         let excluded = analysis
             .methods_for(method)
             .filter(|signature| {
-                signature.domain != pinned_signature.domain
-                    || signature.codomain != pinned_signature.codomain
+                signature.domain != pinned_signature.method.domain
+                    || signature.codomain != pinned_signature.method.codomain
             })
             .collect::<Vec<_>>();
         if !excluded.is_empty() {
@@ -220,13 +223,13 @@ fn local_method_signatures_markdown(
     lines.join("\n")
 }
 
-fn local_method_signature_label(method: &FunctionInfo, signature: &MethodInstallation) -> String {
+fn local_method_signature_label(method: &FunctionInfo, signature: &Method) -> String {
     let domain = format!(
         "({})",
         signature
             .domain
             .iter()
-            .map(InstanceID::name)
+            .map(ObjectName::name)
             .collect::<Vec<_>>()
             .join(", ")
     );
@@ -242,18 +245,17 @@ fn local_method_signature_label(method: &FunctionInfo, signature: &MethodInstall
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::Analysis;
-    use crate::builtin_index::BuiltinData;
     use crate::meta::{BindingRole, Meta};
     use crate::node_metadata::M2Parser;
-    use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
+    use crate::object_registry::ObjectRegistry;
     use crate::source::DocumentSource;
+    use crate::test_support::analyze;
     use tower_lsp::lsp_types::{HoverContents, Position, SymbolKind};
 
     #[test]
     fn local_hover_includes_known_static_type() {
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
-        let analysis = Analysis::new(parser.parse("").expect("empty fixture should parse"));
+        let analysis = analyze(parser.parse("").expect("empty fixture should parse"));
         let symbol = Meta {
             symbol_kind: Some(SymbolKind::VARIABLE),
             binding_role: Some(BindingRole::Ordinary),
@@ -276,7 +278,7 @@ mod tests {
     fn local_hover_includes_method_signatures() {
         let text = "p = method(TypicalValue => List)\np(ZZ, ZZ) := (i, j) -> {i, j}\n";
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
-        let analysis = Analysis::new(parser.parse(text).expect("fixture should parse"));
+        let analysis = analyze(parser.parse(text).expect("fixture should parse"));
         let symbol = analysis
             .get_symbol_at("p", Position::new(1, 0))
             .expect("method symbol should be visible");
@@ -297,7 +299,7 @@ mod tests {
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let tree = parser.parse_tree(text, None).expect("fixture should parse");
         let root = tree.root(text);
-        let analysis = Analysis::new(root);
+        let analysis = analyze(root);
         let source = DocumentSource::new(text.to_string());
         let position = Position::new(1, 0);
         let node = root
@@ -343,7 +345,7 @@ mod tests {
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let tree = parser.parse_tree(text, None).expect("fixture should parse");
         let root = tree.root(text);
-        let analysis = Analysis::new(root);
+        let analysis = analyze(root);
         let source = DocumentSource::new(text.to_string());
 
         for (line, expected_codomain) in [(1, "List"), (2, "Array")] {
@@ -355,7 +357,7 @@ mod tests {
                 .local_method_installation_signature_at(node, &source)
                 .expect("the source occurrence should resolve its installation identity");
             assert_eq!(
-                installation.codomain.as_ref().map(InstanceID::name),
+                installation.method.codomain.as_ref().map(ObjectName::name),
                 Some(expected_codomain)
             );
         }
@@ -366,11 +368,10 @@ mod tests {
         // Hovering an object from an imported package renders that package's own
         // documentation (resolved from the owning partition, not just Core).
         let text = "needsPackage \"JSON\"\ntoJSON\n";
-        let document = DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
+        let document = DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
             .expect("fixture should parse");
-        let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
-        let loaded = LoadedPackages::resolve(index.default_loaded(), text);
-        let scoped = index.scoped(&loaded);
+        let index = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
+        let scoped = index.with_source_imports(text);
         let hover = hover_response(&document, Position::new(1, 0), &scoped)
             .expect("hover over an imported package object");
         let HoverContents::Markup(markup) = hover.contents else {
@@ -391,9 +392,9 @@ mod tests {
     #[test]
     fn hover_resolves_local_backtick_documentation_references() {
         let text = "-- use `x`\nx := 1\n";
-        let document = DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
+        let document = DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
             .expect("fixture should parse");
-        let hover = hover_response(&document, Position::new(0, 8), &BuiltinData::empty())
+        let hover = hover_response(&document, Position::new(0, 8), &ObjectRegistry::default())
             .expect("local documentation reference should have a hover");
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("local hover should use markdown");
@@ -410,11 +411,10 @@ mod tests {
     #[test]
     fn hover_resolves_indexed_backtick_documentation_references() {
         let text = "-- use `ideal`\n";
-        let document = DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
+        let document = DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
             .expect("fixture should parse");
-        let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
-        let loaded = LoadedPackages::resolve(index.default_loaded(), text);
-        let scoped = index.scoped(&loaded);
+        let index = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
+        let scoped = index.with_source_imports(text);
         let hover = hover_response(&document, Position::new(0, 8), &scoped)
             .expect("indexed documentation reference should have a hover");
         let HoverContents::Markup(markup) = hover.contents else {
@@ -435,9 +435,8 @@ mod tests {
     #[test]
     fn hover_call_context_specializes_builtin_method_signatures() {
         let text = "F := openOut \"test.oldvalues\"\n";
-        let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
-        let loaded = LoadedPackages::resolve(index.default_loaded(), "");
-        let scoped = index.scoped(&loaded);
+        let index = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
+        let scoped = index.with_source_imports("");
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let tree = parser.parse_tree(text, None).expect("fixture should parse");
         let root = tree.root(text);
@@ -477,9 +476,8 @@ mod tests {
     #[test]
     fn hover_call_context_specializes_operator_method_signatures() {
         let text = "x := 1\ny := 2\nz := x + y\n";
-        let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
-        let loaded = LoadedPackages::resolve(index.default_loaded(), "");
-        let scoped = index.scoped(&loaded);
+        let index = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
+        let scoped = index.with_source_imports("");
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let tree = parser.parse_tree(text, None).expect("fixture should parse");
         let root = tree.root(text);

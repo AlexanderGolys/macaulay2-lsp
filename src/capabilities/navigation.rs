@@ -5,9 +5,9 @@ use std::collections::HashMap;
 
 use tower_lsp::lsp_types::*;
 
-use crate::builtin_index::{InstanceID, Record};
 use crate::document::{DocumentSnapshot, TargetSymbol};
 use crate::node_metadata::{NodeKind, NodeKindMetadata};
+use crate::object_registry::ObjectName;
 use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
 use crate::record_lsp::LspKnowledge;
@@ -127,7 +127,7 @@ pub(crate) fn references_response(
 pub(crate) fn workspace_symbols_response(
     query: &str,
     knowledge: &(impl LspKnowledge + ?Sized),
-    record_location: impl Fn(&Record) -> Option<Location>,
+    package_location: impl Fn(&str) -> Option<Location>,
 ) -> Vec<SymbolInformation> {
     let mut symbols = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -136,10 +136,10 @@ pub(crate) fn workspace_symbols_response(
         if !should_include_workspace_symbol(&package, &name) {
             continue;
         }
-        let Some(record) = knowledge.get_record(&InstanceID::new(&name)) else {
+        let Some(record) = knowledge.get_record(&ObjectName::new(&name)) else {
             continue;
         };
-        let Some(location) = record_location(record) else {
+        let Some(location) = package_location(&package) else {
             continue;
         };
         if seen.insert(workspace_symbol_dedupe_key(&package, &name)) {
@@ -167,7 +167,7 @@ pub(crate) fn goto_definition_response(
     knowledge: &(impl LspKnowledge + ?Sized),
     source_resolver: &SourceResolver,
     workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
-    record_location: impl Fn(&Record) -> Option<Location>,
+    package_location: impl Fn(&str) -> Option<Location>,
 ) -> Option<GotoDefinitionResponse> {
     let analysis = document.analysis();
     let node = document.node_at_position_minimal(position)?;
@@ -214,8 +214,10 @@ pub(crate) fn goto_definition_response(
         return Some(GotoDefinitionResponse::Array(workspace_locations));
     }
 
-    if let Some(record) = knowledge.get_record(&InstanceID(node_text.to_string())) {
-        if let Some(location) = record_location(record) {
+    if let Some((package, _)) =
+        knowledge.get_record_with_package(&ObjectName(node_text.to_string()))
+    {
+        if let Some(location) = package_location(&package) {
             return Some(GotoDefinitionResponse::Scalar(location));
         }
     }
@@ -245,7 +247,6 @@ pub(crate) fn reference_ranges_resolved(
     document: &DocumentSnapshot,
     include_declaration: bool,
 ) -> Vec<Range> {
-    let analysis = document.analysis();
     let root_node = document.root_node();
     let target_name = target.name;
     let target_range = target.symbol.range;
@@ -256,7 +257,7 @@ pub(crate) fn reference_ranges_resolved(
             let node_text = node.text();
             if node_text == target_name {
                 let range = document.range_for_node(node);
-                if let Some(symbol) = analysis.get_symbol_at(node_text, range.start) {
+                if let Some(symbol) = document.source_symbol_at(node_text, range.start) {
                     if symbol.range == target_range
                         && (include_declaration || range != target_range)
                     {
@@ -472,15 +473,13 @@ pub(crate) fn is_valid_m2_identifier(name: &str) -> bool {
 mod tests {
     use super::*;
     use crate::document::DocumentSnapshot;
+    use crate::object_registry::ObjectRegistry;
     use crate::workspace_index::WorkspaceIndex;
     use tower_lsp::lsp_types::{Position, Range};
 
     fn document(text: &str) -> DocumentSnapshot {
-        DocumentSnapshot::from_text(
-            text.to_string(),
-            &crate::builtin_index::BuiltinData::empty(),
-        )
-        .expect("fixture should parse")
+        DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
+            .expect("fixture should parse")
     }
 
     #[test]
@@ -493,11 +492,10 @@ mod tests {
     }
 
     fn completion_labels(text: &str, position: Position) -> Vec<String> {
-        use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
+        use crate::object_registry::ObjectRegistry;
         let document = document(text);
-        let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
-        let loaded = LoadedPackages::resolve(index.default_loaded(), text);
-        let scoped = index.scoped(&loaded);
+        let index = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
+        let scoped = index.with_source_imports(text);
         match completion_response(&document, position, &scoped) {
             Some(CompletionResponse::Array(items)) => {
                 items.into_iter().map(|item| item.label).collect()
@@ -635,12 +633,9 @@ mod tests {
     fn goto_definition_resolves_from_a_backtick_documentation_mention() {
         let text = "-- use `x`\nx := 1\n";
         let document = document(text);
-        let index = crate::partitioned_index::PackagePartitionedIndex::from_corpus(include_str!(
-            "../data/m2-index.jsonl"
-        ));
-        let loaded =
-            crate::partitioned_index::LoadedPackages::resolve(index.default_loaded(), text);
-        let scoped = index.scoped(&loaded);
+        let index =
+            crate::object_registry::ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
+        let scoped = index.with_source_imports(text);
         let uri = Url::parse("file:///t.m2").expect("uri");
 
         assert_eq!(

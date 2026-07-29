@@ -1,17 +1,25 @@
 //! Imported-package discovery and configured source-file resolution.
 
-use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
 
 use tower_lsp::lsp_types::{Location, Position, Range, Url};
 
-use crate::builtin_index::Record;
-use crate::node_metadata::{M2Node, M2Parser, NodeKind};
-use crate::record_lsp::record_source_file;
+#[cfg(test)]
+use crate::node_metadata::M2Parser;
+use crate::node_metadata::{M2Node, NodeKind};
+use crate::object_registry::ObjectName;
+use crate::source::SourceNavigation;
+
+/// One package inclusion and the source position from which it takes effect.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageImport {
+    pub package: ObjectName,
+    pub effective_from: Position,
+}
 
 #[derive(Debug, Clone)]
-pub(crate) struct SourceResolver {
+pub struct SourceResolver {
     roots: Vec<PathBuf>,
 }
 
@@ -20,7 +28,7 @@ impl SourceResolver {
     /// discover them (no runtime dependency on M2 existing, nor on how it is
     /// launched). Sourced from `M2_LSP_SOURCE_PATH`; package-source jumps simply
     /// degrade to nothing when it is unset.
-    pub(crate) fn from_environment() -> Self {
+    pub fn from_environment() -> Self {
         let mut roots = Vec::new();
         if let Some(paths) = env::var_os("M2_LSP_SOURCE_PATH") {
             roots.extend(env::split_paths(&paths));
@@ -28,7 +36,7 @@ impl SourceResolver {
         Self::new(roots)
     }
 
-    pub(crate) fn new(roots: Vec<PathBuf>) -> Self {
+    pub fn new(roots: Vec<PathBuf>) -> Self {
         let mut deduped = Vec::new();
         for root in roots {
             Self::push_root(&mut deduped, root.clone());
@@ -47,7 +55,7 @@ impl SourceResolver {
         }
     }
 
-    pub(crate) fn resolve_source_file(&self, source_file: &str) -> Option<PathBuf> {
+    pub fn resolve_source_file(&self, source_file: &str) -> Option<PathBuf> {
         let source = Path::new(source_file);
         if source.is_absolute() && source.exists() {
             return Some(source.to_path_buf());
@@ -59,18 +67,16 @@ impl SourceResolver {
             .find(|candidate| candidate.exists())
     }
 
-    pub(crate) fn resolve_package_file(&self, package_name: &str) -> Option<PathBuf> {
+    pub fn resolve_package_file(&self, package_name: &str) -> Option<PathBuf> {
         let source_file = format!("{package_name}.m2");
         self.resolve_source_file(&source_file)
     }
 
-    /// The LSP location of a builtin/package record's source definition, when
-    /// the resolver can find the file on disk. Shared by the hover/index views
-    /// and type-hierarchy plumbing, so it lives on the resolver rather than the
-    /// backend to keep `capabilities/type_hierarchy` self-contained.
-    pub(crate) fn record_location(&self, record: &Record) -> Option<Location> {
-        let source_file = record_source_file(record)?;
-        let path = self.resolve_source_file(source_file)?;
+    /// The start of a package source file, when configured source roots contain
+    /// it. Exact object-definition positions require separate typed provenance
+    /// and are not guessed here.
+    pub fn package_location(&self, package_name: &str) -> Option<Location> {
+        let path = self.resolve_package_file(package_name)?;
         let uri = Url::from_file_path(path).ok()?;
         let position = Position::new(0, 0);
         Some(Location {
@@ -88,7 +94,12 @@ fn is_package_import_trigger(name: &str) -> bool {
     )
 }
 
-pub(crate) fn package_source_string(node: M2Node<'_>) -> Option<&str> {
+pub fn package_source_string(node: M2Node<'_>) -> Option<&str> {
+    package_import(node).map(|(package_name, _)| package_name)
+}
+
+/// The indexed package name and complete source application that includes it.
+fn package_import(node: M2Node<'_>) -> Option<(&str, M2Node<'_>)> {
     let package_name = node.string_literal_inner_text()?;
     let parent = node.parent()?;
 
@@ -103,40 +114,45 @@ pub(crate) fn package_source_string(node: M2Node<'_>) -> Option<&str> {
             return None;
         }
 
-        return parent
-            .parent()
-            .and_then(binary_expression_left_symbol)
+        let application = parent.parent()?;
+        return binary_expression_left_symbol(application)
             .filter(|name| is_package_import_trigger(name))
-            .map(|_| package_name);
+            .map(|_| (package_name, application));
     }
 
     binary_expression_left_symbol(parent)
         .filter(|name| is_package_import_trigger(name))
-        .map(|_| package_name)
+        .map(|_| (package_name, parent))
 }
 
-pub(crate) fn collect_imported_packages(text: &str) -> Vec<String> {
+#[cfg(test)]
+pub fn collect_imported_packages(text: &str) -> Vec<PackageImport> {
+    use crate::source::DocumentSource;
+
     let Some(mut parser) = M2Parser::new() else {
         return Vec::new();
     };
-    parser
-        .parse(text)
-        .map(collect_imported_packages_in_tree)
-        .unwrap_or_default()
+    let source = DocumentSource::new(text.to_string());
+    parser.parse(text).map_or_else(Vec::new, |root| {
+        collect_imported_packages_in_tree(root, &source)
+    })
 }
 
 /// Walk an already-parsed tree for package-import calls, reusing the caller's
 /// parse rather than spinning up a fresh parser. The snapshot keeps its tree
 /// around, so per-version import collection costs one walk, not a re-parse.
-pub(crate) fn collect_imported_packages_in_tree(root: M2Node<'_>) -> Vec<String> {
+pub fn collect_imported_packages_in_tree(
+    root: M2Node<'_>,
+    source: &(impl SourceNavigation + ?Sized),
+) -> Vec<PackageImport> {
     let mut packages = Vec::new();
-    let mut seen = HashSet::new();
     for node in root.descendants() {
         if node.kind == NodeKind::StringLiteral {
-            if let Some(package_name) = package_source_string(node) {
-                if seen.insert(package_name.to_string()) {
-                    packages.push(package_name.to_string());
-                }
+            if let Some((package_name, application)) = package_import(node) {
+                packages.push(PackageImport {
+                    package: ObjectName::new(package_name),
+                    effective_from: source.range_for_node(application).end,
+                });
             }
         }
     }
@@ -168,16 +184,23 @@ mod import_trigger_tests {
         collect_imported_packages, package_source_string, M2Parser, NodeKind, SourceResolver,
     };
 
+    fn imported_names(text: &str) -> Vec<String> {
+        collect_imported_packages(text)
+            .into_iter()
+            .map(|import| import.package.name().to_string())
+            .collect()
+    }
+
     #[test]
     fn import_from_string_form_adds_the_package() {
-        let pkgs = collect_imported_packages(r#"importFrom("FooPkg", {"barSym", "bazSym"})"#);
+        let pkgs = imported_names(r#"importFrom("FooPkg", {"barSym", "bazSym"})"#);
         assert_eq!(pkgs, vec!["FooPkg".to_string()]);
     }
 
     #[test]
     fn import_from_does_not_capture_symbol_name_strings() {
         // The second-argument symbol strings must NOT be treated as packages.
-        let pkgs = collect_imported_packages(r#"importFrom("FooPkg", "barSym")"#);
+        let pkgs = imported_names(r#"importFrom("FooPkg", "barSym")"#);
         assert_eq!(pkgs, vec!["FooPkg".to_string()]);
     }
 
@@ -185,7 +208,7 @@ mod import_trigger_tests {
     fn import_from_package_object_form_adds_nothing() {
         // `importFrom_Core {...}` / `importFrom(Core, ...)` take a Package object,
         // not a string — no package name to detect.
-        let pkgs = collect_imported_packages("importFrom_Core {\"raw\"}");
+        let pkgs = imported_names("importFrom_Core {\"raw\"}");
         assert!(
             pkgs.is_empty(),
             "Package-object form must add nothing, got {pkgs:?}"
@@ -194,7 +217,7 @@ mod import_trigger_tests {
 
     #[test]
     fn existing_triggers_still_detected() {
-        let pkgs = collect_imported_packages("needsPackage \"A\"\nloadPackage \"B\"\ndebug \"C\"");
+        let pkgs = imported_names("needsPackage \"A\"\nloadPackage \"B\"\ndebug \"C\"");
         assert_eq!(
             pkgs,
             vec!["A".to_string(), "B".to_string(), "C".to_string()]
@@ -203,7 +226,7 @@ mod import_trigger_tests {
 
     #[test]
     fn import_argument_selection_skips_muted_parts_but_not_null_slots() {
-        let pkgs = collect_imported_packages(
+        let pkgs = imported_names(
             "loadPackage(ignored;\"AfterMuted\")\nloadPackage(,\"AfterNull\")\nloadPackage(\"Muted\";)\n",
         );
         assert_eq!(pkgs, vec!["AfterMuted".to_string()]);
@@ -225,12 +248,16 @@ mod import_trigger_tests {
     }
 
     #[test]
-    fn imported_packages_are_deduplicated_in_source_order() {
+    fn repeated_imports_remain_source_ordered_registration_events() {
         let text = "needsPackage \"Graphs\"\nloadPackage(\"Normaliz\")\nneedsPackage \"Graphs\"";
 
         assert_eq!(
-            collect_imported_packages(text),
-            vec!["Graphs".to_string(), "Normaliz".to_string()]
+            imported_names(text),
+            vec![
+                "Graphs".to_string(),
+                "Normaliz".to_string(),
+                "Graphs".to_string()
+            ]
         );
     }
 

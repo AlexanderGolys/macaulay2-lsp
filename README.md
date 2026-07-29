@@ -114,9 +114,12 @@ configuration active.
 The server does not hardcode Macaulay2 builtins. They live in a single
 checked-in corpus, `src/data/m2-index.jsonl` — one JSON record per builtin
 object (class, methods, options, semantic-token class, and folded hover
-markdown), partitioned in memory by home package and scoped per document by its
-`needsPackage`/`importFrom` imports. The corpus is a generated artifact produced
-from an installed Macaulay2's documentation.
+markdown). The immutable catalog is partitioned by home package; each document
+records its `needsPackage`/`importFrom` inclusions once per text version. Package
+objects become visible only after their inclusion and shadow ordinary names in
+inclusion/definition order; indexed aliases remain available for explicit
+disambiguation. The corpus is a generated artifact produced from an installed
+Macaulay2's documentation.
 
 ## Repository layout
 
@@ -129,7 +132,8 @@ src/
   typesystem.rs           type relations, dispatch, signatures
   diagnostic_registry.rs  the single registry of every diagnostic
   document.rs             per-document snapshot and incremental edits
-  partitioned_index.rs    package-partitioned builtin index + scoped view
+  object_registry.rs      shared object catalog + loaded package registry
+  object_environment.rs   package loading and explicit-package queries
   workspace_index.rs      cross-file global definition index
   capabilities/           one module per LSP capability
   data/

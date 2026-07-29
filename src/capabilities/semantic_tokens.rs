@@ -7,10 +7,13 @@ use crate::document::DocumentSnapshot;
 use crate::documentation::DocumentationSnippet;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::object_registry::ObjectName;
+use crate::object_registry::ObjectRegistry;
 use crate::semantic_token::{
     M2SemanticToken, M2SemanticTokenProvenance, M2SemanticTokenType, SemanticTokenKnowledge,
 };
 use crate::source::{DocumentSpan, SourceNavigation};
+use crate::typesystem::type_is_subtype;
 use crate::workspace_index::WorkspaceDefinitionKnowledge;
 
 pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
@@ -54,13 +57,12 @@ pub(crate) const MACRO_MODIFIER: u32 = 1 << 6;
 
 pub(crate) fn collect_semantic_tokens(
     document: &DocumentSnapshot,
-    builtins: &(impl SemanticTokenKnowledge + ?Sized),
+    builtins: &ObjectRegistry,
     workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
     uri: &Url,
     augments_syntax_tokens: bool,
 ) -> Vec<SemanticToken> {
     let text = document.text();
-    let analysis = document.analysis();
     let root_node = document.root_node();
     let classifier = SemanticTokenClassifier {
         document,
@@ -85,8 +87,8 @@ pub(crate) fn collect_semantic_tokens(
         if !emitted_token && (node.kind.is_symbol_like() || syntax_token_type.is_some()) {
             let source = document.span_for_node(node);
             let position = source.range().start;
-            let binding = analysis
-                .get_symbol_at(node.text(), position)
+            let binding = document
+                .source_symbol_at(node.text(), position)
                 .map(|symbol| (symbol, position == symbol.range.start));
             let emit_syntax = !augments_syntax_tokens
                 || should_emit_syntax_token_when_augmenting(syntax_token_type);
@@ -246,16 +248,15 @@ fn documentation_snippet_semantic_span(
     }
 }
 
-struct SemanticTokenClassifier<'a, B: ?Sized, W: ?Sized> {
+struct SemanticTokenClassifier<'a, W: ?Sized> {
     document: &'a DocumentSnapshot,
-    builtins: &'a B,
+    builtins: &'a ObjectRegistry,
     workspace_index: &'a W,
     uri: &'a Url,
 }
 
-impl<B, W> SemanticTokenClassifier<'_, B, W>
+impl<W> SemanticTokenClassifier<'_, W>
 where
-    B: SemanticTokenKnowledge + ?Sized,
     W: WorkspaceDefinitionKnowledge + ?Sized,
 {
     fn classify(
@@ -268,19 +269,18 @@ where
     }
 }
 
-fn classify_semantic_node<B, W>(
-    context: &SemanticTokenClassifier<'_, B, W>,
+fn classify_semantic_node<W>(
+    context: &SemanticTokenClassifier<'_, W>,
     node: M2Node<'_>,
     binding: Option<(BindingView<'_>, bool)>,
     emit_syntax: bool,
 ) -> Option<(M2SemanticTokenType, u32)>
 where
-    B: SemanticTokenKnowledge + ?Sized,
     W: WorkspaceDefinitionKnowledge + ?Sized,
 {
     let document = context.document;
     let analysis = document.analysis();
-    let builtins = context.builtins;
+    let builtins = context.builtins.at(document.position_for_node(node));
     let workspace_index = context.workspace_index;
     let node_text = node.text();
     let syntax_token_type = syntax_semantic_token_type(node);
@@ -308,7 +308,7 @@ where
     }
 
     if token_type.is_none() {
-        if let Some(role) = option_assignment_role(node, builtins) {
+        if let Some(role) = option_assignment_role(node, &builtins) {
             token_type = Some(role);
             modifiers |= OPTION_MODIFIER;
             resolved_from_index = indexed_token.is_some();
@@ -316,7 +316,7 @@ where
     }
 
     if token_type.is_none() {
-        if let Some(type_param_role) = method_installation_type_parameter(node, builtins) {
+        if let Some(type_param_role) = method_installation_type_parameter(node, &builtins) {
             token_type = Some(type_param_role);
             resolved_from_index = true;
         }
@@ -324,10 +324,10 @@ where
 
     if token_type.is_none() {
         if let Some((symbol, is_declaration)) = binding {
-            token_type = Some(local_symbol_semantic_token_type(&symbol, builtins));
+            token_type = Some(local_symbol_semantic_token_type(&symbol, &builtins));
             if let Some(type_name) = symbol.meta().type_name {
                 if let Some(token) =
-                    static_type_semantic_token_for_local_symbol(&symbol, type_name, builtins)
+                    static_type_semantic_token_for_local_symbol(&symbol, type_name, &builtins)
                 {
                     modifiers |= builtin_semantic_token_modifiers(&token);
                 }
@@ -461,7 +461,11 @@ fn static_type_semantic_token_for_local_symbol(
         // locally declared and function-produced classes, as `class`.
         Some(SymbolKind::VARIABLE)
             if token.token_type == M2SemanticTokenType::Class
-                && builtins.is_subtype(type_name, "Ring") =>
+                && type_is_subtype(
+                    builtins,
+                    &ObjectName::new(type_name),
+                    &ObjectName::new("Ring"),
+                ) =>
         {
             token.token_type = M2SemanticTokenType::Type;
             Some(token)
@@ -756,15 +760,13 @@ fn is_method_installation_lhs(node: M2Node<'_>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtin_index::BuiltinData;
     use crate::document::DocumentSnapshot;
     use crate::node_metadata::M2Parser;
-    use crate::partitioned_index::PackagePartitionedIndex;
+    use crate::object_registry::ObjectRegistry;
     use crate::semantic_token::{M2SemanticToken, M2SemanticTokenType};
-    use crate::typesystem::TypeKnowledgeProvider;
     use crate::workspace_index::WorkspaceIndex;
 
-    fn document(text: &str, builtins: &BuiltinData) -> DocumentSnapshot {
+    fn document(text: &str, builtins: &ObjectRegistry) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), builtins).expect("fixture should parse")
     }
 
@@ -772,7 +774,7 @@ mod tests {
     /// so the cross-file classification step contributes nothing.
     fn collect_tokens(
         document: &DocumentSnapshot,
-        builtins: &BuiltinData,
+        builtins: &ObjectRegistry,
         augments_syntax_tokens: bool,
     ) -> Vec<SemanticToken> {
         let workspace_index = WorkspaceIndex::default();
@@ -814,7 +816,7 @@ mod tests {
     fn multi_line_string_token_is_split_per_line() {
         // A raw string spans two lines. The LSP protocol forbids a token from
         // crossing a line boundary, so it must be emitted as one token per line.
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let text = "x := ///alpha\nbeta///\n";
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
@@ -861,7 +863,7 @@ mod tests {
         // An M2 class defined at the top level of another workspace file
         // highlights as CLASS where it is referenced, even though it is neither
         // a local binding nor a builtin in the referencing file.
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let workspace_index = WorkspaceIndex::default();
         let defs_uri = Url::parse("file:///defs.m2").expect("valid uri");
         workspace_index.index_file(&defs_uri, "TokenStream = new Type of List\n", &builtins);
@@ -883,7 +885,7 @@ mod tests {
     fn cross_file_lookup_excludes_the_current_file() {
         // The current file's own definitions come from its live analysis, not the
         // workspace index, so a self-reference must not be sourced cross-file.
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let workspace_index = WorkspaceIndex::default();
         let main_uri = Url::parse("file:///main.m2").expect("valid uri");
         workspace_index.index_file(&main_uri, "TokenStream = new Type of List\n", &builtins);
@@ -896,7 +898,7 @@ mod tests {
     #[test]
     fn semantic_tokens_classify_parameter_body_references_as_parameters() {
         let text = "f := x -> x";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let document = document(text, &builtins);
 
         let tokens = collect_tokens(&document, &builtins, false);
@@ -922,9 +924,26 @@ mod tests {
     }
 
     #[test]
+    fn local_copy_of_a_parameter_remains_a_variable() {
+        let text = "\
+matchingMacroClose = (src, bodyStart, outerName) -> (
+    nestedNames := {};
+    k := bodyStart;
+)";
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
+
+        assert_eq!(
+            token_type_at(&tokens, 2, 4),
+            Some(M2SemanticTokenType::Variable as u32)
+        );
+    }
+
+    #[test]
     fn typed_parameter_references_remain_parameters() {
         let text = "f ZZ := x -> x";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
 
         let tokens = collect_tokens(&document, &builtins, false);
@@ -952,7 +971,7 @@ mod tests {
     #[test]
     fn semantic_tokens_include_recognized_syntax_tokens() {
         let text = "-- hi\nif x then 42 + 1 else \"no\"\nlocal y";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
@@ -979,7 +998,7 @@ mod tests {
     #[test]
     fn semantic_tokens_color_backtick_mentions_as_properties() {
         let text = "x := 1\n-- use `x` and `ideal`\n";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1002,7 +1021,7 @@ mod tests {
     #[test]
     fn semantic_tokens_keep_backtick_mentions_when_augmenting_syntax() {
         let text = "x := 1\n-- use `x`\n";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, true);
 
@@ -1024,7 +1043,7 @@ mod tests {
             "t := 1\n",
             "instance := x -> x\n",
         );
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, true);
         let line = text.lines().next().unwrap();
@@ -1046,7 +1065,7 @@ mod tests {
     #[test]
     fn comment_code_does_not_create_document_bindings() {
         let text = "-- example `ghost := x -> x`\nghost\n";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, true);
         let comment_line = text.lines().next().unwrap();
@@ -1065,7 +1084,7 @@ mod tests {
     #[test]
     fn comment_code_uses_one_property_color_when_augmenting() {
         let text = "-- example `if true then 1 + 2 else \"x\"`\n";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, true);
         let line = text.lines().next().unwrap();
@@ -1081,7 +1100,7 @@ mod tests {
     #[test]
     fn semantic_tokens_classify_binding_qualifiers_as_modifiers() {
         let text = "global x\nlocal y\nsymbol z\nthreadLocal w\nthreadVariable q";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
@@ -1104,7 +1123,7 @@ mod tests {
     #[test]
     fn semantic_tokens_classify_debug_keywords() {
         let text = "step 1\nfinish 2";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let document = document(text, &builtins);
 
         let tokens = collect_tokens(&document, &builtins, false);
@@ -1126,7 +1145,7 @@ mod tests {
     #[test]
     fn semantic_tokens_do_not_classify_booleans_as_keywords() {
         let text = "if true then false else true";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
@@ -1147,7 +1166,7 @@ mod tests {
     #[test]
     fn semantic_tokens_classify_regex_string_arguments_as_regexp() {
         let text = "match(\"a+\", s)\nreplace(\"a+\", \"b\", s)\nseparate(\"a+\", s)";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
@@ -1184,7 +1203,7 @@ mod tests {
             "exportFrom {\"Pkg\"}\n",
             "print \"ordinary\""
         );
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
@@ -1220,7 +1239,7 @@ mod tests {
             "loadPackage(,\"AfterNull\")\n",
             "loadPackage(\"Muted\";)\n",
         );
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1252,7 +1271,7 @@ mod tests {
             "importFrom(\"Core\", {\"first\", \"second\"})\n",
             "exportFrom(\"Pkg\", \"only\")\n",
         );
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
@@ -1289,7 +1308,7 @@ mod tests {
             "    \"GlobalQuote\" => \"global\"\n",
             "}\n",
         );
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1316,7 +1335,7 @@ mod tests {
         // A string on the right of `#` / `#?` is a literal key (property). A
         // symbol key (`h#k`) is evaluated, so it stays an ordinary reference.
         let text = "a = h#\"first\"\nb = h#?\"second\"\nc = \"plain\"\n";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1342,7 +1361,7 @@ mod tests {
         // `name` is also a global variable, yet the quoted global key in `R.name`
         // and `R.?name` must still win as a property over any other role.
         let text = "name = 5\nx = R.name\ny = R.?name\n";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1357,7 +1376,7 @@ mod tests {
     #[test]
     fn string_valued_locals_remain_variables() {
         let text = "s := 1\nt := toString s\nt\n";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
 
         let tokens = collect_tokens(&document, &builtins, true);
@@ -1375,7 +1394,7 @@ mod tests {
     #[test]
     fn default_library_commands_use_method_while_local_command_values_stay_callable() {
         let text = "saveClearAll := clearAll\nclearAll = new Command from { () -> () }\nprotect symbol clearAll";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, true);
 
@@ -1419,7 +1438,7 @@ mod tests {
     #[test]
     fn semantic_tokens_merge_manipulators_into_command_modifier() {
         let text = "endl";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, true);
         let token = token_at(&tokens, 0, 0).expect("endl should have a semantic token");
@@ -1439,7 +1458,7 @@ mod tests {
     #[test]
     fn semantic_tokens_preserve_file_modifier_alongside_default_library() {
         let text = "stdio";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, true);
         let token = token_at(&tokens, 0, 0).expect("stdio should have a semantic token");
@@ -1455,7 +1474,7 @@ mod tests {
     #[test]
     fn indexed_objects_use_variable_plus_default_library_without_tainting_locals() {
         let text = "true\nlocalValue := true\nlocalValue";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, true);
 
@@ -1490,15 +1509,20 @@ mod tests {
             "\"package\":\"$Pkg$Pkg\",\"class\":\"$Core$MethodFunction\",",
             "\"methods\":[{\"domain\":[],\"typicalValue\":null}]}\n",
         );
-        let provider = PackagePartitionedIndex::from_corpus(corpus);
+        let provider = ObjectRegistry::load(corpus);
         let text = "needsPackage \"Pkg\"\npkgFn";
         let document =
             DocumentSnapshot::from_text(text.to_string(), &provider).expect("fixture should parse");
-        let scoped = provider.knowledge_for(document.imported_packages());
         let workspace_index = WorkspaceIndex::default();
         let uri = Url::parse("file:///fixture.m2").expect("valid fixture uri");
 
-        let tokens = collect_semantic_tokens(&document, &scoped, &workspace_index, &uri, true);
+        let tokens = collect_semantic_tokens(
+            &document,
+            document.object_registry(),
+            &workspace_index,
+            &uri,
+            true,
+        );
         let token = token_at(&tokens, 1, 0).expect("imported pkgFn should be highlighted");
         assert_eq!(token.token_type, M2SemanticTokenType::Method as u32);
         assert_eq!(token.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER, 0);
@@ -1506,8 +1530,13 @@ mod tests {
 
         let document = DocumentSnapshot::from_text("pkgFn".to_string(), &provider)
             .expect("unimported fixture should parse");
-        let scoped = provider.knowledge_for(document.imported_packages());
-        let tokens = collect_semantic_tokens(&document, &scoped, &workspace_index, &uri, true);
+        let tokens = collect_semantic_tokens(
+            &document,
+            document.object_registry(),
+            &workspace_index,
+            &uri,
+            true,
+        );
         assert!(
             token_at(&tokens, 0, 0).is_none(),
             "the same package object must disappear when its import is absent"
@@ -1521,7 +1550,7 @@ mod tests {
             binding_role: Some(BindingRole::Parameter),
             ..crate::meta::Meta::default()
         };
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         assert_eq!(
             local_symbol_semantic_token_type(&symbol, &builtins),
@@ -1579,7 +1608,7 @@ mod tests {
 
     #[test]
     fn builtin_constructor_like_names_do_not_emit_constructor_modifier() {
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let token = builtins
             .get_semantic_token("toString")
             .expect("toString should have builtin metadata");
@@ -1595,7 +1624,7 @@ mod tests {
         // enum member, while `myKey` (an unprotected user name) is a field. The
         // value `7` is not a symbol, so it is not classified here.
         let text = "f(x, Strategy => 4, myKey => 7)";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let root = parser.parse(text).expect("fixture should parse");
         let mut roles = Vec::new();
@@ -1612,7 +1641,7 @@ mod tests {
     #[test]
     fn option_keys_keep_option_and_builtin_provenance_modifiers() {
         let text = "f(x, Strategy => 4, custom => 7)";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1647,7 +1676,7 @@ mod tests {
     #[test]
     fn local_classes_use_class_tokens_and_binding_sites_are_declarations() {
         let text = "TokenStream = new Type of List\nTokenStream\n";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1666,7 +1695,7 @@ mod tests {
     #[test]
     fn semantic_tokens_never_emit_zero_length_entries() {
         let text = "f ZZ := x -> x";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1682,7 +1711,7 @@ mod tests {
             "M = Q^2\n",
             "x\n",
         );
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1703,7 +1732,7 @@ mod tests {
     #[test]
     fn algebraic_class_names_remain_standard_class_tokens() {
         let text = "PolynomialRing\nIdeal\nRingElement\n";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1724,7 +1753,7 @@ mod tests {
             "y = 2\n",
             "message = \"$fake 3 $\"\n",
         );
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -1782,7 +1811,7 @@ mod tests {
 
     #[test]
     fn core_default_library_and_compiled_builtin_modifiers_are_disjoint() {
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
 
         for name in ["ZZ", "true", "ideal", "stdio"] {
             let token = builtins
@@ -1816,7 +1845,7 @@ mod tests {
     #[test]
     fn method_installation_domain_emits_type_for_known_types() {
         let text = "Ring Element := x -> x";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
 
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
@@ -1836,7 +1865,7 @@ mod tests {
 p = method(TypicalValue => List)
 p(ZZ) := Array => x -> [x]
 ";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
 
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);

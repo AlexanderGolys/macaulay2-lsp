@@ -24,13 +24,15 @@ mod documentation;
 mod macro_syntax;
 mod meta;
 mod node_metadata;
+mod object_environment;
 mod object_registry;
 mod package_index;
-mod partitioned_index;
 mod record_lsp;
 mod semantic_token;
 mod settings;
 mod source;
+#[cfg(test)]
+mod test_support;
 mod typesystem;
 mod util;
 mod workspace_index;
@@ -65,14 +67,14 @@ use diagnostic_registry::DiagnosticPolicy;
 use document::DocumentSnapshot;
 use package_index::SourceResolver;
 
-use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex, ScopedIndex};
+use crate::object_registry::ObjectRegistry;
 use crate::settings::{ServerSettings, SettingsStore};
 use crate::workspace_index::WorkspaceIndex;
 
 #[derive(Debug)]
 struct Backend {
     client: Client,
-    partitioned: PackagePartitionedIndex,
+    registry: ObjectRegistry,
     source_resolver: SourceResolver,
     documents: DashMap<Url, DocumentSnapshot>,
     workspace_index: Arc<WorkspaceIndex>,
@@ -84,11 +86,10 @@ struct Backend {
 
 impl Backend {
     fn new(client: Client) -> Self {
-        let partitioned =
-            PackagePartitionedIndex::from_corpus(include_str!("./data/m2-index.jsonl"));
+        let registry = ObjectRegistry::load(include_str!("./data/m2-index.jsonl"));
         Backend {
             client,
-            partitioned,
+            registry,
             source_resolver: SourceResolver::from_environment(),
             documents: DashMap::new(),
             workspace_index: Arc::new(WorkspaceIndex::default()),
@@ -104,23 +105,14 @@ impl Backend {
             return;
         };
         match fs::read_to_string(&path) {
-            Ok(text) => self
-                .workspace_index
-                .index_file(uri, &text, &self.partitioned),
+            Ok(text) => self.workspace_index.index_file(uri, &text, &self.registry),
             Err(_) => self.workspace_index.remove_file(uri),
         }
     }
 
-    /// The scoped-index prologue every per-document request shares: combine the
-    /// corpus baseline with the document's imports and build the borrowing
-    /// `ScopedIndex` view. Five handlers route through this so the package
-    /// scoping rule lives in one place.
-    fn scoped_index_for<'a>(&'a self, document: &DocumentSnapshot) -> ScopedIndex<'a> {
-        let loaded = LoadedPackages::from_parts(
-            self.partitioned.default_loaded(),
-            document.imported_packages(),
-        );
-        self.partitioned.scoped(&loaded)
+    /// Borrow the registry loaded once for this exact document version.
+    fn scoped_index_for<'a>(&self, document: &'a DocumentSnapshot) -> &'a ObjectRegistry {
+        document.object_registry()
     }
 
     fn with_document<R>(
@@ -135,11 +127,11 @@ impl Backend {
     fn with_scoped_document<R>(
         &self,
         uri: &Url,
-        request: impl FnOnce(&DocumentSnapshot, &ScopedIndex<'_>) -> R,
+        request: impl FnOnce(&DocumentSnapshot, &ObjectRegistry) -> R,
     ) -> Option<R> {
         let document = self.documents.get(uri)?;
         let scoped = self.scoped_index_for(document.value());
-        Some(request(document.value(), &scoped))
+        Some(request(document.value(), scoped))
     }
 
     /// Collect occurrences of a global symbol across every workspace file
@@ -161,7 +153,7 @@ impl Backend {
                 } else if let Ok(path) = file_uri.to_file_path() {
                     fs::read_to_string(path)
                         .ok()
-                        .and_then(|text| DocumentSnapshot::from_text(text, &self.partitioned))
+                        .and_then(|text| DocumentSnapshot::from_text(text, &self.registry))
                         .map(|snapshot| global_reference_ranges(&snapshot, name))
                         .unwrap_or_default()
                 } else {
@@ -173,8 +165,8 @@ impl Backend {
             })
     }
 
-    fn type_hierarchy_context(&self) -> TypeHierarchyContext<'_, PackagePartitionedIndex> {
-        TypeHierarchyContext::new(&self.partitioned, &self.source_resolver)
+    fn type_hierarchy_context(&self) -> TypeHierarchyContext<'_, ObjectRegistry> {
+        TypeHierarchyContext::new(&self.registry, &self.source_resolver)
     }
 
     async fn publish_document_diagnostics(&self, uri: Url, document: &DocumentSnapshot) {
@@ -216,12 +208,12 @@ impl Backend {
     }
 
     async fn on_open(&self, params: TextDocumentItem) {
-        let Some(document) = DocumentSnapshot::from_text(params.text, &self.partitioned) else {
+        let Some(document) = DocumentSnapshot::from_text(params.text, &self.registry) else {
             return;
         };
         let uri = params.uri;
         self.workspace_index
-            .index_file(&uri, document.text(), &self.partitioned);
+            .index_file(&uri, document.text(), &self.registry);
         self.documents.insert(uri.clone(), document);
         if let Some(document) = self.documents.get(&uri) {
             self.publish_document_diagnostics(uri, document.value())
@@ -231,14 +223,11 @@ impl Backend {
 
     async fn on_change(&self, uri: Url, changes: Vec<TextDocumentContentChangeEvent>) {
         if let Some(mut document) = self.documents.get_mut(&uri) {
-            if document
-                .apply_changes(&changes, &self.partitioned)
-                .is_none()
-            {
+            if document.apply_changes(&changes, &self.registry).is_none() {
                 return;
             }
             self.workspace_index
-                .index_file(&uri, document.text(), &self.partitioned);
+                .index_file(&uri, document.text(), &self.registry);
             self.publish_document_diagnostics(uri, document.value())
                 .await;
         }
@@ -275,7 +264,7 @@ impl LanguageServer for Backend {
         self.workspace_index.set_roots(workspace_roots(&params));
         // Index every `.m2` file under the project roots off the request path.
         let index = Arc::clone(&self.workspace_index);
-        let knowledge = self.partitioned.clone();
+        let knowledge = self.registry.clone();
         task::spawn_blocking(move || index.scan(&knowledge));
         self.semantic_tokens_augment_syntax
             .negotiate(&params.capabilities);
@@ -385,7 +374,7 @@ impl LanguageServer for Backend {
                 MessageType::INFO,
                 format!(
                     "Macaulay2 LSP initialized with {} builtin symbols",
-                    self.partitioned.symbol_count()
+                    self.registry.symbol_count()
                 ),
             )
             .await;
@@ -461,7 +450,7 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
         Ok(self
             .with_scoped_document(uri, |document, knowledge| {
-                hover_response(document, position, knowledge)
+                hover_response(document, position, &knowledge.at(position))
             })
             .flatten())
     }
@@ -471,7 +460,7 @@ impl LanguageServer for Backend {
         let position = params.text_document_position.position;
         Ok(self
             .with_scoped_document(uri, |document, knowledge| {
-                completion_response(document, position, knowledge)
+                completion_response(document, position, &knowledge.at(position))
             })
             .flatten())
     }
@@ -481,7 +470,7 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
         Ok(self
             .with_scoped_document(uri, |document, knowledge| {
-                signature_help_response(document, position, knowledge)
+                signature_help_response(document, position, &knowledge.at(position))
             })
             .flatten())
     }
@@ -542,8 +531,8 @@ impl LanguageServer for Backend {
     async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
         let uri = &params.text_document.uri;
         let expression_types = self.settings.snapshot().expression_type_hints();
-        Ok(self.with_document(uri, |document| {
-            inlay_hints_response(document, params.range, expression_types)
+        Ok(self.with_scoped_document(uri, |document, knowledge| {
+            inlay_hints_response(document, params.range, expression_types, knowledge)
         }))
     }
 
@@ -555,7 +544,7 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
         Ok(self
             .with_scoped_document(uri, |document, knowledge| {
-                document_highlights(document, position, knowledge)
+                document_highlights(document, position, &knowledge.at(position))
             })
             .flatten())
     }
@@ -680,8 +669,12 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
         Ok(self
             .with_scoped_document(&uri, |document, knowledge| {
-                self.type_hierarchy_context()
-                    .prepare(document, knowledge, &uri, position)
+                self.type_hierarchy_context().prepare(
+                    document,
+                    &knowledge.at(position),
+                    &uri,
+                    position,
+                )
             })
             .flatten())
     }
@@ -729,11 +722,11 @@ impl LanguageServer for Backend {
         }
 
         // No open-document context here, so scope to the default-loaded baseline.
-        let loaded = LoadedPackages::resolve(self.partitioned.default_loaded(), "");
-        let scoped = self.partitioned.scoped(&loaded);
-        Ok(Some(workspace_symbols_response(query, &scoped, |record| {
-            self.source_resolver.record_location(record)
-        })))
+        Ok(Some(workspace_symbols_response(
+            query,
+            &self.registry,
+            |package| self.source_resolver.package_location(package),
+        )))
     }
 
     async fn goto_definition(
@@ -748,10 +741,10 @@ impl LanguageServer for Backend {
                     document,
                     uri,
                     position,
-                    knowledge,
+                    &knowledge.at(position),
                     &self.source_resolver,
                     &self.workspace_index,
-                    |record| self.source_resolver.record_location(record),
+                    |package| self.source_resolver.package_location(package),
                 )
             })
             .flatten())

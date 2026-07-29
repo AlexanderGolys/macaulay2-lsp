@@ -181,6 +181,7 @@ pub trait NodeKindMetadata {
     fn is_nothing_value(&self) -> bool;
     fn is_comment(&self) -> bool;
     fn is_control_transfer(&self) -> bool;
+    fn is_value_expression(&self) -> bool;
 }
 
 impl NodeKindMetadata for NodeKind {
@@ -225,6 +226,29 @@ impl NodeKindMetadata for NodeKind {
             *self,
             Self::ReturnStatement | Self::BreakStatement | Self::ContinueStatement
         )
+    }
+
+    fn is_value_expression(&self) -> bool {
+        self.is_literal()
+            || self.is_collection_expression()
+            || self.is_control_transfer()
+            || matches!(
+                *self,
+                Self::Symbol
+                    | Self::NakedSequence
+                    | Self::Cell
+                    | Self::ParenthesizedExpression
+                    | Self::IfStatement
+                    | Self::WhileStatement
+                    | Self::ForStatement
+                    | Self::NewStatement
+                    | Self::TryStatement
+                    | Self::DebugClause
+                    | Self::LambdaExpression
+                    | Self::BinaryExpression
+                    | Self::PrefixExpression
+                    | Self::PostfixExpression
+            )
     }
 }
 
@@ -366,6 +390,20 @@ impl<'tree> M2Node<'tree> {
             return None;
         }
         self.child_by_field_name("operator").map(|op| op.text())
+    }
+
+    /// The parsed operator and following operand of an infix expression.
+    ///
+    /// Binary expressions name that operand `right`; lambda expressions name it
+    /// `body`. Keeping that grammar distinction here lets consumers handle both
+    /// uniformly.
+    pub fn infix_operator_and_right_operand(&self) -> Option<(M2Node<'tree>, M2Node<'tree>)> {
+        let operand = match self.kind {
+            NodeKind::BinaryExpression => self.child_by_field_name("right"),
+            NodeKind::LambdaExpression => self.child_by_field_name("body"),
+            _ => None,
+        }?;
+        Some((self.child_by_field_name("operator")?, operand))
     }
 
     /// An assignment expression (`=`, `:=`, `<-`).

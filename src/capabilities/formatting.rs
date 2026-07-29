@@ -894,8 +894,9 @@ fn line_continuation(
         return 0;
     };
 
-    // (a) The first token is the start of the right operand of a binary
-    // expression whose operator dangled on an earlier row (`a +\nb`).
+    // (a) The first token is the start of the right operand of an infix
+    // expression whose operator dangled on an earlier row (`a +\nb`,
+    // `x ->\nbody`).
     if is_right_operand_first_token(first, row, compact_factor_operators) {
         return 1;
     }
@@ -936,7 +937,7 @@ fn first_leaf_on_row(root: M2Node<'_>, row: usize) -> Option<M2Node<'_>> {
     best
 }
 
-/// Whether `node` is the first token of the right operand of a binary expression
+/// Whether `node` is the first token of the right operand of an infix expression
 /// whose operator dangled on a row before `row`. Only spaced operators carry a
 /// continuation: a compact operator like `*` left at line end (`a*\nb`) does not
 /// indent its continuation, matching the line-final-operator spacing pass.
@@ -947,17 +948,12 @@ fn is_right_operand_first_token(
 ) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
-        if parent.is(NodeKind::BinaryExpression) {
-            if let (Some(operator), Some(right)) = (
-                parent.child_by_field_name("operator"),
-                parent.child_by_field_name("right"),
-            ) {
-                if right.start_byte() == node.start_byte()
-                    && operator.start_position().row < row
-                    && is_spaced_line_final_operator(operator.text(), compact_factor_operators)
-                {
-                    return true;
-                }
+        if let Some((operator, right)) = parent.infix_operator_and_right_operand() {
+            if right.start_byte() == node.start_byte()
+                && operator.start_position().row < row
+                && is_spaced_line_final_operator(operator.text(), compact_factor_operators)
+            {
+                return true;
             }
         }
         current = parent;
@@ -1741,6 +1737,15 @@ mod tests {
         assert_eq!(
             format_document_text_with_options("-----\ntop = 1\n", &options),
             "-----\ntop = 1\n"
+        );
+        assert_eq!(
+            format_document_text_with_options(
+                "expandMacro (Macro, String) := String => (m, block) ->\n\
+                 resultSource (transformOf m)(tokenStream parseMacroTree block)\n",
+                &options,
+            ),
+            "expandMacro (Macro, String) := String => (m, block) ->\n\
+             \x20  resultSource (transformOf m)(tokenStream parseMacroTree block)\n"
         );
     }
 

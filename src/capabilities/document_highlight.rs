@@ -1,11 +1,11 @@
 //! In-document highlighting for resolved symbols and compound-statement words.
 
-use crate::builtin_index::InstanceID;
 use crate::capabilities::navigation::{reference_ranges_resolved, unbound_reference_ranges};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
-use crate::typesystem::TypeKnowledge;
+use crate::typesystem::{type_is_subtype, TypeKnowledge};
 use tower_lsp::lsp_types::{
     DocumentHighlight, DocumentHighlightKind, DocumentHighlightOptions, OneOf, Position,
 };
@@ -55,13 +55,13 @@ fn unbound_symbol_highlights(
     builtins: &(impl TypeKnowledge + ?Sized),
 ) -> Option<Vec<DocumentHighlight>> {
     let (name, _) = document.symbol_occurrence_at(position)?;
-    if document.analysis().get_binding_at(name, position).is_some() {
+    if document.source_binding_at(name, position).is_some() {
         return None;
     }
 
     if builtins
-        .get_record(&InstanceID::new(name))
-        .is_some_and(|record| builtins.is_subtype(record.class.as_ref(), "Keyword"))
+        .get_record(&ObjectName::new(name))
+        .is_some_and(|record| type_is_subtype(builtins, &record.class, &ObjectName::new("Keyword")))
     {
         return None;
     }
@@ -382,10 +382,10 @@ fn statement_keyword_tokens(statement: M2Node<'_>) -> Vec<M2Node<'_>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtin_index::BuiltinData;
+    use crate::object_registry::ObjectRegistry;
 
     fn document(text: &str) -> DocumentSnapshot {
-        DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
+        DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
             .expect("fixture should parse")
     }
 
@@ -394,7 +394,7 @@ mod tests {
         document_highlights(
             &document,
             Position::new(line, character),
-            &BuiltinData::empty(),
+            &ObjectRegistry::default(),
         )
         .unwrap_or_default()
         .into_iter()
@@ -411,7 +411,7 @@ mod tests {
         document_highlights(
             &document,
             Position::new(line, character),
-            &BuiltinData::empty(),
+            &ObjectRegistry::default(),
         )
         .unwrap_or_default()
         .into_iter()
@@ -454,7 +454,7 @@ mod tests {
 
     #[test]
     fn does_not_highlight_null_or_boolean_literals() {
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         for literal in ["null", "true", "false"] {
             let text = format!("{literal}\n{literal}\n");
             let document = document(&text);
@@ -493,7 +493,7 @@ mod tests {
 
     #[test]
     fn highlights_unshadowed_builtin_names_but_excludes_keywords() {
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let text = "ideal I\n-- call `ideal` again\nideal J\nif true then ideal K\n";
         let source_document = document(text);
         let words = document_highlights(&source_document, Position::new(0, 1), &builtins)
@@ -517,7 +517,7 @@ mod tests {
 
     #[test]
     fn builtin_highlights_do_not_cross_a_local_shadow() {
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let text = "ideal I\nf := ideal -> (ideal + 1)\nideal J\n";
         let document = document(text);
         let highlights = document_highlights(&document, Position::new(0, 1), &builtins)
@@ -536,8 +536,9 @@ mod tests {
     fn highlights_repeated_unbound_names_without_an_index_record() {
         let text = "futureName x\n-- see `futureName`\nfutureName y\n";
         let document = document(text);
-        let highlights = document_highlights(&document, Position::new(0, 1), &BuiltinData::empty())
-            .expect("an unresolved non-keyword name is still highlightable");
+        let highlights =
+            document_highlights(&document, Position::new(0, 1), &ObjectRegistry::default())
+                .expect("an unresolved non-keyword name is still highlightable");
 
         assert_eq!(
             highlights

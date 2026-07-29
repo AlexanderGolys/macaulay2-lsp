@@ -11,10 +11,10 @@ use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, SignatureHelp, SignatureInformation,
 };
 
-use crate::analysis::{Analysis, FunctionInfo, MethodInstallation};
-use crate::builtin_index::InstanceID;
+use crate::analysis::{Analysis, FunctionInfo, Method};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
+use crate::object_registry::ObjectName;
 use crate::record_lsp::{LspKnowledge, ResolvedSignature};
 use crate::source::SourceNavigation;
 
@@ -135,7 +135,7 @@ fn signature_informations(
         }
     }
 
-    let Some(record) = knowledge.get_record(&InstanceID::new(callable)) else {
+    let Some(record) = knowledge.get_record(&ObjectName::new(callable)) else {
         return Vec::new();
     };
     // Documented signatures carry a codomain; undocumented installed methods
@@ -158,7 +158,7 @@ fn signature_informations(
 
 /// The domain types of an installed method signature `[callable, D1, D2, …]` —
 /// the parts after the leading callable name.
-fn method_domain(signature: &[InstanceID]) -> Vec<String> {
+fn method_domain(signature: &[ObjectName]) -> Vec<String> {
     signature.iter().skip(1).map(|id| id.0.clone()).collect()
 }
 
@@ -174,20 +174,17 @@ fn local_signatures(
         .collect()
 }
 
-fn local_signature_information(
-    callable: &str,
-    method: &MethodInstallation,
-) -> SignatureInformation {
+fn local_signature_information(callable: &str, method: &Method) -> SignatureInformation {
     let domain = method
         .domain
         .iter()
-        .map(InstanceID::name)
+        .map(ObjectName::name)
         .map(ToString::to_string)
         .collect::<Vec<_>>();
     signature_information(
         callable,
         &domain,
-        method.codomain.as_ref().map(InstanceID::name),
+        method.codomain.as_ref().map(ObjectName::name),
     )
 }
 
@@ -232,20 +229,18 @@ fn signature_information(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtin_index::BuiltinData;
-    use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
+    use crate::object_registry::ObjectRegistry;
 
     fn help(text: &str, position: Position) -> Option<SignatureHelp> {
-        let document = DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
+        let document = DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
             .expect("fixture should parse");
-        let index = PackagePartitionedIndex::from_corpus(include_str!("../data/m2-index.jsonl"));
-        let loaded = LoadedPackages::resolve(index.default_loaded(), text);
-        let scoped = index.scoped(&loaded);
+        let index = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
+        let scoped = index.with_source_imports(text);
         signature_help_response(&document, position, &scoped)
     }
 
     fn argument_kinds(text: &str) -> Vec<NodeKind> {
-        let document = DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
+        let document = DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
             .expect("fixture should parse");
         let root = document.root_node();
         let application = root

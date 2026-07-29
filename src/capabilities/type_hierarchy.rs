@@ -9,8 +9,9 @@ use tower::Service;
 use tower_lsp::jsonrpc::{Request, Response};
 use tower_lsp::lsp_types::{Position, Range, TypeHierarchyItem, Url};
 
-use crate::builtin_index::{InstanceID, Record};
+use crate::builtin_index::Record;
 use crate::document::DocumentSnapshot;
+use crate::object_registry::{ObjectName, TypeId};
 use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
 use crate::record_lsp::{LspKnowledge, PartitionedTypeKnowledge};
@@ -50,7 +51,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
         let name = node.text();
         let range = document.range_for_node(node);
 
-        let (package, record) = scoped.get_record_with_package(&InstanceID::new(name))?;
+        let (package, record) = scoped.get_record_with_package(&ObjectName::new(name))?;
         record.type_info()?;
 
         Some(vec![self.item(
@@ -67,17 +68,16 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
     /// `None`, which the LSP treats as "no supertypes response at all").
     pub(crate) fn supertypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
         let package = Self::package_of(item);
-        let (package, record) = self.record(package, &item.name)?;
+        let (_, record) = self.record(package, &item.name)?;
 
         // Empty parent (no parent, self-parent, or unresolved edge) → empty
         // vec, not `None`.
         let resolved = (|| {
-            let parent_name = record
-                .type_info()?
-                .parent_type
-                .as_ref()
-                .filter(|parent| parent != &&record.name)?;
-            let (parent_package, parent_record) = self.related_record(&package, parent_name)?;
+            let parent = &record.type_info()?.parent;
+            if parent.object() == &record.id {
+                return None;
+            }
+            let (parent_package, parent_record) = self.knowledge.get_type_by_id(parent)?;
             Some(self.item(&parent_package, parent_record, None, None))
         })();
         Some(resolved.into_iter().collect())
@@ -87,22 +87,18 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
     /// self-edges and unresolved names).
     pub(crate) fn subtypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
         let package = Self::package_of(item);
-        let (package, record) = self.record(package, &item.name)?;
+        let (_, record) = self.record(package, &item.name)?;
 
-        let mut items = Vec::new();
-        if let Some(type_info) = record.type_info() {
-            for subtype in &type_info.subtypes {
-                if subtype == &record.name {
-                    continue;
-                }
-                if let Some((subtype_package, subtype_record)) =
-                    self.related_record(&package, subtype)
-                {
-                    items.push(self.item(&subtype_package, subtype_record, None, None));
-                }
-            }
-        }
-        Some(items)
+        let type_id = TypeId::from_object(record.id.clone());
+        Some(
+            self.knowledge
+                .direct_subtypes(&type_id)
+                .into_iter()
+                .map(|(subtype_package, subtype_record)| {
+                    self.item(&subtype_package, subtype_record, None, None)
+                })
+                .collect(),
+        )
     }
 
     /// The originating package name stashed in the item's `data`, set when the
@@ -121,22 +117,9 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
         let package = package.unwrap_or("Core");
         let record = self
             .knowledge
-            .get_record_from_package(package, &InstanceID::new(name))?;
+            .get_record_from_package(package, &ObjectName::new(name))?;
         record.type_info()?;
         Some((package.to_string(), record))
-    }
-
-    /// Resolve a related type (parent/subtype) record, preferring the
-    /// originating package's partition and falling back to Core (cross-package
-    /// edges into the Core lattice resolve there).
-    fn related_record(&self, package: &str, name: &InstanceID) -> Option<(String, &Record)> {
-        if let Some(record) = self.knowledge.get_record_from_package(package, name) {
-            return Some((package.to_string(), record));
-        }
-
-        self.knowledge
-            .get_record_from_package("Core", name)
-            .map(|record| ("Core".to_string(), record))
     }
 
     /// Materialize a `TypeHierarchyItem` for `record`, filling in the
@@ -150,7 +133,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
         occurrence_uri: Option<Url>,
         occurrence_range: Option<Range>,
     ) -> TypeHierarchyItem {
-        let location = self.source_resolver.record_location(record);
+        let location = self.source_resolver.package_location(package);
         let uri = occurrence_uri
             .or_else(|| location.as_ref().map(|location| location.uri.clone()))
             .unwrap_or_else(|| Url::parse("macaulay2:/builtins").expect("valid builtin URI"));
@@ -159,9 +142,12 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
             .unwrap_or_else(|| Range::new(Position::new(0, 0), Position::new(0, 0)));
         let detail = record
             .type_info()
-            .and_then(|type_info| type_info.parent_type.as_ref())
-            .filter(|parent| parent != &&record.name)
-            .map(|parent| format!("Parent: {parent}"));
+            .and_then(|type_info| {
+                (type_info.parent.object() != &record.id)
+                    .then(|| self.knowledge.get_type_by_id(&type_info.parent))
+                    .flatten()
+            })
+            .map(|(_, parent)| format!("Parent: {}", parent.name));
 
         TypeHierarchyItem {
             name: record.name.0.clone(),
@@ -262,7 +248,7 @@ pub(crate) fn advertise_type_hierarchy_capability(response: Response) -> Respons
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::partitioned_index::{LoadedPackages, PackagePartitionedIndex};
+    use crate::object_registry::ObjectRegistry;
 
     fn corpus() -> &'static str {
         include_str!("../data/m2-index.jsonl")
@@ -270,9 +256,8 @@ mod tests {
 
     #[test]
     fn prepares_type_and_resolves_its_parent_from_partitioned_knowledge() {
-        let knowledge = PackagePartitionedIndex::from_corpus(corpus());
-        let loaded = LoadedPackages::from_parts(knowledge.default_loaded(), &[]);
-        let scoped = knowledge.scoped(&loaded);
+        let knowledge = ObjectRegistry::load(corpus());
+        let scoped = knowledge.with_source_imports("");
         let document = DocumentSnapshot::from_text("ZZ\n".to_string(), &knowledge)
             .expect("source should parse");
         let resolver = SourceResolver::new(Vec::new());

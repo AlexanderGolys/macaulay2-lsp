@@ -7,6 +7,9 @@ use tower_lsp::lsp_types::{
 };
 
 use crate::document::DocumentSnapshot;
+use crate::node_metadata::NodeKindMetadata;
+use crate::object_registry::ObjectRegistry;
+use crate::source::SourceNavigation;
 
 pub(crate) fn inlay_hint_provider_capability() -> Option<OneOf<bool, InlayHintServerCapabilities>> {
     Some(OneOf::Left(true))
@@ -18,6 +21,7 @@ pub(crate) fn inlay_hints_response(
     document: &DocumentSnapshot,
     range: Range,
     expression_types: bool,
+    knowledge: &ObjectRegistry,
 ) -> Vec<InlayHint> {
     let mut hints = Vec::new();
 
@@ -27,7 +31,7 @@ pub(crate) fn inlay_hints_response(
     // opt-in via `initializationOptions.inlayHints.expressionTypes`.
     hints.extend(binding_type_hints(document, &range));
     if expression_types {
-        hints.extend(expression_type_hints(document, &range));
+        hints.extend(expression_type_hints(document, &range, knowledge));
     }
     hints.sort_by(|left, right| {
         (
@@ -89,7 +93,11 @@ fn binding_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<InlayHi
         .collect()
 }
 
-fn expression_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<InlayHint> {
+fn expression_type_hints(
+    document: &DocumentSnapshot,
+    range: &Range,
+    knowledge: &ObjectRegistry,
+) -> Vec<InlayHint> {
     let analysis = document.analysis();
     // A binding already shows its type on the variable, so drop the RHS /
     // whole-assignment expression hint that would repeat the same type on the
@@ -108,31 +116,42 @@ fn expression_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<Inla
             ))
         })
         .collect();
-    analysis
-        .typed_expression_facts_in_range(*range)
-        .into_iter()
-        .filter_map(|(span, fact)| {
-            let type_name = fact.result_type.label()?;
-            let end = span.range.end;
+    document
+        .root_node()
+        .descendants()
+        .filter(|node| node.kind.is_value_expression())
+        .filter_map(|node| {
+            let expression_range = document.range_for_node(node);
+            if !range_contains(*range, expression_range) {
+                return None;
+            }
+            let view = knowledge.at(expression_range.start);
+            let type_name = analysis.infer_expression_type_label(node, document, &view)?;
+            let end = expression_range.end;
             if binding_value_types.contains(&(end.line, end.character, type_name.clone())) {
                 return None;
             }
-            Some(type_hint(span.range.end, &type_name))
+            Some(type_hint(expression_range.end, &type_name))
         })
         .collect()
+}
+
+fn range_contains(outer: Range, inner: Range) -> bool {
+    outer.start <= inner.start && inner.end <= outer.end
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtin_index::BuiltinData;
+    use crate::object_registry::ObjectRegistry;
     use tower_lsp::lsp_types::Position;
 
     fn hints(text: &str, expression_types: bool) -> Vec<InlayHint> {
-        let document = DocumentSnapshot::from_text(text.to_string(), &BuiltinData::empty())
-            .expect("fixture should parse");
+        let registry = ObjectRegistry::default();
+        let document =
+            DocumentSnapshot::from_text(text.to_string(), &registry).expect("fixture should parse");
         let range = Range::new(Position::new(0, 0), Position::new(u32::MAX, 0));
-        inlay_hints_response(&document, range, expression_types)
+        inlay_hints_response(&document, range, expression_types, &registry)
     }
 
     fn labels(hints: &[InlayHint]) -> Vec<String> {

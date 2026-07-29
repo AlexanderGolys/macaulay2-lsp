@@ -13,11 +13,10 @@ use std::sync::{Arc, RwLock};
 use dashmap::DashMap;
 use tower_lsp::lsp_types::{Location, Range, Url};
 
-use crate::analysis::SymbolName;
 use crate::capabilities::semantic_tokens::local_symbol_semantic_token_type;
 use crate::document::DocumentSnapshot;
-use crate::semantic_token::{M2SemanticTokenType, SemanticTokenKnowledge};
-use crate::typesystem::TypeKnowledgeProvider;
+use crate::object_registry::{ObjectName, ObjectRegistry};
+use crate::semantic_token::M2SemanticTokenType;
 
 #[derive(Debug, Clone)]
 struct DefLocation {
@@ -51,8 +50,8 @@ impl<T: WorkspaceDefinitionKnowledge + ?Sized> WorkspaceDefinitionKnowledge for 
 /// files from disk.
 #[derive(Debug, Default)]
 pub(crate) struct WorkspaceIndex {
-    definitions_by_name: DashMap<SymbolName, Vec<DefLocation>>,
-    names_by_file: DashMap<Url, Vec<SymbolName>>,
+    definitions_by_name: DashMap<ObjectName, Vec<DefLocation>>,
+    names_by_file: DashMap<Url, Vec<ObjectName>>,
     roots: RwLock<Vec<PathBuf>>,
 }
 
@@ -70,11 +69,7 @@ impl WorkspaceIndex {
 
     /// Walk every root and index all `.m2` files found. Intended to run off the
     /// request path (e.g. `spawn_blocking`) since it touches the filesystem.
-    pub(crate) fn scan<K>(&self, knowledge_provider: &K)
-    where
-        K: TypeKnowledgeProvider + ?Sized,
-        for<'a> K::Knowledge<'a>: SemanticTokenKnowledge,
-    {
+    pub(crate) fn scan(&self, knowledge_provider: &ObjectRegistry) {
         for root in self.roots() {
             let mut files = Vec::new();
             collect_m2_files(&root, &mut files);
@@ -94,11 +89,7 @@ impl WorkspaceIndex {
     }
 
     /// Replace the definitions recorded for `uri` with those parsed from `text`.
-    pub(crate) fn index_file<K>(&self, uri: &Url, text: &str, knowledge_provider: &K)
-    where
-        K: TypeKnowledgeProvider + ?Sized,
-        for<'a> K::Knowledge<'a>: SemanticTokenKnowledge,
-    {
+    pub(crate) fn index_file(&self, uri: &Url, text: &str, knowledge_provider: &ObjectRegistry) {
         self.remove_file(uri);
         let definitions = top_level_definitions(text, knowledge_provider);
         if definitions.is_empty() {
@@ -106,7 +97,7 @@ impl WorkspaceIndex {
         }
         let mut names = Vec::with_capacity(definitions.len());
         for (name, range, semantic_token_type) in definitions {
-            let name = SymbolName::new(&name);
+            let name = ObjectName::new(name);
             self.definitions_by_name
                 .entry(name.clone())
                 .or_default()
@@ -208,28 +199,20 @@ fn collect_m2_files(dir: &Path, out: &mut Vec<PathBuf>) {
 /// Parse `text` and return its global-scope definitions as `(name, range)`,
 /// where `range` is the definition site — the same range go-to-definition
 /// returns for an in-file symbol.
-fn top_level_definitions<K>(
+fn top_level_definitions(
     text: &str,
-    knowledge_provider: &K,
-) -> Vec<(String, Range, M2SemanticTokenType)>
-where
-    K: TypeKnowledgeProvider + ?Sized,
-    for<'a> K::Knowledge<'a>: SemanticTokenKnowledge,
-{
+    knowledge_provider: &ObjectRegistry,
+) -> Vec<(String, Range, M2SemanticTokenType)> {
     let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), knowledge_provider) else {
         return Vec::new();
     };
-    let knowledge = knowledge_provider.knowledge_for(snapshot.imported_packages());
+    let knowledge = snapshot.object_registry();
     let analysis = snapshot.analysis();
     analysis
         .bindings_in_scope(0)
         .map(|binding| {
             let token_type = local_symbol_semantic_token_type(&binding, &knowledge);
-            (
-                analysis.symbol_name(binding.symbol).to_string(),
-                binding.range,
-                token_type,
-            )
+            (binding.name.name().to_string(), binding.range, token_type)
         })
         .collect()
 }
@@ -237,12 +220,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtin_index::BuiltinData;
-    use crate::partitioned_index::PackagePartitionedIndex;
+    use crate::object_registry::ObjectRegistry;
 
     #[test]
     fn indexes_and_looks_up_cross_file_definitions() {
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let index = WorkspaceIndex::default();
         let defs = Url::parse("file:///defs.m2").expect("uri");
         let main = Url::parse("file:///main.m2").expect("uri");
@@ -285,7 +267,7 @@ mod tests {
             "\"package\":\"$Pkg$Pkg\",\"class\":\"$Core$MethodFunction\",",
             "\"methods\":[{\"domain\":[\"$Core$ZZ\"],\"typicalValue\":\"$Core$Type\"}]}\n",
         );
-        let knowledge = PackagePartitionedIndex::from_corpus(corpus);
+        let knowledge = ObjectRegistry::load(corpus);
         let index = WorkspaceIndex::default();
         let definitions = Url::parse("file:///definitions.m2").unwrap();
         let reference = Url::parse("file:///reference.m2").unwrap();

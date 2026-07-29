@@ -7,16 +7,15 @@
 
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{ExpressionKind, SpanKey};
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
+use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
 
 /// The outline view of a document: assignment bindings (functions nested under
 /// their body), method installations, and indexed variables.
 pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<DocumentSymbol> {
     let analysis = document.analysis();
-    let registry = &analysis.registry;
     let mut declarations = Vec::new();
 
     for binding in analysis
@@ -24,7 +23,7 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
         .filter(|binding| binding.role == BindingRole::Ordinary)
     {
         declarations.push(Declaration {
-            name: analysis.symbol_name(binding.symbol).to_string(),
+            name: binding.name.name().to_string(),
             detail: binding
                 .state
                 .type_name
@@ -38,20 +37,17 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
                 .state
                 .value_range
                 .and_then(|range| scope_with_range(analysis, range)),
-            symbol: Some(binding.symbol),
+            symbol: Some(binding.name.clone()),
         });
     }
 
-    for installation in &analysis.installations {
+    for installation in analysis.installations() {
         let Some(name) = document.text_in_range(installation.target.range) else {
             continue;
         };
-        let scope_idx = registry
-            .expressions
-            .get(&SpanKey {
-                range: installation.span.range,
-            })
-            .map_or(0, |fact| fact.scope_idx);
+        let scope_idx = analysis
+            .scope_at_position(installation.span.range.start)
+            .unwrap_or(0);
         declarations.push(Declaration {
             name: name.to_string(),
             detail: Some(method_signature_detail(analysis, installation, name)),
@@ -67,26 +63,31 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
         });
     }
 
-    for (span, fact) in &registry.expressions {
-        if fact.kind != ExpressionKind::Assign {
+    for node in document.root_node().descendants() {
+        if !node.is_assignment() || node.binary_operator() != Some("=") {
             continue;
         }
-        let Some(left_span) = fact.input_nodes.first() else {
+        let range = document.range_for_node(node);
+        if analysis
+            .installations()
+            .iter()
+            .any(|installation| installation.span.range == range)
+        {
+            continue;
+        }
+        let Some(left) = node.child_by_field_name("left") else {
             continue;
         };
-        let Some(left) = registry.expressions.get(left_span) else {
-            continue;
-        };
-        let child_scope_idx = fact
-            .input_nodes
-            .get(1)
-            .and_then(|right| scope_with_range(analysis, right.range));
-        let kind = match (fact.operator.as_deref(), left.operator.as_deref()) {
-            (Some("="), Some("_")) => SymbolKind::VARIABLE,
-            (Some("="), Some(_)) if child_scope_idx.is_some() => SymbolKind::METHOD,
+        let selection_range = document.range_for_node(left);
+        let child_scope_idx = node
+            .child_by_field_name("right")
+            .and_then(|right| scope_with_range(analysis, document.range_for_node(right)));
+        let kind = match left.binary_operator() {
+            Some("_") => SymbolKind::VARIABLE,
+            Some(_) if child_scope_idx.is_some() => SymbolKind::METHOD,
             _ => continue,
         };
-        let Some(name) = document.text_in_range(left_span.range) else {
+        let Some(name) = document.text_in_range(selection_range) else {
             continue;
         };
         let detail = Some(if kind == SymbolKind::METHOD {
@@ -98,9 +99,9 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
             name: name.to_string(),
             detail,
             kind,
-            range: span.range,
-            selection_range: left_span.range,
-            scope_idx: fact.scope_idx,
+            range,
+            selection_range,
+            scope_idx: analysis.scope_at_position(range.start).unwrap_or(0),
             child_scope_idx,
             symbol: None,
         });
@@ -162,7 +163,7 @@ struct Declaration {
     selection_range: Range,
     scope_idx: usize,
     child_scope_idx: Option<usize>,
-    symbol: Option<crate::analysis::SymbolId>,
+    symbol: Option<ObjectName>,
 }
 
 fn scope_with_range(analysis: &crate::analysis::Analysis, range: Range) -> Option<usize> {
@@ -188,16 +189,16 @@ fn build_document_symbol_tree(
     let mut by_scope: Vec<Vec<Declaration>> = (0..analysis.registry.scopes.len())
         .map(|_| Vec::new())
         .collect();
-    let mut seen_symbols: Vec<Vec<crate::analysis::SymbolId>> = (0..analysis.registry.scopes.len())
+    let mut seen_symbols: Vec<Vec<ObjectName>> = (0..analysis.registry.scopes.len())
         .map(|_| Vec::new())
         .collect();
     for declaration in declarations {
         let scope_idx = nearest_container_scope(analysis, &container_scopes, declaration.scope_idx);
-        if let Some(symbol) = declaration.symbol {
-            if seen_symbols[scope_idx].contains(&symbol) {
+        if let Some(symbol) = declaration.symbol.as_ref() {
+            if seen_symbols[scope_idx].contains(symbol) {
                 continue;
             }
-            seen_symbols[scope_idx].push(symbol);
+            seen_symbols[scope_idx].push(symbol.clone());
         }
         by_scope[scope_idx].push(declaration);
     }
@@ -244,19 +245,19 @@ fn build_scope_symbols(scope_idx: usize, by_scope: &mut [Vec<Declaration>]) -> V
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtin_index::BuiltinData;
     use crate::document::DocumentSnapshot;
     use crate::node_metadata::{M2Node, M2Parser, NodeKind};
+    use crate::object_registry::ObjectRegistry;
     use tower_lsp::lsp_types::{Position, Range};
 
-    fn document(text: &str, builtins: &BuiltinData) -> DocumentSnapshot {
+    fn document(text: &str, builtins: &ObjectRegistry) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), builtins).expect("fixture should parse")
     }
 
     #[test]
     fn document_symbol_ranges_use_lsp_utf16_columns() {
         let text = "\"😀\"; f := 1";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
@@ -271,7 +272,7 @@ mod tests {
     #[test]
     fn document_symbols_exclude_package_indexed_option_keys() {
         let text = "newPackage(\"P\", Version => \"0.1\", DebuggingMode => false)\n";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
 
@@ -290,7 +291,7 @@ mod tests {
     #[test]
     fn document_symbols_exclude_custom_option_keys() {
         let text = "f = method(Options => {MyOpt => 1})\ng(MyOpt => 2)\n";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
 
@@ -303,7 +304,7 @@ mod tests {
     #[test]
     fn document_symbols_include_top_level_and_nested_assignments() {
         let text = "f := x -> (y := x + 1; y)\nR = QQ[a]\n";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
@@ -335,7 +336,7 @@ mod tests {
     fn document_symbols_include_only_new_bindings_in_m2_scopes() {
         let text =
             "x := 1\nx := 2\ny = 1\ny = 2\nf := x -> (x = 2; K = x; z := 3; z := 4)\nK = 3\n";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
@@ -365,7 +366,7 @@ mod tests {
     #[test]
     fn document_symbols_include_nested_equal_assignment_functions() {
         let text = "f = () -> (g = () -> (x = 1))";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
@@ -394,7 +395,7 @@ mod tests {
         // A top-level name assigned more than once is a single static symbol,
         // anchored at its first binding.
         let text = "x = 1\nargs = {}\nargs = append(args, 1)\n";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
@@ -450,7 +451,7 @@ mod tests {
         }
 
         let text = include_str!("../../tests/fixtures/formatting_example.m2");
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let root = parser.parse(text).expect("fixture should parse");
         let mut expected = Vec::new();
@@ -487,7 +488,7 @@ String * String = (x, y, e) -> e
 - String := peek
 String ^~ := peek
 ";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
@@ -521,7 +522,7 @@ String ^~ := peek
         // `[x, y] := …` and nested `[p, [q, r]] := …` bind exactly like the
         // sequence form — the outline must list every bound name.
         let text = "[x, y] := {1, 2}\n[p, [q, r]] := [1, [2, 3]]\n";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
@@ -540,7 +541,7 @@ Z = new Type of X
 Y + X := (a,b) -> \"Y + X\"
 X + Z := (a,b) -> \"X + Z\"
 ";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
@@ -569,7 +570,7 @@ p(ZZ, ZZ) := (i, j) -> {i, j}
 p(CC, CC) := Array => (i, j) -> [i, j]
 x := 1
 ";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
@@ -591,7 +592,7 @@ x := 1
     #[test]
     fn document_symbols_exclude_option_keys_from_function_children() {
         let text = "f := x -> g(x, Strategy => LongPolynomial)";
-        let builtins = BuiltinData::empty();
+        let builtins = ObjectRegistry::default();
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);
@@ -602,7 +603,7 @@ x := 1
     #[test]
     fn document_symbols_keep_to_type_functions_as_functions() {
         let text = "toString := x -> x";
-        let builtins = BuiltinData::load_from_index(include_str!("../data/m2-index.jsonl"));
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);

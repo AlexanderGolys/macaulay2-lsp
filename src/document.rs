@@ -6,15 +6,11 @@ use crate::node_metadata::{M2Node, M2Parser, M2Tree, NodeKind, NodeKindMetadata}
 use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Point};
 
-#[cfg(test)]
-use crate::analysis::ExpressionFact;
 use crate::analysis::{Analysis, BindingView, FunctionInfo};
-#[cfg(test)]
-use crate::builtin_index::InstanceID;
 use crate::documentation::{collect_documentation, DocumentationReference, DocumentationSnippet};
-use crate::package_index::collect_imported_packages_in_tree;
+use crate::object_registry::ObjectRegistry;
+use crate::package_index::{collect_imported_packages_in_tree, PackageImport};
 use crate::source::{DocumentSource, SourceNavigation};
-use crate::typesystem::TypeKnowledgeProvider;
 
 /// One immutable source, syntax, and semantic-analysis snapshot served to LSP
 /// requests.
@@ -24,7 +20,8 @@ pub(crate) struct DocumentSnapshot {
     macro_syntax: MacroSyntax,
     tree: M2Tree,
     analysis: Analysis,
-    imported_packages: Vec<String>,
+    object_registry: ObjectRegistry,
+    imported_packages: Vec<PackageImport>,
     documentation_snippets: Vec<DocumentationSnippet>,
     documentation_references: Vec<DocumentationReference>,
 }
@@ -47,17 +44,14 @@ pub(crate) struct TargetSymbol<'a> {
 }
 
 impl DocumentSnapshot {
-    pub(crate) fn from_text(
-        text: String,
-        knowledge_provider: &(impl TypeKnowledgeProvider + ?Sized),
-    ) -> Option<Self> {
+    pub(crate) fn from_text(text: String, knowledge_provider: &ObjectRegistry) -> Option<Self> {
         let source = DocumentSource::new(text);
         let mut parser = M2Parser::new()?;
         let macro_syntax = MacroSyntax::scan(source.text());
         let tree = parser.parse_tree(macro_syntax.parse_text(), None)?;
         let root = tree.root(source.text());
-        let imported_packages = collect_imported_packages_in_tree(root);
-        let knowledge = knowledge_provider.knowledge_for(&imported_packages);
+        let imported_packages = collect_imported_packages_in_tree(root, &source);
+        let knowledge = knowledge_provider.with_imports(&imported_packages);
         let analysis = Analysis::new_with_knowledge(root, &source, &knowledge);
         let (documentation_snippets, documentation_references) =
             collect_documentation(&source, root);
@@ -66,6 +60,7 @@ impl DocumentSnapshot {
             macro_syntax,
             tree,
             analysis,
+            object_registry: knowledge,
             imported_packages,
             documentation_snippets,
             documentation_references,
@@ -75,7 +70,7 @@ impl DocumentSnapshot {
     pub(crate) fn apply_changes(
         &mut self,
         changes: &[TextDocumentContentChangeEvent],
-        knowledge_provider: &(impl TypeKnowledgeProvider + ?Sized),
+        knowledge_provider: &ObjectRegistry,
     ) -> Option<()> {
         for change in changes {
             if let Some(range) = change.range {
@@ -99,11 +94,15 @@ impl DocumentSnapshot {
             .is_macro_name(node.start_byte(), node.end_byte())
     }
 
-    /// The packages this document imports, memoized from its tree. Combined with
-    /// the partitioned index's baseline (`LoadedPackages::from_parts`) to build
-    /// the scoped query view.
-    pub(crate) fn imported_packages(&self) -> &[String] {
+    /// The packages this document imports, memoized from its tree.
+    #[cfg(test)]
+    pub(crate) fn imported_packages(&self) -> &[PackageImport] {
         &self.imported_packages
+    }
+
+    /// Registry containing exactly the packages loaded for this document version.
+    pub(crate) fn object_registry(&self) -> &ObjectRegistry {
+        &self.object_registry
     }
 
     pub(crate) fn analysis(&self) -> &Analysis {
@@ -119,7 +118,33 @@ impl DocumentSnapshot {
             return self.documentation_symbol(&reference);
         }
         let node = self.symbol_node_at_position(position)?;
-        self.analysis.get_binding_at(node.text(), position)
+        self.source_binding_at(node.text(), position)
+    }
+
+    /// The source binding effective at `position`, unless a later package
+    /// inclusion has shadowed that global name.
+    pub(crate) fn source_binding_at(
+        &self,
+        name: &str,
+        position: Position,
+    ) -> Option<BindingView<'_>> {
+        let binding = self.analysis.get_binding_at(name, position)?;
+        let package_shadows = binding.scope_idx == 0
+            && self
+                .object_registry
+                .at(position)
+                .shadows_source(&binding.name, binding.state.span.range.start);
+        (!package_shadows).then_some(binding)
+    }
+
+    /// The declaration of the source binding effective at `position`.
+    pub(crate) fn source_symbol_at(
+        &self,
+        name: &str,
+        position: Position,
+    ) -> Option<BindingView<'_>> {
+        self.source_binding_at(name, position)?;
+        self.analysis.get_symbol_at(name, position)
     }
 
     /// Resolve the user symbol under `position`: its tree-sitter node plus the
@@ -138,7 +163,7 @@ impl DocumentSnapshot {
         let symbol = if let Some(reference) = documentation_reference {
             self.documentation_symbol(&reference)?
         } else {
-            self.analysis.get_symbol_at(name, position)?
+            self.source_symbol_at(name, position)?
         };
         Some(TargetSymbol {
             name,
@@ -171,6 +196,13 @@ impl DocumentSnapshot {
     ) -> Option<BindingView<'_>> {
         self.analysis
             .documentation_symbol_at(reference.name(self.text()), reference.range().start)
+            .filter(|binding| {
+                binding.scope_idx != 0
+                    || !self
+                        .object_registry
+                        .at(reference.range().start)
+                        .shadows_source(&binding.name, binding.state.span.range.start)
+            })
     }
 
     /// A real CST symbol or a backtick-delimited symbol mention under the
@@ -183,18 +215,9 @@ impl DocumentSnapshot {
         Some((node.text(), self.range_for_node(node)))
     }
 
-    #[cfg(test)]
-    pub(crate) fn expression_fact_at_position(
-        &self,
-        position: Position,
-    ) -> Option<&ExpressionFact> {
-        let node = self.node_at_position_minimal(position)?;
-        self.analysis.expression_fact(self, node)
-    }
-
     pub(crate) fn callable_at_position(&self, position: Position) -> Option<&FunctionInfo> {
         let binding = self.binding_at_position(position)?;
-        self.analysis.function_by_symbol(binding.symbol)
+        self.analysis.function_for_binding(binding.binding)
     }
 
     pub(crate) fn root_node(&self) -> M2Node<'_> {
@@ -253,7 +276,7 @@ impl DocumentSnapshot {
         &mut self,
         range: Range,
         replacement: &str,
-        knowledge_provider: &(impl TypeKnowledgeProvider + ?Sized),
+        knowledge_provider: &ObjectRegistry,
     ) -> Option<()> {
         let old_bytes = self.bytes_for_range(range)?;
         let start_byte = old_bytes.start;
@@ -285,8 +308,8 @@ impl DocumentSnapshot {
             parser.parse_tree(self.text(), Some(&edited_tree))?
         };
         let root = tree.root(self.text());
-        let imported_packages = collect_imported_packages_in_tree(root);
-        let knowledge = knowledge_provider.knowledge_for(&imported_packages);
+        let imported_packages = collect_imported_packages_in_tree(root, &self.source);
+        let knowledge = knowledge_provider.with_imports(&imported_packages);
         let analysis = Analysis::new_with_knowledge(root, &self.source, &knowledge);
         let (documentation_snippets, documentation_references) =
             collect_documentation(&self.source, root);
@@ -294,6 +317,7 @@ impl DocumentSnapshot {
         self.macro_syntax = macro_syntax;
         self.tree = tree;
         self.analysis = analysis;
+        self.object_registry = knowledge;
         self.documentation_snippets = documentation_snippets;
         self.documentation_references = documentation_references;
         Some(())
@@ -319,11 +343,11 @@ fn advance_point(start: Point, inserted_text: &str) -> Point {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builtin_index::BuiltinData;
-    use crate::partitioned_index::PackagePartitionedIndex;
+    use crate::object_registry::{ObjectKnowledge, ObjectName, ObjectRegistry};
+    use crate::typesystem::TypeKnowledge;
 
-    fn builtins() -> BuiltinData {
-        BuiltinData::load_from_index(include_str!("./data/m2-index.jsonl"))
+    fn builtins() -> ObjectRegistry {
+        ObjectRegistry::load(include_str!("./data/m2-index.jsonl"))
     }
 
     #[test]
@@ -348,7 +372,22 @@ mod tests {
         let mut document =
             DocumentSnapshot::from_text("needsPackage \"JSON\"\n".to_string(), &builtins)
                 .expect("fixture should parse");
-        assert_eq!(document.imported_packages(), &["JSON".to_string()]);
+        assert_eq!(
+            document
+                .imported_packages()
+                .iter()
+                .map(|import| import.package.name())
+                .collect::<Vec<_>>(),
+            vec!["JSON"]
+        );
+        assert!(document
+            .object_registry()
+            .package_id(&ObjectName::new("JSON"))
+            .is_some());
+        assert!(document
+            .object_registry()
+            .get_record(&ObjectName::new("toJSON"))
+            .is_some());
 
         // Append a second import incrementally; the memoized set re-derives.
         let end = Position::new(1, 0);
@@ -363,8 +402,220 @@ mod tests {
             )
             .expect("edit should parse");
         assert_eq!(
-            document.imported_packages(),
-            &["JSON".to_string(), "Text".to_string()]
+            document
+                .imported_packages()
+                .iter()
+                .map(|import| import.package.name())
+                .collect::<Vec<_>>(),
+            vec!["JSON", "Text"]
+        );
+        assert!(document
+            .object_registry()
+            .package_id(&ObjectName::new("Text"))
+            .is_some());
+    }
+
+    #[test]
+    fn imported_package_registry_is_isolated_per_document() {
+        let builtins = builtins();
+        let imported =
+            DocumentSnapshot::from_text("needsPackage \"JSON\"\n".to_string(), &builtins)
+                .expect("importing document should parse");
+        let plain = DocumentSnapshot::from_text("1 + 1\n".to_string(), &builtins)
+            .expect("plain document should parse");
+
+        assert!(imported
+            .object_registry()
+            .get_record(&ObjectName::new("toJSON"))
+            .is_some());
+        assert!(plain
+            .object_registry()
+            .get_record(&ObjectName::new("toJSON"))
+            .is_none());
+        assert!(builtins.get_record(&ObjectName::new("toJSON")).is_none());
+    }
+
+    #[test]
+    fn package_names_and_database_aliases_shadow_in_inclusion_order() {
+        let corpus = concat!(
+            "{\"kind\":\"meta\",\"default_loaded\":[\"Core\"]}\n",
+            "{\"kind\":\"symbol\",\"name\":\"shared\",\"package\":\"$First$First\",",
+            "\"aliases\":[\"First$shared\"]}\n",
+            "{\"kind\":\"symbol\",\"name\":\"shared\",\"package\":\"$Second$Second\",",
+            "\"aliases\":[\"Second$shared\"]}\n",
+        );
+        let provider = ObjectRegistry::load(corpus);
+        let document = DocumentSnapshot::from_text(
+            "needsPackage \"First\"\nneedsPackage \"Second\"\nshared\n".to_string(),
+            &provider,
+        )
+        .expect("fixture should parse");
+        let registry = document.object_registry();
+
+        assert!(
+            registry
+                .at(Position::new(0, 0))
+                .get_record(&ObjectName::new("shared"))
+                .is_none(),
+            "the first package must not be visible before its inclusion"
+        );
+        assert_eq!(
+            registry
+                .at(Position::new(1, 0))
+                .resolve_object(&ObjectName::new("shared"))
+                .map(|object| object.name().to_string()),
+            Some("$First$shared".to_string())
+        );
+        let after_both = registry.at(Position::new(2, 0));
+        assert_eq!(
+            after_both
+                .resolve_object(&ObjectName::new("shared"))
+                .map(|object| object.name().to_string()),
+            Some("$Second$shared".to_string()),
+            "the later inclusion must shadow the ordinary name"
+        );
+        assert_eq!(
+            after_both
+                .resolve_object(&ObjectName::new("First$shared"))
+                .map(|object| object.name().to_string()),
+            Some("$First$shared".to_string()),
+            "the package alias must come from the database unchanged"
+        );
+        assert_eq!(
+            after_both
+                .resolve_object(&ObjectName::new("Second$shared"))
+                .map(|object| object.name().to_string()),
+            Some("$Second$shared".to_string())
+        );
+    }
+
+    #[test]
+    fn package_callable_types_take_effect_only_after_the_inclusion() {
+        let corpus = concat!(
+            "{\"kind\":\"meta\",\"default_loaded\":[\"Core\"]}\n",
+            "{\"kind\":\"type\",\"name\":\"MethodFunction\",",
+            "\"package\":\"$Core$Core\",\"parent\":\"$Core$Function\"}\n",
+            "{\"kind\":\"methodFunction\",\"name\":\"pkgFn\",",
+            "\"package\":\"$Pkg$Pkg\",\"class\":\"$Core$MethodFunction\",",
+            "\"methods\":[{\"domain\":[\"$Core$ZZ\"],\"typicalValue\":\"$Core$String\"}]}\n",
+        );
+        let provider = ObjectRegistry::load(corpus);
+        let document = DocumentSnapshot::from_text(
+            "before := pkgFn 1\nneedsPackage \"Pkg\"\nafter := pkgFn 1\n".to_string(),
+            &provider,
+        )
+        .expect("fixture should parse");
+        let before = document
+            .analysis()
+            .get_binding_at("before", Position::new(0, 0))
+            .expect("before binding");
+        let after = document
+            .analysis()
+            .get_binding_at("after", Position::new(2, 0))
+            .expect("after binding");
+
+        assert_ne!(
+            before.state.type_name.as_ref().map(ObjectName::name),
+            Some("String")
+        );
+        assert_eq!(
+            after.state.type_name.as_ref().map(ObjectName::name),
+            Some("String")
+        );
+    }
+
+    #[test]
+    fn source_definition_shadows_a_package_only_from_its_definition_onward() {
+        let corpus = concat!(
+            "{\"kind\":\"meta\",\"default_loaded\":[\"Core\"]}\n",
+            "{\"kind\":\"type\",\"name\":\"MethodFunction\",",
+            "\"package\":\"$Core$Core\",\"parent\":\"$Core$Function\"}\n",
+            "{\"kind\":\"methodFunction\",\"name\":\"f\",",
+            "\"package\":\"$Pkg$Pkg\",\"class\":\"$Core$MethodFunction\",",
+            "\"methods\":[{\"domain\":[\"$Core$ZZ\"],\"typicalValue\":\"$Core$String\"}]}\n",
+        );
+        let provider = ObjectRegistry::load(corpus);
+        let document = DocumentSnapshot::from_text(
+            concat!(
+                "needsPackage \"Pkg\"\n",
+                "fromPackage := f 1\n",
+                "f := x -> 1\n",
+                "fromSource := f 1\n",
+            )
+            .to_string(),
+            &provider,
+        )
+        .expect("fixture should parse");
+        let package_result = document
+            .analysis()
+            .get_binding_at("fromPackage", Position::new(1, 0))
+            .expect("package result binding");
+        let source_result = document
+            .analysis()
+            .get_binding_at("fromSource", Position::new(3, 0))
+            .expect("source result binding");
+
+        assert_eq!(
+            package_result
+                .state
+                .type_name
+                .as_ref()
+                .map(ObjectName::name),
+            Some("String")
+        );
+        assert_eq!(
+            source_result.state.type_name.as_ref().map(ObjectName::name),
+            Some("Thing"),
+            "the later local function must shadow the package callable"
+        );
+    }
+
+    #[test]
+    fn later_package_and_source_registrations_alternate_shadowing() {
+        let corpus = concat!(
+            "{\"kind\":\"meta\",\"default_loaded\":[\"Core\"]}\n",
+            "{\"kind\":\"type\",\"name\":\"MethodFunction\",",
+            "\"package\":\"$Core$Core\",\"parent\":\"$Core$Function\"}\n",
+            "{\"kind\":\"methodFunction\",\"name\":\"f\",",
+            "\"package\":\"$Pkg$Pkg\",\"class\":\"$Core$MethodFunction\",",
+            "\"methods\":[{\"domain\":[\"$Core$ZZ\"],\"typicalValue\":\"$Core$String\"}]}\n",
+        );
+        let provider = ObjectRegistry::load(corpus);
+        let document = DocumentSnapshot::from_text(
+            concat!(
+                "f := x -> 1\n",
+                "firstLocal := f 1\n",
+                "needsPackage \"Pkg\"\n",
+                "packageWins := f 1\n",
+                "f := x -> 2\n",
+                "lastLocal := f 1\n",
+            )
+            .to_string(),
+            &provider,
+        )
+        .expect("fixture should parse");
+        let type_at = |name, line| {
+            document
+                .analysis()
+                .get_binding_at(name, Position::new(line, 0))
+                .and_then(|binding| binding.state.type_name.as_ref())
+                .map(ObjectName::name)
+        };
+
+        assert_eq!(type_at("firstLocal", 1), Some("Thing"));
+        assert_eq!(type_at("packageWins", 3), Some("String"));
+        assert_eq!(type_at("lastLocal", 5), Some("Thing"));
+        assert!(
+            document
+                .source_symbol_at("f", Position::new(3, 0))
+                .is_none(),
+            "a package inclusion later than the source definition must own the name"
+        );
+        assert!(
+            document
+                .source_symbol_at("f", Position::new(5, 0))
+                .is_some(),
+            "a later source definition must reclaim the name"
         );
     }
 
@@ -373,12 +624,24 @@ mod tests {
         let corpus = concat!(
             "{\"kind\":\"meta\",\"default_loaded\":[\"Core\"]}\n",
             "{\"kind\":\"type\",\"name\":\"MethodFunction\",",
-            "\"package\":\"$Core$Core\",\"ancestors\":[\"$Core$Function\",\"$Core$Thing\"]}\n",
+            "\"package\":\"$Core$Core\",\"parent\":\"$Core$Function\"}\n",
             "{\"kind\":\"methodFunction\",\"name\":\"pkgFn\",",
             "\"package\":\"$Pkg$Pkg\",\"class\":\"$Core$MethodFunction\",",
             "\"methods\":[{\"domain\":[\"$Core$ZZ\"],\"typicalValue\":\"$Core$String\"}]}\n",
         );
-        let provider = PackagePartitionedIndex::from_corpus(corpus);
+        let provider = ObjectRegistry::load(corpus);
+        let scoped_document =
+            DocumentSnapshot::from_text("needsPackage \"Pkg\"\n".to_string(), &provider)
+                .expect("scoped fixture should parse");
+        let scoped = scoped_document.object_registry().at(Position::new(1, 0));
+        assert_eq!(
+            scoped.resolve_call_return_type_with_options(
+                &ObjectName::new("pkgFn"),
+                &[Some(ObjectName::new("ZZ"))],
+                &[],
+            ),
+            Some(ObjectName::new("String"))
+        );
         let mut document = DocumentSnapshot::from_text(
             "needsPackage \"Pkg\"\ny := pkgFn 1\ny\n".to_string(),
             &provider,
@@ -394,7 +657,7 @@ mod tests {
                 .state
                 .type_name
                 .as_ref()
-                .map(InstanceID::name),
+                .map(ObjectName::name),
             Some("String")
         );
 
@@ -408,6 +671,10 @@ mod tests {
                 &provider,
             )
             .expect("removing the import should reparse");
+        assert!(document
+            .object_registry()
+            .package_id(&ObjectName::new("Pkg"))
+            .is_none());
 
         let unimported_binding = document
             .analysis()
@@ -418,7 +685,7 @@ mod tests {
                 .state
                 .type_name
                 .as_ref()
-                .map(InstanceID::name),
+                .map(ObjectName::name),
             Some("Thing")
         );
     }
@@ -478,7 +745,7 @@ mod tests {
         .expect("fixture should parse");
 
         assert!(
-            !document.analysis().registry().bindings.is_empty(),
+            document.analysis().bindings().next().is_some(),
             "the fixture should register definitions and assignment states"
         );
         let first_x = document
@@ -486,7 +753,7 @@ mod tests {
             .get_binding_at("x", Position::new(0, 0))
             .expect("the first assignment should create global x");
         assert_eq!(
-            first_x.state.type_name.as_ref().map(InstanceID::name),
+            first_x.state.type_name.as_ref().map(ObjectName::name),
             Some("Symbol")
         );
         for (name, character) in [("z", 0), ("x", 4), ("y", 8)] {
@@ -495,7 +762,7 @@ mod tests {
                 .get_binding_at(name, Position::new(2, character))
                 .expect("the chained assignment should resolve the binding");
             assert_eq!(
-                binding.state.type_name.as_ref().map(InstanceID::name),
+                binding.state.type_name.as_ref().map(ObjectName::name),
                 Some("ZZ"),
                 "{name} should have the source-ordered numeric type"
             );
@@ -539,7 +806,7 @@ mod tests {
                 .get_binding_at(name, Position::new(0, character))
                 .expect("the remaining assignment should create the binding");
             assert_eq!(
-                binding.state.type_name.as_ref().map(InstanceID::name),
+                binding.state.type_name.as_ref().map(ObjectName::name),
                 Some("Symbol"),
                 "{name} must be retyped from the unresolved y"
             );
@@ -552,27 +819,9 @@ mod tests {
             "the removed y definition must not survive the edit"
         );
         assert_eq!(
-            document.analysis().registry().bindings.len(),
+            document.analysis().bindings().count(),
             2,
             "only the new x and z Symbol bindings should remain"
-        );
-        let y_fact = document
-            .expression_fact_at_position(Position::new(0, 8))
-            .expect("the unresolved y should retain an expression fact");
-        assert_eq!(y_fact.result_type.label().as_deref(), Some("Symbol"));
-        assert_eq!(
-            document.analysis().registry().scopes.len(),
-            1,
-            "only the root scope should remain"
-        );
-        assert!(
-            document
-                .analysis()
-                .registry()
-                .expressions
-                .keys()
-                .all(|span| span.range.start.line == 0),
-            "retained expression facts must shift from line 2 to line 0"
         );
     }
 
@@ -591,10 +840,10 @@ mod tests {
             .expect("method function should be registered");
         assert_eq!(
             callable.methods,
-            vec![document.analysis().installations[0].id]
+            vec![document.analysis().installations()[0].method.id.clone()]
         );
         assert_eq!(
-            document.analysis().installations[0].span.range.start.line,
+            document.analysis().installations()[0].span.range.start.line,
             1
         );
 
@@ -613,14 +862,15 @@ mod tests {
             .analysis()
             .function("f")
             .expect("shifted method function should be registered");
-        let installation = &document.analysis().installations[0];
-        assert_eq!(callable.methods, vec![installation.id]);
+        let installation = &document.analysis().installations()[0];
+        assert_eq!(callable.methods, vec![installation.method.id.clone()]);
         assert_eq!(installation.span.range.start.line, 2);
         assert_eq!(
             installation
+                .method
                 .codomain
                 .as_ref()
-                .map(crate::builtin_index::InstanceID::name),
+                .map(crate::object_registry::ObjectName::name),
             Some("Ring")
         );
     }
@@ -631,8 +881,6 @@ mod tests {
         let mut document =
             DocumentSnapshot::from_text("f := () -> (x := 2; z = 4)\nf\n".to_string(), &builtins)
                 .expect("fixture should parse");
-
-        assert_eq!(document.analysis().registry().scopes.len(), 2);
 
         document
             .apply_changes(
@@ -650,8 +898,7 @@ mod tests {
             .analysis()
             .get_binding_at("f", Position::new(0, 0))
             .is_none());
-        assert!(document.analysis().registry().bindings.is_empty());
-        assert_eq!(document.analysis().registry().scopes.len(), 1);
+        assert!(document.analysis().bindings().next().is_none());
     }
 
     #[test]
@@ -685,21 +932,50 @@ mod tests {
         let binding = document
             .binding_at_position(Position::new(3, 0))
             .expect("binding should resolve");
-        assert_eq!(document.analysis().binding_name(binding), "y");
+        assert_eq!(binding.name.name(), "y");
         assert_eq!(
-            binding.state.type_name.as_ref().map(InstanceID::name),
+            binding.state.type_name.as_ref().map(ObjectName::name),
             Some("Ring")
         );
 
         let callable = document
             .callable_at_position(Position::new(1, 0))
             .expect("callable should resolve");
-        assert_eq!(document.analysis().symbol_name(callable.symbol), "f");
+        assert_eq!(callable.name.name(), "f");
         assert_eq!(callable.methods.len(), 1);
 
-        let fact = document
-            .expression_fact_at_position(Position::new(2, 5))
-            .expect("expression fact should resolve");
-        assert!(fact.result_type.label().is_some());
+        let y = document
+            .analysis()
+            .get_binding_at("y", Position::new(2, 0))
+            .expect("call result should create y");
+        assert_eq!(
+            y.state.type_name.as_ref().map(ObjectName::name),
+            Some("Ring")
+        );
+    }
+
+    #[test]
+    fn reassignment_type_is_resolved_at_each_use_position() {
+        let builtins = builtins();
+        let document =
+            DocumentSnapshot::from_text("x = \"a\"\nf(x)\nx = 1\ng(x)\n".to_string(), &builtins)
+                .expect("fixture should parse");
+
+        let at_f = document
+            .analysis()
+            .get_binding_at("x", Position::new(1, 2))
+            .expect("x at f");
+        let at_g = document
+            .analysis()
+            .get_binding_at("x", Position::new(3, 2))
+            .expect("x at g");
+        assert_eq!(
+            at_f.state.type_name.as_ref().map(ObjectName::name),
+            Some("String")
+        );
+        assert_eq!(
+            at_g.state.type_name.as_ref().map(ObjectName::name),
+            Some("ZZ")
+        );
     }
 }

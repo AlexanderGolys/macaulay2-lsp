@@ -79,7 +79,7 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
                     "uri": workspace.related_uri,
                     "languageId": "macaulay2",
                     "version": 1,
-                    "text": "crossFileResult = localValue\n"
+                    "text": "crossFileResult = localValue\ntoJSON\n"
                 }
             }),
         )
@@ -100,6 +100,16 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
             .as_str()
             .is_some_and(|markdown| markdown.contains("Package: `JSON`")),
         "imported package hover should survive the entire server pipeline: {hover}"
+    );
+    let unimported_hover = server
+        .request(
+            "textDocument/hover",
+            document_position(&workspace.related_uri, json!({"line": 1, "character": 1})),
+        )
+        .await;
+    assert!(
+        unimported_hover.is_null(),
+        "loading JSON in one document must not register it in another: {unimported_hover}"
     );
 
     let completion = server
@@ -491,6 +501,159 @@ async fn runtime_syntax_example_reaches_analysis_without_error_diagnostics() {
     assert!(
         errors.is_empty(),
         "runtime-valid syntax should complete the pipeline without errors: {errors:?}"
+    );
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn package_objects_become_visible_only_after_their_source_inclusion() {
+    let source = "toJSON\nneedsPackage \"JSON\"\ntoJSON\n";
+    let workspace = TestWorkspace::new(source);
+    let mut server = LspProcess::spawn().await;
+    server.initialize(&workspace.root_uri()).await;
+    server
+        .notify(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": workspace.uri,
+                    "languageId": "macaulay2",
+                    "version": 1,
+                    "text": source
+                }
+            }),
+        )
+        .await;
+    server
+        .wait_for_notification("textDocument/publishDiagnostics")
+        .await;
+
+    let before = server
+        .request(
+            "textDocument/hover",
+            document_position(&workspace.uri, json!({"line": 0, "character": 1})),
+        )
+        .await;
+    assert!(
+        before.is_null(),
+        "JSON must not be registered before needsPackage: {before}"
+    );
+
+    let after = server
+        .request(
+            "textDocument/hover",
+            document_position(&workspace.uri, json!({"line": 2, "character": 1})),
+        )
+        .await;
+    assert!(
+        after["contents"]["value"]
+            .as_str()
+            .is_some_and(|markdown| markdown.contains("Package: `JSON`")),
+        "JSON must be registered after needsPackage: {after}"
+    );
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn lambda_continuations_and_untyped_local_copies_keep_editor_roles() {
+    let source = "\
+expandMacro (Macro, String) := String => (m, block) ->
+resultSource (transformOf m)(tokenStream parseMacroTree block)
+
+matchingMacroClose = (src, bodyStart, outerName) -> (
+    nestedNames := {};
+    k := bodyStart;
+)
+";
+    let workspace = TestWorkspace::new(source);
+    let mut server = LspProcess::spawn().await;
+    let initialized = server.initialize(&workspace.root_uri()).await;
+    server
+        .notify(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": workspace.uri,
+                    "languageId": "macaulay2",
+                    "version": 1,
+                    "text": source
+                }
+            }),
+        )
+        .await;
+    server
+        .wait_for_notification("textDocument/publishDiagnostics")
+        .await;
+
+    let formatting = server
+        .request(
+            "textDocument/formatting",
+            json!({
+                "textDocument": {"uri": workspace.uri},
+                "options": {
+                    "tabSize": 4,
+                    "insertSpaces": true
+                }
+            }),
+        )
+        .await;
+    let formatted = response_array(&formatting)
+        .first()
+        .and_then(|edit| edit["newText"].as_str())
+        .expect("the unindented lambda body should produce a whole-document edit");
+    assert!(
+        formatted.contains(
+            "(m, block) ->\n    resultSource (transformOf m)(tokenStream parseMacroTree block)"
+        ),
+        "the lambda body should be indented as an operator continuation: {formatted}"
+    );
+
+    let semantic_tokens = server
+        .request(
+            "textDocument/semanticTokens/full",
+            json!({"textDocument": {"uri": workspace.uri}}),
+        )
+        .await;
+    let variable_type = response_array(
+        &initialized["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"],
+    )
+    .iter()
+    .position(|token_type| token_type == "variable")
+    .expect("the negotiated semantic-token legend should contain variable")
+        as u64;
+    let target = position(source, "k :=", 0);
+    let target_line = target["line"]
+        .as_u64()
+        .expect("the target line should be numeric");
+    let target_character = target["character"]
+        .as_u64()
+        .expect("the target character should be numeric");
+    let mut line = 0;
+    let mut character = 0;
+    let token_type = response_array(&semantic_tokens["data"])
+        .chunks_exact(5)
+        .find_map(|token| {
+            let delta_line = token[0].as_u64()?;
+            let delta_character = token[1].as_u64()?;
+            let length = token[2].as_u64()?;
+            if delta_line == 0 {
+                character += delta_character;
+            } else {
+                line += delta_line;
+                character = delta_character;
+            }
+            (line == target_line
+                && target_character >= character
+                && target_character < character + length)
+                .then(|| token[3].as_u64())
+                .flatten()
+        })
+        .expect("the local k binding should have a semantic token");
+    assert_eq!(
+        token_type, variable_type,
+        "a local copy of an untyped parameter should remain a variable"
     );
 
     server.shutdown().await;
