@@ -69,6 +69,33 @@ pub trait PartitionedTypeKnowledge {
     fn direct_subtypes(&self, type_id: &TypeId) -> Vec<(String, &Record)>;
 }
 
+impl PartitionedTypeKnowledge for ObjectRegistry {
+    fn get_record_from_package(&self, package: &str, name: &ObjectName) -> Option<&Record> {
+        let package = self.catalog_package_id(&ObjectName::new(package))?;
+        let object = self.package_objects(package)?.objects_by_name.get(name)?;
+        self.object(object)
+    }
+
+    fn get_type_by_id(&self, type_id: &TypeId) -> Option<(String, &Record)> {
+        let record = self.object(type_id.object())?;
+        record.type_info()?;
+        Some((self.package_name(&record.package)?.to_string(), record))
+    }
+
+    fn direct_subtypes(&self, type_id: &TypeId) -> Vec<(String, &Record)> {
+        self.catalog_records()
+            .iter()
+            .filter_map(|record| {
+                record
+                    .type_info()
+                    .filter(|type_info| &type_info.parent == type_id)
+                    .filter(|_| &record.id != type_id.object())
+                    .and_then(|_| Some((self.package_name(&record.package)?.to_string(), record)))
+            })
+            .collect()
+    }
+}
+
 /// Installed signatures partitioned by their applicability at one call site.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SignatureUsage {

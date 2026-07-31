@@ -24,7 +24,6 @@ mod documentation;
 mod macro_syntax;
 mod meta;
 mod node_metadata;
-mod object_environment;
 mod object_registry;
 mod package_index;
 mod record_lsp;
@@ -374,7 +373,7 @@ impl LanguageServer for Backend {
                 MessageType::INFO,
                 format!(
                     "Macaulay2 LSP initialized with {} builtin symbols",
-                    self.registry.symbol_count()
+                    self.registry.len()
                 ),
             )
             .await;
