@@ -309,20 +309,19 @@ impl TypeChecker<'_> {
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         let name = node.text();
-        if let Some(binding) =
-            self.get_binding_from_scope(name, scope_idx, source.position_for_node(node))
-        {
-            let package_shadows = binding.scope_idx == 0
-                && knowledge.shadows_source(&binding.name, binding.state.span.start);
-            if !package_shadows {
-                return binding
-                    .state
-                    .type_name
-                    .as_ref()
-                    .map_or_else(InferredType::unknown, |type_name| {
-                        InferredType::from_id(type_name.clone())
-                    });
-            }
+        if let Some(binding) = self.visible_source_binding_from_scope(
+            name,
+            scope_idx,
+            source.position_for_node(node),
+            knowledge,
+        ) {
+            return binding
+                .state
+                .type_name
+                .as_ref()
+                .map_or_else(InferredType::unknown, |type_name| {
+                    InferredType::from_id(type_name.clone())
+                });
         }
 
         if let Some(reference) = OutputReference::parse(name) {
@@ -343,38 +342,8 @@ impl TypeChecker<'_> {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
-        let mut cell = node;
-        while cell.kind != NodeKind::Cell {
-            let Some(parent) = cell.parent() else {
-                return InferredType::unknown();
-            };
-            cell = parent;
-        }
-        let Some(root) = cell
-            .parent()
-            .filter(|parent| parent.kind == NodeKind::SourceFile)
-        else {
-            return InferredType::unknown();
-        };
-        let preceding_cells = root
-            .named_children()
-            .filter(|candidate| {
-                candidate.kind == NodeKind::Cell && candidate.end_byte() <= cell.start_byte()
-            })
-            .collect::<Vec<_>>();
-        let output = match reference {
-            OutputReference::Relative(distance) => preceding_cells
-                .iter()
-                .rev()
-                .filter_map(M2Node::final_value_child)
-                .nth(distance - 1),
-            OutputReference::Absolute(number) => number
-                .checked_sub(1)
-                .and_then(|index| preceding_cells.get(index))
-                .and_then(M2Node::final_value_child),
-        };
-        let Some(output) = output else {
-            return InferredType::unknown();
+        let Some(output) = reference.referenced_value(node) else {
+            return InferredType::of("Symbol");
         };
         let output_scope = self
             .find_scope_at(source.position_for_node(output))
@@ -718,6 +687,45 @@ impl TypeChecker<'_> {
         }
 
         function.typical_value.clone()
+    }
+
+    pub(super) fn local_call_parameter_names(
+        &self,
+        function: &FunctionInfo,
+        argument_types: &[InferredType],
+        position: Position,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Option<Vec<ObjectName>> {
+        if let Some(parameter_names) = function
+            .parameter_names
+            .as_ref()
+            .filter(|names| names.len() == argument_types.len())
+        {
+            return Some(parameter_names.clone());
+        }
+
+        let candidates = self
+            .methods_for_at(function, position)
+            .into_iter()
+            .filter(|method| method.domain.len() == argument_types.len())
+            .filter_map(|method| method.parameter_names.as_ref().map(|names| (method, names)))
+            .collect::<Vec<_>>();
+        let matching_names = candidates
+            .iter()
+            .filter(|(method, _)| self.signature_matches(method, argument_types, knowledge))
+            .map(|(_, names)| (*names).clone())
+            .collect::<HashSet<_>>();
+        if matching_names.len() == 1 {
+            return matching_names.into_iter().next();
+        }
+
+        let candidate_names = candidates
+            .into_iter()
+            .map(|(_, names)| names.clone())
+            .collect::<HashSet<_>>();
+        (candidate_names.len() == 1)
+            .then(|| candidate_names.into_iter().next())
+            .flatten()
     }
 
     fn signature_matches(

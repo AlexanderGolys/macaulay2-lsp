@@ -29,10 +29,13 @@ pub enum DiagnosticKind {
     InstallNeedsColonEquals,
     ProtectAssignedSymbol,
     ProtectComputedSymbol,
+    MissingOutputCell,
+    InvalidControlTransfer,
+    ParallelAssignmentType,
 }
 
 impl DiagnosticKind {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 17] = [
         Self::SyntaxError,
         Self::MissingNode,
         Self::AmbiguousFloatMemberAccess,
@@ -47,6 +50,9 @@ impl DiagnosticKind {
         Self::InstallNeedsColonEquals,
         Self::ProtectAssignedSymbol,
         Self::ProtectComputedSymbol,
+        Self::MissingOutputCell,
+        Self::InvalidControlTransfer,
+        Self::ParallelAssignmentType,
     ];
 
     /// The stable `E..` code surfaced to the editor (rustc-style).
@@ -66,6 +72,9 @@ impl DiagnosticKind {
             Self::InstallNeedsColonEquals => "E11",
             Self::ProtectAssignedSymbol => "E12",
             Self::ProtectComputedSymbol => "E13",
+            Self::MissingOutputCell => "E14",
+            Self::InvalidControlTransfer => "E15",
+            Self::ParallelAssignmentType => "E16",
         }
     }
 
@@ -87,6 +96,9 @@ impl DiagnosticKind {
             Self::InstallNeedsColonEquals => "install-needs-colon-equals",
             Self::ProtectAssignedSymbol => "protect-assigned-symbol",
             Self::ProtectComputedSymbol => "protect-computed-symbol",
+            Self::MissingOutputCell => "missing-output-cell",
+            Self::InvalidControlTransfer => "invalid-control-transfer",
+            Self::ParallelAssignmentType => "parallel-assignment-type",
         }
     }
 
@@ -99,11 +111,13 @@ impl DiagnosticKind {
             | Self::ParallelAssignmentArity
             | Self::OperatorNotFlexible
             | Self::InstallArity
-            | Self::InstallNeedsColonEquals => DiagnosticSeverity::ERROR,
+            | Self::InstallNeedsColonEquals
+            | Self::InvalidControlTransfer
+            | Self::ParallelAssignmentType => DiagnosticSeverity::ERROR,
             Self::AmbiguousFloatMemberAccess | Self::UnusedBinding | Self::InstallNoEffect => {
                 DiagnosticSeverity::WARNING
             }
-            Self::ProtectComputedSymbol => DiagnosticSeverity::WARNING,
+            Self::ProtectComputedSymbol | Self::MissingOutputCell => DiagnosticSeverity::WARNING,
             Self::OptionKeyConvention | Self::ProtectAssignedSymbol => DiagnosticSeverity::HINT,
         }
     }

@@ -217,6 +217,13 @@ fn format_control_flow(text: &str, options: &FormatOptions, newline: &'static st
             }
         }
 
+        if body
+            .child(0)
+            .is_some_and(|child| child.is_opening_delimiter())
+        {
+            continue;
+        }
+
         push_control_flow_break(
             text,
             Some(keyword.end_byte()),
@@ -615,6 +622,7 @@ pub fn folding_ranges_for_text(text: &str) -> Vec<FormatFoldRange> {
             (!line.trim().is_empty()).then_some(IndentedLine {
                 line: row as u32,
                 depth: layout.depth(row),
+                is_leading_closer: layout.is_leading_closer(row),
             })
         })
         .collect::<Vec<_>>();
@@ -634,6 +642,7 @@ struct TreeIndentLayout {
     literal_rows: Vec<bool>,
     literal_start_rows: Vec<bool>,
     comment_folds: Vec<FormatFoldRange>,
+    leading_closer_rows: Vec<bool>,
 }
 
 impl TreeIndentLayout {
@@ -644,6 +653,7 @@ impl TreeIndentLayout {
             literal_rows: vec![false; line_count],
             literal_start_rows: vec![false; line_count],
             comment_folds: Vec::new(),
+            leading_closer_rows: vec![false; line_count],
         };
         let Some(mut parser) = M2Parser::new() else {
             return empty_layout();
@@ -655,6 +665,14 @@ impl TreeIndentLayout {
         let (literal_rows, literal_start_rows) = collect_literal_rows(root, line_count);
         let line_leads = line_leading_blank(text, line_count);
         let comment_folds = collect_comment_fold_ranges(root, &line_leads);
+        let leading_closer_rows = (0..line_count)
+            .map(|row| {
+                brackets.iter().any(|group| {
+                    group.close_row == row
+                        && line_leads.get(row).copied() == Some(group.closing_delimiter_column)
+                })
+            })
+            .collect();
 
         let depths = (0..line_count)
             .map(|row| {
@@ -668,6 +686,7 @@ impl TreeIndentLayout {
             literal_rows,
             literal_start_rows,
             comment_folds,
+            leading_closer_rows,
         }
     }
 
@@ -681,6 +700,10 @@ impl TreeIndentLayout {
 
     fn preserves_literal_trailing_space(&self, row: usize) -> bool {
         self.literal_start_rows.get(row).copied().unwrap_or(false)
+    }
+
+    fn is_leading_closer(&self, row: usize) -> bool {
+        self.leading_closer_rows.get(row).copied().unwrap_or(false)
     }
 }
 
@@ -1069,6 +1092,7 @@ pub enum FormatFoldKind {
 struct IndentedLine {
     line: u32,
     depth: usize,
+    is_leading_closer: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1090,9 +1114,10 @@ fn collect_indent_fold_ranges(lines: &[IndentedLine]) -> Vec<FormatFoldRange> {
                     depth: prev.depth,
                 });
             } else if current.depth < prev.depth {
+                let fold_end = current.is_leading_closer.then_some(current).or(previous);
                 while let Some(open_fold) = open_folds.last() {
                     if open_fold.depth >= current.depth {
-                        close_fold_range(&mut ranges, *open_fold, previous);
+                        close_fold_range(&mut ranges, *open_fold, fold_end);
                         open_folds.pop();
                     } else {
                         break;
@@ -2190,6 +2215,47 @@ mod tests {
              \x20   else z\n\
              )\n"
         );
+    }
+
+    #[test]
+    fn keeps_delimited_control_bodies_beside_every_clause_keyword() {
+        let options = FormatOptions {
+            control_flow_layout: ControlFlowLayout::Multiline,
+            ..FormatOptions::default()
+        };
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+
+        for (source, clause) in [
+            ("value := (\nif ready then (\nwork\n)\n)\n", "then ("),
+            ("value := (\nwhile ready do (\nwork\n)\n)\n", "do ("),
+            ("value := (\nfor i to 2 do (\nwork\n)\n)\n", "do ("),
+            ("value := (\nfor i to 2 list (\ni\n)\n)\n", "list ("),
+            (
+                "value := (\ntry work then (\ndone\n) else (\nfailed\n)\n)\n",
+                "else (",
+            ),
+            (
+                "value := (\ntry work then done except err do (\nerr\n)\n)\n",
+                "do (",
+            ),
+        ] {
+            let formatted = format_document_text_with_options(source, &options);
+
+            assert!(
+                formatted.contains(clause),
+                "the clause opener should remain inline:\n{formatted}"
+            );
+            assert!(
+                parser
+                    .parse(&formatted)
+                    .is_some_and(|root| !root.has_error()),
+                "the formatted control statement should parse:\n{formatted}"
+            );
+            assert_eq!(
+                format_document_text_with_options(&formatted, &options),
+                formatted
+            );
+        }
     }
 
     #[test]

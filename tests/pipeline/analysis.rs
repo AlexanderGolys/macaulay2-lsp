@@ -1,6 +1,6 @@
 //! End-to-end analysis behavior observed through standard LSP capabilities.
 
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::support::{position, response_array, DocumentSession};
 
@@ -96,6 +96,24 @@ async fn inlay_labels_by_line(session: &mut DocumentSession) -> Vec<(u64, String
             ))
         })
         .collect()
+}
+
+async fn inlay_hints(session: &mut DocumentSession) -> Vec<Value> {
+    session
+        .request(
+            "textDocument/inlayHint",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "range": {
+                    "start": {"line": 0, "character": 0},
+                    "end": {"line": 100, "character": 0}
+                }
+            }),
+        )
+        .await
+        .as_array()
+        .cloned()
+        .expect("expected inlay hints")
 }
 
 async fn semantic_tokens(session: &mut DocumentSession) -> Vec<(u64, u64, u64, u64)> {
@@ -224,6 +242,12 @@ async fn output_references_follow_prior_cell_types_without_semantic_tokens() {
     );
     let mut session = DocumentSession::open(source).await;
 
+    assert!(
+        !session.diagnostic_codes().contains(&"E14"),
+        "valid output references should not produce missing-cell warnings: {:?}",
+        session.diagnostics()
+    );
+
     for (line, expected) in [(1, "ZZ"), (3, "ZZ"), (4, "String"), (5, "String")] {
         assert_eq!(hover_type_at(&mut session, line, 0).await, expected);
     }
@@ -251,6 +275,29 @@ async fn output_references_follow_prior_cell_types_without_semantic_tokens() {
             .any(|(line, character, _, _)| *line == 1 && *character == 4),
         "a resolved user binding named like an output reference must retain its semantic token"
     );
+    assert!(!session.diagnostic_codes().contains(&"E14"));
+
+    session
+        .replace("x = oo\ny = o0\nz = o9\nw = oooo\nsymbol oo\n")
+        .await;
+    for line in 0..=3 {
+        assert_eq!(hover_type_at(&mut session, line, 0).await, "Symbol");
+    }
+    assert_eq!(diagnostic_lines(&session, "E14"), vec![0, 1, 2]);
+    for diagnostic in session
+        .diagnostics()
+        .iter()
+        .filter(|diagnostic| diagnostic["code"] == "E14")
+    {
+        assert_eq!(diagnostic["severity"], 2);
+        assert!(diagnostic["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("unassigned `Symbol`")));
+    }
+
+    session.replace("1\nw = oooo\nsymbol o9\n").await;
+    assert_eq!(hover_type_at(&mut session, 1, 0).await, "Symbol");
+    assert_eq!(diagnostic_lines(&session, "E14"), vec![1]);
 
     session.shutdown().await;
 }
@@ -294,6 +341,57 @@ async fn installation_and_syntax_diagnostics_run_through_the_server_pipeline() {
 }
 
 #[tokio::test]
+async fn control_transfers_require_their_runtime_body() {
+    let mut session = DocumentSession::open("f := x -> return x\n").await;
+
+    for (source, expected) in [
+        ("f := x -> return x\n", false),
+        ("return x\n", true),
+        ("if c then break\n", true),
+        ("for i from (break i) to 3 list i\n", true),
+        ("for i to 3 list if i > 1 then break i\n", false),
+        ("for i to 3 do if i > 1 then break i\n", false),
+        ("while c do break c\n", false),
+        ("for i to 3 list continue i\n", false),
+        ("for i to 3 do continue\n", false),
+        ("for i to 3 do continue i\n", true),
+        ("while c list continue c\n", false),
+        ("while c do continue c\n", true),
+        ("apply(0..3, i -> continue i)\n", true),
+        ("apply({1}, {2}, (i, j) -> continue(i + j))\n", true),
+        ("scan(0..3, i -> continue)\n", true),
+        ("scan(0..3, i -> continue i)\n", true),
+        ("apply(0..3, i -> break i)\n", false),
+        ("scan(0..3, i -> break i)\n", false),
+        ("f := i -> break i\n", true),
+        ("for i to 3 do (f := x -> break; f i)\n", true),
+        ("for i to 3 list (for j to 3 do continue i)\n", true),
+        ("apply(i -> break i, {1})\n", true),
+        ("f := apply -> apply({1}, i -> break i)\n", true),
+    ] {
+        replace_and_assert_diagnostic(&mut session, source, "E15", expected).await;
+        assert!(
+            !session.diagnostic_codes().contains(&"E00"),
+            "control-transfer fixture should parse:\n{source}\nall diagnostics: {:?}",
+            session.diagnostics()
+        );
+    }
+
+    session.replace("scan(0..3, i -> continue i)\n").await;
+    let diagnostic = session
+        .diagnostics()
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "E15")
+        .expect("value-bearing continue in scan should be rejected");
+    assert_eq!(diagnostic["severity"], 1);
+    assert!(diagnostic["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("requires a `list` clause")));
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn assignment_and_protection_diagnostics_preserve_source_sensitive_analysis() {
     let source = concat!(
         "[x, y] = [a, b, c]\n",
@@ -311,6 +409,13 @@ async fn assignment_and_protection_diagnostics_preserve_source_sensitive_analysi
         .replace("[x, y] = [ignored; 2, 3]\n[x, y, z] = [, 1,]\n[x, y] = [, 1,]\n")
         .await;
     assert_eq!(diagnostic_lines(&session, "E05"), vec![2]);
+
+    session
+        .replace(
+            "(x, y) = 1\n[x, y] := \"aa\"\nz = \"a\"; {x, x} = z\n[a, b] = true\n[x] = \"a\"\nf = z -> ((x, y) := z)\n(x, y) := unknownValue\nvalues = {1, 2}; [x, y] = values\nvalues = (1, 2); [x, y] = values\n[a, [b, c]] = [1, 2]\n",
+        )
+        .await;
+    assert_eq!(diagnostic_lines(&session, "E16"), vec![0, 1, 2, 3, 9]);
 
     session
         .replace(
@@ -431,14 +536,14 @@ async fn inferred_binding_types_flow_to_hover_across_language_constructs() {
     for (source, expected) in [
         (
             "joined := if condition then 1 else 2.0\njoined\n",
-            ": ZZ | RR",
+            "ZZ | RR",
         ),
-        ("joined := if condition then 1\njoined\n", ": ZZ | Nothing"),
+        ("joined := if condition then 1\njoined\n", "ZZ | Nothing"),
         (
             "joined := try unknownName then 1 else 2.0\njoined\n",
-            ": ZZ | RR",
+            "ZZ | RR",
         ),
-        ("fallback := try 1\nfallback\n", ": ZZ | Nothing"),
+        ("fallback := try 1\nfallback\n", "ZZ | Nothing"),
     ] {
         session.replace(source).await;
         let labels = inlay_labels(&mut session).await;
@@ -494,7 +599,7 @@ async fn callable_aliases_reinstall_methods_and_reassignments_remain_source_orde
         assert!(
             hints
                 .iter()
-                .any(|(hint_line, label)| *hint_line == line && label == ": Array"),
+                .any(|(hint_line, label)| *hint_line == line && label == "Array"),
             "reassignment on line {} should have an Array hint: {hints:?}",
             line + 1
         );
@@ -522,6 +627,80 @@ async fn callable_aliases_reinstall_methods_and_reassignments_remain_source_orde
         )
         .await;
     assert_eq!(after_reassignment["range"]["start"]["line"], 2);
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
+    let source = concat!(
+        "f = (count, text) -> text\n",
+        "value = f(2, \"a\")\n",
+        "[x, [y, z]] = [1, {\"a\", 1.5}]\n",
+        "x = 2\n",
+        "x = if condition then 3 else 4\n",
+        "x = if condition then \"a\" else \"b\"\n",
+        "broad = method()\n",
+        "broad Thing := (item) -> item\n",
+        "unknown = broad missing\n",
+        "literalString = \"a\"\n",
+        "literalArray = [1]\n",
+        "literalInteger = 1\n",
+        "literalReal = 1.1\n",
+        "literalParenthesized = (2)\n",
+        "lambda = argument -> argument\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    session.set_expression_type_hints(false).await;
+    let hints = inlay_hints(&mut session).await;
+
+    let parameter_hints = hints
+        .iter()
+        .filter(|hint| hint["kind"] == 2)
+        .map(|hint| {
+            (
+                hint["position"]["line"].as_u64().expect("hint line"),
+                hint["position"]["character"]
+                    .as_u64()
+                    .expect("hint character"),
+                hint["label"].as_str().expect("hint label"),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(parameter_hints.contains(&(1, 10, "count:")));
+    assert!(parameter_hints.contains(&(1, 13, "text:")));
+    assert!(parameter_hints.contains(&(8, 16, "item:")));
+
+    let type_hints = hints
+        .iter()
+        .filter(|hint| hint["kind"] == 1)
+        .map(|hint| {
+            (
+                hint["position"]["line"].as_u64().expect("hint line"),
+                hint["position"]["character"]
+                    .as_u64()
+                    .expect("hint character"),
+                hint["label"].as_str().expect("hint label"),
+            )
+        })
+        .collect::<Vec<_>>();
+    for expected in [(2, 16, "ZZ"), (2, 22, "String"), (2, 27, "RR")] {
+        assert!(
+            type_hints.contains(&expected),
+            "missing destructuring hint {expected:?}: {type_hints:?}"
+        );
+    }
+    assert!(type_hints
+        .iter()
+        .any(|(line, _, label)| { *line == 5 && *label == "String" }));
+    assert!(type_hints.iter().all(|(_, _, label)| *label != "Thing"));
+    for quiet_line in [3, 4, 8, 9, 10, 11, 12, 13, 14] {
+        assert!(
+            type_hints.iter().all(|(line, _, _)| *line != quiet_line),
+            "line {} should not have a type hint: {type_hints:?}",
+            quiet_line + 1
+        );
+    }
 
     session.shutdown().await;
 }
@@ -678,7 +857,7 @@ async fn algebraic_runtime_types_and_generator_rebinding_reach_hover() {
         assert!(
             hints
                 .iter()
-                .any(|(hint_line, label)| *hint_line == line && label == &format!(": {expected}")),
+                .any(|(hint_line, label)| *hint_line == line && label == expected),
             "missing {expected} hint on line {line}: {hints:?}"
         );
     }
@@ -699,7 +878,7 @@ async fn algebraic_runtime_types_and_generator_rebinding_reach_hover() {
         assert!(
             hints
                 .iter()
-                .any(|(hint_line, label)| *hint_line == line && label == &format!(": {expected}")),
+                .any(|(hint_line, label)| *hint_line == line && label == expected),
             "missing {expected} hint on line {line}: {hints:?}"
         );
     }
@@ -712,7 +891,7 @@ async fn algebraic_runtime_types_and_generator_rebinding_reach_hover() {
         assert!(
             hints
                 .iter()
-                .any(|(hint_line, label)| *hint_line == line && label == &format!(": {expected}")),
+                .any(|(hint_line, label)| *hint_line == line && label == expected),
             "missing {expected} hint on line {line}: {hints:?}"
         );
     }
@@ -721,8 +900,8 @@ async fn algebraic_runtime_types_and_generator_rebinding_reach_hover() {
         .replace("R = QQ[x]\nf = x^2\nJ = ideal(f)\nf\nJ\n")
         .await;
     let hints = inlay_labels_by_line(&mut session).await;
-    assert!(hints.contains(&(3, ": RingElement".to_string())));
-    assert!(hints.contains(&(4, ": Ideal".to_string())));
+    assert!(hints.contains(&(3, "RingElement".to_string())));
+    assert!(hints.contains(&(4, "Ideal".to_string())));
 
     session.shutdown().await;
 }

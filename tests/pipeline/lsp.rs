@@ -9,8 +9,11 @@ use crate::support::{document_position, position, response_array, LspProcess, Te
 const SOURCE: &str = include_str!("../fixtures/capability_spectrum.m2");
 
 #[tokio::test]
-async fn workspace_symbols_exclude_function_body_bindings_from_unopened_files() {
-    let source = "outer := x -> (localBinding := x; globalBinding = x; localBinding)\n";
+async fn workspace_symbols_include_reassignments_and_exclude_function_body_bindings() {
+    let source = concat!(
+        "outer := x -> (localBinding := x; globalBinding = x; localBinding)\n",
+        "outer = y -> y\n",
+    );
     let workspace = TestWorkspace::new(source);
     let mut server = LspProcess::spawn().await;
     server.initialize(&workspace.root_uri()).await;
@@ -19,11 +22,17 @@ async fn workspace_symbols_exclude_function_body_bindings_from_unopened_files() 
         .request("workspace/symbol", json!({"query": ""}))
         .await;
     let symbols = response_array(&symbols);
-    assert!(symbols.iter().any(|symbol| {
-        symbol["name"] == "outer"
-            && symbol["location"]["uri"] == workspace.uri
-            && symbol["containerName"].is_null()
-    }));
+    let outer_symbols = symbols
+        .iter()
+        .filter(|symbol| {
+            symbol["name"] == "outer"
+                && symbol["location"]["uri"] == workspace.uri
+                && symbol["containerName"].is_null()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(outer_symbols.len(), 2);
+    assert_eq!(outer_symbols[0]["location"]["range"]["start"]["line"], 0);
+    assert_eq!(outer_symbols[1]["location"]["range"]["start"]["line"], 1);
     assert!(symbols
         .iter()
         .all(|symbol| { symbol["name"] != "localBinding" && symbol["name"] != "globalBinding" }));
@@ -51,7 +60,16 @@ async fn workspace_symbols_exclude_function_body_bindings_from_unopened_files() 
             json!({"textDocument": {"uri": workspace.uri}}),
         )
         .await;
-    let children = &response_array(&document_symbols)[0]["children"];
+    let document_symbols = response_array(&document_symbols);
+    let outer_symbols = document_symbols
+        .iter()
+        .filter(|symbol| symbol["name"] == "outer")
+        .collect::<Vec<_>>();
+    assert_eq!(outer_symbols.len(), 2);
+    assert_eq!(outer_symbols[0]["selectionRange"]["start"]["line"], 0);
+    assert_eq!(outer_symbols[1]["selectionRange"]["start"]["line"], 1);
+
+    let children = &document_symbols[0]["children"];
     assert!(response_array(children)
         .iter()
         .any(|symbol| symbol["name"] == "localBinding"));
@@ -633,7 +651,7 @@ async fn package_objects_become_visible_only_after_their_source_inclusion() {
 }
 
 #[tokio::test]
-async fn lambda_continuations_and_untyped_local_copies_keep_editor_roles() {
+async fn lambda_functions_keep_editor_roles_and_structural_layout() {
     let source = "\
 expandMacro (Macro, String) := String => (m, block) ->
 resultSource (transformOf m)(tokenStream parseMacroTree block)
@@ -641,6 +659,9 @@ resultSource (transformOf m)(tokenStream parseMacroTree block)
 matchingMacroClose = (src, bodyStart, outerName) -> (
     nestedNames := {};
     k := bodyStart;
+    while k < #src do (
+    k = k + 1;
+    )
 )
 ";
     let workspace = TestWorkspace::new(source);
@@ -684,6 +705,23 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             "(m, block) ->\n    resultSource (transformOf m)(tokenStream parseMacroTree block)"
         ),
         "the lambda body should be indented as an operator continuation: {formatted}"
+    );
+    assert!(
+        formatted.contains("    while k < #src do (\n        k = k + 1;\n    )"),
+        "a control-body opener should remain beside its keyword: {formatted}"
+    );
+
+    let folding = server
+        .request(
+            "textDocument/foldingRange",
+            json!({"textDocument": {"uri": workspace.uri}}),
+        )
+        .await;
+    assert!(
+        response_array(&folding)
+            .iter()
+            .any(|range| range["startLine"] == 3 && range["endLine"] == 9),
+        "the function-body fold should include its closing bracket: {folding}"
     );
 
     let semantic_tokens = server

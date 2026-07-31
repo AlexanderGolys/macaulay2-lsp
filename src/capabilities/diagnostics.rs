@@ -6,14 +6,14 @@ use tower_lsp::lsp_types::Url;
 use tower_lsp::lsp_types::{Range as TextRange, SymbolKind};
 use tower_lsp::Client;
 
-use crate::analysis::{symbol_node_text, Analysis};
+use crate::analysis::{symbol_node_text, Analysis, ControlTransferTarget, OutputReference};
 use crate::diagnostic_registry::{DiagnosticKind, DiagnosticPolicy};
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
-use crate::typesystem::{PositionedTypeKnowledge, TypeKnowledge};
+use crate::typesystem::{PositionedTypeKnowledge, TypeKnowledge, TypeRole};
 
 pub(crate) const AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE: &str =
     "This is parsed like function call: dot followed immediately by digits are always parsed
@@ -58,6 +58,7 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
         builtins: &(impl PositionedTypeKnowledge + ?Sized),
     ) {
+        let knowledge = builtins.at_position(source.position_for_node(node));
         if node.is_error() {
             self.diagnostics.push(DiagnosticKind::SyntaxError.at(
                 source.remainder_of_line_range(node.start_byte()),
@@ -74,18 +75,95 @@ impl Analysis {
                     .at(range, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE),
             );
         } else if node.is_assignment() {
-            self.validate_assignment_form(node, source);
+            self.validate_assignment_form(node, source, &knowledge);
         }
 
         // Runs independently of the chain above: any node may be an option pair,
         // and an option `=>` is never an error/missing/assignment node.
         self.diagnose_option_key_convention(node, source);
-        let knowledge = builtins.at_position(source.position_for_node(node));
+        self.diagnose_control_transfer(node, source, &knowledge);
+        self.diagnose_output_reference(node, source, &knowledge);
         self.diagnose_protect_argument(node, source, &knowledge);
 
         for child in node.children() {
             self.collect_diagnostics(child, source, builtins);
         }
+    }
+
+    fn diagnose_control_transfer(
+        &mut self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) {
+        if !node.kind.is_control_transfer() {
+            return;
+        }
+        let target = self.control_transfer_target(node, source, knowledge);
+        if target.is_some_and(|target| target.accepts(node)) {
+            return;
+        }
+
+        let message = match node.kind {
+            NodeKind::ReturnStatement => "`return` can only be used inside a function body",
+            NodeKind::BreakStatement => {
+                "`break` can only be used inside a loop body or an `apply`/`scan` callback"
+            }
+            NodeKind::ContinueStatement
+                if node.named_child(0).is_some()
+                    && matches!(
+                        target,
+                        Some(
+                            ControlTransferTarget::DoLoop(_)
+                                | ControlTransferTarget::LoopCallback { .. }
+                        )
+                    ) =>
+            {
+                "`continue` with a value requires a `list` clause"
+            }
+            NodeKind::ContinueStatement => {
+                "`continue` can only be used inside a `list` or `do` loop body"
+            }
+            _ => return,
+        };
+        let keyword = node.child(0).unwrap_or(node);
+        self.diagnostics.push(
+            DiagnosticKind::InvalidControlTransfer.at(source.range_for_node(keyword), message),
+        );
+    }
+
+    fn diagnose_output_reference(
+        &mut self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) {
+        if node.kind != NodeKind::Symbol
+            || node
+                .parent()
+                .is_some_and(|parent| parent.kind == NodeKind::QuoteExpression)
+        {
+            return;
+        }
+        let Some(reference) = OutputReference::parse(node.text()) else {
+            return;
+        };
+        let position = source.position_for_node(node);
+        if self
+            .visible_source_binding_at(node.text(), position, knowledge)
+            .is_some()
+            || reference.referenced_value(node).is_some()
+        {
+            return;
+        }
+
+        self.diagnostics.push(DiagnosticKind::MissingOutputCell.at(
+            source.range_for_node(node),
+            format!(
+                "`{}` does not reference an available output cell; it evaluates as an unassigned `Symbol`",
+                node.text()
+            ),
+        ));
     }
 
     fn diagnose_protect_argument(
@@ -188,6 +266,7 @@ impl Analysis {
         &mut self,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
         let Some(left) = node.child_by_field_name("left") else {
             return;
@@ -222,28 +301,67 @@ impl Analysis {
 
         if matches!(op_text, "=" | ":=") && !is_method_installation {
             if let Some(right) = node.child_by_field_name("right") {
-                self.validate_parallel_assignment_arity(left, right, source);
+                self.validate_parallel_assignment(left, right, source, knowledge);
             }
         }
     }
 
-    /// A destructuring assignment whose right-hand side is itself a fixed-length
-    /// collection literal must match arity: `[x, y] = [a, b, c]` and
-    /// `[x, y] = {a}` are always errors, while `[x, y] = a` and `[x, y] = (a)`
-    /// are runtime-checked (the right side's length is not known statically) and
-    /// left alone. Recurses so nested targets like `[x, [y, z]] = [1, {2, 3, 4}]`
-    /// are checked at every level where both sides are collection literals.
-    fn validate_parallel_assignment_arity(
+    fn validate_parallel_assignment(
         &mut self,
         left: M2Node,
         right: M2Node,
         source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        if !is_fixed_length_collection(left) || !is_fixed_length_collection(right) {
+        if !is_fixed_length_collection(left) {
             return;
         }
 
         let target_nodes = left.collection_elements().collect::<Vec<_>>();
+        if !is_fixed_length_collection(right) {
+            if target_nodes.len() < 2 || !knowledge.is_available() {
+                return;
+            }
+            let mut value = right;
+            while value.kind == NodeKind::ParenthesizedExpression {
+                let Some(inner) = value.final_value_child() else {
+                    break;
+                };
+                value = inner;
+            }
+            if value.kind == NodeKind::Symbol {
+                let position = source.position_for_node(value);
+                let has_source_binding = self
+                    .visible_source_binding_at(value.text(), position, knowledge)
+                    .is_some();
+                let has_indexed_value = knowledge
+                    .get_record(&ObjectName::new(value.text()))
+                    .is_some();
+                if !has_source_binding && !has_indexed_value {
+                    return;
+                }
+            }
+            let Some(right_type) = self.infer_expression_static_type(right, source, knowledge)
+            else {
+                return;
+            };
+            if right_type == TypeRole::Thing.object_name()
+                || knowledge.has_type_role(&right_type, TypeRole::VisibleList)
+            {
+                return;
+            }
+            self.diagnostics
+                .push(DiagnosticKind::ParallelAssignmentType.at(
+                    source.range_for_node(right),
+                    format!(
+                        "parallel assignment binds {} targets, but the right-hand side has incompatible type `{}`",
+                        target_nodes.len(),
+                        right_type.name()
+                    ),
+                ));
+            return;
+        }
+
         let value_nodes = right.collection_elements().collect::<Vec<_>>();
         if target_nodes.len() != value_nodes.len() {
             self.diagnostics.push(DiagnosticKind::ParallelAssignmentArity.at(
@@ -258,7 +376,7 @@ impl Analysis {
         }
 
         for (target, value) in target_nodes.iter().zip(value_nodes.iter()) {
-            self.validate_parallel_assignment_arity(*target, *value, source);
+            self.validate_parallel_assignment(*target, *value, source, knowledge);
         }
     }
 

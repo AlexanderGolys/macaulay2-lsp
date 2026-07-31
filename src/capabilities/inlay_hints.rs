@@ -1,15 +1,13 @@
 //! Type inlay hints derived from static document analysis.
 
-use std::collections::HashSet;
-
 use tower_lsp::lsp_types::{
     InlayHint, InlayHintKind, InlayHintLabel, InlayHintServerCapabilities, OneOf, Position,
     Range as TextRange,
 };
 
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::NodeKindMetadata;
-use crate::object_registry::ObjectRegistry;
+use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::object_registry::{ObjectName, ObjectRegistry};
 use crate::source::SourceNavigation;
 
 pub(crate) fn inlay_hint_provider_capability() -> Option<OneOf<bool, InlayHintServerCapabilities>> {
@@ -24,16 +22,18 @@ pub(crate) fn inlay_hints_response(
     expression_types: bool,
     knowledge: &ObjectRegistry,
 ) -> Vec<InlayHint> {
-    let mut hints = Vec::new();
+    let binding_hints = binding_type_hints(document, &range, knowledge);
+    let mut hints = binding_hints.clone();
 
-    // Calm default: one type hint per assignment state. The maximal per-expression
-    // readout (every sub-expression's inferred type, useful for debugging the
-    // inference but noisy and prone to overlapping at shared end positions) is
-    // opt-in via `initializationOptions.inlayHints.expressionTypes`.
-    hints.extend(binding_type_hints(document, &range));
     if expression_types {
-        hints.extend(expression_type_hints(document, &range, knowledge));
+        hints.extend(expression_type_hints(
+            document,
+            &range,
+            knowledge,
+            &binding_hints,
+        ));
     }
+    hints.extend(parameter_name_hints(document, &range, knowledge));
     hints.sort_by(|left, right| {
         (
             left.position.line,
@@ -45,6 +45,11 @@ pub(crate) fn inlay_hints_response(
                 right.position.character,
                 label_text(&right.label),
             ))
+    });
+    hints.dedup_by(|left, right| {
+        left.position == right.position
+            && left.kind == right.kind
+            && label_text(&left.label) == label_text(&right.label)
     });
 
     hints
@@ -62,7 +67,7 @@ fn label_text(label: &InlayHintLabel) -> &str {
 fn type_hint(position: Position, type_name: &str) -> InlayHint {
     InlayHint {
         position,
-        label: InlayHintLabel::from(format!(": {type_name}")),
+        label: InlayHintLabel::from(type_name.to_string()),
         kind: Some(InlayHintKind::TYPE),
         text_edits: None,
         tooltip: None,
@@ -72,64 +77,123 @@ fn type_hint(position: Position, type_name: &str) -> InlayHint {
     }
 }
 
-fn binding_type_hints(document: &DocumentSnapshot, range: &TextRange) -> Vec<InlayHint> {
-    document
-        .analysis()
-        .typed_binding_states_in_range(*range)
-        .into_iter()
-        .filter_map(|binding| {
-            let type_name = binding.state.type_name.as_ref()?;
-            // Place the hint after the value expression that evaluates to this
-            // type (`x = expr : T`), not after the bound name — M2 has no
-            // `x : T =` declaration syntax, so a trailing value-type annotation
-            // reads more naturally. Falls back to the name's end when there is no
-            // value range (e.g. a destructuring target).
-            let position = binding
-                .state
-                .value_range
-                .map(|value_range| value_range.end)
-                .unwrap_or(binding.range.end);
-            Some(type_hint(position, type_name.name()))
-        })
-        .collect()
+fn parameter_hint(position: Position, parameter_name: &str) -> InlayHint {
+    InlayHint {
+        position,
+        label: InlayHintLabel::from(format!("{parameter_name}:")),
+        kind: Some(InlayHintKind::PARAMETER),
+        text_edits: None,
+        tooltip: None,
+        padding_left: None,
+        padding_right: Some(true),
+        data: None,
+    }
+}
+
+struct AssignedValue {
+    target_range: TextRange,
+    value_range: TextRange,
+    type_name: String,
+    destructured: bool,
+}
+
+#[derive(PartialEq, Eq)]
+struct TypeHintIdentity {
+    position: Position,
+    label: String,
+}
+
+fn binding_type_hints(
+    document: &DocumentSnapshot,
+    range: &TextRange,
+    knowledge: &ObjectRegistry,
+) -> Vec<InlayHint> {
+    let assigned_values = assigned_values(document, knowledge);
+    let self_describing_values = self_describing_assignment_values(document);
+    let mut hints = Vec::new();
+
+    for binding in document.analysis().bindings() {
+        let mut previous_type: Option<String> = None;
+        for state in &binding.states {
+            let assigned = assigned_values
+                .iter()
+                .find(|value| value.target_range == state.span);
+            let type_name = assigned.map(|value| value.type_name.clone()).or_else(|| {
+                state
+                    .type_name
+                    .as_ref()
+                    .map(ObjectName::name)
+                    .map(ToString::to_string)
+            });
+            let Some(type_name) = type_name else {
+                previous_type = None;
+                continue;
+            };
+            let changed = previous_type.as_ref() != Some(&type_name);
+            previous_type = Some(type_name.clone());
+            if !changed || type_name == "Thing" {
+                continue;
+            }
+            let value_range = assigned
+                .map(|value| value.value_range)
+                .or(state.value_range);
+            if value_range.is_some_and(|value_range| {
+                self_describing_values.contains(&value_range)
+                    && assigned.is_none_or(|value| !value.destructured)
+            }) {
+                continue;
+            }
+            let position = value_range.map_or(state.span.end, |value_range| value_range.end);
+            if position_in_range(position, *range) {
+                hints.push(type_hint(position, &type_name));
+            }
+        }
+    }
+
+    hints
 }
 
 fn expression_type_hints(
     document: &DocumentSnapshot,
     range: &TextRange,
     knowledge: &ObjectRegistry,
+    binding_hints: &[InlayHint],
 ) -> Vec<InlayHint> {
     let analysis = document.analysis();
-    // A binding already shows its type on the variable, so drop the RHS /
-    // whole-assignment expression hint that would repeat the same type on the
-    // value side (`x : T = expr : T` → keep only `x : T`). Keyed by the binding's
-    // value-range end plus type, which both the RHS expression fact and the
-    // assignment fact share.
-    let binding_value_types: HashSet<(u32, u32, String)> = analysis
-        .typed_binding_states_in_range(*range)
-        .into_iter()
-        .filter_map(|binding| {
-            let end = binding.state.value_range?.end;
-            Some((
-                end.line,
-                end.character,
-                binding.state.type_name.as_ref()?.name().to_string(),
-            ))
+    let binding_value_types: Vec<TypeHintIdentity> = binding_hints
+        .iter()
+        .filter(|hint| hint.kind == Some(InlayHintKind::TYPE))
+        .map(|hint| TypeHintIdentity {
+            position: hint.position,
+            label: label_text(&hint.label).to_string(),
         })
         .collect();
+    let self_describing_values = self_describing_assignment_values(document);
+    let assignment_parts = assignment_parts(document);
     document
         .root_node()
         .descendants()
         .filter(|node| node.kind.is_value_expression())
         .filter_map(|node| {
             let expression_range = document.range_for_node(node);
-            if !range_contains(*range, expression_range) {
+            if !range_contains(*range, expression_range)
+                || assignment_parts.suppresses(expression_range)
+                || self_describing_values
+                    .iter()
+                    .any(|value_range| range_contains(*value_range, expression_range))
+            {
                 return None;
             }
             let view = knowledge.at(expression_range.start);
             let type_name = analysis.infer_expression_type_label(node, document, &view)?;
+            if type_name == "Thing" {
+                return None;
+            }
             let end = expression_range.end;
-            if binding_value_types.contains(&(end.line, end.character, type_name.clone())) {
+            if binding_value_types.contains(&TypeHintIdentity {
+                position: end,
+                label: type_name.clone(),
+            }) {
                 return None;
             }
             Some(type_hint(expression_range.end, &type_name))
@@ -137,8 +201,210 @@ fn expression_type_hints(
         .collect()
 }
 
+struct AssignmentParts {
+    assignments: Vec<TextRange>,
+    targets: Vec<TextRange>,
+    values: Vec<TextRange>,
+}
+
+impl AssignmentParts {
+    fn suppresses(&self, expression: TextRange) -> bool {
+        self.assignments.contains(&expression)
+            || self.values.contains(&expression)
+            || self
+                .targets
+                .iter()
+                .any(|target| range_contains(*target, expression))
+    }
+}
+
+fn assignment_parts(document: &DocumentSnapshot) -> AssignmentParts {
+    let mut parts = AssignmentParts {
+        assignments: Vec::new(),
+        targets: Vec::new(),
+        values: Vec::new(),
+    };
+    for assignment in document
+        .root_node()
+        .descendants()
+        .filter(|node| node.is_assignment())
+    {
+        parts.assignments.push(document.range_for_node(assignment));
+        if let Some(target) = assignment.child_by_field_name("left") {
+            parts.targets.push(document.range_for_node(target));
+        }
+        if let Some(value) = assignment.child_by_field_name("right") {
+            parts.values.push(document.range_for_node(value));
+        }
+    }
+    parts
+}
+
+fn parameter_name_hints(
+    document: &DocumentSnapshot,
+    range: &TextRange,
+    knowledge: &ObjectRegistry,
+) -> Vec<InlayHint> {
+    document
+        .root_node()
+        .descendants()
+        .filter(|node| node.is_space_application())
+        .flat_map(|call| {
+            let Some(arguments) = call.child_by_field_name("right") else {
+                return Vec::new();
+            };
+            let view = knowledge.at(document.position_for_node(call));
+            let Some(parameter_names) = document
+                .analysis()
+                .call_parameter_names(call, document, &view)
+            else {
+                return Vec::new();
+            };
+            let arguments = call_arguments(arguments)
+                .into_iter()
+                .filter(|argument| !argument.is_option_assignment())
+                .collect::<Vec<_>>();
+            if parameter_names.len() != arguments.len() {
+                return Vec::new();
+            }
+            parameter_names
+                .into_iter()
+                .zip(arguments)
+                .filter_map(|(name, argument)| {
+                    let position = document.range_for_node(argument).start;
+                    if name.name() == "_" || !position_in_range(position, *range) {
+                        return None;
+                    }
+                    Some(parameter_hint(position, name.name()))
+                })
+                .collect()
+        })
+        .collect()
+}
+
+fn call_arguments(arguments: M2Node<'_>) -> Vec<M2Node<'_>> {
+    let arguments = if arguments.kind == NodeKind::ParenthesizedExpression {
+        match arguments.final_value_child() {
+            Some(value) => value,
+            None => return Vec::new(),
+        }
+    } else {
+        arguments
+    };
+    if arguments.kind == NodeKind::Sequence {
+        arguments.collection_elements().collect()
+    } else {
+        vec![arguments]
+    }
+}
+
+fn assigned_values(document: &DocumentSnapshot, knowledge: &ObjectRegistry) -> Vec<AssignedValue> {
+    let mut values = Vec::new();
+    for assignment in document.root_node().descendants().filter(|node| {
+        node.is_assignment() && matches!(node.binary_operator(), Some("=") | Some(":="))
+    }) {
+        let (Some(left), Some(right)) = (
+            assignment.child_by_field_name("left"),
+            assignment.child_by_field_name("right"),
+        ) else {
+            continue;
+        };
+        let destructured = left.kind.is_collection_expression();
+        let pairs = if destructured {
+            paired_assignment_values(left, right)
+        } else if left.kind == NodeKind::Symbol {
+            vec![(left, right)]
+        } else {
+            Vec::new()
+        };
+        for (target, value) in pairs {
+            let value_range = document.range_for_node(value);
+            let view = knowledge.at(value_range.start);
+            let Some(type_name) = document
+                .analysis()
+                .infer_expression_type_label(value, document, &view)
+            else {
+                continue;
+            };
+            values.push(AssignedValue {
+                target_range: document.range_for_node(target),
+                value_range,
+                type_name,
+                destructured,
+            });
+        }
+    }
+    values
+}
+
+fn paired_assignment_values<'tree>(
+    target: M2Node<'tree>,
+    value: M2Node<'tree>,
+) -> Vec<(M2Node<'tree>, M2Node<'tree>)> {
+    if target.kind == NodeKind::Symbol {
+        return vec![(target, value)];
+    }
+    if !target.kind.is_collection_expression() {
+        return Vec::new();
+    }
+    let targets = target.collection_elements().collect::<Vec<_>>();
+    let value = parenthesized_value(value);
+    if value.kind.is_collection_expression() {
+        let values = value.collection_elements().collect::<Vec<_>>();
+        if targets.len() != values.len() {
+            return Vec::new();
+        }
+        return targets
+            .into_iter()
+            .zip(values)
+            .flat_map(|(target, value)| paired_assignment_values(target, value))
+            .collect();
+    }
+    match targets.as_slice() {
+        [target] => paired_assignment_values(*target, value),
+        _ => Vec::new(),
+    }
+}
+
+fn self_describing_assignment_values(document: &DocumentSnapshot) -> Vec<TextRange> {
+    document
+        .root_node()
+        .descendants()
+        .filter(|node| node.is_assignment())
+        .filter_map(|assignment| {
+            let left = assignment.child_by_field_name("left")?;
+            let right = assignment.child_by_field_name("right")?;
+            (left.kind == NodeKind::Symbol && is_self_describing_value(right))
+                .then(|| document.range_for_node(right))
+        })
+        .collect()
+}
+
+fn is_self_describing_value(node: M2Node<'_>) -> bool {
+    let node = parenthesized_value(node);
+    node.kind.is_literal()
+        || node.kind.is_nothing_value()
+        || node.kind == NodeKind::LambdaExpression
+        || (node.kind.is_collection_expression()
+            && node.collection_elements().all(is_self_describing_value))
+}
+
+fn parenthesized_value(mut node: M2Node<'_>) -> M2Node<'_> {
+    while node.kind == NodeKind::ParenthesizedExpression {
+        let Some(value) = node.final_value_child() else {
+            break;
+        };
+        node = value;
+    }
+    node
+}
+
 fn range_contains(outer: TextRange, inner: TextRange) -> bool {
     outer.start <= inner.start && inner.end <= outer.end
+}
+
+fn position_in_range(position: Position, range: TextRange) -> bool {
+    range.start <= position && position <= range.end
 }
 
 #[cfg(test)]
@@ -163,22 +429,14 @@ mod tests {
     }
 
     #[test]
-    fn calm_default_shows_one_hint_per_assignment_state() {
-        // The Image #12 case: a single binding produces exactly one hint, on the
-        // bound variable — not a doubled hint plus stray sub-expression hints.
+    fn calm_default_shows_informative_computed_assignment_types() {
         let initial = hints("Comment = new SelfInitializingType of TokenTree\n", false);
-        assert_eq!(labels(&initial), vec![": SelfInitializingType".to_string()]);
-        // The single hint sits after the value expression (end of the line, the
-        // end of `TokenTree`), not after the bound name and not doubled.
+        assert_eq!(labels(&initial), vec!["SelfInitializingType".to_string()]);
         assert_eq!(initial[0].position, Position::new(0, 47));
 
-        let reassigned = hints("x = 1\nx = \"a\"\n", false);
-        assert_eq!(
-            labels(&reassigned),
-            vec![": ZZ".to_string(), ": String".to_string()]
-        );
-        assert_eq!(reassigned[0].position, Position::new(0, 5));
-        assert_eq!(reassigned[1].position, Position::new(1, 7));
+        let self_describing = "x = 1\nx = (2)\nx = [1]\nf = x -> x\n";
+        assert!(hints(self_describing, false).is_empty());
+        assert!(hints(self_describing, true).is_empty());
     }
 
     #[test]

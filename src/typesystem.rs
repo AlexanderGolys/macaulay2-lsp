@@ -17,7 +17,9 @@ pub enum TypeRole {
     Package,
     Ring,
     String,
+    Thing,
     Type,
+    VisibleList,
 }
 
 impl TypeRole {
@@ -28,7 +30,9 @@ impl TypeRole {
             Self::Package => "Package",
             Self::Ring => "Ring",
             Self::String => "String",
+            Self::Thing => "Thing",
             Self::Type => "Type",
+            Self::VisibleList => "VisibleList",
         })
     }
 }

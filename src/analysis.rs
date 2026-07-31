@@ -7,6 +7,7 @@ mod typechecker;
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::num::NonZeroUsize;
 use std::ops::Deref;
 use tower_lsp::lsp_types::{Position, Range as TextRange, SymbolKind};
 
@@ -93,14 +94,21 @@ pub struct Method {
     pub head: MethodHead,
     pub domain: Vec<ObjectName>,
     pub codomain: Option<ObjectName>,
+    pub parameter_names: Option<Vec<ObjectName>>,
 }
 
 impl Method {
-    fn new(head: MethodHead, domain: Vec<ObjectName>, codomain: Option<ObjectName>) -> Self {
+    fn new(
+        head: MethodHead,
+        domain: Vec<ObjectName>,
+        codomain: Option<ObjectName>,
+        parameter_names: Option<Vec<ObjectName>>,
+    ) -> Self {
         Self {
             head,
             domain,
             codomain,
+            parameter_names,
         }
     }
 }
@@ -208,6 +216,7 @@ pub struct FunctionInfo {
     pub typical_value: Option<ObjectName>,
     pub installations: Vec<MethodInstallationId>,
     pub dispatch: Option<Dispatch>,
+    pub parameter_names: Option<Vec<ObjectName>>,
     kind: LocalFunctionKind,
 }
 
@@ -228,11 +237,9 @@ pub struct BindingInfo {
     pub binding_id: BindingId,
     pub name: ObjectName,
     pub role: BindingRole,
-    pub declaration_kind: SymbolKind,
     pub potential_export: bool,
     pub range: TextRange,
     pub scope_idx: usize,
-    pub declaration_range: TextRange,
     pub states: Vec<BindingStateInfo>,
 }
 
@@ -244,6 +251,7 @@ pub struct BindingStateInfo {
     pub object_id: Option<CallableObjectId>,
     pub indexed_element_type: Option<ObjectName>,
     pub value_range: Option<TextRange>,
+    pub definition_range: TextRange,
     pub span: TextRange,
     pub scope_idx: usize,
 }
@@ -314,21 +322,57 @@ enum DefinitionScope {
 }
 
 #[derive(Clone, Copy)]
-enum OutputReference {
-    Relative(usize),
-    Absolute(usize),
+pub enum OutputReference {
+    Relative(NonZeroUsize),
+    Absolute(NonZeroUsize),
+    MissingAbsolute,
 }
 
 impl OutputReference {
-    fn parse(name: &str) -> Option<Self> {
+    pub fn parse(name: &str) -> Option<Self> {
         let bytes = name.as_bytes();
         if (2..=4).contains(&bytes.len()) && bytes.iter().all(|byte| *byte == b'o') {
-            return Some(Self::Relative(bytes.len() - 1));
+            return NonZeroUsize::new(bytes.len() - 1).map(Self::Relative);
         }
         let number = name.strip_prefix('o')?;
-        (!number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit()))
-            .then(|| number.parse().ok().map(Self::Absolute))
-            .flatten()
+        if number.is_empty() || !number.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        Some(
+            number
+                .parse()
+                .ok()
+                .and_then(NonZeroUsize::new)
+                .map_or(Self::MissingAbsolute, Self::Absolute),
+        )
+    }
+
+    pub fn referenced_value<'tree>(self, node: M2Node<'tree>) -> Option<M2Node<'tree>> {
+        let mut cell = node;
+        while cell.kind != NodeKind::Cell {
+            cell = cell.parent()?;
+        }
+        let root = cell
+            .parent()
+            .filter(|parent| parent.kind == NodeKind::SourceFile)?;
+        let preceding_cells = root
+            .named_children()
+            .filter(|candidate| {
+                candidate.kind == NodeKind::Cell && candidate.end_byte() <= cell.start_byte()
+            })
+            .collect::<Vec<_>>();
+
+        match self {
+            Self::Relative(distance) => preceding_cells
+                .iter()
+                .rev()
+                .filter_map(M2Node::final_value_child)
+                .nth(distance.get() - 1),
+            Self::Absolute(number) => preceding_cells
+                .get(number.get() - 1)
+                .and_then(M2Node::final_value_child),
+            Self::MissingAbsolute => None,
+        }
     }
 }
 
@@ -364,6 +408,40 @@ impl ControlFlowScope {
 
     fn assignments_may_escape(self) -> bool {
         matches!(self, Self::Branch)
+    }
+}
+
+/// The parsed loop or function body receiving a control transfer.
+#[derive(Clone, Copy)]
+pub enum ControlTransferTarget<'tree> {
+    Function(M2Node<'tree>),
+    ListLoop(M2Node<'tree>),
+    DoLoop(M2Node<'tree>),
+    LoopCallback {
+        function: M2Node<'tree>,
+        callable: M2Node<'tree>,
+    },
+}
+
+impl<'tree> ControlTransferTarget<'tree> {
+    pub fn owner(self) -> M2Node<'tree> {
+        match self {
+            Self::Function(owner) | Self::ListLoop(owner) | Self::DoLoop(owner) => owner,
+            Self::LoopCallback { function, .. } => function,
+        }
+    }
+
+    pub fn accepts(self, transfer: M2Node<'_>) -> bool {
+        match (transfer.kind, self) {
+            (NodeKind::ReturnStatement, Self::Function(_))
+            | (
+                NodeKind::BreakStatement,
+                Self::ListLoop(_) | Self::DoLoop(_) | Self::LoopCallback { .. },
+            )
+            | (NodeKind::ContinueStatement, Self::ListLoop(_)) => true,
+            (NodeKind::ContinueStatement, Self::DoLoop(_)) => transfer.named_child(0).is_none(),
+            _ => false,
+        }
     }
 }
 
@@ -405,6 +483,94 @@ impl Analysis {
     pub fn get_binding_at(&self, name: &str, pos: Position) -> Option<BindingView<'_>> {
         let scope_idx = self.find_scope_at(pos)?;
         self.get_binding_from_scope(name, scope_idx, pos)
+    }
+
+    pub fn visible_source_binding_at(
+        &self,
+        name: &str,
+        pos: Position,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Option<BindingView<'_>> {
+        let scope_idx = self.find_scope_at(pos)?;
+        self.visible_source_binding_from_scope(name, scope_idx, pos, knowledge)
+    }
+
+    fn visible_source_binding_from_scope(
+        &self,
+        name: &str,
+        scope_idx: usize,
+        pos: Position,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Option<BindingView<'_>> {
+        self.get_binding_from_scope(name, scope_idx, pos)
+            .filter(|binding| Self::source_binding_is_visible(*binding, knowledge))
+    }
+
+    pub fn source_binding_is_visible(
+        binding: BindingView<'_>,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> bool {
+        binding.scope_idx != 0 || !knowledge.shadows_source(&binding.name, binding.state.span.start)
+    }
+
+    pub fn control_transfer_target<'tree>(
+        &self,
+        transfer: M2Node<'tree>,
+        source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Option<ControlTransferTarget<'tree>> {
+        if !transfer.kind.is_control_transfer() {
+            return None;
+        }
+
+        let mut direct_child = transfer;
+        while let Some(parent) = direct_child.parent() {
+            match transfer.kind {
+                NodeKind::ReturnStatement if parent.kind == NodeKind::LambdaExpression => {
+                    return parent
+                        .child_by_field_name("body")
+                        .is_some_and(|body| body.contains(transfer))
+                        .then_some(ControlTransferTarget::Function(parent));
+                }
+                NodeKind::BreakStatement | NodeKind::ContinueStatement => {
+                    if parent.kind == NodeKind::LambdaExpression {
+                        let callable = direct_callback_callable(parent)?;
+                        let name = callable.text();
+                        let position = source.position_for_node(callable);
+                        if self
+                            .visible_source_binding_at(name, position, knowledge)
+                            .is_some()
+                            || knowledge
+                                .get_record(&ObjectName::new(name))
+                                .and_then(|record| record.callable())
+                                .is_none()
+                        {
+                            return None;
+                        }
+                        return match name {
+                            "apply" | "scan" => Some(ControlTransferTarget::LoopCallback {
+                                function: parent,
+                                callable,
+                            }),
+                            _ => None,
+                        };
+                    }
+                    if matches!(
+                        parent.kind,
+                        NodeKind::ForStatement | NodeKind::WhileStatement
+                    ) {
+                        return match direct_child.kind {
+                            NodeKind::ListClause => Some(ControlTransferTarget::ListLoop(parent)),
+                            NodeKind::DoClause => Some(ControlTransferTarget::DoLoop(parent)),
+                            _ => None,
+                        };
+                    }
+                }
+                _ => {}
+            }
+            direct_child = parent;
+        }
+        None
     }
 
     fn get_binding_from_scope(
@@ -595,22 +761,13 @@ impl Analysis {
             .filter_map(|binding| self.binding_anchor(binding.binding_id))
     }
 
-    pub fn typed_binding_states_in_range(&self, range: TextRange) -> Vec<BindingView<'_>> {
-        self.registry
-            .bindings
-            .iter()
-            .flat_map(|binding| {
-                binding
-                    .states
-                    .iter()
-                    .map(|state| BindingView { binding, state })
-            })
-            .filter(|binding| binding.state.type_name.is_some())
-            .filter(|binding| {
-                let position = binding.state.span.end;
-                position_in_range(position, range)
-            })
-            .collect()
+    pub fn binding_states(&self) -> impl Iterator<Item = BindingView<'_>> {
+        self.registry.bindings.iter().flat_map(|binding| {
+            binding
+                .states
+                .iter()
+                .map(|state| BindingView { binding, state })
+        })
     }
 
     /// Local symbol names visible at `pos` whose name starts with `prefix`, from
@@ -912,13 +1069,10 @@ impl Analysis {
     ) {
         if node.kind == NodeKind::Symbol && OutputReference::parse(node.text()).is_some() {
             let position = source.position_for_node(node);
-            let binding_is_visible =
-                self.get_binding_at(node.text(), position)
-                    .is_some_and(|binding| {
-                        binding.scope_idx != 0
-                            || !knowledge.shadows_source(&binding.name, binding.state.span.start)
-                    });
-            if !binding_is_visible {
+            if self
+                .visible_source_binding_at(node.text(), position, knowledge)
+                .is_none()
+            {
                 return;
             }
         }
@@ -1020,6 +1174,7 @@ impl Analysis {
         let operand_arity = domain.len();
         let span = source.range_for_node(node);
         let right = node.child_by_field_name("right");
+        let rhs_lambda = right.and_then(assigned_lambda);
         let codomain_node = right
             .filter(|right| right.is_option_assignment())
             .and_then(|right| right.child_by_field_name("left"));
@@ -1029,17 +1184,15 @@ impl Analysis {
         let codomain_span = codomain_node.map(|node| source.range_for_node(node));
         // The RHS function shape, read once here so the arity diagnostic need not
         // re-walk the tree. Only a plain lambda RHS carries a checkable arity.
-        let rhs_lambda_dispatch = node
-            .child_by_field_name("right")
-            .filter(|right| right.kind == NodeKind::LambdaExpression)
-            .and_then(function_dispatch);
+        let rhs_lambda_dispatch = rhs_lambda.and_then(function_dispatch);
+        let parameter_names = rhs_lambda.and_then(fixed_parameter_names);
 
         match operator {
             // `:=` installs by shape alone — no type check on the operands.
             ":=" => Some((
                 MethodInstallation {
                     id,
-                    method: Method::new(head, domain, codomain),
+                    method: Method::new(head, domain, codomain, parameter_names),
                     span,
                     expected_rhs_arity: operand_arity,
                     rhs_lambda_dispatch,
@@ -1059,7 +1212,12 @@ impl Analysis {
                     Some((
                         MethodInstallation {
                             id,
-                            method: Method::new(MethodHead::Operator(op), domain, codomain),
+                            method: Method::new(
+                                MethodHead::Operator(op),
+                                domain,
+                                codomain,
+                                parameter_names,
+                            ),
                             span,
                             expected_rhs_arity: operand_arity + 1,
                             rhs_lambda_dispatch,
@@ -1350,6 +1508,7 @@ impl Analysis {
             object_id,
             indexed_element_type,
             value_range: value_node.map(|value| source.range_for_node(value)),
+            definition_range: enclosing_definition_range(node, source),
             span: range,
             scope_idx,
         };
@@ -1357,11 +1516,9 @@ impl Analysis {
             binding_id,
             name: name.clone(),
             role,
-            declaration_kind: presentation_kind,
             potential_export,
             range,
             scope_idx,
-            declaration_range: enclosing_definition_range(node, source),
             states: vec![state],
         };
         self.registry.bindings.push(binding);
@@ -1409,6 +1566,7 @@ impl Analysis {
             object_id: registration.object_id,
             indexed_element_type: registration.indexed_element_type,
             value_range: value_node.map(|value| source.range_for_node(value)),
+            definition_range: enclosing_definition_range(node, source),
             span: source.range_for_node(node),
             scope_idx: registration.scope_idx,
         };
@@ -1444,6 +1602,32 @@ impl Analysis {
             .find_scope_at(source.position_for_node(node))
             .unwrap_or(0);
         TypeChecker::new(self).infer_call_facts(node, source, scope_idx, knowledge)
+    }
+
+    pub fn call_parameter_names(
+        &self,
+        call: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Option<Vec<ObjectName>> {
+        if !call.is_space_application() {
+            return None;
+        }
+        let callable = call.child_by_field_name("left")?;
+        let arguments = call.child_by_field_name("right")?;
+        if callable.kind != NodeKind::Symbol {
+            return None;
+        }
+        let position = source.position_for_node(callable);
+        let binding = self.visible_source_binding_at(callable.text(), position, knowledge)?;
+        let function = self.function_for_binding(binding)?;
+        let facts = self.infer_call_static_facts(arguments, source, knowledge);
+        TypeChecker::new(self).local_call_parameter_names(
+            function,
+            &facts.argument_types,
+            position,
+            knowledge,
+        )
     }
 
     pub fn infer_expression_static_type(
@@ -1535,6 +1719,7 @@ impl Analysis {
                     .cloned(),
                 installations: Vec::new(),
                 dispatch: None,
+                parameter_names: None,
                 kind: match callable.kind {
                     CallableKind::MethodFunction => LocalFunctionKind::Method,
                     CallableKind::Function | CallableKind::Operator(_) => LocalFunctionKind::Plain,
@@ -1553,6 +1738,7 @@ impl Analysis {
                 typical_value,
                 installations: Vec::new(),
                 dispatch: None,
+                parameter_names: None,
                 kind: LocalFunctionKind::Method,
             })
         } else if value.kind == NodeKind::LambdaExpression {
@@ -1560,6 +1746,7 @@ impl Analysis {
                 typical_value: None,
                 installations: Vec::new(),
                 dispatch: function_dispatch(value),
+                parameter_names: fixed_parameter_names(value),
                 kind: LocalFunctionKind::Plain,
             })
         } else {
@@ -1638,6 +1825,7 @@ impl Analysis {
                         typical_value: None,
                         installations: Vec::new(),
                         dispatch: None,
+                        parameter_names: None,
                         kind: LocalFunctionKind::Plain,
                     });
                 function.installations.push(installation.id);
@@ -1683,6 +1871,31 @@ fn collect_parameter_nodes<'tree>(node: M2Node<'tree>, parameters: &mut Vec<M2No
         }
         _ => {}
     }
+}
+
+fn fixed_parameter_names(lambda: M2Node<'_>) -> Option<Vec<ObjectName>> {
+    if !matches!(function_dispatch(lambda), Some(Dispatch::Fixed(_))) {
+        return None;
+    }
+    let mut parameters = Vec::new();
+    collect_parameter_nodes(lambda.child_by_field_name("parameters")?, &mut parameters);
+    Some(
+        parameters
+            .into_iter()
+            .map(|parameter| ObjectName::new(parameter.text()))
+            .collect(),
+    )
+}
+
+fn assigned_lambda(node: M2Node<'_>) -> Option<M2Node<'_>> {
+    let node = parenthesized_value(node)?;
+    if node.kind == NodeKind::LambdaExpression {
+        return Some(node);
+    }
+    (node.binary_operator() == Some("=>"))
+        .then(|| node.child_by_field_name("right"))
+        .flatten()
+        .and_then(assigned_lambda)
 }
 
 fn single_symbol_assignment_target<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
@@ -1868,6 +2081,37 @@ fn is_loop_clause(kind: NodeKind) -> bool {
             | NodeKind::ListClause
             | NodeKind::DoClause
     )
+}
+
+fn direct_callback_callable(lambda: M2Node<'_>) -> Option<M2Node<'_>> {
+    let mut argument = lambda;
+    let mut parent = argument.parent()?;
+    while matches!(
+        parent.kind,
+        NodeKind::Sequence | NodeKind::ParenthesizedExpression
+    ) {
+        if parent.kind == NodeKind::Sequence
+            && parent
+                .collection_elements()
+                .last()
+                .is_none_or(|last| last.id() != argument.id())
+        {
+            return None;
+        }
+        argument = parent;
+        parent = argument.parent()?;
+    }
+
+    if !parent.is_space_application()
+        || parent
+            .child_by_field_name("right")
+            .is_none_or(|right| right.id() != argument.id())
+    {
+        return None;
+    }
+    parent
+        .child_by_field_name("left")
+        .filter(|callable| callable.kind == NodeKind::Symbol)
 }
 
 fn control_flow_scope(parent: M2Node<'_>, child: M2Node<'_>) -> Option<ControlFlowScope> {

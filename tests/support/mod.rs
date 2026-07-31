@@ -442,6 +442,26 @@ impl DocumentSession {
         self.server.request(method, params).await
     }
 
+    pub(crate) async fn set_expression_type_hints(&mut self, enabled: bool) {
+        self.server
+            .notify(
+                "workspace/didChangeConfiguration",
+                json!({
+                    "settings": {
+                        "m2-ls": {
+                            "inlayHints": {
+                                "expressionTypes": enabled
+                            }
+                        }
+                    }
+                }),
+            )
+            .await;
+        self.server
+            .wait_for_server_request("workspace/inlayHint/refresh")
+            .await;
+    }
+
     pub(crate) async fn request_at(
         &mut self,
         method: &str,

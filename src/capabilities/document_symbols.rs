@@ -5,8 +5,6 @@
 //! function. Runtime values and names supplied by indexed packages are not
 //! treated as document definitions.
 
-use std::collections::HashSet;
-
 use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
@@ -29,7 +27,7 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
     let mut declarations = Vec::new();
 
     for binding in analysis
-        .bindings()
+        .binding_states()
         .filter(|binding| binding.role == BindingRole::Ordinary)
     {
         declarations.push(Declaration {
@@ -39,15 +37,14 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
                 .type_name
                 .as_ref()
                 .map(|type_id| type_id.name().to_string()),
-            kind: binding.declaration_kind,
-            range: binding.declaration_range,
-            selection_range: binding.range,
-            scope_idx: binding.scope_idx,
+            kind: binding.state.presentation_kind,
+            range: binding.state.definition_range,
+            selection_range: binding.state.span,
+            scope_idx: binding.state.scope_idx,
             child_scope_idx: binding
                 .state
                 .value_range
                 .and_then(|range| analysis.scope_with_range(range)),
-            symbol: Some(binding.name.clone()),
         });
     }
 
@@ -85,7 +82,6 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
             selection_range: assignment.target_span,
             scope_idx: assignment.scope_idx,
             child_scope_idx,
-            symbol: None,
         });
     }
 
@@ -145,7 +141,6 @@ struct Declaration {
     selection_range: TextRange,
     scope_idx: usize,
     child_scope_idx: Option<usize>,
-    symbol: Option<ObjectName>,
 }
 
 pub fn collect_workspace_symbols(
@@ -180,16 +175,8 @@ fn build_document_symbol_tree(
     let mut by_scope: Vec<Vec<Declaration>> = (0..analysis.registry.scopes.len())
         .map(|_| Vec::new())
         .collect();
-    let mut seen_symbols: Vec<HashSet<ObjectName>> = (0..analysis.registry.scopes.len())
-        .map(|_| HashSet::new())
-        .collect();
     for declaration in declarations {
         let scope_idx = nearest_container_scope(analysis, &container_scopes, declaration.scope_idx);
-        if let Some(symbol) = declaration.symbol.as_ref() {
-            if !seen_symbols[scope_idx].insert(symbol.clone()) {
-                continue;
-            }
-        }
         by_scope[scope_idx].push(declaration);
     }
 
@@ -323,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn document_symbols_include_only_new_bindings_in_m2_scopes() {
+    fn document_symbols_include_every_binding_state_in_m2_scopes() {
         let text =
             "x := 1\nx := 2\ny = 1\ny = 2\nf := x -> (x = 2; K = x; z := 3; z := 4)\nK = 3\n";
         let builtins = ObjectRegistry::default();
@@ -336,10 +323,10 @@ mod tests {
                 .iter()
                 .map(|symbol| symbol.name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["x", "y", "f", "K"]
+            vec!["x", "x", "y", "y", "f", "K"]
         );
 
-        let children = symbols[2]
+        let children = symbols[4]
             .children
             .as_ref()
             .expect("function should expose local binding children");
@@ -349,7 +336,7 @@ mod tests {
                 .iter()
                 .map(|symbol| symbol.name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["K", "z"]
+            vec!["K", "z", "z"]
         );
     }
 
@@ -381,9 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn document_symbols_emit_repeated_top_level_binding_once() {
-        // A top-level name assigned more than once is a single static symbol,
-        // anchored at its first binding.
+    fn document_symbols_emit_every_top_level_reassignment() {
         let text = "x = 1\nargs = {}\nargs = append(args, 1)\n";
         let builtins = ObjectRegistry::default();
 
@@ -396,13 +381,18 @@ mod tests {
 
         assert_eq!(
             args_symbols.len(),
-            1,
-            "a repeated top-level binding should be a single static document symbol"
+            2,
+            "every top-level reassignment should be a document symbol"
         );
         assert_eq!(
             args_symbols[0].selection_range.start,
             Position::new(1, 0),
-            "args should point at its first static binding"
+            "the first args symbol should point at its initial assignment"
+        );
+        assert_eq!(
+            args_symbols[1].selection_range.start,
+            Position::new(2, 0),
+            "the second args symbol should point at its reassignment"
         );
     }
 

@@ -128,13 +128,8 @@ impl DocumentSnapshot {
         name: &str,
         position: Position,
     ) -> Option<BindingView<'_>> {
-        let binding = self.analysis.get_binding_at(name, position)?;
-        let package_shadows = binding.scope_idx == 0
-            && self
-                .object_registry
-                .at(position)
-                .shadows_source(&binding.name, binding.state.span.start);
-        (!package_shadows).then_some(binding)
+        self.analysis
+            .visible_source_binding_at(name, position, &self.object_registry.at(position))
     }
 
     /// The declaration of the source binding effective at `position`.
@@ -196,11 +191,10 @@ impl DocumentSnapshot {
         self.analysis
             .documentation_symbol_at(reference.name(self.text()), reference.range().start)
             .filter(|binding| {
-                binding.scope_idx != 0
-                    || !self
-                        .object_registry
-                        .at(reference.range().start)
-                        .shadows_source(&binding.name, binding.state.span.start)
+                Analysis::source_binding_is_visible(
+                    *binding,
+                    &self.object_registry.at(reference.range().start),
+                )
             })
     }
 

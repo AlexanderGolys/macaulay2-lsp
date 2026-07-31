@@ -39,7 +39,7 @@ pub(crate) fn document_highlights(
     if let Some(highlights) = semicolon_expression_highlight(document, position) {
         return Some(highlights);
     }
-    if let Some(highlights) = control_transfer_highlights(document, position) {
+    if let Some(highlights) = control_transfer_highlights(document, position, builtins) {
         return Some(highlights);
     }
     keyword_sequence_highlights(document, position)
@@ -213,6 +213,7 @@ fn is_bracketed_expression(expression: M2Node<'_>) -> bool {
 fn control_transfer_highlights(
     document: &DocumentSnapshot,
     position: Position,
+    knowledge: &(impl TypeKnowledge + ?Sized),
 ) -> Option<Vec<DocumentHighlight>> {
     let cursor_node = document.node_at_position_minimal(position)?;
     let transfer = enclosing_control_transfer(cursor_node)?;
@@ -220,20 +221,31 @@ fn control_transfer_highlights(
     if !keyword.contains(cursor_node) {
         return None;
     }
-    let owner = control_transfer_owner(transfer)?;
+    let target = document
+        .analysis()
+        .control_transfer_target(transfer, document, knowledge)?;
+    let owner = target.owner();
 
-    let mut nodes = match owner.kind {
-        NodeKind::ForStatement | NodeKind::WhileStatement => statement_keyword_tokens(owner),
-        NodeKind::LambdaExpression => owner.child_by_field_name("operator").into_iter().collect(),
-        _ => Vec::new(),
+    let mut nodes = match target {
+        crate::analysis::ControlTransferTarget::LoopCallback { callable, .. } => vec![callable],
+        crate::analysis::ControlTransferTarget::ListLoop(loop_statement)
+        | crate::analysis::ControlTransferTarget::DoLoop(loop_statement) => {
+            statement_keyword_tokens(loop_statement)
+        }
+        crate::analysis::ControlTransferTarget::Function(function) => function
+            .child_by_field_name("operator")
+            .into_iter()
+            .collect(),
     };
     nodes.extend(
         owner
             .descendants()
             .filter(|candidate| {
                 candidate.kind.is_control_transfer()
-                    && control_transfer_owner(*candidate)
-                        .is_some_and(|candidate_owner| candidate_owner.id() == owner.id())
+                    && document
+                        .analysis()
+                        .control_transfer_target(*candidate, document, knowledge)
+                        .is_some_and(|candidate_target| candidate_target.owner().id() == owner.id())
             })
             .filter_map(|statement| statement.child(0)),
     );
@@ -258,30 +270,6 @@ fn enclosing_control_transfer(mut node: M2Node<'_>) -> Option<M2Node<'_>> {
         }
         node = node.parent()?;
     }
-}
-
-fn control_transfer_owner(transfer: M2Node<'_>) -> Option<M2Node<'_>> {
-    let returns_from_function = transfer.kind == NodeKind::ReturnStatement;
-    let mut ancestor = transfer;
-    while let Some(parent) = ancestor.parent() {
-        if returns_from_function {
-            if parent.kind == NodeKind::LambdaExpression {
-                return Some(parent);
-            }
-        } else {
-            if matches!(
-                parent.kind,
-                NodeKind::ForStatement | NodeKind::WhileStatement
-            ) {
-                return Some(parent);
-            }
-            if parent.kind == NodeKind::LambdaExpression {
-                return None;
-            }
-        }
-        ancestor = parent;
-    }
-    None
 }
 
 /// Highlight the keyword sequence of the compound statement under the cursor:
@@ -608,6 +596,26 @@ mod tests {
     fn nested_control_transfers_stay_with_the_innermost_owner() {
         let text = "while a do (while b do break; continue)\n";
         assert_eq!(highlighted_words(text, 0, 24), vec!["while", "do", "break"]);
+    }
+
+    #[test]
+    fn break_highlights_its_apply_callback() {
+        let text = "apply(0..3, i -> if i then break i else break)\n";
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
+        let document =
+            DocumentSnapshot::from_text(text.to_string(), &builtins).expect("fixture should parse");
+        let cursor = text.find("break").expect("fixture should contain break") as u32;
+        let words = document_highlights(&document, Position::new(0, cursor), &builtins)
+            .expect("break should resolve to the apply callback")
+            .into_iter()
+            .map(|highlight| {
+                text[highlight.range.start.character as usize
+                    ..highlight.range.end.character as usize]
+                    .to_string()
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(words, vec!["apply", "break", "break"]);
     }
 
     #[test]
