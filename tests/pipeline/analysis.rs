@@ -209,6 +209,8 @@ async fn control_flow_conditions_require_booleans_without_function_coloring() {
         "if false then 2 else 3\n",
         "if condition then 2 else 3\n",
         "if 1 then 2 else 3\n",
+        "callable = value -> value\n",
+        "if callable then 2 else 3\n",
     );
     let mut session =
         DocumentSession::open_with_related(source, "i = value -> value\nj = value -> value\n")
@@ -223,8 +225,12 @@ async fn control_flow_conditions_require_booleans_without_function_coloring() {
         token_at(&tokens, source, "j", 0).0,
         session.semantic_token_type("enumMember")
     );
+    assert_eq!(
+        token_at(&tokens, source, "callable", 1).0,
+        session.semantic_token_type("variable")
+    );
     assert_eq!(diagnostic_lines(&session, "E17"), vec![0, 4]);
-    assert_eq!(diagnostic_lines(&session, "E18"), vec![5, 8]);
+    assert_eq!(diagnostic_lines(&session, "E18"), vec![5, 8, 10]);
 
     session.shutdown().await;
 }

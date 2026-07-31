@@ -201,7 +201,8 @@ where
         let source_text = &self.document.text()[source_token.span.bytes()];
         let position = source_token.span.range().start;
         let knowledge = self.builtins.at(position);
-        classify_source_semantic_token(
+        let is_bound = binding.is_some();
+        let token = classify_source_semantic_token(
             SourceSemanticTokenContext {
                 source_text,
                 source_token,
@@ -217,7 +218,28 @@ where
                 emit_syntax,
             },
             &knowledge,
-        )
+        );
+        if !source_token.is_bare_condition {
+            return token;
+        }
+        match token {
+            Some(token)
+                if matches!(
+                    token.token_type,
+                    M2SemanticTokenType::Function | M2SemanticTokenType::Method
+                ) =>
+            {
+                Some(M2SemanticToken::new(if is_bound {
+                    M2SemanticTokenType::Variable
+                } else {
+                    M2SemanticTokenType::EnumMember
+                }))
+            }
+            None if source_token.is_expression_symbol => {
+                Some(M2SemanticToken::new(M2SemanticTokenType::EnumMember))
+            }
+            token => token,
+        }
     }
 }
 
