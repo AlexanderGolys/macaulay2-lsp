@@ -363,6 +363,7 @@ pub(crate) struct DocumentSession {
     version: i32,
     diagnostics: Value,
     semantic_token_types: Vec<String>,
+    semantic_token_modifiers: Vec<String>,
 }
 
 impl DocumentSession {
@@ -375,6 +376,12 @@ impl DocumentSession {
         )
         .iter()
         .filter_map(|token_type| token_type.as_str().map(str::to_string))
+        .collect();
+        let semantic_token_modifiers = response_array(
+            &initialized["capabilities"]["semanticTokensProvider"]["legend"]["tokenModifiers"],
+        )
+        .iter()
+        .filter_map(|modifier| modifier.as_str().map(str::to_string))
         .collect();
         server
             .notify(
@@ -400,6 +407,7 @@ impl DocumentSession {
             version: 1,
             diagnostics,
             semantic_token_types,
+            semantic_token_modifiers,
         }
     }
 
@@ -513,6 +521,14 @@ impl DocumentSession {
             .iter()
             .position(|token_type| token_type == name)
             .unwrap_or_else(|| panic!("semantic-token legend should contain {name}")) as u64
+    }
+
+    pub(crate) fn semantic_token_modifier(&self, name: &str) -> u64 {
+        1 << self
+            .semantic_token_modifiers
+            .iter()
+            .position(|modifier| modifier == name)
+            .unwrap_or_else(|| panic!("semantic-token legend should contain {name}"))
     }
 
     pub(crate) async fn shutdown(self) {

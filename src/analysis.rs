@@ -1096,6 +1096,7 @@ impl Analysis {
                 source_role,
                 is_symbol,
                 is_unquoted_symbol: node.kind == NodeKind::Symbol,
+                is_expression_symbol: is_expression_symbol(node),
             });
     }
 
@@ -1904,6 +1905,30 @@ fn single_symbol_assignment_target<'tree>(node: M2Node<'tree>) -> Option<&'tree 
 
 pub fn symbol_node_text<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
     node.kind.is_symbol_like().then(|| node.text())
+}
+
+fn is_expression_symbol(node: M2Node<'_>) -> bool {
+    if node.kind != NodeKind::Symbol || matches!(node.text(), "true" | "false") {
+        return false;
+    }
+    if node
+        .parent()
+        .is_some_and(|parent| parent.kind == NodeKind::QuoteExpression)
+    {
+        return false;
+    }
+
+    let mut current = node;
+    while let Some(parent) = current.parent() {
+        if parent.is_assignment() {
+            return parent
+                .child_by_field_name("left")
+                .is_none_or(|left| !left.contains(node));
+        }
+        current = parent;
+    }
+
+    true
 }
 
 fn method_declaration_typical_value(node: M2Node) -> Option<Option<ObjectName>> {

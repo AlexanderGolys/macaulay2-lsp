@@ -234,7 +234,6 @@ mod tests {
     const COMMAND_MODIFIER: u32 = M2SemanticTokenModifier::Command.bit();
     const FILE_MODIFIER: u32 = M2SemanticTokenModifier::File.bit();
     const DECLARATION_MODIFIER: u32 = M2SemanticTokenModifier::Declaration.bit();
-    const DEFAULT_LIBRARY_MODIFIER: u32 = M2SemanticTokenModifier::DefaultLibrary.bit();
     const BUILTIN_MODIFIER: u32 = M2SemanticTokenModifier::Builtin.bit();
     const MACRO_MODIFIER: u32 = M2SemanticTokenModifier::Macro.bit();
 
@@ -456,6 +455,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             vec![
                 M2SemanticTokenType::Comment as u32,
                 M2SemanticTokenType::Keyword as u32,
+                M2SemanticTokenType::EnumMember as u32,
                 M2SemanticTokenType::Keyword as u32,
                 M2SemanticTokenType::Number as u32,
                 M2SemanticTokenType::Operator as u32,
@@ -548,8 +548,8 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
         );
         assert_eq!(
             token_type_at(&tokens, 1, 0),
-            None,
-            "the isolated snippet assignment must not bind the real document"
+            Some(M2SemanticTokenType::EnumMember as u32),
+            "the isolated snippet assignment must not bind the real document symbol"
         );
     }
 
@@ -861,7 +861,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
     }
 
     #[test]
-    fn default_library_commands_use_method_while_local_command_values_stay_callable() {
+    fn commands_keep_the_command_modifier_without_provenance() {
         let text = "saveClearAll := clearAll\nclearAll = new Command from { () -> () }\nprotect symbol clearAll";
         let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
@@ -886,22 +886,15 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
                         && token.token_modifiers_bitset & COMMAND_MODIFIER == COMMAND_MODIFIER
                 })
                 .count(),
-            3,
-            "aliased and locally rebound Command values should keep a standard callable base"
+            4,
+            "direct, aliased, and locally rebound Command values stay function+command"
         );
-        assert_eq!(
-            tokens
-                .iter()
-                .filter(|token| {
-                    token.token_type == M2SemanticTokenType::Method as u32
-                        && token.token_modifiers_bitset & COMMAND_MODIFIER == COMMAND_MODIFIER
-                        && token.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER
-                            == DEFAULT_LIBRARY_MODIFIER
-                })
-                .count(),
-            1,
-            "the direct default-library command should use method+defaultLibrary"
-        );
+        let original = token_at(&tokens, 0, 16).expect("indexed clearAll is highlighted");
+        assert_eq!(original.token_type, M2SemanticTokenType::Function as u32);
+        assert_eq!(original.token_modifiers_bitset, COMMAND_MODIFIER);
+        let protect = token_at(&tokens, 2, 0).expect("protect is highlighted");
+        assert_eq!(protect.token_type, M2SemanticTokenType::Function as u32);
+        assert_eq!(protect.token_modifiers_bitset, BUILTIN_MODIFIER);
     }
 
     #[test]
@@ -918,14 +911,11 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             COMMAND_MODIFIER,
             "M2 Manipulator values share the command palette role"
         );
-        assert_eq!(
-            token.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
-            DEFAULT_LIBRARY_MODIFIER
-        );
+        assert_eq!(token.token_modifiers_bitset, COMMAND_MODIFIER);
     }
 
     #[test]
-    fn semantic_tokens_preserve_file_modifier_alongside_default_library() {
+    fn semantic_tokens_preserve_the_file_modifier_without_provenance() {
         let text = "stdio";
         let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
@@ -934,14 +924,11 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
 
         assert_eq!(token.token_type, M2SemanticTokenType::Variable as u32);
         assert_eq!(token.token_modifiers_bitset & FILE_MODIFIER, FILE_MODIFIER);
-        assert_eq!(
-            token.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
-            DEFAULT_LIBRARY_MODIFIER
-        );
+        assert_eq!(token.token_modifiers_bitset, FILE_MODIFIER);
     }
 
     #[test]
-    fn indexed_objects_use_variable_plus_default_library_without_tainting_locals() {
+    fn indexed_and_local_noncompiled_values_have_no_provenance_modifier() {
         let text = "true\nlocalValue := true\nlocalValue";
         let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
@@ -949,22 +936,12 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
 
         let indexed = token_at(&tokens, 0, 0).expect("indexed true should be highlighted");
         assert_eq!(indexed.token_type, M2SemanticTokenType::Variable as u32);
-        assert_eq!(
-            indexed.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
-            DEFAULT_LIBRARY_MODIFIER
-        );
+        assert_eq!(indexed.token_modifiers_bitset, 0);
 
         let declaration = token_at(&tokens, 1, 0).expect("local declaration should be highlighted");
-        assert_eq!(
-            declaration.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
-            0,
-            "a local binding must not inherit provenance from its indexed value"
-        );
+        assert_eq!(declaration.token_modifiers_bitset, DECLARATION_MODIFIER);
         let reference = token_at(&tokens, 2, 0).expect("local reference should be highlighted");
-        assert_eq!(
-            reference.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
-            0
-        );
+        assert_eq!(reference.token_modifiers_bitset, 0);
     }
 
     #[test]
@@ -994,7 +971,6 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
         );
         let token = token_at(&tokens, 1, 0).expect("imported pkgFn should be highlighted");
         assert_eq!(token.token_type, M2SemanticTokenType::Method as u32);
-        assert_eq!(token.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER, 0);
         assert_eq!(token.token_modifiers_bitset & BUILTIN_MODIFIER, 0);
 
         let document = DocumentSnapshot::from_text("pkgFn".to_string(), &provider)
@@ -1006,10 +982,8 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             &uri,
             true,
         );
-        assert!(
-            token_at(&tokens, 0, 0).is_none(),
-            "the same package object must disappear when its import is absent"
-        );
+        let token = token_at(&tokens, 0, 0).expect("unassigned pkgFn should be highlighted");
+        assert_eq!(token.token_type, M2SemanticTokenType::EnumMember as u32);
     }
 
     #[test]
@@ -1093,7 +1067,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
     }
 
     #[test]
-    fn option_keys_keep_option_and_builtin_provenance_modifiers() {
+    fn option_keys_keep_only_the_option_modifier() {
         let text = "f(x, Strategy => 4, custom => 7)";
         let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
@@ -1105,14 +1079,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             text.find("Strategy").expect("fixture contains Strategy") as u32,
         )
         .expect("builtin option key is highlighted");
-        assert_eq!(
-            builtin.token_modifiers_bitset & OPTION_MODIFIER,
-            OPTION_MODIFIER
-        );
-        assert_eq!(
-            builtin.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER,
-            DEFAULT_LIBRARY_MODIFIER
-        );
+        assert_eq!(builtin.token_modifiers_bitset, OPTION_MODIFIER);
 
         let custom = token_at(
             &tokens,
@@ -1120,11 +1087,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             text.find("custom").expect("fixture contains custom") as u32,
         )
         .expect("custom option key is highlighted");
-        assert_eq!(
-            custom.token_modifiers_bitset & OPTION_MODIFIER,
-            OPTION_MODIFIER
-        );
-        assert_eq!(custom.token_modifiers_bitset & DEFAULT_LIBRARY_MODIFIER, 0);
+        assert_eq!(custom.token_modifiers_bitset, OPTION_MODIFIER);
     }
 
     #[test]
@@ -1193,10 +1156,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
         for line in 0..=2 {
             let token = token_at(&tokens, line, 0).expect("class name should be highlighted");
             assert_eq!(token.token_type, M2SemanticTokenType::Class as u32);
-            assert_eq!(
-                token.token_modifiers_bitset, DEFAULT_LIBRARY_MODIFIER,
-                "class names should retain only their indexed provenance"
-            );
+            assert_eq!(token.token_modifiers_bitset, 0);
         }
     }
 
@@ -1249,7 +1209,6 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
                 SemanticTokenModifier::new("command"),
                 SemanticTokenModifier::new("file"),
                 SemanticTokenModifier::DECLARATION,
-                SemanticTokenModifier::DEFAULT_LIBRARY,
                 SemanticTokenModifier::new("builtin"),
                 SemanticTokenModifier::new("macro"),
             ]
@@ -1258,42 +1217,35 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
         assert_eq!(COMMAND_MODIFIER, 1 << 1);
         assert_eq!(FILE_MODIFIER, 1 << 2);
         assert_eq!(DECLARATION_MODIFIER, 1 << 3);
-        assert_eq!(DEFAULT_LIBRARY_MODIFIER, 1 << 4);
-        assert_eq!(BUILTIN_MODIFIER, 1 << 5);
-        assert_eq!(MACRO_MODIFIER, 1 << 6);
+        assert_eq!(BUILTIN_MODIFIER, 1 << 4);
+        assert_eq!(MACRO_MODIFIER, 1 << 5);
     }
 
     #[test]
-    fn core_default_library_and_compiled_builtin_modifiers_are_disjoint() {
+    fn only_primary_core_compiled_functions_are_builtin() {
         let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
+        let mut compiled_functions = 0;
 
-        for name in ["ZZ", "true", "ideal", "stdio"] {
+        for record in builtins.records_by_precedence() {
+            let name = record.name.name();
             let token = builtins
                 .get_semantic_token(name)
                 .unwrap_or_else(|| panic!("{name} should have semantic metadata"));
-            let modifiers = token.modifiers.bits();
-            assert_eq!(
-                modifiers & DEFAULT_LIBRARY_MODIFIER,
-                DEFAULT_LIBRARY_MODIFIER,
-                "{name} should be a Core default-library object"
-            );
-            assert_eq!(
-                modifiers & BUILTIN_MODIFIER,
-                0,
-                "{name} should not carry the compiled builtin modifier"
-            );
+            let is_core_compiled_function = record.class.name() == "CompiledFunction"
+                && builtins
+                    .object(&record.package)
+                    .is_some_and(|package| package.name.name() == "Core");
+
+            if is_core_compiled_function {
+                compiled_functions += 1;
+                assert_eq!(token.token_type, M2SemanticTokenType::Function);
+                assert_eq!(token.modifiers.bits(), BUILTIN_MODIFIER, "{name}");
+            } else {
+                assert_eq!(token.modifiers.bits() & BUILTIN_MODIFIER, 0, "{name}");
+            }
         }
 
-        let scan = builtins
-            .get_semantic_token("scan")
-            .expect("scan should have semantic metadata");
-        let modifiers = scan.modifiers.bits();
-        assert_eq!(modifiers & BUILTIN_MODIFIER, BUILTIN_MODIFIER);
-        assert_eq!(
-            modifiers & DEFAULT_LIBRARY_MODIFIER,
-            0,
-            "compiled builtins must not also carry defaultLibrary"
-        );
+        assert!(compiled_functions > 0);
     }
 
     #[test]

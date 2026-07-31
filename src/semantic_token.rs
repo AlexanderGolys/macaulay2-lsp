@@ -83,7 +83,6 @@ pub enum M2SemanticTokenModifier {
     Command,
     File,
     Declaration,
-    DefaultLibrary,
     Builtin,
     Macro,
 }
@@ -99,7 +98,6 @@ pub const LEGEND_MODIFIERS: &[SemanticTokenModifier] = &[
     SemanticTokenModifier::new("command"),
     SemanticTokenModifier::new("file"),
     SemanticTokenModifier::DECLARATION,
-    SemanticTokenModifier::DEFAULT_LIBRARY,
     SemanticTokenModifier::new("builtin"),
     SemanticTokenModifier::new("macro"),
 ];
@@ -114,10 +112,6 @@ impl M2SemanticTokenModifiers {
 
     pub const fn bits(self) -> u32 {
         self.0
-    }
-
-    pub const fn union(self, other: Self) -> Self {
-        Self(self.0 | other.0)
     }
 }
 
@@ -157,6 +151,7 @@ pub struct SourceSemanticToken {
     pub source_role: Option<SourceSemanticRole>,
     pub is_symbol: bool,
     pub is_unquoted_symbol: bool,
+    pub is_expression_symbol: bool,
 }
 
 pub struct SourceSemanticTokenContext<'a, M: ?Sized> {
@@ -193,7 +188,6 @@ where
                 role,
                 context.source_token.is_unquoted_symbol,
                 context.source_text,
-                indexed_token,
                 knowledge,
             )
         });
@@ -212,6 +206,12 @@ where
 
     token = token.or(indexed_token);
     token = token.or_else(|| context.workspace_token_type.map(M2SemanticToken::new));
+    if token.is_none()
+        && context.source_token.is_expression_symbol
+        && context.source_token.syntax_token_type.is_none()
+    {
+        token = Some(M2SemanticToken::new(M2SemanticTokenType::EnumMember));
+    }
     if token.is_none() && context.emit_syntax {
         token = context
             .source_token
@@ -268,50 +268,31 @@ fn source_role_semantic_token(
     role: &SourceSemanticRole,
     is_unquoted_symbol: bool,
     source_text: &str,
-    indexed_token: Option<M2SemanticToken>,
     knowledge: &(impl SemanticTokenKnowledge + ?Sized),
 ) -> Option<M2SemanticToken> {
-    let (token, uses_indexed_metadata) = match role {
-        SourceSemanticRole::MethodType => (M2SemanticToken::new(M2SemanticTokenType::Type), true),
+    let token = match role {
+        SourceSemanticRole::MethodType => M2SemanticToken::new(M2SemanticTokenType::Type),
         SourceSemanticRole::OptionKey => {
             let token_type = if is_unquoted_symbol && knowledge.is_protected_symbol(source_text) {
                 M2SemanticTokenType::EnumMember
             } else {
                 M2SemanticTokenType::Property
             };
-            (
-                M2SemanticToken::new(token_type).with_modifier(M2SemanticTokenModifier::Option),
-                true,
-            )
+            M2SemanticToken::new(token_type).with_modifier(M2SemanticTokenModifier::Option)
         }
         SourceSemanticRole::OptionValue(option_key) => {
             if !knowledge.is_option_value_for_key(option_key.name(), source_text) {
                 return None;
             }
-            (
-                M2SemanticToken::new(M2SemanticTokenType::EnumMember)
-                    .with_modifier(M2SemanticTokenModifier::Option),
-                true,
-            )
+            M2SemanticToken::new(M2SemanticTokenType::EnumMember)
+                .with_modifier(M2SemanticTokenModifier::Option)
         }
-        SourceSemanticRole::PropertyKey => {
-            (M2SemanticToken::new(M2SemanticTokenType::Property), false)
-        }
+        SourceSemanticRole::PropertyKey => M2SemanticToken::new(M2SemanticTokenType::Property),
         SourceSemanticRole::NamespaceArgument => {
-            (M2SemanticToken::new(M2SemanticTokenType::Namespace), false)
+            M2SemanticToken::new(M2SemanticTokenType::Namespace)
         }
     };
-
-    Some(M2SemanticToken {
-        token_type: token.token_type,
-        modifiers: if uses_indexed_metadata {
-            indexed_token.map_or(token.modifiers, |indexed| {
-                indexed.modifiers.union(token.modifiers)
-            })
-        } else {
-            token.modifiers
-        },
-    })
+    Some(token)
 }
 
 fn local_symbol_static_type_token(
@@ -330,7 +311,9 @@ fn local_symbol_static_type_token(
         Some(SymbolKind::VARIABLE)
             if matches!(
                 token.token_type,
-                M2SemanticTokenType::String | M2SemanticTokenType::Number
+                M2SemanticTokenType::String
+                    | M2SemanticTokenType::Number
+                    | M2SemanticTokenType::EnumMember
             ) =>
         {
             None
@@ -460,11 +443,18 @@ pub fn semantic_token_from_knowledge(
     let is_scripted_functor = subtype_of("ScriptedFunctor");
     let is_compiled_function =
         subtype_of("CompiledFunction") || subtype_of("CompiledFunctionClosure");
-    let is_builtin = is_compiled_function;
-    let is_default_library = !is_builtin
+    let is_primary_core_compiled_function = data_type.as_ref() == "CompiledFunction"
+        && record.name.name() == name
         && knowledge
             .object(&record.package)
             .is_some_and(|package| package.name.name() == "Core");
+
+    if is_primary_core_compiled_function {
+        return Some(
+            M2SemanticToken::new(M2SemanticTokenType::Function)
+                .with_modifier(M2SemanticTokenModifier::Builtin),
+        );
+    }
 
     if record_is_type_like(record) {
         return Some(indexed_semantic_token(
@@ -476,8 +466,6 @@ pub fn semantic_token_from_knowledge(
             false,
             false,
             false,
-            is_builtin,
-            is_default_library,
         ));
     }
 
@@ -487,8 +475,6 @@ pub fn semantic_token_from_knowledge(
             .is_some_and(|info| !info.methods.is_empty());
         let token_type = if is_manipulator {
             M2SemanticTokenType::Operator
-        } else if is_default_library {
-            M2SemanticTokenType::Method
         } else if is_command || is_scripted_functor || is_compiled_function {
             M2SemanticTokenType::Function
         } else if has_installed_methods {
@@ -502,8 +488,6 @@ pub fn semantic_token_from_knowledge(
             is_command,
             false,
             is_manipulator,
-            is_builtin,
-            is_default_library,
         ))
     } else if subtype_of("Package") {
         Some(indexed_semantic_token(
@@ -511,34 +495,23 @@ pub fn semantic_token_from_knowledge(
             false,
             false,
             false,
-            is_builtin,
-            is_default_library,
         ))
     } else if (subtype_of("Symbol") || is_file) && !subtype_of("Keyword") && !subtype_of("Operator")
     {
         let is_symbol_class = data_type.as_ref() == "Symbol";
-        let token_type = if is_symbol_class && record.protected {
+        let token_type = if is_symbol_class {
             M2SemanticTokenType::EnumMember
         } else {
             M2SemanticTokenType::Variable
         };
 
-        Some(indexed_semantic_token(
-            token_type,
-            false,
-            is_file,
-            false,
-            is_builtin,
-            is_default_library,
-        ))
+        Some(indexed_semantic_token(token_type, false, is_file, false))
     } else {
         Some(indexed_semantic_token(
             M2SemanticTokenType::Variable,
             false,
             false,
             false,
-            is_builtin,
-            is_default_library,
         ))
     }
 }
@@ -593,8 +566,6 @@ pub fn semantic_token_for_static_type_from_knowledge(
         is_command,
         is_file,
         is_manipulator,
-        false,
-        false,
     ))
 }
 
@@ -603,8 +574,6 @@ fn indexed_semantic_token(
     is_command: bool,
     is_file: bool,
     is_manipulator: bool,
-    is_builtin: bool,
-    is_default_library: bool,
 ) -> M2SemanticToken {
     let mut token = M2SemanticToken::new(token_type);
     if is_command || is_manipulator {
@@ -612,12 +581,6 @@ fn indexed_semantic_token(
     }
     if is_file {
         token = token.with_modifier(M2SemanticTokenModifier::File);
-    }
-    if is_default_library {
-        token = token.with_modifier(M2SemanticTokenModifier::DefaultLibrary);
-    }
-    if is_builtin {
-        token = token.with_modifier(M2SemanticTokenModifier::Builtin);
     }
     token
 }

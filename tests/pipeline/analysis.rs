@@ -176,6 +176,55 @@ fn token_at(
 }
 
 #[tokio::test]
+async fn unassigned_symbols_are_enum_members_until_their_binding() {
+    let source = "a = b\nZZ[a, b, c]\nb = c\n";
+    let mut session = DocumentSession::open(source).await;
+    let tokens = semantic_tokens(&mut session).await;
+    let enum_member = session.semantic_token_type("enumMember");
+    let variable = session.semantic_token_type("variable");
+
+    for occurrence in [0, 1] {
+        assert_eq!(token_at(&tokens, source, "a", occurrence).0, variable);
+    }
+    for occurrence in [0, 1] {
+        assert_eq!(token_at(&tokens, source, "b", occurrence).0, enum_member);
+    }
+    assert_eq!(token_at(&tokens, source, "b", 2).0, variable);
+    for occurrence in [0, 1] {
+        assert_eq!(token_at(&tokens, source, "c", occurrence).0, enum_member);
+    }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn only_original_core_compiled_functions_are_builtin() {
+    let source = "f = scan\nf\nscan\nscan = f\nscan\n";
+    let mut session = DocumentSession::open(source).await;
+    let tokens = semantic_tokens(&mut session).await;
+    let function = session.semantic_token_type("function");
+    let builtin = session.semantic_token_modifier("builtin");
+
+    for occurrence in [0, 1] {
+        let (token_type, modifiers) = token_at(&tokens, source, "scan", occurrence);
+        assert_eq!(token_type, function);
+        assert_eq!(modifiers, builtin);
+    }
+    for occurrence in [2, 3] {
+        let (token_type, modifiers) = token_at(&tokens, source, "scan", occurrence);
+        assert_eq!(token_type, function);
+        assert_eq!(modifiers & builtin, 0);
+    }
+    for occurrence in 0..=2 {
+        let (token_type, modifiers) = token_at(&tokens, source, "f", occurrence);
+        assert_eq!(token_type, function);
+        assert_eq!(modifiers & builtin, 0);
+    }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn registered_source_roles_drive_semantic_tokens_through_the_server() {
     let source = concat!(
         "p = method(TypicalValue => List)\n",
