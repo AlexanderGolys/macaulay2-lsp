@@ -2,7 +2,8 @@
 
 use std::ops::Range as ByteRange;
 
-use tower_lsp::lsp_types::{Position, Range};
+use tower_lsp::lsp_types::Position;
+use tower_lsp::lsp_types::Range;
 use tree_sitter::Point;
 
 use crate::node_metadata::M2Node;
@@ -13,21 +14,26 @@ use crate::node_metadata::M2Node;
 /// The fields stay private so the two representations can only be constructed
 /// together by [`SourceNavigation::span_for_bytes`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DocumentSpan {
+pub struct DocumentSpan {
     bytes: ByteRange<usize>,
     range: Range,
 }
 
 impl DocumentSpan {
     /// The parser-oriented byte range of this span.
-    pub(crate) fn bytes(&self) -> ByteRange<usize> {
+    pub fn bytes(&self) -> ByteRange<usize> {
         self.bytes.clone()
     }
 
     /// The protocol-oriented UTF-16 range of this span.
-    pub(crate) fn range(&self) -> Range {
+    pub fn range(&self) -> Range {
         self.range
     }
+}
+/// Cached byte ranges for every line's visible content.
+#[derive(Debug)]
+struct LineIndex {
+    content_ranges: Vec<ByteRange<usize>>,
 }
 
 /// Original source text paired with its cached line-content byte ranges.
@@ -35,61 +41,22 @@ impl DocumentSpan {
 /// Each cached range excludes the line ending. The source text itself is stored
 /// only once; the ranges are an index into it.
 #[derive(Debug)]
-pub(crate) struct DocumentSource {
+pub struct DocumentSource {
     text: String,
     line_index: LineIndex,
 }
 
 impl DocumentSource {
     /// Index one owned source snapshot.
-    pub(crate) fn new(text: String) -> Self {
+    pub fn new(text: String) -> Self {
         let line_index = LineIndex::new(&text);
         Self { text, line_index }
     }
 
     /// Replace one byte range and rebuild the line index exactly once.
-    pub(crate) fn replace_range(&mut self, bytes: ByteRange<usize>, replacement: &str) {
+    pub fn replace_range(&mut self, bytes: ByteRange<usize>, replacement: &str) {
         self.text.replace_range(bytes, replacement);
         self.line_index = LineIndex::new(&self.text);
-    }
-}
-
-/// Cached byte ranges for every line's visible content.
-#[derive(Debug)]
-struct LineIndex {
-    content_ranges: Vec<ByteRange<usize>>,
-}
-
-impl LineIndex {
-    /// Discover line boundaries once for a source snapshot.
-    fn new(text: &str) -> Self {
-        let mut content_ranges = Vec::new();
-        let mut start_byte = 0;
-        for segment in text.split_inclusive('\n') {
-            let content = segment.strip_suffix('\n').unwrap_or(segment);
-            let content = content.strip_suffix('\r').unwrap_or(content);
-            content_ranges.push(start_byte..start_byte + content.len());
-            start_byte += segment.len();
-        }
-        if text.is_empty() || text.ends_with('\n') {
-            content_ranges.push(text.len()..text.len());
-        }
-        Self { content_ranges }
-    }
-
-    /// The indexed line containing `byte_index`, with line endings attributed to
-    /// the preceding line.
-    fn line_for_byte(&self, byte_index: usize) -> (usize, &ByteRange<usize>) {
-        let line_index = self
-            .content_ranges
-            .partition_point(|range| range.start <= byte_index)
-            .saturating_sub(1);
-        (line_index, &self.content_ranges[line_index])
-    }
-
-    /// The visible byte range for an LSP line number.
-    fn content_range(&self, line: u32) -> Option<&ByteRange<usize>> {
-        self.content_ranges.get(line as usize)
     }
 }
 
@@ -98,7 +65,7 @@ impl LineIndex {
 /// Implementers expose their [`DocumentSource`]; every byte, Tree-sitter point,
 /// and LSP UTF-16 conversion is supplied here so capabilities cannot grow
 /// independent conversion formulas.
-pub(crate) trait SourceNavigation {
+pub trait SourceNavigation {
     /// The indexed source snapshot backing this navigator.
     fn source(&self) -> &DocumentSource;
 
@@ -231,6 +198,39 @@ pub(crate) trait SourceNavigation {
             ranges.push(self.range_for_bytes(start_byte..end_byte));
         }
         ranges
+    }
+}
+
+impl LineIndex {
+    /// Discover line boundaries once for a source snapshot.
+    fn new(text: &str) -> Self {
+        let mut content_ranges = Vec::new();
+        let mut start_byte = 0;
+        for segment in text.split_inclusive('\n') {
+            let content = segment.strip_suffix('\n').unwrap_or(segment);
+            let content = content.strip_suffix('\r').unwrap_or(content);
+            content_ranges.push(start_byte..start_byte + content.len());
+            start_byte += segment.len();
+        }
+        if text.is_empty() || text.ends_with('\n') {
+            content_ranges.push(text.len()..text.len());
+        }
+        Self { content_ranges }
+    }
+
+    /// The indexed line containing `byte_index`, with line endings attributed to
+    /// the preceding line.
+    fn line_for_byte(&self, byte_index: usize) -> (usize, &ByteRange<usize>) {
+        let line_index = self
+            .content_ranges
+            .partition_point(|range| range.start <= byte_index)
+            .saturating_sub(1);
+        (line_index, &self.content_ranges[line_index])
+    }
+
+    /// The visible byte range for an LSP line number.
+    fn content_range(&self, line: u32) -> Option<&ByteRange<usize>> {
+        self.content_ranges.get(line as usize)
     }
 }
 

@@ -19,25 +19,36 @@ struct CodeActionContext<'tree, 'request> {
     diagnostics: &'request [Diagnostic],
 }
 
-trait CodeActionRule: Sync {
-    fn action(&self, context: &CodeActionContext<'_, '_>) -> Option<CodeAction>;
+enum CodeActionRule {
+    AmbiguousFloatMemberAccess,
+    ConvertToRawString,
+    ConditionalNull,
+    SimplifyTry,
+    SimplifyIfCondition,
+    FlattenElseIf,
 }
 
-struct AmbiguousFloatMemberAccess;
-struct ConvertToRawString;
-struct ConditionalNull;
-struct SimplifyTry;
-struct SimplifyIfCondition;
-struct FlattenElseIf;
-
-const ACTION_RULES: &[&dyn CodeActionRule] = &[
-    &AmbiguousFloatMemberAccess,
-    &ConvertToRawString,
-    &ConditionalNull,
-    &SimplifyTry,
-    &SimplifyIfCondition,
-    &FlattenElseIf,
+const ACTION_RULES: &[CodeActionRule] = &[
+    CodeActionRule::AmbiguousFloatMemberAccess,
+    CodeActionRule::ConvertToRawString,
+    CodeActionRule::ConditionalNull,
+    CodeActionRule::SimplifyTry,
+    CodeActionRule::SimplifyIfCondition,
+    CodeActionRule::FlattenElseIf,
 ];
+
+impl CodeActionRule {
+    fn action(&self, context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+        match self {
+            Self::AmbiguousFloatMemberAccess => ambiguous_float_member_access_action(context),
+            Self::ConvertToRawString => convert_to_raw_string_action(context),
+            Self::ConditionalNull => conditional_null_action(context),
+            Self::SimplifyTry => simplify_try_action(context),
+            Self::SimplifyIfCondition => simplify_if_condition_action(context),
+            Self::FlattenElseIf => flatten_else_if_action(context),
+        }
+    }
+}
 
 /// The code actions offered at `position`: every action from the registry
 /// whose producer returns `Some`. The deepest CST node covering `position` is
@@ -62,7 +73,7 @@ pub(crate) fn available_code_actions(
 }
 
 fn actions_from_rules(
-    rules: &[&dyn CodeActionRule],
+    rules: &[CodeActionRule],
     context: &CodeActionContext<'_, '_>,
 ) -> CodeActionResponse {
     rules
@@ -108,174 +119,162 @@ impl CodeActionSpec {
 
 /// Refactor: rewrite a heavily-escaped string literal as a raw `///…///` string
 /// when the value survives verbatim (no unsupported escapes, no `///` inside).
-impl CodeActionRule for ConvertToRawString {
-    fn action(&self, context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-        let string_node = context
-            .document
-            .enclosing_node_of_kind(context.cursor, NodeKind::StringLiteral)?;
-        let replacement = raw_string_replacement(string_node)?;
+fn convert_to_raw_string_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let string_node = context
+        .document
+        .enclosing_node_of_kind(context.cursor, NodeKind::StringLiteral)?;
+    let replacement = raw_string_replacement(string_node)?;
 
-        Some(
-            CodeActionSpec {
-                title: "Convert to raw string",
-                kind: CodeActionKind::REFACTOR_REWRITE,
-                is_preferred: None,
-                diagnostics: None,
-            }
-            .build(
-                context.uri,
-                context.document.range_for_node(string_node),
-                replacement,
-            ),
-        )
-    }
+    Some(
+        CodeActionSpec {
+            title: "Convert to raw string",
+            kind: CodeActionKind::REFACTOR_REWRITE,
+            is_preferred: None,
+            diagnostics: None,
+        }
+        .build(
+            context.uri,
+            context.document.range_for_node(string_node),
+            replacement,
+        ),
+    )
 }
 
 /// Quickfix for the ambiguous-float diagnostic (`x.3` parses as `x SPACE .3`):
 /// rewrite to the member access the user almost certainly meant (`x#3`).
-impl CodeActionRule for AmbiguousFloatMemberAccess {
-    fn action(&self, context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-        let diagnostic = context
-            .diagnostics
-            .iter()
-            .find(|diagnostic| {
-                diagnostic_has_kind(diagnostic, M2Diagnostic::AmbiguousFloatMemberAccess)
-                    && position_in_range(context.position, diagnostic.range)
-            })?
-            .clone();
-        let expression = context
-            .document
-            .enclosing_node_of_kind(context.cursor, NodeKind::BinaryExpression)?;
-        let replacement = ambiguous_float_member_access_rewrite(expression)?;
+fn ambiguous_float_member_access_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let diagnostic = context
+        .diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic_has_kind(diagnostic, M2Diagnostic::AmbiguousFloatMemberAccess)
+                && position_in_range(context.position, diagnostic.range)
+        })?
+        .clone();
+    let expression = context
+        .document
+        .enclosing_node_of_kind(context.cursor, NodeKind::BinaryExpression)?;
+    let replacement = ambiguous_float_member_access_rewrite(expression)?;
 
-        Some(
-            CodeActionSpec {
-                title: "Rewrite as member access",
-                kind: CodeActionKind::QUICKFIX,
-                is_preferred: Some(true),
-                diagnostics: Some(vec![diagnostic]),
-            }
-            .build(
-                context.uri,
-                context.document.range_for_node(expression),
-                replacement,
-            ),
-        )
-    }
+    Some(
+        CodeActionSpec {
+            title: "Rewrite as member access",
+            kind: CodeActionKind::QUICKFIX,
+            is_preferred: Some(true),
+            diagnostics: Some(vec![diagnostic]),
+        }
+        .build(
+            context.uri,
+            context.document.range_for_node(expression),
+            replacement,
+        ),
+    )
 }
 
 /// Refactor: drop a redundant `else null` (or `then null`, negating the
 /// condition) from an `if` statement.
-impl CodeActionRule for ConditionalNull {
-    fn action(&self, context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-        let if_node = context
-            .document
-            .enclosing_node_of_kind(context.cursor, NodeKind::IfStatement)?;
-        let replacement = refactor_if_null_branch(if_node)?;
+fn conditional_null_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let if_node = context
+        .document
+        .enclosing_node_of_kind(context.cursor, NodeKind::IfStatement)?;
+    let replacement = refactor_if_null_branch(if_node)?;
 
-        Some(
-            CodeActionSpec {
-                title: "Simplify unnecessary null branch",
-                kind: CodeActionKind::REFACTOR_REWRITE,
-                is_preferred: None,
-                diagnostics: None,
-            }
-            .build(
-                context.uri,
-                context.document.range_for_node(if_node),
-                replacement,
-            ),
-        )
-    }
+    Some(
+        CodeActionSpec {
+            title: "Simplify unnecessary null branch",
+            kind: CodeActionKind::REFACTOR_REWRITE,
+            is_preferred: None,
+            diagnostics: None,
+        }
+        .build(
+            context.uri,
+            context.document.range_for_node(if_node),
+            replacement,
+        ),
+    )
 }
 
 /// Refactor: simplify a `try` statement — drop a redundant `then` echo or a
 /// redundant `else null`.
-impl CodeActionRule for SimplifyTry {
-    fn action(&self, context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-        let try_node = context
-            .document
-            .enclosing_node_of_kind(context.cursor, NodeKind::TryStatement)?;
-        let replacement = refactor_try_statement(try_node)?;
+fn simplify_try_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let try_node = context
+        .document
+        .enclosing_node_of_kind(context.cursor, NodeKind::TryStatement)?;
+    let replacement = refactor_try_statement(try_node)?;
 
-        Some(
-            CodeActionSpec {
-                title: "Simplify try",
-                kind: CodeActionKind::REFACTOR_REWRITE,
-                is_preferred: None,
-                diagnostics: None,
-            }
-            .build(
-                context.uri,
-                context.document.range_for_node(try_node),
-                replacement,
-            ),
-        )
-    }
+    Some(
+        CodeActionSpec {
+            title: "Simplify try",
+            kind: CodeActionKind::REFACTOR_REWRITE,
+            is_preferred: None,
+            diagnostics: None,
+        }
+        .build(
+            context.uri,
+            context.document.range_for_node(try_node),
+            replacement,
+        ),
+    )
 }
 
 /// Refactor: push a leading `not` through a parenthesized comparison
 /// (`if not (a == b) then x` → `if a != b then x`).
-impl CodeActionRule for SimplifyIfCondition {
-    fn action(&self, context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-        let if_node = context
-            .document
-            .enclosing_node_of_kind(context.cursor, NodeKind::IfStatement)?;
-        let condition = if_node.child_by_field_name("condition")?;
-        let simplified = simplify_condition(condition)?;
+fn simplify_if_condition_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let if_node = context
+        .document
+        .enclosing_node_of_kind(context.cursor, NodeKind::IfStatement)?;
+    let condition = if_node.child_by_field_name("condition")?;
+    let simplified = simplify_condition(condition)?;
 
-        let then_branch = expression_of_clause(clause_child(if_node, NodeKind::ThenClause)?)?;
-        let else_clause = clause_child(if_node, NodeKind::ElseClause);
+    let then_branch = expression_of_clause(clause_child(if_node, NodeKind::ThenClause)?)?;
+    let else_clause = clause_child(if_node, NodeKind::ElseClause);
 
-        let mut replacement = format!("if {} then {}", simplified, then_branch.text());
-        if let Some(else_clause) = else_clause {
-            replacement.push(' ');
-            replacement.push_str(else_clause.text());
-        }
-
-        Some(
-            CodeActionSpec {
-                title: "Simplify if condition",
-                kind: CodeActionKind::REFACTOR_REWRITE,
-                is_preferred: None,
-                diagnostics: None,
-            }
-            .build(
-                context.uri,
-                context.document.range_for_node(if_node),
-                replacement,
-            ),
-        )
+    let mut replacement = format!("if {} then {}", simplified, then_branch.text());
+    if let Some(else_clause) = else_clause {
+        replacement.push(' ');
+        replacement.push_str(else_clause.text());
     }
+
+    Some(
+        CodeActionSpec {
+            title: "Simplify if condition",
+            kind: CodeActionKind::REFACTOR_REWRITE,
+            is_preferred: None,
+            diagnostics: None,
+        }
+        .build(
+            context.uri,
+            context.document.range_for_node(if_node),
+            replacement,
+        ),
+    )
 }
 
-impl CodeActionRule for FlattenElseIf {
-    fn action(&self, context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-        let mut current = Some(context.cursor);
-        let mut candidate = None;
-        while let Some(node) = current {
-            if node.kind == NodeKind::IfStatement {
-                if let Some(replacement) = flatten_else_if_chain(node) {
-                    candidate = Some((node, replacement));
-                }
+fn flatten_else_if_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let mut current = Some(context.cursor);
+    let mut candidate = None;
+    while let Some(node) = current {
+        if node.kind == NodeKind::IfStatement {
+            if let Some(replacement) = flatten_else_if_chain(node) {
+                candidate = Some((node, replacement));
             }
-            current = node.parent();
         }
-        let (node, replacement) = candidate?;
-        Some(
-            CodeActionSpec {
-                title: "Flatten nested if into else-if chain",
-                kind: CodeActionKind::REFACTOR_REWRITE,
-                is_preferred: None,
-                diagnostics: None,
-            }
-            .build(
-                context.uri,
-                context.document.range_for_node(node),
-                replacement,
-            ),
-        )
+        current = node.parent();
     }
+    let (node, replacement) = candidate?;
+    Some(
+        CodeActionSpec {
+            title: "Flatten nested if into else-if chain",
+            kind: CodeActionKind::REFACTOR_REWRITE,
+            is_preferred: None,
+            diagnostics: None,
+        }
+        .build(
+            context.uri,
+            context.document.range_for_node(node),
+            replacement,
+        ),
+    )
 }
 
 fn flatten_else_if_chain(if_node: M2Node<'_>) -> Option<String> {
@@ -562,7 +561,7 @@ mod tests {
     }
 
     fn action_for<'tree>(
-        rule: &dyn CodeActionRule,
+        rule: CodeActionRule,
         document: &'tree DocumentSnapshot,
         uri: &Url,
         position: Position,
@@ -586,7 +585,7 @@ mod tests {
         diagnostics: &[Diagnostic],
     ) -> Option<CodeAction> {
         action_for(
-            &ConvertToRawString,
+            CodeActionRule::ConvertToRawString,
             document,
             uri,
             position,
@@ -603,7 +602,7 @@ mod tests {
         diagnostics: &[Diagnostic],
     ) -> Option<CodeAction> {
         action_for(
-            &AmbiguousFloatMemberAccess,
+            CodeActionRule::AmbiguousFloatMemberAccess,
             document,
             uri,
             position,
@@ -620,7 +619,7 @@ mod tests {
         diagnostics: &[Diagnostic],
     ) -> Option<CodeAction> {
         action_for(
-            &ConditionalNull,
+            CodeActionRule::ConditionalNull,
             document,
             uri,
             position,
@@ -636,7 +635,14 @@ mod tests {
         cursor: M2Node<'tree>,
         diagnostics: &[Diagnostic],
     ) -> Option<CodeAction> {
-        action_for(&SimplifyTry, document, uri, position, cursor, diagnostics)
+        action_for(
+            CodeActionRule::SimplifyTry,
+            document,
+            uri,
+            position,
+            cursor,
+            diagnostics,
+        )
     }
 
     fn simplify_if_condition_code_action<'tree>(
@@ -647,7 +653,7 @@ mod tests {
         diagnostics: &[Diagnostic],
     ) -> Option<CodeAction> {
         action_for(
-            &SimplifyIfCondition,
+            CodeActionRule::SimplifyIfCondition,
             document,
             uri,
             position,
@@ -663,25 +669,22 @@ mod tests {
         cursor: M2Node<'tree>,
         diagnostics: &[Diagnostic],
     ) -> Option<CodeAction> {
-        action_for(&FlattenElseIf, document, uri, position, cursor, diagnostics)
+        action_for(
+            CodeActionRule::FlattenElseIf,
+            document,
+            uri,
+            position,
+            cursor,
+            diagnostics,
+        )
     }
 
     #[test]
-    fn action_dispatch_accepts_stateful_rules_and_preserves_order() {
-        struct NamedAction(&'static str);
-
-        impl CodeActionRule for NamedAction {
-            fn action(&self, _context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-                Some(CodeAction {
-                    title: self.0.to_string(),
-                    ..Default::default()
-                })
-            }
-        }
-
-        let document = document("x");
+    fn action_registry_preserves_rule_order() {
+        let text = "if not (a == b) then x else null";
+        let document = document(text);
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
-        let position = Position::new(0, 0);
+        let position = Position::new(0, text.find('a').unwrap() as u32);
         let context = CodeActionContext {
             document: &document,
             uri: &uri,
@@ -689,10 +692,7 @@ mod tests {
             cursor: cursor_at(&document, position),
             diagnostics: &[],
         };
-        let first = NamedAction("first");
-        let second = NamedAction("second");
-        let rules: &[&dyn CodeActionRule] = &[&first, &second];
-        let actions = actions_from_rules(rules, &context);
+        let actions = actions_from_rules(ACTION_RULES, &context);
         let titles: Vec<_> = actions
             .into_iter()
             .map(|action| match action {
@@ -701,7 +701,10 @@ mod tests {
             })
             .collect();
 
-        assert_eq!(titles, ["first", "second"]);
+        assert_eq!(
+            titles,
+            ["Simplify unnecessary null branch", "Simplify if condition"]
+        );
     }
 
     #[test]
