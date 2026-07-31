@@ -155,7 +155,7 @@ impl TypeChecker<'_> {
             NodeKind::BinaryExpression
                 if method_declaration_typical_value(node).is_some() || is_method_call(node) =>
             {
-                InferredType::of("MethodFunction")
+                InferredType::from_id(TypeRole::MethodFunction.object_name())
             }
             NodeKind::List => InferredType::of("List"),
             NodeKind::Array => InferredType::of("Array"),
@@ -169,7 +169,7 @@ impl TypeChecker<'_> {
                 Some(inner) => self.type_of(inner, source, scope_idx, knowledge),
                 None => InferredType::of("Nothing"),
             },
-            NodeKind::StringLiteral => InferredType::of("String"),
+            NodeKind::StringLiteral => InferredType::from_id(TypeRole::String.object_name()),
             NodeKind::IntegerLiteral => InferredType::of("ZZ"),
             NodeKind::FloatLiteral => InferredType::of("RR"),
             // A quote expression (`symbol +`, `local x`, `global y`,
@@ -309,6 +309,9 @@ impl TypeChecker<'_> {
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         let name = node.text();
+        if let Some(reference) = OutputReference::parse(name) {
+            return self.output_reference_type(node, reference, source, knowledge);
+        }
         if let Some(binding) =
             self.get_binding_from_scope(name, scope_idx, source.position_for_node(node))
         {
@@ -330,6 +333,52 @@ impl TypeChecker<'_> {
         }
 
         InferredType::of("Symbol")
+    }
+
+    fn output_reference_type(
+        &self,
+        node: M2Node,
+        reference: OutputReference,
+        source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> InferredType {
+        let mut cell = node;
+        while cell.kind != NodeKind::Cell {
+            let Some(parent) = cell.parent() else {
+                return InferredType::unknown();
+            };
+            cell = parent;
+        }
+        let Some(root) = cell
+            .parent()
+            .filter(|parent| parent.kind == NodeKind::SourceFile)
+        else {
+            return InferredType::unknown();
+        };
+        let preceding_cells = root
+            .named_children()
+            .filter(|candidate| {
+                candidate.kind == NodeKind::Cell && candidate.end_byte() <= cell.start_byte()
+            })
+            .collect::<Vec<_>>();
+        let output = match reference {
+            OutputReference::Relative(distance) => preceding_cells
+                .iter()
+                .rev()
+                .filter_map(M2Node::final_value_child)
+                .nth(distance - 1),
+            OutputReference::Absolute(number) => number
+                .checked_sub(1)
+                .and_then(|index| preceding_cells.get(index))
+                .and_then(M2Node::final_value_child),
+        };
+        let Some(output) = output else {
+            return InferredType::unknown();
+        };
+        let output_scope = self
+            .find_scope_at(source.position_for_node(output))
+            .unwrap_or(0);
+        self.type_of(output, source, output_scope, knowledge)
     }
 
     /// A binary expression's type. Juxtaposition `a SPACE b` is application
@@ -360,12 +409,14 @@ impl TypeChecker<'_> {
             }
         }
 
-        let (Some(operator), Some(left), Some(right)) = (operator, left, right) else {
+        let (Some(left), Some(right), Some(operator)) =
+            (left, right, Operator::from_expression(node))
+        else {
             return InferredType::unknown();
         };
         let left_type = self.type_of(left, source, scope_idx, knowledge);
         let right_type = self.type_of(right, source, scope_idx, knowledge);
-        self.dispatch_codomain(knowledge, operator, &[left_type, right_type], &[])
+        self.dispatch_codomain(knowledge, &operator, &[left_type, right_type], &[])
     }
 
     /// The function-dependent operators, whose result depends on the specific
@@ -401,8 +452,7 @@ impl TypeChecker<'_> {
             return Some(result);
         }
 
-        if matches!(operator, "_" | "@@")
-            && knowledge.is_subtype(left_name, &ObjectName::new("Function"))
+        if matches!(operator, "_" | "@@") && knowledge.has_type_role(left_name, TypeRole::Function)
         {
             return Some(InferredType::of("FunctionClosure"));
         }
@@ -426,6 +476,9 @@ impl TypeChecker<'_> {
             node.child_by_field_name("left"),
             node.child_by_field_name("right"),
         ) else {
+            return InferredType::unknown();
+        };
+        let Some(operator) = Operator::from_expression(node) else {
             return InferredType::unknown();
         };
         let callable_name = symbol_node_text(callable_node);
@@ -462,7 +515,7 @@ impl TypeChecker<'_> {
         let head = self.type_of(callable_node, source, scope_idx, knowledge);
         let head_is_function = head
             .principal()
-            .is_some_and(|head| knowledge.is_subtype(head, &ObjectName::new("Function")));
+            .is_some_and(|head| knowledge.has_type_role(head, TypeRole::Function));
         if head_is_function {
             if let Some(callable) = callable_name {
                 if let Some(return_type) = knowledge.resolve_call_return_type_with_options(
@@ -478,6 +531,7 @@ impl TypeChecker<'_> {
         }
 
         if let Some(result) = self.ring_application_with_trailing_operator_type(
+            &operator,
             &head,
             argument_node,
             source,
@@ -490,7 +544,7 @@ impl TypeChecker<'_> {
         let argument_type = self.type_of(argument_node, source, scope_idx, knowledge);
         self.dispatch_codomain(
             knowledge,
-            SPACE_OPERATOR,
+            &operator,
             &[head, argument_type],
             &call_facts.literal_options,
         )
@@ -506,15 +560,13 @@ impl TypeChecker<'_> {
         position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<&FunctionInfo> {
-        let binding = self
-            .get_binding_from_scope(name, scope_idx, position)
-            .filter(|binding| binding.state.kind == SymbolKind::FUNCTION)?;
+        let binding = self.get_binding_from_scope(name, scope_idx, position)?;
         if binding.scope_idx == 0
             && knowledge.shadows_source(&binding.name, binding.state.span.start)
         {
             return None;
         }
-        self.registry.functions.get(name)
+        self.function_for_binding(binding)
     }
 
     /// A prefix/postfix operator's type: `typicalValue(op, operand)`.
@@ -525,13 +577,14 @@ impl TypeChecker<'_> {
         scope_idx: usize,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
-        let (Some(operator), Some(operand)) =
-            (operator_text(node), node.child_by_field_name("operand"))
-        else {
+        let (Some(operator), Some(operand)) = (
+            Operator::from_expression(node),
+            node.child_by_field_name("operand"),
+        ) else {
             return InferredType::unknown();
         };
         let operand_type = self.type_of(operand, source, scope_idx, knowledge);
-        self.dispatch_codomain(knowledge, operator, &[operand_type], &[])
+        self.dispatch_codomain(knowledge, &operator, &[operand_type], &[])
     }
 
     /// Dispatch `callable` on `args` through the M2 type table. A matched but
@@ -541,22 +594,19 @@ impl TypeChecker<'_> {
     pub(super) fn dispatch_codomain(
         &self,
         knowledge: &(impl TypeKnowledge + ?Sized),
-        callable: &str,
+        operator: &Operator,
         args: &[InferredType],
         options: &[LiteralOption],
     ) -> InferredType {
-        if let Some(function) = self.registry.functions.get(callable) {
-            if let Some(return_type) = self.resolve_local_call_return_type(
-                function,
-                args,
-                Position::new(u32::MAX, u32::MAX),
-                knowledge,
-            ) {
+        if let Some(function) = self.registry.operator_functions.get(operator) {
+            if let Some(return_type) =
+                self.resolve_local_call_return_type(function, args, pos_max!(), knowledge)
+            {
                 return InferredType::from_id(return_type);
             }
         }
         if let Some(return_type) = knowledge.resolve_call_return_type_with_options(
-            &ObjectName::new(callable),
+            &operator.token,
             &args
                 .iter()
                 .map(|argument| self.dispatch_object_id(argument, knowledge))
@@ -565,7 +615,7 @@ impl TypeChecker<'_> {
         ) {
             return self.inferred_external_type(return_type, knowledge);
         }
-        if knowledge.get_record(&ObjectName::new(callable)).is_some() {
+        if knowledge.get_record(&operator.token).is_some() {
             return InferredType::of("Thing");
         }
         InferredType::unknown()
@@ -695,7 +745,7 @@ impl TypeChecker<'_> {
                 })
     }
 
-    fn is_subtype(
+    pub(super) fn is_subtype(
         &self,
         actual: &ObjectName,
         expected: &ObjectName,

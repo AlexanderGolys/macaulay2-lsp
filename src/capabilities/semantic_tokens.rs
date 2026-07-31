@@ -70,7 +70,7 @@ impl<'a> SemanticTokenEmitter<'a> {
         Self {
             document,
             tokens: Vec::new(),
-            previous: Position::new(0, 0),
+            previous: pos!(),
         }
     }
 
@@ -636,7 +636,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
     }
 
     #[test]
-    fn semantic_tokens_classify_regex_string_arguments_as_regexp() {
+    fn semantic_tokens_do_not_guess_string_roles_from_callable_names() {
         let text = "match(\"a+\", s)\nreplace(\"a+\", \"b\", s)\nseparate(\"a+\", s)";
         let builtins = ObjectRegistry::default();
 
@@ -647,16 +647,13 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             tokens
                 .iter()
                 .map(|token| token.token_type)
-                .filter(|token_type| {
-                    *token_type == M2SemanticTokenType::Regexp as u32
-                        || *token_type == M2SemanticTokenType::String as u32
-                })
+                .filter(|token_type| *token_type == M2SemanticTokenType::String as u32)
                 .collect::<Vec<_>>(),
             vec![
-                M2SemanticTokenType::Regexp as u32,
-                M2SemanticTokenType::Regexp as u32,
                 M2SemanticTokenType::String as u32,
-                M2SemanticTokenType::Regexp as u32,
+                M2SemanticTokenType::String as u32,
+                M2SemanticTokenType::String as u32,
+                M2SemanticTokenType::String as u32,
             ]
         );
     }
@@ -675,7 +672,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             "exportFrom {\"Pkg\"}\n",
             "print \"ordinary\""
         );
-        let builtins = ObjectRegistry::default();
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
 
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
@@ -711,7 +708,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             "loadPackage(,\"AfterNull\")\n",
             "loadPackage(\"Muted\";)\n",
         );
-        let builtins = ObjectRegistry::default();
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);
 
@@ -743,7 +740,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             "importFrom(\"Core\", {\"first\", \"second\"})\n",
             "exportFrom(\"Pkg\", \"only\")\n",
         );
-        let builtins = ObjectRegistry::default();
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
 
         let document = document(text, &builtins);
         let tokens = collect_tokens(&document, &builtins, false);

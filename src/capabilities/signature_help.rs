@@ -35,7 +35,12 @@ pub(crate) fn signature_help_response(
     }
     let callable_name = callable_node.text();
 
-    let signatures = signature_informations(callable_name, document.analysis(), knowledge);
+    let signatures = signature_informations(
+        callable_name,
+        document.analysis(),
+        document.position_for_node(callable_node),
+        knowledge,
+    );
     if signatures.is_empty() {
         return None;
     }
@@ -126,9 +131,10 @@ fn active_signature_index(signatures: &[SignatureInformation], active_parameter:
 fn signature_informations(
     callable: &str,
     analysis: &Analysis,
+    position: Position,
     knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Vec<SignatureInformation> {
-    if let Some(function) = analysis.function(callable) {
+    if let Some(function) = analysis.function_at(callable, position) {
         let local = local_signatures(callable, analysis, function);
         if !local.is_empty() {
             return local;

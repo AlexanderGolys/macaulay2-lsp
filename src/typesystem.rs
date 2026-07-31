@@ -10,6 +10,29 @@ use crate::object_registry::{
     ObjectId, ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView, TypeId,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TypeRole {
+    Function,
+    MethodFunction,
+    Package,
+    Ring,
+    String,
+    Type,
+}
+
+impl TypeRole {
+    pub fn object_name(self) -> ObjectName {
+        ObjectName::new(match self {
+            Self::Function => "Function",
+            Self::MethodFunction => "MethodFunction",
+            Self::Package => "Package",
+            Self::Ring => "Ring",
+            Self::String => "String",
+            Self::Type => "Type",
+        })
+    }
+}
+
 /// One statically known option key and literal value at a call site.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiteralOption {
@@ -39,6 +62,16 @@ pub trait TypeKnowledge: ObjectKnowledge {
         self.resolve_type_id(child)
             .zip(self.resolve_type_id(parent))
             .is_some_and(|(child, parent)| self.is_subtype_id(&child, &parent))
+    }
+
+    fn has_type_role(&self, candidate: &ObjectName, role: TypeRole) -> bool {
+        self.resolve_type_id(candidate)
+            .zip(self.resolve_type_id(&role.object_name()))
+            .is_some_and(|(candidate, role)| self.is_subtype_id(&candidate, &role))
+    }
+
+    fn type_role_id(&self, role: TypeRole) -> Option<TypeId> {
+        self.resolve_type_id(&role.object_name())
     }
 
     /// Whether `smaller` is a strict componentwise subtype of `bigger`.

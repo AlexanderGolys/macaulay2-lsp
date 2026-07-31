@@ -177,7 +177,6 @@ async fn registered_source_roles_drive_semantic_tokens_through_the_server() {
         ("Strategy", "enumMember", "option key"),
         ("name", "property", "quoted member key"),
         ("\"key\"", "property", "lookup key"),
-        ("\"pattern\"", "regexp", "regexp argument"),
         ("\"JSON\"", "namespace", "package argument"),
     ] {
         assert_eq!(
@@ -186,6 +185,62 @@ async fn registered_source_roles_drive_semantic_tokens_through_the_server() {
             "unexpected semantic role for {description}"
         );
     }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn source_type_descendants_are_classified_through_the_typechecker() {
+    let source = "TT = new Type\nTTT = new TT\nTTT\n";
+    let mut session = DocumentSession::open(source).await;
+    let tokens = semantic_tokens(&mut session).await;
+    let class = session.semantic_token_type("class");
+
+    for line in 0..=2 {
+        assert_eq!(
+            tokens
+                .iter()
+                .find_map(|(token_line, character, token_type, _)| {
+                    (*token_line == line && *character == 0).then_some(*token_type)
+                }),
+            Some(class),
+            "line {} should classify its binding as a class",
+            line + 1
+        );
+    }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn output_references_follow_prior_cell_types_without_semantic_tokens() {
+    let source = concat!(
+        "1\n",
+        "a = oo\n",
+        "\"hello\"\n",
+        "b = ooo\n",
+        "c = o3\n",
+        "d = oooo\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+
+    for (line, expected) in [(1, "ZZ"), (3, "ZZ"), (4, "String"), (5, "String")] {
+        assert_eq!(hover_type_at(&mut session, line, 0).await, expected);
+    }
+
+    let tokens = semantic_tokens(&mut session).await;
+    for line in [1, 3, 4, 5] {
+        assert!(
+            tokens
+                .iter()
+                .all(|(token_line, character, _, _)| *token_line != line || *character != 4),
+            "output reference on line {} should not have a semantic token",
+            line + 1
+        );
+    }
+
+    session.replace("1\n\"hidden\";\na = oo\n").await;
+    assert_eq!(hover_type_at(&mut session, 2, 0).await, "ZZ");
 
     session.shutdown().await;
 }
@@ -380,6 +435,81 @@ async fn inferred_binding_types_flow_to_hover_across_language_constructs() {
             "expected {expected:?} in inlay labels for:\n{source}\ngot {labels:?}"
         );
     }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn callable_aliases_reinstall_methods_and_reassignments_remain_source_ordered() {
+    let source = concat!(
+        "f = method()\n",
+        "f Thing := x -> x\n",
+        "g = f\n",
+        "f ZZ := QQ => x -> x / 2\n",
+        "x = g 1\n",
+        "y = f 1\n",
+        "g ZZ := ZZ => x -> x * 2\n",
+        "z = g 1\n",
+        "w = f 1\n",
+        "f ZZ := Array => x -> [x]\n",
+        "x = f 1\n",
+        "y = g 1\n",
+        "u = x\n",
+        "v = y\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+
+    for (line, expected) in [
+        (4, "QQ"),
+        (5, "QQ"),
+        (7, "ZZ"),
+        (8, "ZZ"),
+        (10, "Array"),
+        (11, "Array"),
+        (12, "Array"),
+        (13, "Array"),
+    ] {
+        assert_eq!(
+            hover_type_at(&mut session, line, 0).await,
+            expected,
+            "unexpected binding type on line {}",
+            line + 1
+        );
+    }
+
+    let hints = inlay_labels_by_line(&mut session).await;
+    for line in [10, 11] {
+        assert!(
+            hints
+                .iter()
+                .any(|(hint_line, label)| *hint_line == line && label == ": Array"),
+            "reassignment on line {} should have an Array hint: {hints:?}",
+            line + 1
+        );
+    }
+
+    session.replace("x = 1\na = x\nx = \"a\"\nb = x\n").await;
+    let before_reassignment = session
+        .request(
+            "textDocument/definition",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": {"line": 1, "character": 4}
+            }),
+        )
+        .await;
+    assert_eq!(before_reassignment["range"]["start"]["line"], 0);
+
+    let after_reassignment = session
+        .request(
+            "textDocument/definition",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": {"line": 3, "character": 4}
+            }),
+        )
+        .await;
+    assert_eq!(after_reassignment["range"]["start"]["line"], 2);
 
     session.shutdown().await;
 }

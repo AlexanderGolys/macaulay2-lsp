@@ -78,7 +78,7 @@ impl SourceResolver {
     pub fn package_location(&self, package_name: &str) -> Option<Location> {
         let path = self.resolve_package_file(package_name)?;
         let uri = Url::from_file_path(path).ok()?;
-        let position = Position::new(0, 0);
+        let position = pos!();
         Some(Location {
             uri,
             range: TextRange::new(position, position),

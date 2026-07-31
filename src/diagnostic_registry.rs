@@ -1,9 +1,9 @@
 //! The single registry of every diagnostic the server emits.
 //!
-//! Each diagnostic is one [`M2Diagnostic`] variant carrying its stable `E..`
+//! Each diagnostic is one [`DiagnosticKind`] carrying its stable `E..`
 //! code, its slug name, and its severity. Detection logic lives where the
 //! context is (it varies: some checks need the type registry, others only a
-//! node), but every emission funnels through [`M2Diagnostic::at`] so the code
+//! node), but every emission funnels through [`DiagnosticKind::at`] so the code
 //! and severity are assigned in exactly one place. Code actions recover the
 //! diagnostic they fix by [`diagnostic_has_kind`] — a code match, not the
 //! former brittle message-string comparison.
@@ -14,7 +14,7 @@ use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range
 /// exhaustive `match`es below (code, name, severity), so a new diagnostic
 /// cannot be half-registered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum M2Diagnostic {
+pub enum DiagnosticKind {
     SyntaxError,
     MissingNode,
     AmbiguousFloatMemberAccess,
@@ -31,7 +31,7 @@ pub enum M2Diagnostic {
     ProtectComputedSymbol,
 }
 
-impl M2Diagnostic {
+impl DiagnosticKind {
     pub const ALL: [Self; 14] = [
         Self::SyntaxError,
         Self::MissingNode,
@@ -108,17 +108,11 @@ impl M2Diagnostic {
         }
     }
 
-    /// Build the LSP diagnostic for this rule over `range` with `message`,
-    /// stamping severity, the `E..` code, and the rule name as `source` from the
-    /// registry so no call site re-specifies them.
-    pub fn at(self, range: TextRange, message: impl Into<String>) -> Diagnostic {
-        Diagnostic {
+    pub fn at(self, range: TextRange, message: impl Into<String>) -> M2Diagnostic {
+        M2Diagnostic {
+            kind: self,
             range,
-            severity: Some(self.severity()),
-            code: Some(NumberOrString::String(self.code().to_string())),
-            source: Some(self.name().to_string()),
             message: message.into(),
-            ..Default::default()
         }
     }
 
@@ -128,7 +122,7 @@ impl M2Diagnostic {
             .find(|diagnostic| selector == diagnostic.code() || selector == diagnostic.name())
     }
 
-    pub fn from_diagnostic(diagnostic: &Diagnostic) -> Option<Self> {
+    pub fn from_lsp(diagnostic: &Diagnostic) -> Option<Self> {
         let NumberOrString::String(code) = diagnostic.code.as_ref()? else {
             return None;
         };
@@ -138,17 +132,38 @@ impl M2Diagnostic {
     }
 }
 
+/// One typed diagnostic finding produced by source analysis.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct M2Diagnostic {
+    pub kind: DiagnosticKind,
+    pub range: TextRange,
+    pub message: String,
+}
+
+impl M2Diagnostic {
+    pub fn to_lsp(&self) -> Diagnostic {
+        Diagnostic {
+            range: self.range,
+            severity: Some(self.kind.severity()),
+            code: Some(NumberOrString::String(self.kind.code().to_string())),
+            source: Some(self.kind.name().to_string()),
+            message: self.message.clone(),
+            ..Default::default()
+        }
+    }
+}
+
 pub trait DiagnosticPolicy {
-    fn allows(&self, diagnostic: M2Diagnostic) -> bool;
+    fn allows(&self, diagnostic: DiagnosticKind) -> bool;
 
     fn allows_lsp_diagnostic(&self, diagnostic: &Diagnostic) -> bool {
-        M2Diagnostic::from_diagnostic(diagnostic).is_none_or(|kind| self.allows(kind))
+        DiagnosticKind::from_lsp(diagnostic).is_none_or(|kind| self.allows(kind))
     }
 }
 
 /// Whether `diagnostic` was emitted for `kind`, matched by its stable code.
-pub fn diagnostic_has_kind(diagnostic: &Diagnostic, kind: M2Diagnostic) -> bool {
-    M2Diagnostic::from_diagnostic(diagnostic) == Some(kind)
+pub fn diagnostic_has_kind(diagnostic: &Diagnostic, kind: DiagnosticKind) -> bool {
+    DiagnosticKind::from_lsp(diagnostic) == Some(kind)
 }
 
 #[cfg(test)]
@@ -162,7 +177,7 @@ mod tests {
         // new one is given a code/name/severity, and this list keeps the `E..`
         // codes contiguous and the names unique.
         let mut names = HashSet::new();
-        for (index, diagnostic) in M2Diagnostic::ALL.iter().enumerate() {
+        for (index, diagnostic) in DiagnosticKind::ALL.iter().enumerate() {
             assert_eq!(
                 diagnostic.code(),
                 format!("E{index:02}"),

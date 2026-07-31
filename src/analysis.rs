@@ -1,53 +1,67 @@
 //! Parse-tree analysis that records lexical bindings, static type facts, and
 //! diagnostics for one document snapshot.
 
+mod diagnostics;
 mod ring;
 mod typechecker;
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Deref;
-use tower_lsp::lsp_types::{Diagnostic, Position, Range as TextRange, SymbolKind};
+use tower_lsp::lsp_types::{Position, Range as TextRange, SymbolKind};
 
-use crate::diagnostic_registry::M2Diagnostic;
+use crate::diagnostic_registry::{DiagnosticKind, M2Diagnostic};
 use crate::meta::{BindingRole, Meta, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::object_registry::ObjectName;
 use crate::object_registry::{ObjectId, OperatorForm, TypeData, TypeId};
 use crate::semantic_token::{syntax_semantic_token_type, SourceSemanticRole, SourceSemanticToken};
 use crate::source::SourceNavigation;
-use crate::typesystem::{InferredType, LiteralOption, PositionedTypeKnowledge, TypeKnowledge};
+use crate::typesystem::{
+    InferredType, LiteralOption, PositionedTypeKnowledge, TypeKnowledge, TypeRole,
+};
 use crate::util::position_in_range;
 use typechecker::TypeChecker;
 
-/// Identity of one lexical declaration within an immutable analysis snapshot.
-///
-/// Reassigning the declared name preserves this identity and adds a new
-/// [`BindingStateId`]; declaring a shadowing name creates a new `BindingId`.
-/// The identity indexes [`SemanticRegistry::bindings`] and connects the
-/// declaration to all of its source-ordered states.
+/// Identity of one scoped symbol binding within an immutable analysis snapshot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BindingId(u32);
 
-/// Identity of one source-ordered state of a binding within an analysis snapshot.
-///
-/// The declaration creates the first state, and each reassignment creates
-/// another state containing the value, symbol kind, and inferred type effective
-/// from that source position. The identity indexes
-/// [`SemanticRegistry::binding_states`] and refers back to one [`BindingId`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BindingStateId(u32);
-
 /// An M2 operator — including `SPACE`, the juxtaposition operator (`X Y` is
 /// `X SPACE Y`). Just another operator, not a special "adjacency" concept.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Operator {
     pub token: ObjectName,
     pub form: OperatorForm,
 }
 
-/// Juxtaposition's operator token, e.g. the `SPACE` in `(SPACE, Ring, Array)`.
-pub const SPACE_OPERATOR: &str = "SPACE";
+impl Operator {
+    fn from_expression(node: M2Node<'_>) -> Option<Self> {
+        let form = match node.kind {
+            NodeKind::BinaryExpression => OperatorForm::Binary,
+            NodeKind::PrefixExpression => OperatorForm::Prefix,
+            NodeKind::PostfixExpression => OperatorForm::Postfix,
+            _ => return None,
+        };
+        let token = node.child_by_field_name("operator")?;
+        Some(Self {
+            token: ObjectName::new(if token.is_implicit_application() {
+                token.syntax_label()
+            } else {
+                token.text()
+            }),
+            form,
+        })
+    }
+
+    fn is_assignment(&self) -> bool {
+        self.form == OperatorForm::Binary && matches!(self.token.name(), "=" | ":=" | "<-")
+    }
+
+    fn is_option_assignment(&self) -> bool {
+        self.form == OperatorForm::Binary && self.token.name() == "=>"
+    }
+}
 
 /// The callable or operator receiving an installed method.
 /// Installation syntax affects the installed function's arity, not the
@@ -64,6 +78,10 @@ pub enum MethodHead {
 /// records to refer directly to the source fact without a second method index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MethodInstallationId(usize);
+
+/// Identity of one statically known source-created runtime object.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SourceObjectId(usize);
 
 /// Source-characterized method signature.
 ///
@@ -83,10 +101,6 @@ impl Method {
             domain,
             codomain,
         }
-    }
-
-    fn has_same_dispatch_as(&self, other: &Self) -> bool {
-        self.head == other.head && self.domain == other.domain
     }
 }
 
@@ -122,13 +136,7 @@ fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
 pub struct MethodInstallation {
     pub id: MethodInstallationId,
     pub method: Method,
-    pub domain_spans: Vec<TextRange>,
-    pub codomain_span: Option<TextRange>,
     pub span: TextRange,
-    pub target: TextRange,
-    pub value: Option<TextRange>,
-    /// Required arity of the installed function. Assignment handlers receive
-    /// the assigned value in addition to the operands in `domain`.
     expected_rhs_arity: usize,
     pub rhs_lambda_dispatch: Option<Dispatch>,
 }
@@ -148,15 +156,6 @@ impl PartialOrd for SourceRangeKey {
     }
 }
 
-#[derive(Debug)]
-pub struct CompositeAssignmentDeclaration {
-    pub span: TextRange,
-    pub target: TextRange,
-    pub value: Option<TextRange>,
-    pub scope_idx: usize,
-    pub operator: ObjectName,
-}
-
 impl MethodInstallation {
     /// The argument count the right-hand-side function must take.
     pub fn expected_rhs_arity(&self) -> usize {
@@ -164,21 +163,10 @@ impl MethodInstallation {
     }
 }
 
-/// How an installation head resolves with respect to method-function-ness — the
-/// hinge of the no-effect rule. `Unknown` keeps the analysis monotone: we never
-/// warn (nor suppress a record) on an unresolved head.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HeadFunctionKind {
-    MethodFunction,
-    NonMethodFunction,
-    Unknown,
-}
-
 /// Syntax-derived callable behavior used to decide whether method
 /// installations take effect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LocalFunctionKind {
-    Unknown,
     Plain,
     Method,
 }
@@ -190,11 +178,17 @@ enum LocalFunctionKind {
 /// so their source facts have one owner.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionInfo {
-    pub name: ObjectName,
     pub typical_value: Option<ObjectName>,
-    pub methods: Vec<MethodInstallationId>,
+    pub installations: Vec<MethodInstallationId>,
     pub dispatch: Option<Dispatch>,
     kind: LocalFunctionKind,
+}
+
+/// Static facts owned by one source-created runtime object.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceObject {
+    pub class: ObjectName,
+    pub function: FunctionInfo,
 }
 
 /// Static facts computed for one call after separating positional arguments
@@ -205,8 +199,7 @@ pub struct CallStaticFacts {
     pub literal_options: Vec<LiteralOption>,
 }
 
-/// Source-independent identity and declaration properties of one lexical
-/// binding.
+/// Source-independent identity and editor-facing anchor of one lexical binding.
 ///
 /// Its value and inferred type at a particular point live in
 /// [`BindingStateInfo`] records.
@@ -220,18 +213,15 @@ pub struct BindingInfo {
     pub range: TextRange,
     pub scope_idx: usize,
     pub declaration_range: TextRange,
-    pub definition_state: BindingStateId,
+    pub states: Vec<BindingStateInfo>,
 }
 
-/// One source-ordered value, kind, and inferred-type state of a binding.
+/// One source-ordered value and inferred-type state of a binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingStateInfo {
-    pub state_id: BindingStateId,
-    pub binding_id: BindingId,
-    pub kind: SymbolKind,
+    pub presentation_kind: SymbolKind,
     pub type_name: Option<ObjectName>,
-    /// For an `IndexedVariableTable` binding, the local ring type produced by
-    /// subscripting the table after a ring constructor or `use`-style rebind.
+    pub object_id: Option<SourceObjectId>,
     pub indexed_element_type: Option<ObjectName>,
     pub value_range: Option<TextRange>,
     pub span: TextRange,
@@ -246,7 +236,6 @@ pub struct BindingView<'a> {
 }
 
 impl Deref for BindingView<'_> {
-    /// The binding declaration exposed by dereferencing the combined view.
     type Target = BindingInfo;
 
     fn deref(&self) -> &Self::Target {
@@ -257,7 +246,7 @@ impl Deref for BindingView<'_> {
 impl Metadata for BindingView<'_> {
     fn meta(&self) -> Meta<'_> {
         Meta {
-            symbol_kind: Some(self.state.kind),
+            symbol_kind: Some(self.state.presentation_kind),
             binding_role: Some(self.role),
             type_name: self.state.type_name.as_ref().map(ObjectName::name),
         }
@@ -269,9 +258,7 @@ impl Metadata for BindingView<'_> {
 pub struct ScopeInfo {
     pub range: TextRange,
     pub parent_idx: Option<usize>,
-    /// `=` definitions in this statically isolated scope may still become
-    /// visible outside it when the region executes at runtime.
-    pub context_assignments_may_escape: bool,
+    pub assignments_may_escape: bool,
 }
 
 /// Typed source-declared type edges and their source-symbol identities.
@@ -286,12 +273,10 @@ struct SourceTypeFacts {
 pub struct SemanticRegistry {
     pub scopes: Vec<ScopeInfo>,
     pub bindings: Vec<BindingInfo>,
-    pub binding_states: Vec<BindingStateInfo>,
     pub bindings_by_name: HashMap<ObjectName, Vec<BindingId>>,
-    pub states_by_binding: HashMap<BindingId, Vec<BindingStateId>>,
-    pub functions: HashMap<ObjectName, FunctionInfo>,
+    pub objects: Vec<SourceObject>,
+    operator_functions: HashMap<Operator, FunctionInfo>,
     installations: Vec<MethodInstallation>,
-    composite_assignment_declarations: Vec<CompositeAssignmentDeclaration>,
     pending_source_semantic_roles: BTreeMap<SourceRangeKey, SourceSemanticRole>,
     source_semantic_tokens: Vec<SourceSemanticToken>,
     source_types: SourceTypeFacts,
@@ -302,7 +287,26 @@ pub struct SemanticRegistry {
 #[derive(Debug, Clone, Copy)]
 enum DefinitionScope {
     Local,
-    Assign,
+    Global,
+}
+
+#[derive(Clone, Copy)]
+enum OutputReference {
+    Relative(usize),
+    Absolute(usize),
+}
+
+impl OutputReference {
+    fn parse(name: &str) -> Option<Self> {
+        let bytes = name.as_bytes();
+        if (2..=4).contains(&bytes.len()) && bytes.iter().all(|byte| *byte == b'o') {
+            return Some(Self::Relative(bytes.len() - 1));
+        }
+        let number = name.strip_prefix('o')?;
+        (!number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit()))
+            .then(|| number.parse().ok().map(Self::Absolute))
+            .flatten()
+    }
 }
 
 /// Complete input for creating a binding or adding a new state to one.
@@ -310,35 +314,34 @@ enum DefinitionScope {
 /// Keeping this packet typed ensures all registration paths pass through the
 /// same bookkeeping code.
 #[derive(Debug, Clone)]
-struct SymbolRegistration<'a> {
-    kind: SymbolKind,
+struct SymbolRegistration {
+    presentation_kind: SymbolKind,
     role: BindingRole,
     type_name: Option<ObjectName>,
+    object_id: Option<SourceObjectId>,
     indexed_element_type: Option<ObjectName>,
     parent_type: Option<TypeId>,
-    node: M2Node<'a>,
-    value_node: Option<M2Node<'a>>,
     scope_idx: usize,
     potential_export: bool,
 }
 
-/// Scope behavior contributed by one control-flow child.
 #[derive(Debug, Clone, Copy)]
-struct ChildScopePolicy {
-    assignments_are_local: bool,
-    context_assignments_may_escape: bool,
+enum ControlFlowScope {
+    Branch,
+    LoopClause,
 }
 
-impl ChildScopePolicy {
-    const CONDITIONAL: Self = Self {
-        assignments_are_local: true,
-        context_assignments_may_escape: true,
-    };
+impl ControlFlowScope {
+    fn assignment_scope(self, nested_scope: usize, inherited_scope: usize) -> usize {
+        match self {
+            Self::Branch => nested_scope,
+            Self::LoopClause => inherited_scope,
+        }
+    }
 
-    const LOOP_CLAUSE: Self = Self {
-        assignments_are_local: false,
-        context_assignments_may_escape: false,
-    };
+    fn assignments_may_escape(self) -> bool {
+        matches!(self, Self::Branch)
+    }
 }
 
 /// Complete semantic analysis of one immutable document snapshot.
@@ -346,25 +349,27 @@ impl ChildScopePolicy {
 /// expression types are not retained after inference.
 #[derive(Debug)]
 pub struct Analysis {
-    pub diagnostics: Vec<Diagnostic>,
+    pub diagnostics: Vec<M2Diagnostic>,
     pub registry: SemanticRegistry,
 }
 
 impl Analysis {
     pub fn find_definition(&self, name: &str, pos: Position) -> Option<TextRange> {
-        self.get_symbol_at(name, pos).map(|symbol| symbol.range)
-    }
-
-    pub fn get_symbol_at(&self, name: &str, pos: Position) -> Option<BindingView<'_>> {
-        let state = self.get_binding_at(name, pos)?;
-        self.binding_definition(state.binding_id)
+        let scope_idx = self.find_scope_at(pos)?;
+        let binding_id = self.binding_id_from_scope(name, scope_idx, pos)?;
+        self.binding(binding_id)?
+            .states
+            .iter()
+            .filter(|state| state.value_range.map_or(state.span.end, |value| value.end) <= pos)
+            .max_by_key(|state| state.value_range.map_or(state.span.end, |value| value.end))
+            .map(|state| state.span)
     }
 
     pub fn documentation_symbol_at(&self, name: &str, pos: Position) -> Option<BindingView<'_>> {
-        self.get_symbol_at(name, pos).or_else(|| {
+        self.get_binding_at(name, pos).or_else(|| {
             let mut fallback = None;
             for binding_id in self.registry.bindings_by_name.get(name)? {
-                let binding = self.binding_definition(*binding_id)?;
+                let binding = self.binding_anchor(*binding_id)?;
                 if binding.scope_idx == 0 {
                     return Some(binding);
                 }
@@ -433,21 +438,10 @@ impl Analysis {
         self.registry.bindings.get(binding_id.0 as usize)
     }
 
-    fn binding_definition(&self, binding_id: BindingId) -> Option<BindingView<'_>> {
+    fn binding_anchor(&self, binding_id: BindingId) -> Option<BindingView<'_>> {
         let binding = self.binding(binding_id)?;
-        let state = self.binding_state(binding.definition_state)?;
+        let state = binding.states.first()?;
         Some(BindingView { binding, state })
-    }
-
-    fn binding_state(&self, state_id: BindingStateId) -> Option<&BindingStateInfo> {
-        self.registry.binding_states.get(state_id.0 as usize)
-    }
-
-    fn binding_view<'a>(&'a self, state: &'a BindingStateInfo) -> Option<BindingView<'a>> {
-        Some(BindingView {
-            binding: self.binding(state.binding_id)?,
-            state,
-        })
     }
 
     fn binding_state_from_scope(
@@ -456,27 +450,28 @@ impl Analysis {
         scope_idx: usize,
         pos: Position,
     ) -> Option<BindingView<'_>> {
-        let state_ids = self.registry.states_by_binding.get(&binding_id)?;
+        let binding = self.binding(binding_id)?;
         let mut curr = Some(scope_idx);
         while let Some(idx) = curr {
             let constrain_to_prior = idx == scope_idx;
-            let state = state_ids
+            let state = binding
+                .states
                 .iter()
-                .filter_map(|state_id| self.binding_state(*state_id))
                 .filter(|state| {
                     state.scope_idx == idx && (!constrain_to_prior || state.span.start <= pos)
                 })
                 .max_by_key(|state| (state.span.start.line, state.span.start.character));
-            if state.is_some() {
-                return self.binding_view(state?);
+            if let Some(state) = state {
+                return Some(BindingView { binding, state });
             }
             curr = self.registry.scopes[idx].parent_idx;
         }
-        self.binding_definition(binding_id)
+        self.binding_anchor(binding_id)
     }
 
-    pub fn function(&self, name: &str) -> Option<&FunctionInfo> {
-        self.registry.functions.get(name)
+    pub fn function_at(&self, name: &str, position: Position) -> Option<&FunctionInfo> {
+        let binding = self.get_binding_at(name, position)?;
+        self.function_for_binding(binding)
     }
 
     pub fn method_installation_codomain<'a>(
@@ -486,8 +481,14 @@ impl Analysis {
         installation.method.codomain.as_ref().map(ObjectName::name)
     }
 
-    pub fn function_for_binding(&self, binding: &BindingInfo) -> Option<&FunctionInfo> {
-        self.registry.functions.get(&binding.name)
+    pub fn function_for_binding(&self, binding: BindingView<'_>) -> Option<&FunctionInfo> {
+        Some(
+            &self
+                .registry
+                .objects
+                .get(binding.state.object_id?.0)?
+                .function,
+        )
     }
 
     pub fn methods_for<'a>(
@@ -495,10 +496,21 @@ impl Analysis {
         function: &'a FunctionInfo,
     ) -> impl Iterator<Item = &'a Method> + 'a {
         function
-            .methods
+            .installations
             .iter()
+            .rev()
             .filter_map(|id| self.method_installation(*id))
-            .map(|installation| &installation.method)
+            .fold(Vec::new(), |mut methods, installation| {
+                if !methods
+                    .iter()
+                    .any(|method: &&Method| method.domain == installation.method.domain)
+                {
+                    methods.push(&installation.method);
+                }
+                methods
+            })
+            .into_iter()
+            .rev()
     }
 
     /// Methods installed on `function` no later than `position`, with a later
@@ -508,33 +520,22 @@ impl Analysis {
         function: &'a FunctionInfo,
         position: Position,
     ) -> Vec<&'a Method> {
-        let active_methods = function
-            .methods
-            .iter()
-            .filter_map(|id| self.method_installation(*id))
-            .map(|installation| &installation.method)
-            .collect::<Vec<_>>();
-        let mut seen = Vec::new();
         let mut methods = Vec::new();
-        for method in self
-            .registry
+        for installation in function
             .installations
             .iter()
             .rev()
+            .filter_map(|id| self.method_installation(*id))
             .filter(|installation| installation.span.start <= position)
-            .map(|installation| &installation.method)
         {
-            if active_methods
+            if !methods
                 .iter()
-                .any(|active| active.has_same_dispatch_as(method))
-                && !seen
-                    .iter()
-                    .any(|previous: &&Method| previous.has_same_dispatch_as(method))
+                .any(|method: &&Method| method.domain == installation.method.domain)
             {
-                seen.push(method);
-                methods.push(method);
+                methods.push(&installation.method);
             }
         }
+        methods.reverse();
         methods
     }
 
@@ -545,10 +546,6 @@ impl Analysis {
     /// Borrow every characterized method installation in source order.
     pub fn installations(&self) -> &[MethodInstallation] {
         &self.registry.installations
-    }
-
-    pub fn composite_assignment_declarations(&self) -> &[CompositeAssignmentDeclaration] {
-        &self.registry.composite_assignment_declarations
     }
 
     pub fn scope_with_range(&self, range: TextRange) -> Option<usize> {
@@ -571,23 +568,22 @@ impl Analysis {
         self.registry
             .bindings
             .iter()
-            .filter_map(|binding| self.binding_definition(binding.binding_id))
+            .filter_map(|binding| self.binding_anchor(binding.binding_id))
     }
 
-    pub fn typed_bindings_in_range(&self, range: TextRange) -> Vec<BindingView<'_>> {
+    pub fn typed_binding_states_in_range(&self, range: TextRange) -> Vec<BindingView<'_>> {
         self.registry
             .bindings
             .iter()
-            .filter_map(|binding| self.binding_definition(binding.binding_id))
+            .flat_map(|binding| {
+                binding
+                    .states
+                    .iter()
+                    .map(|state| BindingView { binding, state })
+            })
             .filter(|binding| binding.state.type_name.is_some())
             .filter(|binding| {
-                matches!(
-                    binding.state.kind,
-                    SymbolKind::VARIABLE | SymbolKind::FUNCTION
-                )
-            })
-            .filter(|binding| {
-                let position = binding.range.end;
+                let position = binding.state.span.end;
                 position_in_range(position, range)
             })
             .collect()
@@ -603,7 +599,10 @@ impl Analysis {
         while let Some(idx) = current {
             for binding in self.bindings_in_scope(idx) {
                 if binding.name.name().starts_with(prefix) && seen.insert(binding.name.clone()) {
-                    out.push((binding.name.name().to_string(), binding.state.kind));
+                    out.push((
+                        binding.name.name().to_string(),
+                        binding.state.presentation_kind,
+                    ));
                 }
             }
             current = self.registry.scopes[idx].parent_idx;
@@ -649,9 +648,9 @@ impl Analysis {
             diagnostics: Vec::new(),
             registry: SemanticRegistry {
                 scopes: vec![ScopeInfo {
-                    range: TextRange::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+                    range: TextRange::new(pos!(), pos_max!()),
                     parent_idx: None,
-                    context_assignments_may_escape: false,
+                    assignments_may_escape: false,
                 }],
                 ..Default::default()
             },
@@ -675,9 +674,9 @@ impl Analysis {
         assignment_scope_idx: usize,
         knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
     ) {
-        self.record_source_semantic_roles(node, source);
-        self.record_source_semantic_token(node, source);
         let knowledge = knowledge_provider.at_position(source.position_for_node(node));
+        self.record_source_semantic_roles(node, source, &knowledge);
+        self.record_source_semantic_token(node, source);
         let mut next_scope_idx = current_scope_idx;
         let mut next_assignment_scope_idx = assignment_scope_idx;
 
@@ -703,37 +702,12 @@ impl Analysis {
 
                 if let (Some(left), Some(op)) = (left, op) {
                     let op_text = op.text();
-                    let installation = self.record_method_installation(node, source, &knowledge);
-                    if installation.is_none() && op_text == "=" {
-                        if let Some(operator) = left.binary_operator() {
-                            self.registry.composite_assignment_declarations.push(
-                                CompositeAssignmentDeclaration {
-                                    span: source.range_for_node(node),
-                                    target: source.range_for_node(left),
-                                    value: right.map(|right| source.range_for_node(right)),
-                                    scope_idx: current_scope_idx,
-                                    operator: ObjectName::new(operator),
-                                },
-                            );
-                        }
-                    }
-                    let symbol_kind = match right {
-                        Some(right) if right.kind == NodeKind::LambdaExpression => {
-                            SymbolKind::FUNCTION
-                        }
-                        Some(right)
-                            if method_declaration_typical_value(right).is_some()
-                                || is_method_call(right) =>
-                        {
-                            SymbolKind::FUNCTION
-                        }
-                        _ => SymbolKind::VARIABLE,
-                    };
+                    self.record_method_installation(node, source, &knowledge);
                     let type_name = right.and_then(|right| {
                         if method_declaration_typical_value(right).is_some()
                             || is_method_call(right)
                         {
-                            Some(ObjectName::new("MethodFunction"))
+                            Some(TypeRole::MethodFunction.object_name())
                         } else {
                             TypeChecker::new(self)
                                 .type_of(right, source, current_scope_idx, &knowledge)
@@ -741,25 +715,37 @@ impl Analysis {
                                 .cloned()
                         }
                     });
-                    let parent_type = right
-                        .and_then(|right| {
-                            declared_type_parent(right, type_name.as_ref(), &knowledge)
-                        })
-                        .and_then(|parent| {
-                            TypeChecker::new(self).resolve_type_id(&parent, &knowledge)
-                        });
-
-                    if let (Some(right), Some(name)) =
-                        (right, single_symbol_assignment_target(left))
-                    {
-                        if let Some(typical_value) = method_declaration_typical_value(right) {
-                            self.record_local_method_declaration(name, typical_value);
-                        } else if right.kind == NodeKind::LambdaExpression {
-                            if let Some(dispatch) = function_dispatch(right) {
-                                self.record_local_function_dispatch(name, dispatch);
-                            }
-                        }
-                    }
+                    let parent_type = right.and_then(|right| {
+                        self.declared_type_parent(right, type_name.as_ref(), &knowledge)
+                    });
+                    let presentation_kind = if right.is_some_and(|right| {
+                        right.kind == NodeKind::LambdaExpression
+                            || method_declaration_typical_value(right).is_some()
+                            || is_method_call(right)
+                    }) || type_name.as_ref().is_some_and(|type_name| {
+                        knowledge.has_type_role(type_name, TypeRole::Function)
+                    }) {
+                        SymbolKind::FUNCTION
+                    } else if type_name.as_ref().is_some_and(|type_name| {
+                        TypeChecker::new(self).is_subtype(
+                            type_name,
+                            &TypeRole::Type.object_name(),
+                            &knowledge,
+                        )
+                    }) {
+                        SymbolKind::CLASS
+                    } else {
+                        SymbolKind::VARIABLE
+                    };
+                    let target_name = single_symbol_assignment_target(left);
+                    let object_id = right.zip(target_name).and_then(|(right, _)| {
+                        self.source_object_for_value(
+                            right,
+                            type_name.as_ref(),
+                            source,
+                            current_scope_idx,
+                        )
+                    });
 
                     match op_text {
                         ":=" => self.collect_definitions(
@@ -768,13 +754,12 @@ impl Analysis {
                             source,
                             DefinitionScope::Local,
                             SymbolRegistration {
-                                kind: symbol_kind,
+                                presentation_kind,
                                 role: BindingRole::Ordinary,
                                 type_name: type_name.clone(),
+                                object_id,
                                 indexed_element_type: None,
                                 parent_type: parent_type.clone(),
-                                node: left,
-                                value_node: right,
                                 scope_idx: current_scope_idx,
                                 potential_export: current_scope_idx == 0,
                             },
@@ -787,19 +772,18 @@ impl Analysis {
                             left,
                             right,
                             source,
-                            DefinitionScope::Assign,
+                            DefinitionScope::Global,
                             SymbolRegistration {
-                                kind: symbol_kind,
+                                presentation_kind,
                                 role: BindingRole::Ordinary,
                                 type_name: type_name.clone(),
+                                object_id,
                                 indexed_element_type: None,
                                 parent_type,
-                                node: left,
-                                value_node: right,
                                 scope_idx: assignment_scope_idx,
                                 potential_export: assignment_scope_idx == 0
                                     || self.registry.scopes[assignment_scope_idx]
-                                        .context_assignments_may_escape,
+                                        .assignments_may_escape,
                             },
                         ),
                         _ => {}
@@ -810,9 +794,7 @@ impl Analysis {
                         type_name.as_ref(),
                         single_symbol_assignment_target(left),
                     ) {
-                        if type_name.name() == "Ring"
-                            || knowledge.is_subtype(type_name, &ObjectName::new("Ring"))
-                        {
+                        if knowledge.has_type_role(type_name, TypeRole::Ring) {
                             self.collect_ring_generator_bindings(
                                 ring_name, right, left, source, &knowledge,
                             );
@@ -826,19 +808,16 @@ impl Analysis {
         // Recurse into children
         for child in node.children() {
             let (child_scope_idx, child_assignment_scope_idx) =
-                match child_scope_policy(node, child) {
-                    Some(policy) => {
+                match control_flow_scope(node, child) {
+                    Some(scope_kind) => {
                         let scope_idx = self.push_scope(
                             child,
                             source,
                             Some(next_scope_idx),
-                            policy.context_assignments_may_escape,
+                            scope_kind.assignments_may_escape(),
                         );
-                        let assignment_scope_idx = if policy.assignments_are_local {
-                            scope_idx
-                        } else {
-                            next_assignment_scope_idx
-                        };
+                        let assignment_scope_idx =
+                            scope_kind.assignment_scope(scope_idx, next_assignment_scope_idx);
                         (scope_idx, assignment_scope_idx)
                     }
                     None => (next_scope_idx, next_assignment_scope_idx),
@@ -857,6 +836,7 @@ impl Analysis {
         &mut self,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
         if node.is_option_assignment() {
             if let Some(left) = node.child_by_field_name("left") {
@@ -876,54 +856,18 @@ impl Analysis {
             }
         }
 
-        if let Some(operator) = node.binary_operator() {
-            if matches!(operator, "#" | "#?") {
-                if let Some(right) = node
-                    .child_by_field_name("right")
-                    .filter(|right| right.kind == NodeKind::StringLiteral)
-                {
-                    self.register_source_semantic_role(
-                        source.range_for_node(right),
-                        SourceSemanticRole::PropertyKey,
-                    );
-                }
-            }
-            if matches!(operator, "." | ".?") {
-                if let Some(right) = node
-                    .child_by_field_name("right")
-                    .filter(|right| right.kind.is_symbol_like())
-                {
-                    self.register_source_semantic_role(
-                        source.range_for_node(right),
-                        SourceSemanticRole::PropertyKey,
-                    );
-                }
-            }
+        if let Some(property) = node.property_key() {
+            self.register_source_semantic_role(
+                source.range_for_node(property),
+                SourceSemanticRole::PropertyKey,
+            );
         }
 
-        if node.kind == NodeKind::StringLiteral {
-            let role = call_like_left_symbol_for_argument(node, false).and_then(|name| {
-                if matches!(name, "match" | "regex" | "select" | "replace" | "separate") {
-                    Some(SourceSemanticRole::RegexpArgument)
-                } else if matches!(
-                    name,
-                    "loadPackage"
-                        | "installPackage"
-                        | "uninstallPackage"
-                        | "needsPackage"
-                        | "endPackage"
-                        | "newPackage"
-                        | "importFrom"
-                        | "exportFrom"
-                ) {
-                    Some(SourceSemanticRole::NamespaceArgument)
-                } else {
-                    None
-                }
-            });
-            if let Some(role) = role {
-                self.register_source_semantic_role(source.range_for_node(node), role);
-            }
+        if node.kind == NodeKind::StringLiteral && indexed_string_names_package(node, knowledge) {
+            self.register_source_semantic_role(
+                source.range_for_node(node),
+                SourceSemanticRole::NamespaceArgument,
+            );
         }
     }
 
@@ -939,6 +883,9 @@ impl Analysis {
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
     ) {
+        if node.kind == NodeKind::Symbol && OutputReference::parse(node.text()).is_some() {
+            return;
+        }
         let syntax_token_type = syntax_semantic_token_type(node);
         let is_symbol = node.kind.is_symbol_like();
         if !is_symbol && syntax_token_type.is_none() {
@@ -991,7 +938,7 @@ impl Analysis {
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<MethodInstallation> {
+    ) -> Option<(MethodInstallation, Vec<TextRange>)> {
         let operator = node.binary_operator()?;
         let left = node.child_by_field_name("left")?;
         let (head, domain_nodes) = self.installation_shape(left, knowledge)?;
@@ -1005,9 +952,7 @@ impl Analysis {
             .collect::<Vec<_>>();
         let operand_arity = domain.len();
         let span = source.range_for_node(node);
-        let target = source.range_for_node(left);
         let right = node.child_by_field_name("right");
-        let value = right.map(|right| source.range_for_node(right));
         let codomain_node = right
             .filter(|right| right.is_option_assignment())
             .and_then(|right| right.child_by_field_name("left"));
@@ -1024,17 +969,16 @@ impl Analysis {
 
         match operator {
             // `:=` installs by shape alone — no type check on the operands.
-            ":=" => Some(MethodInstallation {
-                id,
-                method: Method::new(head, domain, codomain),
-                domain_spans,
-                codomain_span,
-                span,
-                target,
-                value,
-                expected_rhs_arity: operand_arity,
-                rhs_lambda_dispatch,
-            }),
+            ":=" => Some((
+                MethodInstallation {
+                    id,
+                    method: Method::new(head, domain, codomain),
+                    span,
+                    expected_rhs_arity: operand_arity,
+                    rhs_lambda_dispatch,
+                },
+                domain_spans.into_iter().chain(codomain_span).collect(),
+            )),
             // `=` installs only the assignment form of a BINARY operator (incl.
             // SPACE), and only when every operand is a type; otherwise the same
             // syntax assigns to the lvalue `X op Y`, which is a call.
@@ -1045,17 +989,16 @@ impl Analysis {
                             .iter()
                             .all(|operand| self.operand_is_type(operand.name(), knowledge)) =>
                 {
-                    Some(MethodInstallation {
-                        id,
-                        method: Method::new(MethodHead::Operator(op), domain, codomain),
-                        domain_spans,
-                        codomain_span,
-                        span,
-                        target,
-                        value,
-                        expected_rhs_arity: operand_arity + 1,
-                        rhs_lambda_dispatch,
-                    })
+                    Some((
+                        MethodInstallation {
+                            id,
+                            method: Method::new(MethodHead::Operator(op), domain, codomain),
+                            span,
+                            expected_rhs_arity: operand_arity + 1,
+                            rhs_lambda_dispatch,
+                        },
+                        domain_spans.into_iter().chain(codomain_span).collect(),
+                    ))
                 }
                 _ => None,
             },
@@ -1083,6 +1026,7 @@ impl Analysis {
             NodeKind::BinaryExpression => {
                 let left = node.child_by_field_name("left")?;
                 let right = node.child_by_field_name("right")?;
+                let operator = Operator::from_expression(node)?;
                 if node.is_space_application() {
                     // `A B` (juxtaposition = the SPACE operator): a method on the
                     // named function `A` when `A` is a function, or a SPACE
@@ -1090,13 +1034,7 @@ impl Analysis {
                     let left_name = symbol_node_text(left)?;
                     if self.operand_is_type(left_name, knowledge) {
                         symbol_node_text(right)?;
-                        Some((
-                            MethodHead::Operator(Operator {
-                                token: ObjectName::new(SPACE_OPERATOR),
-                                form: OperatorForm::Binary,
-                            }),
-                            vec![left, right],
-                        ))
+                        Some((MethodHead::Operator(operator), vec![left, right]))
                     } else {
                         Some((
                             MethodHead::Function(ObjectName::new(left_name)),
@@ -1105,29 +1043,19 @@ impl Analysis {
                     }
                 } else {
                     // `X op Y`: an explicit binary-operator method.
-                    let operator = node.binary_operator()?;
-                    if matches!(operator, "=" | ":=" | "<-" | "=>") {
+                    if operator.is_assignment() || operator.is_option_assignment() {
                         return None;
                     }
                     symbol_node_text(left)?;
                     symbol_node_text(right)?;
-                    Some((
-                        MethodHead::Operator(Operator {
-                            token: ObjectName::new(operator),
-                            form: OperatorForm::Binary,
-                        }),
-                        vec![left, right],
-                    ))
+                    Some((MethodHead::Operator(operator), vec![left, right]))
                 }
             }
             NodeKind::PrefixExpression => {
                 let operand = node.child_by_field_name("operand")?;
                 symbol_node_text(operand)?;
                 Some((
-                    MethodHead::Operator(Operator {
-                        token: ObjectName::new(operator_text(node)?),
-                        form: OperatorForm::Prefix,
-                    }),
+                    MethodHead::Operator(Operator::from_expression(node)?),
                     vec![operand],
                 ))
             }
@@ -1135,10 +1063,7 @@ impl Analysis {
                 let operand = node.child_by_field_name("operand")?;
                 symbol_node_text(operand)?;
                 Some((
-                    MethodHead::Operator(Operator {
-                        token: ObjectName::new(operator_text(node)?),
-                        form: OperatorForm::Postfix,
-                    }),
+                    MethodHead::Operator(Operator::from_expression(node)?),
                     vec![operand],
                 ))
             }
@@ -1151,245 +1076,58 @@ impl Analysis {
     /// a local binding whose inferred class is `Type` (e.g. `X = new Type of …`)
     /// takes precedence over objects visible in the current environment.
     fn operand_is_type(&self, name: &str, knowledge: &(impl TypeKnowledge + ?Sized)) -> bool {
-        self.local_binding_is_type(name, knowledge)
+        self.registry
+            .source_types
+            .by_name
+            .contains_key(&ObjectName::new(name))
             || knowledge
                 .get_record(&ObjectName::new(name))
                 .is_some_and(|record| record.type_info().is_some())
     }
 
-    /// Whether any local binding named `name` is a type — its inferred static
-    /// class is `Type` or a `Type` descendant.
-    fn local_binding_is_type(&self, name: &str, knowledge: &(impl TypeKnowledge + ?Sized)) -> bool {
-        self.registry
-            .bindings_by_name
-            .get(name)
-            .into_iter()
-            .flatten()
-            .filter_map(|binding_id| self.binding_definition(*binding_id))
-            .any(|binding| {
-                binding
-                    .state
-                    .type_name
-                    .as_ref()
-                    .is_some_and(|type_name| type_name_denotes_type(type_name, knowledge))
-            })
-    }
-
-    /// Emit a diagnostic for every stored installation that M2 would reject or
-    /// silently ignore. Installation shapes were characterized during the
-    /// source-ordered scope pass; this phase only consumes those facts.
-    fn collect_installation_diagnostics(
-        &mut self,
-        knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
-    ) {
-        // Validity hinges on the type universe: adjacency `A B := …` is a SPACE
-        // operator install when `A` is a type but a function-head install
-        // otherwise, and the two have different domains (hence different arities).
-        // Without external facts we cannot tell them apart, so stay monotone.
-        if !knowledge_provider
-            .at_position(Position::new(0, 0))
-            .is_available()
-        {
-            return;
-        }
-        let mut diagnostics = Vec::new();
-        for installation in &self.registry.installations {
-            let knowledge = knowledge_provider.at_position(installation.span.start);
-            self.installation_diagnostics(installation, &knowledge, &mut diagnostics);
-        }
-        self.diagnostics.extend(diagnostics);
-    }
-
-    /// Flag a method install written with `=` instead of `:=` on a method
-    /// function head (`f Domain = fn`). M2 rejects this ("no method for storing
-    /// values of function f") because the assignment-install form is reserved for
-    /// operators; `:=` is the installation operator. A lambda RHS distinguishes an
-    /// install attempt from a legitimate value store. Walks the tree itself
-    /// because such an `=` is classified as a plain assignment (no install record).
-    fn collect_install_form_diagnostics(
-        &mut self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        knowledge: &(impl PositionedTypeKnowledge + ?Sized),
-    ) {
-        let mut diagnostics = Vec::new();
-        self.scan_install_form(node, source, knowledge, &mut diagnostics);
-        self.diagnostics.extend(diagnostics);
-    }
-
-    fn scan_install_form(
+    fn declared_type_parent(
         &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
-        out: &mut Vec<Diagnostic>,
-    ) {
-        let knowledge = knowledge_provider.at_position(source.position_for_node(node));
-        if let Some(name) = self.illegal_equals_install_head(node, &knowledge) {
-            out.push(M2Diagnostic::InstallNeedsColonEquals.at(
-                source.range_for_node(node),
-                format!(
-                    "Installing a method on `{name}` must use `:=`, not `=`: M2 rejects this \
-                     (\"no method for storing values of function {name}\"). Use `:=`."
-                ),
-            ));
-        }
-        for child in node.children() {
-            self.scan_install_form(child, source, knowledge_provider, out);
-        }
-    }
-
-    /// The function name when `node` is `f Domain = fn` — an `=` assignment whose
-    /// left side is a function-head install shape, whose right side is a lambda
-    /// (install intent, not a value store), and whose head resolves to a function.
-    /// `None` otherwise.
-    fn illegal_equals_install_head(
-        &self,
-        node: M2Node,
+        value: M2Node<'_>,
+        type_name: Option<&ObjectName>,
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<String> {
-        if !node.is_assignment() || node.binary_operator() != Some("=") {
-            return None;
+    ) -> Option<TypeId> {
+        if let Some(parent) = ring::RingSemantics::value_parent(type_name, knowledge) {
+            return TypeChecker::new(self).resolve_type_id(&parent, knowledge);
         }
-        let right = node.child_by_field_name("right")?;
-        if right.kind != NodeKind::LambdaExpression {
-            return None;
-        }
-        let left = node.child_by_field_name("left")?;
-        let (MethodHead::Function(name), _) = self.installation_shape(left, knowledge)? else {
-            return None;
-        };
-        // M2 rejects `f Domain = fn` for ANY function head, method function or
-        // not ("no method for storing values of function f"); verified against
-        // v1.26.05. Stay silent only when `name` does not resolve to a function.
-        (self.head_function_kind(name.name(), knowledge) != HeadFunctionKind::Unknown)
-            .then(|| name.name().to_string())
+        let type_name = type_name.filter(|type_name| {
+            value.kind == NodeKind::NewStatement
+                && TypeChecker::new(self).is_subtype(
+                    type_name,
+                    &TypeRole::Type.object_name(),
+                    knowledge,
+                )
+        })?;
+        let parent = clause_of(value, NodeKind::OfClause)
+            .and_then(clause_value)
+            .and_then(symbol_node_text)
+            .map(ObjectName::new)
+            .unwrap_or_else(|| type_name.clone());
+        TypeChecker::new(self).resolve_type_id(&parent, knowledge)
     }
 
-    /// The diagnostics for a single installation: a no-effect warning on a
-    /// non-method-function head, a hard error on a non-flexible operator form, and
-    /// a hard error when a fixed-arity RHS disagrees with the installed domain.
-    fn installation_diagnostics(
-        &self,
-        installation: &MethodInstallation,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-        out: &mut Vec<Diagnostic>,
-    ) {
-        match &installation.method.head {
-            MethodHead::Function(name) => {
-                if self.head_function_kind(name.name(), knowledge)
-                    == HeadFunctionKind::NonMethodFunction
-                {
-                    out.push(M2Diagnostic::InstallNoEffect.at(
-                        installation.span,
-                        format!(
-                            "Installing a method on `{name}` has no effect: `{name}` is not a \
-                             method function. Define it with `{name} = method()` to make method \
-                             installations take effect."
-                        ),
-                    ));
-                }
-            }
-            MethodHead::Operator(operator) => {
-                let form = operator.form;
-                if self.operator_form_is_flexible(operator.token.name(), form, knowledge)
-                    == Some(false)
-                {
-                    out.push(M2Diagnostic::OperatorNotFlexible.at(
-                        installation.span,
-                        format!(
-                            "Cannot install a method on the {form} operator `{}`: it is not \
-                             flexible, so M2 rejects the assignment.",
-                            operator.token
-                        ),
-                    ));
-                }
-            }
-        }
-
-        // A variadic RHS (`x -> …`) binds the whole argument sequence and absorbs
-        // any arity, so only a fixed-arity RHS can be wrong.
-        if let Some(Dispatch::Fixed(actual)) = installation.rhs_lambda_dispatch {
-            let expected = installation.expected_rhs_arity();
-            if actual != expected {
-                out.push(M2Diagnostic::InstallArity.at(
-                    installation.span,
-                    format!(
-                        "This method's function takes {actual} argument(s) but the installation \
-                         expects {expected}. Match the domain arity or use a variadic `x -> …`."
-                    ),
-                ));
-            }
-        }
-    }
-
-    /// Whether the named operator's given form is flexible (accepts a runtime
-    /// method install). `None` when the operator or its attributes are unknown
-    /// (e.g. `SPACE`), so the caller stays silent rather than guessing.
-    fn operator_form_is_flexible(
-        &self,
-        token: &str,
-        form: OperatorForm,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<bool> {
-        let record = knowledge.get_record(&ObjectName::new(token))?;
-        let operator_info = record.operator_info()?;
-        Some(operator_info.is_flexible(form))
-    }
-
-    /// Classify an installation's function head by method-function-ness, querying
-    /// the layered type universe (local bindings first, then knowledge).
-    fn head_function_kind(
+    fn head_is_method_function(
         &self,
         name: &str,
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> HeadFunctionKind {
-        // A local function binding shadows an earlier visible object. Its callable kind is
-        // recorded from the defining syntax, without reverse-engineering the
-        // behavior from a runtime class-name catalog.
-        if let Some(kind) = self.local_function_kind(name) {
-            return match kind {
-                LocalFunctionKind::Method => HeadFunctionKind::MethodFunction,
-                LocalFunctionKind::Plain => HeadFunctionKind::NonMethodFunction,
-                LocalFunctionKind::Unknown => HeadFunctionKind::Unknown,
-            };
-        }
-        // Otherwise use the callable kind of the object visible here.
-        if let Some(record) = knowledge.get_record(&ObjectName::new(name)) {
-            if let Some(callable) = record.callable() {
-                return if callable.is_method_function() {
-                    HeadFunctionKind::MethodFunction
-                } else {
-                    HeadFunctionKind::NonMethodFunction
-                };
+    ) -> bool {
+        if let Some(binding) = self.get_binding_at(name, position) {
+            if let Some(function) = self.function_for_binding(binding) {
+                return function.kind == LocalFunctionKind::Method;
             }
+            return binding.state.type_name.as_ref().is_some_and(|type_name| {
+                knowledge.has_type_role(type_name, TypeRole::MethodFunction)
+            });
         }
-        // Not resolvable as a function — stay silent (monotone).
-        HeadFunctionKind::Unknown
-    }
-
-    fn local_function_kind(&self, name: &str) -> Option<LocalFunctionKind> {
-        self.registry
-            .bindings_by_name
-            .get(name)?
-            .iter()
-            .rev()
-            .flat_map(|binding_id| {
-                self.registry
-                    .states_by_binding
-                    .get(binding_id)
-                    .into_iter()
-                    .flatten()
-                    .rev()
-            })
-            .filter_map(|state_id| self.binding_state(*state_id))
-            .find(|binding| binding.kind == SymbolKind::FUNCTION)?;
-        Some(
-            self.registry
-                .functions
-                .get(name)
-                .map_or(LocalFunctionKind::Unknown, |function| function.kind),
-        )
+        knowledge
+            .get_record(&ObjectName::new(name))
+            .and_then(|record| record.callable())
+            .is_some_and(|callable| callable.is_method_function())
     }
 
     fn collect_parameters(
@@ -1407,14 +1145,15 @@ impl Analysis {
             let type_name = typed_parameters.and_then(|types| types.get(idx)).cloned();
             self.add_symbol(
                 name,
+                parameter_node,
+                None,
                 SymbolRegistration {
-                    kind: SymbolKind::VARIABLE,
+                    presentation_kind: SymbolKind::VARIABLE,
                     role: BindingRole::Parameter,
                     type_name,
+                    object_id: None,
                     indexed_element_type: None,
                     parent_type: None,
-                    node: parameter_node,
-                    value_node: None,
                     scope_idx,
                     potential_export: false,
                 },
@@ -1429,50 +1168,34 @@ impl Analysis {
         value_node: Option<M2Node>,
         source: &(impl SourceNavigation + ?Sized),
         definition_scope: DefinitionScope,
-        registration: SymbolRegistration<'_>,
+        registration: SymbolRegistration,
     ) {
         match node.kind {
             NodeKind::Symbol => {
                 let name = node.text();
                 match definition_scope {
-                    DefinitionScope::Local => self.add_symbol(
-                        name,
-                        SymbolRegistration {
-                            node,
-                            value_node,
-                            ..registration
-                        },
-                        source,
-                    ),
-                    DefinitionScope::Assign => {
+                    DefinitionScope::Local => {
+                        self.add_symbol(name, node, value_node, registration, source)
+                    }
+                    DefinitionScope::Global => {
                         let position = source.position_for_node(node);
                         let binding_id = self
                             .binding_id_from_scope(name, registration.scope_idx, position)
                             .filter(|binding_id| {
-                                self.binding_definition(*binding_id).is_some_and(|binding| {
+                                self.binding_anchor(*binding_id).is_some_and(|binding| {
                                     binding.scope_idx == registration.scope_idx
                                 })
                             });
                         if let Some(binding_id) = binding_id {
                             self.add_binding_state(
                                 binding_id,
-                                SymbolRegistration {
-                                    node,
-                                    value_node,
-                                    ..registration
-                                },
+                                node,
+                                value_node,
+                                registration,
                                 source,
                             );
                         } else {
-                            self.add_symbol(
-                                name,
-                                SymbolRegistration {
-                                    node,
-                                    value_node,
-                                    ..registration
-                                },
-                                source,
-                            );
+                            self.add_symbol(name, node, value_node, registration, source);
                         }
                     }
                 }
@@ -1490,6 +1213,7 @@ impl Analysis {
                         definition_scope,
                         SymbolRegistration {
                             type_name: None,
+                            object_id: None,
                             ..registration.clone()
                         },
                     );
@@ -1502,17 +1226,18 @@ impl Analysis {
     fn add_symbol(
         &mut self,
         name: &str,
-        registration: SymbolRegistration<'_>,
+        node: M2Node<'_>,
+        value_node: Option<M2Node<'_>>,
+        registration: SymbolRegistration,
         source: &(impl SourceNavigation + ?Sized),
     ) {
         let SymbolRegistration {
-            kind,
+            presentation_kind,
             role,
             type_name,
+            object_id,
             indexed_element_type,
             parent_type,
-            node,
-            value_node,
             scope_idx,
             potential_export,
         } = registration;
@@ -1531,36 +1256,28 @@ impl Analysis {
             );
         }
         let binding_id = BindingId(self.registry.bindings.len() as u32);
-        let state_id = BindingStateId(self.registry.binding_states.len() as u32);
         let range = source.range_for_node(node);
+        let state = BindingStateInfo {
+            presentation_kind,
+            type_name,
+            object_id,
+            indexed_element_type,
+            value_range: value_node.map(|value| source.range_for_node(value)),
+            span: range,
+            scope_idx,
+        };
         let binding = BindingInfo {
             binding_id,
             name: name.clone(),
             role,
-            declaration_kind: declaration_symbol_kind(kind, value_node),
+            declaration_kind: presentation_kind,
             potential_export,
             range,
             scope_idx,
             declaration_range: enclosing_definition_range(node, source),
-            definition_state: state_id,
-        };
-        let state = BindingStateInfo {
-            state_id,
-            binding_id,
-            kind,
-            type_name,
-            indexed_element_type,
-            value_range: value_node.map(|value| source.range_for_node(value)),
-            span: source.range_for_node(node),
-            scope_idx,
+            states: vec![state],
         };
         self.registry.bindings.push(binding);
-        self.registry.binding_states.push(state);
-        self.registry
-            .states_by_binding
-            .entry(binding_id)
-            .or_default()
-            .push(state_id);
         self.registry
             .bindings_by_name
             .entry(name)
@@ -1571,7 +1288,9 @@ impl Analysis {
     fn add_binding_state(
         &mut self,
         binding_id: BindingId,
-        registration: SymbolRegistration<'_>,
+        node: M2Node<'_>,
+        value_node: Option<M2Node<'_>>,
+        registration: SymbolRegistration,
         source: &(impl SourceNavigation + ?Sized),
     ) {
         let Some(name) = self.binding(binding_id).map(|binding| binding.name.clone()) else {
@@ -1597,24 +1316,18 @@ impl Analysis {
                 }
             }
         }
-        let state_id = BindingStateId(self.registry.binding_states.len() as u32);
-        self.registry.binding_states.push(BindingStateInfo {
-            state_id,
-            binding_id,
-            kind: registration.kind,
+        let state = BindingStateInfo {
+            presentation_kind: registration.presentation_kind,
             type_name: registration.type_name,
+            object_id: registration.object_id,
             indexed_element_type: registration.indexed_element_type,
-            value_range: registration
-                .value_node
-                .map(|value| source.range_for_node(value)),
-            span: source.range_for_node(registration.node),
+            value_range: value_node.map(|value| source.range_for_node(value)),
+            span: source.range_for_node(node),
             scope_idx: registration.scope_idx,
-        });
-        self.registry
-            .states_by_binding
-            .entry(binding_id)
-            .or_default()
-            .push(state_id);
+        };
+        if let Some(binding) = self.registry.bindings.get_mut(binding_id.0 as usize) {
+            binding.states.push(state);
+        }
     }
 
     pub fn local_method_installation_signature_at<'a>(
@@ -1627,12 +1340,10 @@ impl Analysis {
         let MethodHead::Function(name) = &installation.method.head else {
             return None;
         };
-        let method = self.function(name.name())?;
+        let method = self.function_at(name.name(), installation.span.start)?;
         method
-            .methods
-            .iter()
-            .filter_map(|id| self.method_installation(*id))
-            .any(|current| current.method.has_same_dispatch_as(&installation.method))
+            .installations
+            .contains(&installation.id)
             .then_some((method, installation))
     }
 
@@ -1691,40 +1402,50 @@ impl Analysis {
         TypeChecker::new(self).dispatch_argument_ids(facts, knowledge)
     }
 
-    /// Record the [`Dispatch`] shape of a lambda-defined local function on its
-    /// function record, creating the record if this is its first mention.
-    fn record_local_function_dispatch(&mut self, name: &str, dispatch: Dispatch) {
-        let name = ObjectName::new(name);
-        let function = self
-            .registry
-            .functions
-            .entry(name.clone())
-            .or_insert_with(|| FunctionInfo {
-                name,
-                typical_value: None,
-                methods: Vec::new(),
-                dispatch: None,
-                kind: LocalFunctionKind::Unknown,
-            });
-        function.dispatch = Some(dispatch);
-        function.kind = LocalFunctionKind::Plain;
-    }
+    fn source_object_for_value(
+        &mut self,
+        value: M2Node,
+        type_name: Option<&ObjectName>,
+        source: &(impl SourceNavigation + ?Sized),
+        scope_idx: usize,
+    ) -> Option<SourceObjectId> {
+        if value.kind == NodeKind::ParenthesizedExpression {
+            return self.source_object_for_value(
+                value.final_value_child()?,
+                type_name,
+                source,
+                scope_idx,
+            );
+        }
+        if value.kind == NodeKind::Symbol {
+            return self
+                .get_binding_from_scope(value.text(), scope_idx, source.position_for_node(value))?
+                .state
+                .object_id;
+        }
 
-    fn record_local_method_declaration(&mut self, name: &str, typical_value: Option<ObjectName>) {
-        let name = ObjectName::new(name);
-        let method = self
-            .registry
-            .functions
-            .entry(name.clone())
-            .or_insert_with(|| FunctionInfo {
-                name,
-                typical_value: None,
-                methods: Vec::new(),
+        let function = if let Some(typical_value) = method_declaration_typical_value(value) {
+            Some(FunctionInfo {
+                typical_value,
+                installations: Vec::new(),
                 dispatch: None,
-                kind: LocalFunctionKind::Unknown,
-            });
-        method.typical_value = typical_value;
-        method.kind = LocalFunctionKind::Method;
+                kind: LocalFunctionKind::Method,
+            })
+        } else if value.kind == NodeKind::LambdaExpression {
+            Some(FunctionInfo {
+                typical_value: None,
+                installations: Vec::new(),
+                dispatch: function_dispatch(value),
+                kind: LocalFunctionKind::Plain,
+            })
+        } else {
+            None
+        };
+        let class = type_name?.clone();
+        let function = function?;
+        let id = SourceObjectId(self.registry.objects.len());
+        self.registry.objects.push(SourceObject { class, function });
+        Some(id)
     }
 
     /// Characterize an assignment once, retain its source fact, and attach that
@@ -1736,7 +1457,8 @@ impl Analysis {
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<MethodInstallationId> {
         let id = MethodInstallationId(self.registry.installations.len());
-        let mut installation = self.classify_installation(id, assignment, source, knowledge)?;
+        let (mut installation, method_type_spans) =
+            self.classify_installation(id, assignment, source, knowledge)?;
 
         // Preserve M2's distinct assignment-method form: only `:=` contributes
         // a callable signature here. `=` installations are retained for
@@ -1745,12 +1467,7 @@ impl Analysis {
             self.attach_method_installation(&mut installation, knowledge);
         }
 
-        for range in installation
-            .domain_spans
-            .iter()
-            .copied()
-            .chain(installation.codomain_span)
-        {
+        for range in method_type_spans {
             self.registry
                 .pending_source_semantic_roles
                 .insert(SourceRangeKey(range), SourceSemanticRole::MethodType);
@@ -1765,48 +1482,46 @@ impl Analysis {
         installation: &mut MethodInstallation,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        let name = match &installation.method.head {
+        match &installation.method.head {
             MethodHead::Function(name) => {
-                // An install on a non-method-function compiles but has no effect,
-                // so it creates no method record.
-                if self.head_function_kind(name.name(), knowledge)
-                    == HeadFunctionKind::NonMethodFunction
-                {
+                if !self.head_is_method_function(name.name(), installation.span.start, knowledge) {
                     return;
                 }
-                name.name()
+                let Some(object_id) = self
+                    .get_binding_at(name.name(), installation.span.start)
+                    .and_then(|binding| binding.state.object_id)
+                else {
+                    return;
+                };
+                let Some(function) = self
+                    .registry
+                    .objects
+                    .get_mut(object_id.0)
+                    .map(|object| &mut object.function)
+                else {
+                    return;
+                };
+                if installation.method.codomain.is_none() {
+                    installation
+                        .method
+                        .codomain
+                        .clone_from(&function.typical_value);
+                }
+                function.installations.push(installation.id);
             }
-            MethodHead::Operator(operator) => operator.token.name(),
-        };
-        let name = ObjectName::new(name);
-        let existing_method = self.registry.functions.get(&name).and_then(|function| {
-            function.methods.iter().position(|id| {
-                self.method_installation(*id).is_some_and(|existing| {
-                    existing.method.has_same_dispatch_as(&installation.method)
-                })
-            })
-        });
-        let method = self
-            .registry
-            .functions
-            .entry(name.clone())
-            .or_insert_with(|| FunctionInfo {
-                name,
-                typical_value: None,
-                methods: Vec::new(),
-                dispatch: None,
-                kind: LocalFunctionKind::Unknown,
-            });
-        if installation.method.codomain.is_none() {
-            installation
-                .method
-                .codomain
-                .clone_from(&method.typical_value);
-        }
-        if let Some(index) = existing_method {
-            method.methods[index] = installation.id;
-        } else {
-            method.methods.push(installation.id);
+            MethodHead::Operator(operator) => {
+                let function = self
+                    .registry
+                    .operator_functions
+                    .entry(operator.clone())
+                    .or_insert_with(|| FunctionInfo {
+                        typical_value: None,
+                        installations: Vec::new(),
+                        dispatch: None,
+                        kind: LocalFunctionKind::Plain,
+                    });
+                function.installations.push(installation.id);
+            }
         }
     }
 
@@ -1815,14 +1530,14 @@ impl Analysis {
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         parent_idx: Option<usize>,
-        context_assignments_may_escape: bool,
+        assignments_may_escape: bool,
     ) -> usize {
         let range = source.range_for_node(node);
         let scope_idx = self.registry.scopes.len();
         self.registry.scopes.push(ScopeInfo {
             range,
             parent_idx,
-            context_assignments_may_escape,
+            assignments_may_escape,
         });
         scope_idx
     }
@@ -1849,37 +1564,6 @@ fn collect_parameter_nodes<'tree>(node: M2Node<'tree>, parameters: &mut Vec<M2No
 
 fn single_symbol_assignment_target<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
     (node.kind == NodeKind::Symbol).then(|| node.text())
-}
-
-fn declaration_symbol_kind(kind: SymbolKind, value: Option<M2Node<'_>>) -> SymbolKind {
-    let declares_class = value
-        .filter(|value| value.kind == NodeKind::NewStatement)
-        .and_then(|value| value.child_by_field_name("type"))
-        .is_some_and(|type_node| type_node.kind == NodeKind::Symbol && type_node.text() == "Type");
-    if declares_class {
-        SymbolKind::CLASS
-    } else {
-        kind
-    }
-}
-
-fn declared_type_parent<'tree>(
-    value: M2Node<'tree>,
-    type_name: Option<&ObjectName>,
-    knowledge: &(impl TypeKnowledge + ?Sized),
-) -> Option<ObjectName> {
-    if let Some(parent) = ring::RingSemantics::value_parent(type_name, knowledge) {
-        return Some(parent);
-    }
-    if value.kind != NodeKind::NewStatement
-        || !type_name.is_some_and(|type_name| type_name_denotes_type(type_name, knowledge))
-    {
-        return None;
-    }
-    clause_of(value, NodeKind::OfClause)
-        .and_then(clause_value)
-        .and_then(symbol_node_text)
-        .map(ObjectName::new)
 }
 
 pub fn symbol_node_text<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {
@@ -1962,22 +1646,6 @@ fn literal_option_value(node: M2Node<'_>) -> Option<&str> {
     } else {
         None
     }
-}
-
-/// The operator token of a prefix/postfix expression, e.g. `-` in `-X` / `X-`.
-fn operator_text(node: M2Node<'_>) -> Option<&str> {
-    let operator = node.child_by_field_name("operator")?;
-    Some(operator.text())
-}
-
-/// Whether `type_name` (an inferred static class or a referenced name) denotes a
-/// TYPE, i.e. is `Type` itself or one of its descendants (`SelfInitializingType`,
-/// …). Without the registry only the exact `Type` is recognized.
-fn type_name_denotes_type(
-    type_name: &ObjectName,
-    knowledge: &(impl TypeKnowledge + ?Sized),
-) -> bool {
-    type_name.name() == "Type" || knowledge.is_subtype(type_name, &ObjectName::new("Type"))
 }
 
 pub fn method_installation_signature(node: M2Node) -> Option<(String, Vec<ObjectName>)> {
@@ -2079,29 +1747,29 @@ fn is_loop_clause(kind: NodeKind) -> bool {
     )
 }
 
-fn child_scope_policy(parent: M2Node<'_>, child: M2Node<'_>) -> Option<ChildScopePolicy> {
+fn control_flow_scope(parent: M2Node<'_>, child: M2Node<'_>) -> Option<ControlFlowScope> {
     match parent.kind {
         NodeKind::IfStatement => {
             let is_condition = parent
                 .child_by_field_name("condition")
                 .is_some_and(|condition| condition.id() == child.id());
             (is_condition || matches!(child.kind, NodeKind::ThenClause | NodeKind::ElseClause))
-                .then_some(ChildScopePolicy::CONDITIONAL)
+                .then_some(ControlFlowScope::Branch)
         }
         NodeKind::TryStatement => {
             let is_body = parent
                 .named_child(0)
                 .is_some_and(|body| body.id() == child.id());
-            (is_body || is_try_clause(child.kind)).then_some(ChildScopePolicy::CONDITIONAL)
+            (is_body || is_try_clause(child.kind)).then_some(ControlFlowScope::Branch)
         }
         NodeKind::ForStatement => {
-            is_loop_clause(child.kind).then_some(ChildScopePolicy::LOOP_CLAUSE)
+            is_loop_clause(child.kind).then_some(ControlFlowScope::LoopClause)
         }
         NodeKind::WhileStatement => {
             let is_condition = parent
                 .named_child(0)
                 .is_some_and(|condition| condition.id() == child.id());
-            (is_condition || is_loop_clause(child.kind)).then_some(ChildScopePolicy::LOOP_CLAUSE)
+            (is_condition || is_loop_clause(child.kind)).then_some(ControlFlowScope::LoopClause)
         }
         _ => None,
     }
@@ -2168,6 +1836,39 @@ fn call_like_left_symbol_for_argument<'tree>(
         node = parent;
         parent = node.parent()?;
     }
+}
+
+fn indexed_string_names_package(
+    node: M2Node<'_>,
+    knowledge: &(impl TypeKnowledge + ?Sized),
+) -> bool {
+    let Some(callable_name) = call_like_left_symbol_for_argument(node, false) else {
+        return false;
+    };
+    let Some(callable) = knowledge
+        .get_record(&ObjectName::new(callable_name))
+        .and_then(|record| record.callable())
+    else {
+        return false;
+    };
+    let (Some(string), Some(package)) = (
+        knowledge.type_role_id(TypeRole::String),
+        knowledge.type_role_id(TypeRole::Package),
+    ) else {
+        return false;
+    };
+    let accepts_string = callable
+        .methods
+        .iter()
+        .any(|method| method.domain.first() == Some(string.object()));
+    let accepts_package = callable
+        .methods
+        .iter()
+        .any(|method| method.domain.first() == Some(package.object()));
+    let returns_package = callable.methods.iter().any(|method| {
+        method.domain.first() == Some(string.object()) && method.codomain.as_ref() == Some(&package)
+    });
+    accepts_string && (accepts_package || returns_package)
 }
 
 fn is_colon_equal_assignment_left(node: M2Node) -> bool {

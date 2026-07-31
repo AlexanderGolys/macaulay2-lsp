@@ -50,9 +50,8 @@ pub(crate) fn hover_response(
     let node_text = node.text();
 
     if let Some(symbol) = document.source_symbol_at(node_text, position) {
-        let local_installation_signature = analysis
-            .local_method_installation_signature_at(node, document)
-            .filter(|(method, _)| method.name.name() == node_text);
+        let local_installation_signature =
+            analysis.local_method_installation_signature_at(node, document);
         let local_method = local_installation_signature
             .map(|(method, _)| method)
             .or_else(|| document.callable_at_position(position));
@@ -109,7 +108,7 @@ fn local_symbol_hover(
         Some(SymbolKind::VARIABLE) if meta.binding_role == Some(BindingRole::Parameter) => {
             "Function parameter"
         }
-        Some(SymbolKind::VARIABLE) => "User-defined variable",
+        Some(SymbolKind::VARIABLE) => "User-defined binding",
         _ => "User-defined symbol",
     };
     let signatures = method
@@ -209,7 +208,7 @@ fn local_method_signatures_markdown(
         return lines.join("\n");
     }
 
-    if method.methods.is_empty() {
+    if method.installations.is_empty() {
         return method
             .typical_value
             .as_ref()
@@ -284,9 +283,11 @@ mod tests {
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let analysis = analyze(parser.parse(text).expect("fixture should parse"));
         let symbol = analysis
-            .get_symbol_at("p", Position::new(1, 0))
+            .get_binding_at("p", Position::new(1, 0))
             .expect("method symbol should be visible");
-        let method = analysis.function("p").expect("method should be registered");
+        let method = analysis
+            .function_at("p", Position::new(1, 0))
+            .expect("method should be registered");
 
         let hover = local_symbol_hover("p", &symbol, &analysis, Some(method), None);
         let HoverContents::Markup(markup) = hover.contents else {
@@ -313,7 +314,7 @@ mod tests {
             )
             .expect("method name node should be found");
         let symbol = analysis
-            .get_symbol_at("p", position)
+            .get_binding_at("p", position)
             .expect("method symbol should be visible");
         let (method, pinned_signature) = analysis
             .local_method_installation_signature_at(node, &source)
@@ -405,7 +406,7 @@ mod tests {
         };
 
         assert!(markup.value.starts_with("**x**"));
-        assert!(markup.value.contains("User-defined variable"));
+        assert!(markup.value.contains("User-defined binding"));
         assert_eq!(
             hover.range,
             Some(TextRange::new(Position::new(0, 8), Position::new(0, 9)))

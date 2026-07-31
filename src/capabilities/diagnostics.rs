@@ -7,7 +7,7 @@ use tower_lsp::lsp_types::{Range as TextRange, SymbolKind};
 use tower_lsp::Client;
 
 use crate::analysis::{symbol_node_text, Analysis};
-use crate::diagnostic_registry::{DiagnosticPolicy, M2Diagnostic};
+use crate::diagnostic_registry::{DiagnosticKind, DiagnosticPolicy};
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
@@ -33,8 +33,8 @@ pub(crate) fn visible_diagnostics(
     document
         .diagnostics()
         .iter()
-        .filter(|diagnostic| policy.allows_lsp_diagnostic(diagnostic))
-        .cloned()
+        .filter(|diagnostic| policy.allows(diagnostic.kind))
+        .map(|diagnostic| diagnostic.to_lsp())
         .collect()
 }
 
@@ -59,18 +59,18 @@ impl Analysis {
         builtins: &(impl PositionedTypeKnowledge + ?Sized),
     ) {
         if node.is_error() {
-            self.diagnostics.push(M2Diagnostic::SyntaxError.at(
+            self.diagnostics.push(DiagnosticKind::SyntaxError.at(
                 source.remainder_of_line_range(node.start_byte()),
                 "Syntax error",
             ));
         } else if node.is_missing() {
-            self.diagnostics.push(M2Diagnostic::MissingNode.at(
+            self.diagnostics.push(DiagnosticKind::MissingNode.at(
                 source.range_for_node(node),
                 format!("Missing: {}", node.syntax_label()),
             ));
         } else if let Some(range) = ambiguous_float_member_access_range(node, source) {
             self.diagnostics.push(
-                M2Diagnostic::AmbiguousFloatMemberAccess
+                DiagnosticKind::AmbiguousFloatMemberAccess
                     .at(range, AMBIGUOUS_FLOAT_MEMBER_ACCESS_DIAGNOSTIC_MESSAGE),
             );
         } else if node.is_assignment() {
@@ -122,7 +122,7 @@ impl Analysis {
                 let has_builtin_binding = builtins.get_record(&ObjectName::new(name)).is_some();
                 if has_source_binding || has_builtin_binding {
                     self.diagnostics
-                        .push(M2Diagnostic::ProtectAssignedSymbol.at(
+                        .push(DiagnosticKind::ProtectAssignedSymbol.at(
                             source.range_for_node(argument),
                             format!(
                                 "`protect {name}` evaluates the current value of `{name}`; \
@@ -138,7 +138,7 @@ impl Analysis {
                     .is_none_or(|type_id| type_id.name() == "Symbol")
                 {
                     self.diagnostics
-                        .push(M2Diagnostic::ProtectComputedSymbol.at(
+                        .push(DiagnosticKind::ProtectComputedSymbol.at(
                             source.range_for_node(argument),
                             "`protect` evaluates this expression to choose a Symbol at runtime; \
                          the protected symbol is not statically apparent",
@@ -177,10 +177,11 @@ impl Analysis {
         if !is_function_option_context(node) {
             return;
         }
-        self.diagnostics.push(M2Diagnostic::OptionKeyConvention.at(
-            source.range_for_node(key),
-            format!("Option key `{key_text}` should be capitalized by Macaulay2 convention"),
-        ));
+        self.diagnostics
+            .push(DiagnosticKind::OptionKeyConvention.at(
+                source.range_for_node(key),
+                format!("Option key `{key_text}` should be capitalized by Macaulay2 convention"),
+            ));
     }
 
     fn validate_assignment_form(
@@ -205,7 +206,7 @@ impl Analysis {
             && !multiple_assignment_targets_are_symbols(left)
         {
             self.diagnostics
-                .push(M2Diagnostic::MultipleAssignmentTargets.at(
+                .push(DiagnosticKind::MultipleAssignmentTargets.at(
                     source.range_for_node(left),
                     format!("{op_text} multiple assignment targets must be symbols"),
                 ));
@@ -213,7 +214,7 @@ impl Analysis {
 
         if op_text == ":=" && left.binary_operator() == Some("#") {
             self.diagnostics
-                .push(M2Diagnostic::ColonEqualPartAssignment.at(
+                .push(DiagnosticKind::ColonEqualPartAssignment.at(
                     source.range_for_node(left),
                     "`:=` cannot assign to parts; use `=` for part assignment",
                 ));
@@ -245,7 +246,7 @@ impl Analysis {
         let target_nodes = left.collection_elements().collect::<Vec<_>>();
         let value_nodes = right.collection_elements().collect::<Vec<_>>();
         if target_nodes.len() != value_nodes.len() {
-            self.diagnostics.push(M2Diagnostic::ParallelAssignmentArity.at(
+            self.diagnostics.push(DiagnosticKind::ParallelAssignmentArity.at(
                 source.range_for_node(right),
                 format!(
                     "parallel assignment binds {} targets but the right-hand side lists {}; their lengths must match",
@@ -290,25 +291,19 @@ impl Analysis {
             .bindings()
             .filter(|binding| binding.role == BindingRole::Ordinary)
             .filter(|binding| !binding.potential_export)
-            .filter(|binding| {
-                matches!(
-                    binding.state.kind,
-                    SymbolKind::VARIABLE | SymbolKind::FUNCTION
-                )
-            })
             .filter(|binding| !used_bindings.contains(&binding.binding_id))
             .filter_map(|binding| {
                 let name = binding.name.name();
                 if name.starts_with('_') {
                     return None;
                 }
-                let noun = if binding.state.kind == SymbolKind::FUNCTION {
+                let noun = if binding.state.presentation_kind == SymbolKind::FUNCTION {
                     "function"
                 } else {
-                    "variable"
+                    "binding"
                 };
                 Some(
-                    M2Diagnostic::UnusedBinding
+                    DiagnosticKind::UnusedBinding
                         .at(binding.range, format!("Unused {noun} `{name}`")),
                 )
             })

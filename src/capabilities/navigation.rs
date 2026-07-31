@@ -164,7 +164,7 @@ pub(crate) fn goto_definition_response(
                 if let Ok(uri) = Url::from_file_path(path) {
                     return Some(GotoDefinitionResponse::Scalar(Location {
                         uri,
-                        range: TextRange::new(Position::new(0, 0), Position::new(0, 0)),
+                        range: TextRange::new(pos!(), pos!()),
                     }));
                 }
             }
@@ -180,11 +180,7 @@ pub(crate) fn goto_definition_response(
         node.text()
     };
 
-    let local_definition = documentation_reference
-        .as_ref()
-        .and_then(|reference| document.documentation_symbol(reference))
-        .map(|symbol| symbol.range)
-        .or_else(|| analysis.find_definition(node_text, position));
+    let local_definition = analysis.find_definition(node_text, position);
     if let Some(range) = local_definition {
         return Some(GotoDefinitionResponse::Scalar(Location {
             uri: uri.clone(),
@@ -607,7 +603,7 @@ mod tests {
     }
 
     #[test]
-    fn goto_definition_resolves_from_a_backtick_documentation_mention() {
+    fn goto_definition_does_not_jump_forward_from_documentation() {
         let text = "-- use `x`\nx := 1\n";
         let document = document(text);
         let index =
@@ -625,10 +621,7 @@ mod tests {
                 &WorkspaceIndex::default(),
                 |_| None,
             ),
-            Some(GotoDefinitionResponse::Scalar(Location {
-                uri,
-                range: TextRange::new(Position::new(1, 0), Position::new(1, 1)),
-            }))
+            None
         );
     }
 

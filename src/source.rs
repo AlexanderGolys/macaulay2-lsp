@@ -147,11 +147,6 @@ pub trait SourceNavigation {
         self.position_for_byte(node.start_byte())
     }
 
-    /// Slice source text using an LSP UTF-16 range.
-    fn text_in_range(&self, range: TextRange) -> Option<&str> {
-        self.text().get(self.bytes_for_range(range)?)
-    }
-
     /// The full LSP range of the indexed source snapshot.
     fn full_range(&self) -> TextRange {
         self.range_for_bytes(0..self.text().len())

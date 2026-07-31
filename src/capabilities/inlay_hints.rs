@@ -26,7 +26,7 @@ pub(crate) fn inlay_hints_response(
 ) -> Vec<InlayHint> {
     let mut hints = Vec::new();
 
-    // Calm default: a single type hint per binding. The maximal per-expression
+    // Calm default: one type hint per assignment state. The maximal per-expression
     // readout (every sub-expression's inferred type, useful for debugging the
     // inference but noisy and prone to overlapping at shared end positions) is
     // opt-in via `initializationOptions.inlayHints.expressionTypes`.
@@ -75,7 +75,7 @@ fn type_hint(position: Position, type_name: &str) -> InlayHint {
 fn binding_type_hints(document: &DocumentSnapshot, range: &TextRange) -> Vec<InlayHint> {
     document
         .analysis()
-        .typed_bindings_in_range(*range)
+        .typed_binding_states_in_range(*range)
         .into_iter()
         .filter_map(|binding| {
             let type_name = binding.state.type_name.as_ref()?;
@@ -106,7 +106,7 @@ fn expression_type_hints(
     // value-range end plus type, which both the RHS expression fact and the
     // assignment fact share.
     let binding_value_types: HashSet<(u32, u32, String)> = analysis
-        .typed_bindings_in_range(*range)
+        .typed_binding_states_in_range(*range)
         .into_iter()
         .filter_map(|binding| {
             let end = binding.state.value_range?.end;
@@ -163,14 +163,22 @@ mod tests {
     }
 
     #[test]
-    fn calm_default_shows_one_binding_hint_per_binding() {
+    fn calm_default_shows_one_hint_per_assignment_state() {
         // The Image #12 case: a single binding produces exactly one hint, on the
         // bound variable — not a doubled hint plus stray sub-expression hints.
-        let hints = hints("Comment = new SelfInitializingType of TokenTree\n", false);
-        assert_eq!(labels(&hints), vec![": SelfInitializingType".to_string()]);
+        let initial = hints("Comment = new SelfInitializingType of TokenTree\n", false);
+        assert_eq!(labels(&initial), vec![": SelfInitializingType".to_string()]);
         // The single hint sits after the value expression (end of the line, the
         // end of `TokenTree`), not after the bound name and not doubled.
-        assert_eq!(hints[0].position, Position::new(0, 47));
+        assert_eq!(initial[0].position, Position::new(0, 47));
+
+        let reassigned = hints("x = 1\nx = \"a\"\n", false);
+        assert_eq!(
+            labels(&reassigned),
+            vec![": ZZ".to_string(), ": String".to_string()]
+        );
+        assert_eq!(reassigned[0].position, Position::new(0, 5));
+        assert_eq!(reassigned[1].position, Position::new(1, 7));
     }
 
     #[test]

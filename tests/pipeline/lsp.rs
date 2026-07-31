@@ -496,7 +496,7 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
     assert!(
         changed_hover["contents"]["value"]
             .as_str()
-            .is_some_and(|markdown| markdown.contains("User-defined variable")),
+            .is_some_and(|markdown| markdown.contains("User-defined binding")),
         "incremental document updates should rebuild analysis: {changed_hover}"
     );
 

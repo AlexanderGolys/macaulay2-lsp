@@ -15,6 +15,8 @@ use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
+#[macro_use]
+mod util;
 mod analysis;
 mod builtin_index;
 mod capabilities;
@@ -34,7 +36,6 @@ mod source;
 #[cfg(test)]
 mod test_support;
 mod typesystem;
-mod util;
 mod workspace_index;
 
 use capabilities::code_actions::available_code_actions;

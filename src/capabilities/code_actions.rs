@@ -6,7 +6,7 @@ use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
 use crate::capabilities::diagnostics::ambiguous_float_member_access_rewrite;
-use crate::diagnostic_registry::{diagnostic_has_kind, M2Diagnostic};
+use crate::diagnostic_registry::{diagnostic_has_kind, DiagnosticKind};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::source::SourceNavigation;
@@ -148,7 +148,7 @@ fn ambiguous_float_member_access_action(context: &CodeActionContext<'_, '_>) -> 
         .diagnostics
         .iter()
         .find(|diagnostic| {
-            diagnostic_has_kind(diagnostic, M2Diagnostic::AmbiguousFloatMemberAccess)
+            diagnostic_has_kind(diagnostic, DiagnosticKind::AmbiguousFloatMemberAccess)
                 && position_in_range(context.position, diagnostic.range)
         })?
         .clone();
@@ -840,10 +840,12 @@ mod tests {
         let text = "x.3\n";
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
-        let diagnostic = M2Diagnostic::AmbiguousFloatMemberAccess.at(
-            TextRange::new(Position::new(0, 0), Position::new(0, 3)),
-            "ambiguous float member access",
-        );
+        let diagnostic = DiagnosticKind::AmbiguousFloatMemberAccess
+            .at(
+                TextRange::new(Position::new(0, 0), Position::new(0, 3)),
+                "ambiguous float member access",
+            )
+            .to_lsp();
 
         let action = ambiguous_float_member_access_code_action(
             &document,

@@ -5,7 +5,7 @@ use serde::{de::Error as _, Deserialize, Deserializer};
 use serde_json::Value;
 
 use crate::capabilities::formatting::{ControlFlowLayout, FormattingConfiguration};
-use crate::diagnostic_registry::{DiagnosticPolicy, M2Diagnostic};
+use crate::diagnostic_registry::{DiagnosticKind, DiagnosticPolicy};
 
 #[derive(Debug)]
 pub(crate) struct SettingsStore<T> {
@@ -80,7 +80,7 @@ impl ServerSettings {
 pub(crate) struct DiagnosticSettings {
     enabled: bool,
     #[serde(deserialize_with = "deserialize_diagnostic_set")]
-    disabled: HashSet<M2Diagnostic>,
+    disabled: HashSet<DiagnosticKind>,
 }
 
 impl Default for DiagnosticSettings {
@@ -93,7 +93,7 @@ impl Default for DiagnosticSettings {
 }
 
 impl DiagnosticPolicy for DiagnosticSettings {
-    fn allows(&self, diagnostic: M2Diagnostic) -> bool {
+    fn allows(&self, diagnostic: DiagnosticKind) -> bool {
         self.enabled && !self.disabled.contains(&diagnostic)
     }
 }
@@ -184,14 +184,14 @@ pub(crate) struct InlayHintSettings {
     expression_types: bool,
 }
 
-fn deserialize_diagnostic_set<'de, D>(deserializer: D) -> Result<HashSet<M2Diagnostic>, D::Error>
+fn deserialize_diagnostic_set<'de, D>(deserializer: D) -> Result<HashSet<DiagnosticKind>, D::Error>
 where
     D: Deserializer<'de>,
 {
     Vec::<String>::deserialize(deserializer)?
         .into_iter()
         .map(|selector| {
-            M2Diagnostic::from_selector(&selector)
+            DiagnosticKind::from_selector(&selector)
                 .ok_or_else(|| D::Error::custom(format!("unknown diagnostic `{selector}`")))
         })
         .collect()
@@ -205,7 +205,7 @@ mod tests {
     fn defaults_enable_diagnostics_and_canonical_factor_spacing() {
         let settings = ServerSettings::from_value(&serde_json::json!({})).unwrap();
 
-        assert!(settings.diagnostics().allows(M2Diagnostic::UnusedBinding));
+        assert!(settings.diagnostics().allows(DiagnosticKind::UnusedBinding));
         assert_eq!(settings.formatting().line_widths(), (Some(100), Some(100)));
         assert_eq!(
             settings.formatting().control_flow_layout(),
@@ -238,11 +238,11 @@ mod tests {
         }))
         .unwrap();
 
-        assert!(!settings.diagnostics().allows(M2Diagnostic::UnusedBinding));
+        assert!(!settings.diagnostics().allows(DiagnosticKind::UnusedBinding));
         assert!(!settings
             .diagnostics()
-            .allows(M2Diagnostic::OptionKeyConvention));
-        assert!(settings.diagnostics().allows(M2Diagnostic::SyntaxError));
+            .allows(DiagnosticKind::OptionKeyConvention));
+        assert!(settings.diagnostics().allows(DiagnosticKind::SyntaxError));
         assert_eq!(settings.formatting().indent_width(), Some(2));
         assert_eq!(settings.formatting().use_tabs(), Some(false));
         assert_eq!(settings.formatting().line_widths(), (Some(88), Some(88)));
@@ -278,7 +278,7 @@ mod tests {
         }))
         .unwrap();
 
-        assert!(M2Diagnostic::ALL
+        assert!(DiagnosticKind::ALL
             .into_iter()
             .all(|diagnostic| !settings.diagnostics().allows(diagnostic)));
     }

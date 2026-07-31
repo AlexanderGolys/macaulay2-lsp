@@ -109,7 +109,7 @@ impl DocumentSnapshot {
         &self.analysis
     }
 
-    pub(crate) fn diagnostics(&self) -> &[tower_lsp::lsp_types::Diagnostic] {
+    pub(crate) fn diagnostics(&self) -> &[crate::diagnostic_registry::M2Diagnostic] {
         &self.analysis.diagnostics
     }
 
@@ -143,8 +143,7 @@ impl DocumentSnapshot {
         name: &str,
         position: Position,
     ) -> Option<BindingView<'_>> {
-        self.source_binding_at(name, position)?;
-        self.analysis.get_symbol_at(name, position)
+        self.source_binding_at(name, position)
     }
 
     /// Resolve the user symbol under `position`: its tree-sitter node plus the
@@ -217,7 +216,7 @@ impl DocumentSnapshot {
 
     pub(crate) fn callable_at_position(&self, position: Position) -> Option<&FunctionInfo> {
         let binding = self.binding_at_position(position)?;
-        self.analysis.function_for_binding(binding.binding)
+        self.analysis.function_for_binding(binding)
     }
 
     pub(crate) fn root_node(&self) -> M2Node<'_> {
@@ -842,10 +841,10 @@ mod tests {
 
         let callable = document
             .analysis()
-            .function("f")
+            .function_at("f", Position::new(1, 0))
             .expect("method function should be registered");
         assert_eq!(
-            callable.methods,
+            callable.installations,
             vec![document.analysis().installations()[0].id]
         );
         assert_eq!(document.analysis().installations()[0].span.start.line, 1);
@@ -863,10 +862,10 @@ mod tests {
 
         let callable = document
             .analysis()
-            .function("f")
+            .function_at("f", Position::new(2, 0))
             .expect("shifted method function should be registered");
         let installation = &document.analysis().installations()[0];
-        assert_eq!(callable.methods, vec![installation.id]);
+        assert_eq!(callable.installations, vec![installation.id]);
         assert_eq!(installation.span.start.line, 2);
         assert_eq!(
             installation
@@ -944,8 +943,7 @@ mod tests {
         let callable = document
             .callable_at_position(Position::new(1, 0))
             .expect("callable should resolve");
-        assert_eq!(callable.name.name(), "f");
-        assert_eq!(callable.methods.len(), 1);
+        assert_eq!(callable.installations.len(), 1);
 
         let y = document
             .analysis()

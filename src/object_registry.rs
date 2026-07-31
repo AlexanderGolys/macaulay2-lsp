@@ -219,7 +219,7 @@ impl ObjectRegistry {
     /// Resolve a loaded package's visible name to its package object identity.
     #[cfg(test)]
     pub fn package_id(&self, name: &ObjectName) -> Option<&ObjectId> {
-        self.package_id_at(name, Position::new(u32::MAX, u32::MAX))
+        self.package_id_at(name, pos_max!())
     }
 
     /// Resolve a package loaded at `position`.
@@ -248,7 +248,7 @@ impl ObjectRegistry {
 
     /// Iterate over loaded records with the most recently loaded package first.
     pub(crate) fn records_by_precedence(&self) -> impl Iterator<Item = &Record> {
-        self.records_by_precedence_at(Position::new(u32::MAX, u32::MAX))
+        self.records_by_precedence_at(pos_max!())
     }
 
     /// Iterate over records visible at `position`, latest package first.
@@ -455,7 +455,7 @@ impl ObjectRegistry {
 
     /// Resolve a canonical name or alias in loaded-package order.
     pub fn object_id(&self, name: &ObjectName) -> Option<ObjectId> {
-        self.object_id_at(name, Position::new(u32::MAX, u32::MAX))
+        self.object_id_at(name, pos_max!())
     }
 
     /// Resolve a name or alias using registrations effective at `position`.

@@ -35,10 +35,7 @@ impl RingSemantics {
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<ObjectName> {
         type_name
-            .is_some_and(|type_name| {
-                type_name.name() == "Ring"
-                    || knowledge.is_subtype(type_name, &ObjectName::new("Ring"))
-            })
+            .is_some_and(|type_name| knowledge.has_type_role(type_name, TypeRole::Ring))
             .then(|| ObjectName::new("RingElement"))
     }
 }
@@ -61,9 +58,7 @@ impl Analysis {
                 TypeChecker::new(self)
                     .type_of(head, source, 0, knowledge)
                     .principal()
-                    .is_some_and(|head_type| {
-                        knowledge.is_subtype(head_type, &ObjectName::new("Ring"))
-                    })
+                    .is_some_and(|head_type| knowledge.has_type_role(head_type, TypeRole::Ring))
                     .then_some(variables)
             })
             .collect::<Vec<_>>();
@@ -162,24 +157,23 @@ impl Analysis {
         let binding_id = self
             .binding_id_from_scope(name, 0, position)
             .filter(|binding_id| {
-                self.binding_definition(*binding_id)
+                self.binding_anchor(*binding_id)
                     .is_some_and(|binding| binding.scope_idx == 0)
             });
         let registration = SymbolRegistration {
-            kind: SymbolKind::VARIABLE,
+            presentation_kind: SymbolKind::VARIABLE,
             role: BindingRole::Ordinary,
             type_name: Some(type_name),
+            object_id: None,
             indexed_element_type,
             parent_type: None,
-            node,
-            value_node: None,
             scope_idx: 0,
             potential_export: true,
         };
         if let Some(binding_id) = binding_id {
-            self.add_binding_state(binding_id, registration, source);
+            self.add_binding_state(binding_id, node, None, registration, source);
         } else {
-            self.add_symbol(name, registration, source);
+            self.add_symbol(name, node, None, registration, source);
         }
     }
 }
@@ -393,7 +387,7 @@ impl TypeChecker<'_> {
             return Some(InferredType::of("RingElement"));
         }
 
-        if query.operator == "/" && knowledge.is_subtype(left_name, &ObjectName::new("Ring")) {
+        if query.operator == "/" && knowledge.has_type_role(left_name, TypeRole::Ring) {
             let right_type = self.type_of(query.right?, source, query.scope_idx, knowledge);
             if right_type.principal()?.as_ref() == "ZZ" {
                 return Some(InferredType::of("QuotientRing"));
@@ -410,6 +404,7 @@ impl TypeChecker<'_> {
     /// dispatch table used for ordinary operators.
     pub(super) fn ring_application_with_trailing_operator_type(
         &self,
+        application_operator: &Operator,
         head: &InferredType,
         argument: M2Node,
         source: &(impl SourceNavigation + ?Sized),
@@ -417,7 +412,7 @@ impl TypeChecker<'_> {
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
         let head_name = head.principal()?;
-        if !knowledge.is_subtype(head_name, &ObjectName::new("Ring")) {
+        if !knowledge.has_type_role(head_name, TypeRole::Ring) {
             return None;
         }
 
@@ -431,12 +426,12 @@ impl TypeChecker<'_> {
         let variables_type = self.type_of(variables, source, scope_idx, knowledge);
         let ring_type = self.dispatch_codomain(
             knowledge,
-            SPACE_OPERATOR,
+            application_operator,
             &[head.clone(), variables_type],
             &[],
         );
         let ring_name = ring_type.principal()?;
-        if !knowledge.is_subtype(ring_name, &ObjectName::new("Ring")) {
+        if !knowledge.has_type_role(ring_name, TypeRole::Ring) {
             return None;
         }
 

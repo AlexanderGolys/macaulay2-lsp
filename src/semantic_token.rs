@@ -6,7 +6,7 @@ use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::object_registry::{ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView};
 use crate::source::DocumentSpan;
-use crate::typesystem::TypeKnowledge;
+use crate::typesystem::{TypeKnowledge, TypeRole};
 use tower_lsp::lsp_types::{SemanticTokenModifier, SemanticTokenType, SymbolKind};
 
 /// Indexed facts needed specifically for semantic-token classification.
@@ -47,8 +47,7 @@ pub enum M2SemanticTokenType {
     Operator = 11,
     Comment = 12,
     Method = 13,
-    Regexp = 14,
-    Modifier = 15,
+    Modifier = 14,
 }
 
 impl M2SemanticTokenType {
@@ -72,7 +71,6 @@ pub const LEGEND_TYPES: &[SemanticTokenType] = &[
     SemanticTokenType::OPERATOR,
     SemanticTokenType::COMMENT,
     SemanticTokenType::METHOD,
-    SemanticTokenType::REGEXP,
     SemanticTokenType::MODIFIER,
     SemanticTokenType::TYPE_PARAMETER,
     SemanticTokenType::DECORATOR,
@@ -149,7 +147,6 @@ pub enum SourceSemanticRole {
     OptionKey,
     OptionValue(ObjectName),
     PropertyKey,
-    RegexpArgument,
     NamespaceArgument,
 }
 
@@ -300,9 +297,6 @@ fn source_role_semantic_token(
         SourceSemanticRole::PropertyKey => {
             (M2SemanticToken::new(M2SemanticTokenType::Property), false)
         }
-        SourceSemanticRole::RegexpArgument => {
-            (M2SemanticToken::new(M2SemanticTokenType::Regexp), false)
-        }
         SourceSemanticRole::NamespaceArgument => {
             (M2SemanticToken::new(M2SemanticTokenType::Namespace), false)
         }
@@ -327,9 +321,8 @@ fn local_symbol_static_type_token(
 ) -> Option<M2SemanticToken> {
     let mut token = knowledge.semantic_token_for_static_type(type_name)?;
     match symbol.meta().symbol_kind {
-        Some(SymbolKind::VARIABLE)
-            if token.token_type == M2SemanticTokenType::Class
-                && knowledge.is_subtype(&ObjectName::new(type_name), &ObjectName::new("Ring")) =>
+        _ if token.token_type == M2SemanticTokenType::Class
+            && knowledge.has_type_role(&ObjectName::new(type_name), TypeRole::Ring) =>
         {
             token.token_type = M2SemanticTokenType::Type;
             Some(token)

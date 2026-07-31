@@ -26,6 +26,12 @@ pub struct WorkspaceSourceSymbol {
 pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<DocumentSymbol> {
     let analysis = document.analysis();
     let mut declarations = Vec::new();
+    let assignments = document
+        .root_node()
+        .descendants()
+        .filter(|node| node.is_assignment())
+        .map(|node| (document.range_for_node(node), node))
+        .collect::<Vec<_>>();
 
     for binding in analysis
         .bindings()
@@ -51,9 +57,19 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
     }
 
     for installation in analysis.installations() {
-        let Some(name) = document.text_in_range(installation.target) else {
+        let Some(assignment) = assignments
+            .iter()
+            .find_map(|(range, node)| (*range == installation.span).then_some(*node))
+        else {
             continue;
         };
+        let (Some(target), value) = (
+            assignment.child_by_field_name("left"),
+            assignment.child_by_field_name("right"),
+        ) else {
+            continue;
+        };
+        let name = target.text();
         let scope_idx = analysis
             .scope_at_position(installation.span.start)
             .unwrap_or(0);
@@ -62,27 +78,45 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
             detail: Some(method_signature_detail(analysis, installation, name)),
             kind: SymbolKind::METHOD,
             range: installation.span,
-            selection_range: installation.target,
+            selection_range: document.range_for_node(target),
             scope_idx,
-            child_scope_idx: installation
-                .value
+            child_scope_idx: value
+                .map(|value| document.range_for_node(value))
                 .and_then(|range| analysis.scope_with_range(range)),
             symbol: None,
         });
     }
 
-    for assignment in analysis.composite_assignment_declarations() {
-        let child_scope_idx = assignment
-            .value
-            .and_then(|range| analysis.scope_with_range(range));
-        let kind = match assignment.operator.name() {
+    let installation_spans = analysis
+        .installations()
+        .iter()
+        .map(|installation| installation.span)
+        .collect::<Vec<_>>();
+    for (range, assignment) in assignments
+        .iter()
+        .copied()
+        .filter(|(_, node)| node.binary_operator() == Some("="))
+    {
+        if installation_spans.contains(&range) {
+            continue;
+        }
+        let (Some(target), Some(value)) = (
+            assignment.child_by_field_name("left"),
+            assignment.child_by_field_name("right"),
+        ) else {
+            continue;
+        };
+        let Some(operator) = target.binary_operator() else {
+            continue;
+        };
+        let value_range = document.range_for_node(value);
+        let child_scope_idx = analysis.scope_with_range(value_range);
+        let kind = match operator {
             "_" => SymbolKind::VARIABLE,
             _ if child_scope_idx.is_some() => SymbolKind::METHOD,
             _ => continue,
         };
-        let Some(name) = document.text_in_range(assignment.target) else {
-            continue;
-        };
+        let name = target.text();
         let detail = Some(if kind == SymbolKind::METHOD {
             name.to_string()
         } else {
@@ -92,9 +126,9 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
             name: name.to_string(),
             detail,
             kind,
-            range: assignment.span,
-            selection_range: assignment.target,
-            scope_idx: assignment.scope_idx,
+            range,
+            selection_range: document.range_for_node(target),
+            scope_idx: analysis.scope_at_position(range.start).unwrap_or(0),
             child_scope_idx,
             symbol: None,
         });
@@ -558,7 +592,7 @@ Z = new Type of X
 Y + X := (a,b) -> \"Y + X\"
 X + Z := (a,b) -> \"X + Z\"
 ";
-        let builtins = ObjectRegistry::default();
+        let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
 
         let document = document(text, &builtins);
         let symbols = collect_document_symbols(&document);

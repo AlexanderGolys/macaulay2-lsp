@@ -41,11 +41,6 @@ impl<'tree> M2Node<'tree> {
         self.kind == kind
     }
 
-    // Anonymous tokens carry no named grammar rule, so their `kind()` is the
-    // literal text. These predicates match that text directly rather than
-    // minting a `NodeKind` variant per literal, keeping the grammar's token
-    // set as the single source of truth.
-
     pub fn is_comma(&self) -> bool {
         self.raw_kind() == ","
     }
@@ -156,6 +151,15 @@ impl<'tree> M2Node<'tree> {
     /// An option assignment (`key => value`).
     pub fn is_option_assignment(&self) -> bool {
         self.binary_operator() == Some("=>")
+    }
+
+    pub fn property_key(&self) -> Option<Self> {
+        let right = self.child_by_field_name("right")?;
+        match self.binary_operator()? {
+            "#" | "#?" if right.kind == NodeKind::StringLiteral => Some(right),
+            "." | ".?" if right.kind.is_symbol_like() => Some(right),
+            _ => None,
+        }
     }
 
     /// An implicit application `f x` / `f(x)`: a binary expression whose operator
