@@ -1,47 +1,41 @@
 //! Parse-tree analysis that records lexical bindings, static type facts, and
 //! diagnostics for one document snapshot.
 
+mod ring;
+mod typechecker;
+
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
-use std::sync::RwLock;
 use tower_lsp::lsp_types::{Diagnostic, Position, Range, SymbolKind};
 
 use crate::diagnostic_registry::M2Diagnostic;
 use crate::meta::{BindingRole, Meta, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::object_registry::ObjectName;
-use crate::object_registry::{ObjectId, OperatorForm, Type, TypeData, TypeId, TypeStore};
+use crate::object_registry::{ObjectId, OperatorForm, TypeData, TypeId};
 use crate::source::SourceNavigation;
-use crate::typesystem::{
-    type_is_subtype, InferredType, LiteralOption, PositionedTypeKnowledge, TypeKnowledge,
-};
+use crate::typesystem::{InferredType, LiteralOption, PositionedTypeKnowledge, TypeKnowledge};
 use crate::util::position_in_range;
+use typechecker::TypeChecker;
 
-/// Snapshot-local identity of one lexical binding declaration.
-/// Reassignments keep this identity and create new [`BindingStateId`] values.
+/// Identity of one lexical declaration within an immutable analysis snapshot.
+///
+/// Reassigning the declared name preserves this identity and adds a new
+/// [`BindingStateId`]; declaring a shadowing name creates a new `BindingId`.
+/// The identity indexes [`SemanticRegistry::bindings`] and connects the
+/// declaration to all of its source-ordered states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BindingId(u32);
 
-/// Snapshot-local identity of one source-ordered state of a binding.
+/// Identity of one source-ordered state of a binding within an analysis snapshot.
+///
+/// The declaration creates the first state, and each reassignment creates
+/// another state containing the value, symbol kind, and inferred type effective
+/// from that source position. The identity indexes
+/// [`SemanticRegistry::binding_states`] and refers back to one [`BindingId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BindingStateId(u32);
-
-/// Typed parser-node identity used only by the transient inference cache while
-/// one analysis snapshot is being constructed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct NodeFactId(usize);
-
-/// Complete semantic analysis of one immutable document snapshot.
-/// It owns source facts, characterized method installations, and diagnostics;
-/// expression types are not retained after inference.
-#[derive(Debug)]
-pub struct Analysis {
-    pub diagnostics: Vec<Diagnostic>,
-    pub registry: SemanticRegistry,
-    cache_types: bool,
-    type_cache: RwLock<HashMap<NodeFactId, InferredType>>,
-}
 
 /// An M2 operator — including `SPACE`, the juxtaposition operator (`X Y` is
 /// `X SPACE Y`). Just another operator, not a special "adjacency" concept.
@@ -63,9 +57,12 @@ pub enum MethodHead {
     Operator(Operator),
 }
 
-/// Typed source-history position of one method-installing assignment.
+/// Identity of one method-installing assignment within an analysis snapshot.
+///
+/// The identity indexes [`SemanticRegistry::installations`], allowing callable
+/// records to refer directly to the source fact without a second method index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct InstallationIndex(usize);
+pub struct MethodInstallationId(usize);
 
 /// A named M2 method object identified by its callable and dispatch domain.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,13 +94,61 @@ impl Method {
     }
 }
 
+/// Value-semantic source location used to key facts independently of borrowed
+/// syntax-tree nodes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpanKey {
+    pub range: Range,
+}
+
+impl SpanKey {
+    fn from_node(source: &(impl SourceNavigation + ?Sized), node: M2Node) -> Self {
+        Self {
+            range: source.range_for_node(node),
+        }
+    }
+}
+
+impl Hash for SpanKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.range.start.line.hash(state);
+        self.range.start.character.hash(state);
+        self.range.end.line.hash(state);
+        self.range.end.character.hash(state);
+    }
+}
+
+/// A function's argument shape, read from its lambda parameter node — the arity
+/// of its domain, independent of any installed methods (a function with no
+/// methods can still be total).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dispatch {
+    Variadic,
+    Fixed(usize),
+}
+
+/// The [`Dispatch`] shape of a lambda from its parameter node: a bare `Symbol`
+/// parameter is variadic; a `Sequence` is fixed-arity with one slot per named
+/// element.
+fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
+    let parameters = lambda.child_by_field_name("parameters")?;
+    Some(match parameters.kind {
+        NodeKind::ParenthesizedExpression => Dispatch::Fixed(1),
+        kind if kind.is_collection_expression() => {
+            Dispatch::Fixed(parameters.collection_elements().count())
+        }
+        // A single bare parameter binds the whole argument sequence — variadic.
+        _ => Dispatch::Variadic,
+    })
+}
+
 /// A characterized assignment that installs one named [`Method`].
 ///
 /// It is produced once during analysis and consumed by every capability instead
 /// of each re-deciding installation syntax. `span` covers the whole assignment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MethodInstallation {
-    index: InstallationIndex,
+    pub id: MethodInstallationId,
     pub method: Method,
     pub codomain_span: Option<SpanKey>,
     pub span: SpanKey,
@@ -132,30 +177,6 @@ enum HeadFunctionKind {
     Unknown,
 }
 
-/// A function's argument shape, read from its lambda parameter node — the arity
-/// of its domain, independent of any installed methods (a function with no
-/// methods can still be total).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Dispatch {
-    Variadic,
-    Fixed(usize),
-}
-
-/// The [`Dispatch`] shape of a lambda from its parameter node: a bare `Symbol`
-/// parameter is variadic; a `Sequence` is fixed-arity with one slot per named
-/// element.
-fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
-    let parameters = lambda.child_by_field_name("parameters")?;
-    Some(match parameters.kind {
-        NodeKind::ParenthesizedExpression => Dispatch::Fixed(1),
-        kind if kind.is_collection_expression() => {
-            Dispatch::Fixed(parameters.collection_elements().count())
-        }
-        // A single bare parameter binds the whole argument sequence — variadic.
-        _ => Dispatch::Variadic,
-    })
-}
-
 /// Syntax-derived callable behavior used to decide whether method
 /// installations take effect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -174,7 +195,7 @@ enum LocalFunctionKind {
 pub struct FunctionInfo {
     pub name: ObjectName,
     pub typical_value: Option<ObjectName>,
-    pub methods: Vec<ObjectId>,
+    pub methods: Vec<MethodInstallationId>,
     pub dispatch: Option<Dispatch>,
     kind: LocalFunctionKind,
 }
@@ -185,13 +206,6 @@ pub struct FunctionInfo {
 pub struct CallStaticFacts {
     pub argument_types: Vec<InferredType>,
     pub literal_options: Vec<LiteralOption>,
-}
-
-/// Value-semantic source location used to key facts independently of borrowed
-/// syntax-tree nodes.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SpanKey {
-    pub range: Range,
 }
 
 /// Source-independent identity and declaration properties of one lexical
@@ -270,28 +284,6 @@ struct SourceTypeFacts {
     data: HashMap<TypeId, TypeData>,
 }
 
-/// One partial-order view combining source type edges with external registry
-/// type edges without copying either population.
-struct SourceTypeOrder<'analysis, Knowledge: ?Sized> {
-    source: &'analysis SourceTypeFacts,
-    external: &'analysis Knowledge,
-}
-
-impl<Knowledge: TypeKnowledge + ?Sized> TypeStore for SourceTypeOrder<'_, Knowledge> {
-    fn parent_type_id(&self, type_id: &TypeId) -> Option<TypeId> {
-        self.source
-            .data
-            .get(type_id)
-            .map(|data| data.parent.clone())
-            .or_else(|| {
-                self.external
-                    .object(type_id.object())?
-                    .type_info()
-                    .map(|data| data.parent.clone())
-            })
-    }
-}
-
 /// Canonical per-snapshot store of symbols, bindings, scopes, and their indexes.
 #[derive(Debug, Default)]
 pub struct SemanticRegistry {
@@ -301,27 +293,61 @@ pub struct SemanticRegistry {
     pub bindings_by_name: HashMap<ObjectName, Vec<BindingId>>,
     pub states_by_binding: HashMap<BindingId, Vec<BindingStateId>>,
     pub functions: HashMap<ObjectName, FunctionInfo>,
-    methods: HashMap<ObjectId, InstallationIndex>,
     installations: Vec<MethodInstallation>,
     source_types: SourceTypeFacts,
-    ring_generators: HashMap<ObjectName, Vec<RingGenerator>>,
+    ring_generators: HashMap<ObjectName, Vec<ring::RingGenerator>>,
 }
 
-impl SpanKey {
-    fn from_node(source: &(impl SourceNavigation + ?Sized), node: M2Node) -> Self {
-        Self {
-            range: source.range_for_node(node),
-        }
-    }
+/// Binding-registration policy selected from the assignment operator.
+#[derive(Debug, Clone, Copy)]
+enum DefinitionScope {
+    Local,
+    Assign,
 }
 
-impl Hash for SpanKey {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.range.start.line.hash(state);
-        self.range.start.character.hash(state);
-        self.range.end.line.hash(state);
-        self.range.end.character.hash(state);
-    }
+/// Complete input for creating a binding or adding a new state to one.
+///
+/// Keeping this packet typed ensures all registration paths pass through the
+/// same bookkeeping code.
+#[derive(Debug, Clone)]
+struct SymbolRegistration<'a> {
+    kind: SymbolKind,
+    role: BindingRole,
+    type_name: Option<ObjectName>,
+    indexed_element_type: Option<ObjectName>,
+    parent_type: Option<TypeId>,
+    node: M2Node<'a>,
+    value_node: Option<M2Node<'a>>,
+    scope_idx: usize,
+    potential_export: bool,
+}
+
+/// Scope behavior contributed by one control-flow child.
+#[derive(Debug, Clone, Copy)]
+struct ChildScopePolicy {
+    assignments_are_local: bool,
+    context_assignments_may_escape: bool,
+}
+
+impl ChildScopePolicy {
+    const CONDITIONAL: Self = Self {
+        assignments_are_local: true,
+        context_assignments_may_escape: true,
+    };
+
+    const LOOP_CLAUSE: Self = Self {
+        assignments_are_local: false,
+        context_assignments_may_escape: false,
+    };
+}
+
+/// Complete semantic analysis of one immutable document snapshot.
+/// It owns source facts, characterized method installations, and diagnostics;
+/// expression types are not retained after inference.
+#[derive(Debug)]
+pub struct Analysis {
+    pub diagnostics: Vec<Diagnostic>,
+    pub registry: SemanticRegistry,
 }
 
 impl Analysis {
@@ -488,7 +514,8 @@ impl Analysis {
         function
             .methods
             .iter()
-            .filter_map(|method| self.method(method.object_name()))
+            .filter_map(|id| self.method_installation(*id))
+            .map(|installation| &installation.method)
     }
 
     /// Methods installed on `function` no later than `position`, with a later
@@ -498,7 +525,12 @@ impl Analysis {
         function: &'a FunctionInfo,
         position: Position,
     ) -> Vec<&'a Method> {
-        let method_ids = function.methods.iter().collect::<HashSet<_>>();
+        let method_ids = function
+            .methods
+            .iter()
+            .filter_map(|id| self.method_installation(*id))
+            .map(|installation| &installation.method.id)
+            .collect::<HashSet<_>>();
         let mut seen = HashSet::new();
         self.registry
             .installations
@@ -511,14 +543,8 @@ impl Analysis {
             .collect()
     }
 
-    fn method_installation(&self, index: InstallationIndex) -> Option<&MethodInstallation> {
-        self.registry.installations.get(index.0)
-    }
-
-    /// Resolve the current state of a named local method object.
-    pub fn method(&self, name: &ObjectName) -> Option<&Method> {
-        let index = self.registry.methods.get(name)?;
-        Some(&self.method_installation(*index)?.method)
+    fn method_installation(&self, id: MethodInstallationId) -> Option<&MethodInstallation> {
+        self.registry.installations.get(id.0)
     }
 
     /// Borrow every characterized method installation in source order.
@@ -619,26 +645,14 @@ impl Analysis {
                 }],
                 ..Default::default()
             },
-            cache_types: false,
-            type_cache: RwLock::new(HashMap::new()),
         };
         // Analysis-first: derive bindings, scopes, and method installations
         // before running diagnostics that consume those facts.
         analysis.build_scopes(root, source, 0, 0, knowledge);
-        // Scope construction needs source-ordered partial information. Once all
-        // bindings and states exist, inference is stable and can be memoized
-        // transiently while the remaining semantic consumers run.
-        analysis.cache_types = true;
         analysis.collect_installation_diagnostics(knowledge);
         analysis.collect_install_form_diagnostics(root, source, knowledge);
         analysis.collect_diagnostics(root, source, knowledge);
         analysis.collect_unused_binding_diagnostics(root, source);
-        analysis.cache_types = false;
-        analysis
-            .type_cache
-            .get_mut()
-            .expect("type cache lock should not be poisoned")
-            .clear();
         analysis
     }
 
@@ -695,7 +709,8 @@ impl Analysis {
                         {
                             Some(ObjectName::new("MethodFunction"))
                         } else {
-                            self.type_of(right, source, current_scope_idx, &knowledge)
+                            TypeChecker::new(self)
+                                .type_of(right, source, current_scope_idx, &knowledge)
                                 .dispatch_id()
                         }
                     });
@@ -703,7 +718,9 @@ impl Analysis {
                         .and_then(|right| {
                             declared_type_parent(right, type_name.as_ref(), &knowledge)
                         })
-                        .and_then(|parent| self.resolve_type_id(&parent, &knowledge));
+                        .and_then(|parent| {
+                            TypeChecker::new(self).resolve_type_id(&parent, &knowledge)
+                        });
 
                     if let (Some(right), Some(name)) =
                         (right, single_symbol_assignment_target(left))
@@ -767,7 +784,7 @@ impl Analysis {
                         single_symbol_assignment_target(left),
                     ) {
                         if type_name.name() == "Ring"
-                            || type_is_subtype(&knowledge, type_name, &ObjectName::new("Ring"))
+                            || knowledge.is_subtype(type_name, &ObjectName::new("Ring"))
                         {
                             self.collect_ring_generator_bindings(
                                 ring_name, right, left, source, &knowledge,
@@ -834,7 +851,7 @@ impl Analysis {
     ///   `f` to the lvalue `T1 op T2`, which is a call.
     fn classify_installation(
         &self,
-        index: InstallationIndex,
+        id: MethodInstallationId,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
@@ -864,7 +881,7 @@ impl Analysis {
         match operator {
             // `:=` installs by shape alone — no type check on the operands.
             ":=" => Some(MethodInstallation {
-                index,
+                id,
                 method: Method::new(head, domain, codomain),
                 codomain_span,
                 span,
@@ -884,7 +901,7 @@ impl Analysis {
                             .all(|operand| self.operand_is_type(operand.name(), knowledge)) =>
                 {
                     Some(MethodInstallation {
-                        index,
+                        id,
                         method: Method::new(MethodHead::Operator(op), domain, codomain),
                         codomain_span,
                         span,
@@ -1451,144 +1468,6 @@ impl Analysis {
             .push(state_id);
     }
 
-    fn collect_ring_generator_bindings(
-        &mut self,
-        ring_name: &str,
-        expression: M2Node,
-        rebind_node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) {
-        let containers = expression
-            .descendants()
-            .filter(|node| node.is_space_application())
-            .filter_map(|node| {
-                let head = node.child_by_field_name("left")?;
-                let variables = ring_constructor_variables(node)?;
-                self.type_of(head, source, 0, knowledge)
-                    .principal()
-                    .is_some_and(|head_type| {
-                        type_is_subtype(knowledge, head_type, &ObjectName::new("Ring"))
-                    })
-                    .then_some(variables)
-            })
-            .collect::<Vec<_>>();
-
-        let mut generators = Vec::new();
-        for container in containers {
-            for generator in ring_generator_bindings(container) {
-                generators.push(RingGenerator {
-                    name: ObjectName::new(&generator.name),
-                    kind: generator.kind,
-                });
-                self.register_ring_generator(
-                    ring_name,
-                    &generator.name,
-                    generator.kind,
-                    generator.node,
-                    source,
-                );
-            }
-        }
-
-        if generators.is_empty() {
-            generators = self
-                .ring_source_symbol(expression)
-                .and_then(|source| self.registry.ring_generators.get(source).cloned())
-                .unwrap_or_default();
-            for generator in &generators {
-                self.register_ring_generator(
-                    ring_name,
-                    generator.name.name(),
-                    generator.kind,
-                    rebind_node,
-                    source,
-                );
-            }
-        }
-
-        self.registry
-            .ring_generators
-            .insert(ObjectName::new(ring_name), generators);
-    }
-
-    fn ring_source_symbol<'tree>(&self, expression: M2Node<'tree>) -> Option<&'tree str> {
-        let expression = parenthesized_value(expression).unwrap_or(expression);
-        if expression.kind.is_symbol_like() {
-            return Some(expression.text());
-        }
-        if expression.binary_operator() == Some("/") {
-            return expression
-                .child_by_field_name("left")
-                .filter(|left| left.kind.is_symbol_like())
-                .map(|left| left.text());
-        }
-        None
-    }
-
-    fn register_ring_generator(
-        &mut self,
-        ring_name: &str,
-        generator_name: &str,
-        kind: RingGeneratorKind,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-    ) {
-        match kind {
-            RingGeneratorKind::Direct => {
-                self.register_dynamic_global(
-                    generator_name,
-                    node,
-                    ObjectName::new(ring_name),
-                    None,
-                    source,
-                );
-            }
-            RingGeneratorKind::IndexedTable => {
-                self.register_dynamic_global(
-                    generator_name,
-                    node,
-                    ObjectName::new("IndexedVariableTable"),
-                    Some(ObjectName::new(ring_name)),
-                    source,
-                );
-            }
-        }
-    }
-
-    fn register_dynamic_global(
-        &mut self,
-        name: &str,
-        node: M2Node,
-        type_name: ObjectName,
-        indexed_element_type: Option<ObjectName>,
-        source: &(impl SourceNavigation + ?Sized),
-    ) {
-        let position = source.position_for_node(node);
-        let binding_id = self
-            .binding_id_from_scope(name, 0, position)
-            .filter(|binding_id| {
-                self.binding_definition(*binding_id)
-                    .is_some_and(|binding| binding.scope_idx == 0)
-            });
-        let registration = SymbolRegistration {
-            kind: SymbolKind::VARIABLE,
-            role: BindingRole::Ordinary,
-            type_name: Some(type_name),
-            indexed_element_type,
-            parent_type: None,
-            node,
-            value_node: None,
-            scope_idx: 0,
-            potential_export: true,
-        };
-        if let Some(binding_id) = binding_id {
-            self.add_binding_state(binding_id, registration, source);
-        } else {
-            self.add_symbol(name, registration, source);
-        }
-    }
-
     pub fn local_method_installation_signature_at<'a>(
         &'a self,
         node: M2Node,
@@ -1602,7 +1481,9 @@ impl Analysis {
         let method = self.function(name.name())?;
         method
             .methods
-            .contains(&installation.method.id)
+            .iter()
+            .filter_map(|id| self.method_installation(*id))
+            .any(|current| current.method.id == installation.method.id)
             .then_some((method, installation))
     }
 
@@ -1615,7 +1496,7 @@ impl Analysis {
         let scope_idx = self
             .find_scope_at(source.position_for_node(node))
             .unwrap_or(0);
-        self.infer_call_facts(node, source, scope_idx, knowledge)
+        TypeChecker::new(self).infer_call_facts(node, source, scope_idx, knowledge)
     }
 
     pub fn infer_expression_static_type(
@@ -1627,7 +1508,8 @@ impl Analysis {
         let scope_idx = self
             .find_scope_at(source.position_for_node(node))
             .unwrap_or(0);
-        self.type_of(node, source, scope_idx, knowledge)
+        TypeChecker::new(self)
+            .type_of(node, source, scope_idx, knowledge)
             .dispatch_id()
     }
 
@@ -1642,7 +1524,9 @@ impl Analysis {
         let scope_idx = self
             .find_scope_at(source.position_for_node(node))
             .unwrap_or(0);
-        self.type_of(node, source, scope_idx, knowledge).label()
+        TypeChecker::new(self)
+            .type_of(node, source, scope_idx, knowledge)
+            .label()
     }
 
     /// Project inferred types into the nominal names understood by method
@@ -1654,38 +1538,7 @@ impl Analysis {
         facts: &CallStaticFacts,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Vec<Option<ObjectName>> {
-        facts
-            .argument_types
-            .iter()
-            .map(|inferred| self.dispatch_type_id(inferred, knowledge))
-            .collect()
-    }
-
-    fn dispatch_type_id(
-        &self,
-        inferred: &InferredType,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<ObjectName> {
-        let principal = inferred.principal()?;
-        let Some(mut current) = self.resolve_source_type_id(principal) else {
-            return Some(principal.clone());
-        };
-        let mut visited = HashSet::new();
-
-        loop {
-            if !visited.insert(current.clone()) {
-                return None;
-            }
-            let Some(data) = self.registry.source_types.data.get(&current) else {
-                return Some(
-                    knowledge
-                        .object(current.object())
-                        .map(|record| record.name.clone())
-                        .unwrap_or_else(|| ObjectName::new(current.object().name())),
-                );
-            };
-            current.clone_from(&data.parent);
-        }
+        TypeChecker::new(self).dispatch_argument_types(facts, knowledge)
     }
 
     /// Record the [`Dispatch`] shape of a lambda-defined local function on its
@@ -1732,9 +1585,8 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        let index = InstallationIndex(self.registry.installations.len());
-        let Some(mut installation) =
-            self.classify_installation(index, assignment, source, knowledge)
+        let id = MethodInstallationId(self.registry.installations.len());
+        let Some(mut installation) = self.classify_installation(id, assignment, source, knowledge)
         else {
             return;
         };
@@ -1746,7 +1598,7 @@ impl Analysis {
             self.attach_method_installation(&mut installation, knowledge);
         }
 
-        debug_assert_eq!(installation.index.0, self.registry.installations.len());
+        debug_assert_eq!(installation.id.0, self.registry.installations.len());
         self.registry.installations.push(installation);
     }
 
@@ -1769,6 +1621,12 @@ impl Analysis {
             MethodHead::Operator(operator) => operator.token.name(),
         };
         let name = ObjectName::new(name);
+        let existing_method = self.registry.functions.get(&name).and_then(|function| {
+            function.methods.iter().position(|id| {
+                self.method_installation(*id)
+                    .is_some_and(|existing| existing.method.id == installation.method.id)
+            })
+        });
         let method = self
             .registry
             .functions
@@ -1786,11 +1644,11 @@ impl Analysis {
                 .codomain
                 .clone_from(&method.typical_value);
         }
-        let method_id = installation.method.id.clone();
-        if !method.methods.contains(&method_id) {
-            method.methods.push(method_id.clone());
+        if let Some(index) = existing_method {
+            method.methods[index] = installation.id;
+        } else {
+            method.methods.push(installation.id);
         }
-        self.registry.methods.insert(method_id, installation.index);
     }
 
     fn push_scope(
@@ -1810,934 +1668,9 @@ impl Analysis {
         scope_idx
     }
 
-    /// The inferred type of the value `node` evaluates to — see [`InferredType`].
-    /// Every value-producing node has a type; control-flow and unhandled forms
-    /// fall to `Unknown`. The bound is a lower bound (a `typicalValue`), never
-    /// asserted exact.
-    fn type_of(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> InferredType {
-        if !self.cache_types {
-            return self.compute_type_of(node, source, scope_idx, knowledge);
-        }
-
-        let node_id = NodeFactId(node.id());
-        if let Some(inferred) = self
-            .type_cache
-            .read()
-            .expect("type cache lock should not be poisoned")
-            .get(&node_id)
-        {
-            return inferred.clone();
-        }
-
-        let inferred = self.compute_type_of(node, source, scope_idx, knowledge);
-        self.type_cache
-            .write()
-            .expect("type cache lock should not be poisoned")
-            .insert(node_id, inferred.clone());
-        inferred
-    }
-
-    fn compute_type_of(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> InferredType {
-        match node.kind {
-            // A lambda's class is the concrete `FunctionClosure`, not the abstract
-            // `Function` — this distinction drives the method-install no-effect rule
-            // (a `FunctionClosure` is not a method function).
-            NodeKind::LambdaExpression => InferredType::of("FunctionClosure"),
-            NodeKind::BinaryExpression
-                if method_declaration_typical_value(node).is_some() || is_method_call(node) =>
-            {
-                InferredType::of("MethodFunction")
-            }
-            NodeKind::List => InferredType::of("List"),
-            NodeKind::Array => InferredType::of("Array"),
-            NodeKind::AngleBarList => InferredType::of("AngleBarList"),
-            kind if kind.is_sequence() => InferredType::of("Sequence"),
-            kind if kind.is_nothing_value() => InferredType::of("Nothing"),
-            // A parenthesized expression is its final unmuted value: `(1)` is
-            // `ZZ`, `(a;b)` is the type of `b`. With no final value (`(a;)`) it
-            // evaluates to `null`, whose class is `Nothing`.
-            NodeKind::ParenthesizedExpression => match parenthesized_value(node) {
-                Some(inner) => self.type_of(inner, source, scope_idx, knowledge),
-                None => InferredType::of("Nothing"),
-            },
-            NodeKind::StringLiteral => InferredType::of("String"),
-            NodeKind::IntegerLiteral => InferredType::of("ZZ"),
-            NodeKind::FloatLiteral => InferredType::of("RR"),
-            // A quote expression (`symbol +`, `local x`, `global y`,
-            // `threadLocal z`) evaluates to the Symbol it names.
-            NodeKind::QuoteExpression => InferredType::of("Symbol"),
-            NodeKind::Symbol => self.symbol_type(node, source, scope_idx, knowledge),
-            // An assignment evaluates to its right-hand side: `a = b` / `a := b`
-            // (and destructuring `{x,y} := …`) take the type of the RHS.
-            _ if node.is_assignment() => match node.child_by_field_name("right") {
-                Some(right) => self.type_of(right, source, scope_idx, knowledge),
-                None => InferredType::unknown(),
-            },
-            // `x => y` builds an `Option` object, whatever the operand types.
-            _ if node.is_option_assignment() => InferredType::of("Option"),
-            NodeKind::BinaryExpression => {
-                self.binary_expression_type(node, source, scope_idx, knowledge)
-            }
-            NodeKind::PrefixExpression | NodeKind::PostfixExpression => {
-                self.unary_operator_type(node, source, scope_idx, knowledge)
-            }
-            NodeKind::NewStatement => node
-                .child_by_field_name("type")
-                .filter(|type_node| type_node.kind == NodeKind::Symbol)
-                .map(|type_node| InferredType::of(type_node.text()))
-                .unwrap_or_else(InferredType::unknown),
-            // `if c then A [else B]` is whichever branch runs; with no `else`,
-            // a false condition yields `null` (`Nothing`). The static type is the
-            // join of the reachable branch types.
-            NodeKind::IfStatement => self.if_statement_type(node, source, scope_idx, knowledge),
-            // `try E [then A] [else B | except e do B]` is the success value
-            // (`then A`, else `E`) joined with the failure value (`else`/`do B`,
-            // else `null` since an unhandled error makes `try` evaluate to null).
-            NodeKind::TryStatement => self.try_statement_type(node, source, scope_idx, knowledge),
-            // A `for … list …` collects a `List`; a `for … do …` loop (and every
-            // `while` loop) evaluates to `null` (`Nothing`).
-            NodeKind::ForStatement => {
-                if node
-                    .named_children()
-                    .any(|child| child.kind == NodeKind::ListClause)
-                {
-                    InferredType::of("List")
-                } else {
-                    InferredType::of("Nothing")
-                }
-            }
-            NodeKind::WhileStatement => InferredType::of("Nothing"),
-            // A control transfer evaluates (for the loop/function it escapes) to
-            // its operand, or `null` (`Nothing`) when bare.
-            kind if kind.is_control_transfer() => {
-                self.control_transfer_type(node, source, scope_idx, knowledge)
-            }
-            // A debug clause (`time E`, `break v`, …) passes through to the value
-            // of its inner statement/expression.
-            NodeKind::DebugClause => node
-                .named_children()
-                .next()
-                .map(|inner| self.type_of(inner, source, scope_idx, knowledge))
-                .unwrap_or_else(InferredType::unknown),
-            _ => InferredType::unknown(),
-        }
-    }
-
-    /// The type of an `if` statement: the join of its `then` branch with its
-    /// `else` branch, where a missing `else` contributes `Nothing` (a false
-    /// condition makes the whole expression `null`).
-    fn if_statement_type(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> InferredType {
-        let then_type = clause_of(node, NodeKind::ThenClause)
-            .and_then(clause_value)
-            .map(|value| self.type_of(value, source, scope_idx, knowledge))
-            .unwrap_or_else(InferredType::unknown);
-        let else_type = match clause_of(node, NodeKind::ElseClause).and_then(clause_value) {
-            Some(value) => self.type_of(value, source, scope_idx, knowledge),
-            None => InferredType::of("Nothing"),
-        };
-        then_type.join(else_type, knowledge)
-    }
-
-    /// The type of a `try` statement: the success value (`then` clause if present,
-    /// else the guarded body) joined with the failure value (`else`/`do` clause if
-    /// present, else `Nothing` since an unhandled error makes `try` yield `null`).
-    fn try_statement_type(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> InferredType {
-        let body = node
-            .named_children()
-            .find(|child| !is_try_clause(child.kind));
-        let success_value = clause_of(node, NodeKind::ThenClause)
-            .and_then(clause_value)
-            .or(body);
-        let success = success_value
-            .map(|value| self.type_of(value, source, scope_idx, knowledge))
-            .unwrap_or_else(InferredType::unknown);
-        let failure_value = clause_of(node, NodeKind::ElseClause)
-            .or_else(|| clause_of(node, NodeKind::DoClause))
-            .and_then(clause_value);
-        let failure = match failure_value {
-            Some(value) => self.type_of(value, source, scope_idx, knowledge),
-            None => InferredType::of("Nothing"),
-        };
-        success.join(failure, knowledge)
-    }
-
-    /// The type of a control transfer (`return e` / `break e` / `continue e`):
-    /// its operand's type, or `Nothing` when the transfer is bare.
-    fn control_transfer_type(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> InferredType {
-        match node.named_children().next() {
-            Some(operand) => self.type_of(operand, source, scope_idx, knowledge),
-            None => InferredType::of("Nothing"),
-        }
-    }
-
-    /// A symbol's type, in precedence order: an in-scope user binding (which
-    /// overrides an earlier visible unprotected name), then the visible object's
-    /// recorded class, then `Symbol` (an
-    /// unbound name evaluates to its own `Symbol` in M2).
-    fn symbol_type(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> InferredType {
-        let name = node.text();
-        if let Some(binding) =
-            self.get_binding_from_scope(name, scope_idx, source.position_for_node(node))
-        {
-            let package_shadows = binding.scope_idx == 0
-                && knowledge.shadows_source(&binding.name, binding.state.span.range.start);
-            if !package_shadows {
-                return binding
-                    .state
-                    .type_name
-                    .as_ref()
-                    .map_or_else(InferredType::unknown, |type_name| {
-                        InferredType::from_id(type_name.clone())
-                    });
-            }
-        }
-
-        if let Some(record) = knowledge.get_record(&ObjectName::new(name)) {
-            return InferredType::from_id(record.class.clone());
-        }
-
-        InferredType::of("Symbol")
-    }
-
-    /// A binary expression's type. Juxtaposition `a SPACE b` is application
-    /// (handled by [`Self::application_type`]); the function-dependent operators
-    /// `_` (currying) and `@@` (composition) are computed here when their
-    /// function-position operand is a `Function`; everything else dispatches
-    /// through the M2 type table.
-    fn binary_expression_type(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> InferredType {
-        if node.is_space_application() {
-            return self.application_type(node, source, scope_idx, knowledge);
-        }
-
-        let operator = node.binary_operator();
-        let left = node.child_by_field_name("left");
-        let right = node.child_by_field_name("right");
-
-        if let Some(operator) = operator {
-            if let Some(result) =
-                self.special_operator_type(operator, left, right, source, scope_idx, knowledge)
-            {
-                return result;
-            }
-        }
-
-        let (Some(operator), Some(left), Some(right)) = (operator, left, right) else {
-            return InferredType::unknown();
-        };
-        let left_type = self.type_of(left, source, scope_idx, knowledge);
-        let right_type = self.type_of(right, source, scope_idx, knowledge);
-        self.dispatch_codomain(knowledge, operator, &[left_type, right_type], &[])
-    }
-
-    /// The function-dependent operators, whose result depends on the specific
-    /// function value (M2 has no dependent types, so the M2 table cannot express
-    /// them): currying `f _ x` (`f_x(y) := f(x, y)`) and composition `f @@ g`
-    /// both yield a `FunctionClosure` when the function-position operand is a
-    /// `Function`. `None` falls through to ordinary dispatch (so `M_i`, `L_i`,
-    /// … keep their table behavior).
-    fn special_operator_type(
-        &self,
-        operator: &str,
-        left: Option<M2Node>,
-        right: Option<M2Node>,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<InferredType> {
-        let left = left?;
-        let left_type = self.type_of(left, source, scope_idx, knowledge);
-        let left_name = left_type.principal()?;
-
-        if operator == "_" {
-            if left_name.as_ref() == "Symbol" {
-                return Some(InferredType::of("IndexedVariable"));
-            }
-            if left_name.as_ref() == "IndexedVariableTable" {
-                if let Some(element_type) = self
-                    .get_binding_from_scope(left.text(), scope_idx, source.position_for_node(left))
-                    .and_then(|binding| binding.state.indexed_element_type.as_ref())
-                {
-                    return Some(InferredType::of(element_type.name()));
-                }
-                return Some(InferredType::of("RingElement"));
-            }
-        }
-
-        if matches!(operator, "_" | "@@")
-            && type_is_subtype(knowledge, left_name, &ObjectName::new("Function"))
-        {
-            return Some(InferredType::of("FunctionClosure"));
-        }
-
-        if operator == "/" && type_is_subtype(knowledge, left_name, &ObjectName::new("Ring")) {
-            let right_type = self.type_of(right?, source, scope_idx, knowledge);
-            let right_name = right_type.principal()?;
-            if right_name.as_ref() == "ZZ" {
-                return Some(InferredType::of("QuotientRing"));
-            }
-        }
-
-        None
-    }
-
-    /// Application `f SPACE x`. A `Function` head delegates to the head's own
-    /// signatures available in the current object environment,
-    /// stepping beyond the M2 table whose `(Function, Thing)` row only yields
-    /// `Thing`. A non-`Function` head dispatches `SPACE` through the table
-    /// (`Ring × Array → PolynomialRing`).
-    fn application_type(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> InferredType {
-        let (Some(callable_node), Some(argument_node)) = (
-            node.child_by_field_name("left"),
-            node.child_by_field_name("right"),
-        ) else {
-            return InferredType::unknown();
-        };
-        let callable_name = symbol_node_text(callable_node);
-        let call_facts = self.infer_call_facts_for_callable(
-            argument_node,
-            source,
-            scope_idx,
-            callable_name,
-            knowledge,
-        );
-
-        // A locally-defined function is known to be a function from the registry
-        // alone, so its application resolves without external type facts: its
-        // signatures give the codomain, and an undocumented one yields `Thing`
-        // (applying a function gives at least a Thing).
-        if let Some(callable) = callable_name {
-            let position = source.position_for_node(callable_node);
-            if let Some(function) = self.local_function_at(callable, scope_idx, position, knowledge)
-            {
-                return self
-                    .resolve_local_call_return_type(
-                        function,
-                        &call_facts.argument_types,
-                        position,
-                        knowledge,
-                    )
-                    .map_or_else(|| InferredType::of("Thing"), InferredType::from_id);
-            }
-        }
-
-        // Otherwise the lattice decides whether the head is a function (delegating
-        // to its signatures) or another SPACE method (`Ring × Array →
-        // PolynomialRing`).
-        let head = self.type_of(callable_node, source, scope_idx, knowledge);
-        let head_is_function = head
-            .principal()
-            .is_some_and(|head| type_is_subtype(knowledge, head, &ObjectName::new("Function")));
-        if head_is_function {
-            if let Some(callable) = callable_name {
-                if let Some(return_type) = knowledge.resolve_call_return_type_with_options(
-                    &ObjectName::new(callable),
-                    &self.dispatch_argument_types(&call_facts, knowledge),
-                    &call_facts.literal_options,
-                ) {
-                    return InferredType::from_id(return_type);
-                }
-            }
-            // Applying a function yields at least a Thing.
-            return InferredType::of("Thing");
-        }
-
-        if let Some(result) = self.ring_application_with_trailing_operator_type(
-            &head,
-            argument_node,
-            source,
-            scope_idx,
-            knowledge,
-        ) {
-            return result;
-        }
-
-        let argument_type = self.type_of(argument_node, source, scope_idx, knowledge);
-        self.dispatch_codomain(
-            knowledge,
-            SPACE_OPERATOR,
-            &[head, argument_type],
-            &call_facts.literal_options,
-        )
-    }
-
-    /// Square-bracket ring construction binds specially in Macaulay2 source:
-    /// `R[x]/I` has a CST shaped like `R SPACE ([x] / I)`, while evaluation
-    /// constructs `R[x]` before applying `/ I`. Preserve the parser's grouping,
-    /// but lower that one type-directed application chain through the same
-    /// dispatch table used for ordinary operators.
-    fn ring_application_with_trailing_operator_type(
-        &self,
-        head: &InferredType,
-        argument: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<InferredType> {
-        let head_name = head.principal()?;
-        if !type_is_subtype(knowledge, head_name, &ObjectName::new("Ring")) {
-            return None;
-        }
-
-        let operator = argument.binary_operator()?;
-        let variables = argument.child_by_field_name("left")?;
-        if !variables.kind.is_collection_expression() {
-            return None;
-        }
-        let trailing_operand = argument.child_by_field_name("right")?;
-
-        let variables_type = self.type_of(variables, source, scope_idx, knowledge);
-        let ring_type = self.dispatch_codomain(
-            knowledge,
-            SPACE_OPERATOR,
-            &[head.clone(), variables_type],
-            &[],
-        );
-        let ring_name = ring_type.principal()?;
-        if !type_is_subtype(knowledge, ring_name, &ObjectName::new("Ring")) {
-            return None;
-        }
-
-        let trailing_type = self.type_of(trailing_operand, source, scope_idx, knowledge);
-        let result = knowledge.resolve_call_return_type_with_options(
-            &ObjectName::new(operator),
-            &[
-                self.dispatch_type_id(&ring_type, knowledge),
-                self.dispatch_type_id(&trailing_type, knowledge),
-            ],
-            &[],
-        )?;
-        Some(InferredType::from_id(result))
-    }
-
-    /// Whether `name` resolves to a function tracked in the local registry — a
-    /// lambda binding or a local method declaration. Such a head is known to be a
-    /// function without consulting external type facts.
-    fn local_function_at(
-        &self,
-        name: &str,
-        scope_idx: usize,
-        position: Position,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<&FunctionInfo> {
-        let binding = self
-            .get_binding_from_scope(name, scope_idx, position)
-            .filter(|binding| binding.state.kind == SymbolKind::FUNCTION)?;
-        if binding.scope_idx == 0
-            && knowledge.shadows_source(&binding.name, binding.state.span.range.start)
-        {
-            return None;
-        }
-        self.registry.functions.get(name)
-    }
-
-    /// A prefix/postfix operator's type: `typicalValue(op, operand)`.
-    fn unary_operator_type(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> InferredType {
-        let (Some(operator), Some(operand)) =
-            (operator_text(node), node.child_by_field_name("operand"))
-        else {
-            return InferredType::unknown();
-        };
-        let operand_type = self.type_of(operand, source, scope_idx, knowledge);
-        self.dispatch_codomain(knowledge, operator, &[operand_type], &[])
-    }
-
-    /// Dispatch `callable` on `args` through the M2 type table. A matched but
-    /// undocumented codomain is `Thing` (≡ a null `typicalValue` under the
-    /// lower-bound reading) — approximated by "the callable/operator resolves to
-    /// a known object, so it dispatches"; an unidentifiable head stays `Unknown`.
-    fn dispatch_codomain(
-        &self,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-        callable: &str,
-        args: &[InferredType],
-        options: &[LiteralOption],
-    ) -> InferredType {
-        if let Some(function) = self.registry.functions.get(callable) {
-            if let Some(return_type) = self.resolve_local_call_return_type(
-                function,
-                args,
-                Position::new(u32::MAX, u32::MAX),
-                knowledge,
-            ) {
-                return InferredType::from_id(return_type);
-            }
-        }
-        if let Some(return_type) = knowledge.resolve_call_return_type_with_options(
-            &ObjectName::new(callable),
-            &args
-                .iter()
-                .map(|argument| self.dispatch_type_id(argument, knowledge))
-                .collect::<Vec<_>>(),
-            options,
-        ) {
-            return InferredType::from_id(return_type);
-        }
-        if knowledge.get_record(&ObjectName::new(callable)).is_some() {
-            return InferredType::of("Thing");
-        }
-        InferredType::unknown()
-    }
-
-    fn infer_call_facts(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> CallStaticFacts {
-        self.infer_call_facts_for_callable(node, source, scope_idx, None, knowledge)
-    }
-
-    fn infer_call_facts_for_callable(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        scope_idx: usize,
-        callable: Option<&str>,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> CallStaticFacts {
-        // A single parenthesized argument `f(x)` / `f(opt => v)` denotes its inner
-        // value; peel it so the argument is classified like a bare argument.
-        let node = parenthesized_value(node).unwrap_or(node);
-        let receives_sequence = callable.is_some_and(|name| {
-            self.callable_receives_sequence(
-                name,
-                scope_idx,
-                source.position_for_node(node),
-                knowledge,
-            )
-        });
-        if node.kind == NodeKind::Sequence && !receives_sequence {
-            let mut facts = CallStaticFacts::default();
-            for child in node.collection_elements() {
-                if let Some(option) = literal_option_assignment(child) {
-                    facts.literal_options.push(option);
-                } else {
-                    facts
-                        .argument_types
-                        .push(self.type_of(child, source, scope_idx, knowledge));
-                }
-            }
-            return facts;
-        }
-
-        if let Some(option) = literal_option_assignment(node) {
-            return CallStaticFacts {
-                argument_types: Vec::new(),
-                literal_options: vec![option],
-            };
-        }
-
-        CallStaticFacts {
-            argument_types: vec![self.type_of(node, source, scope_idx, knowledge)],
-            literal_options: Vec::new(),
-        }
-    }
-
-    fn callable_receives_sequence(
-        &self,
-        name: &str,
-        scope_idx: usize,
-        position: Position,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> bool {
-        let local_dispatch = self
-            .local_function_at(name, scope_idx, position, knowledge)
-            .and_then(|function| function.dispatch);
-        if local_dispatch == Some(Dispatch::Variadic) {
-            return true;
-        }
-
-        knowledge
-            .get_record(&ObjectName::new(name))
-            .and_then(|record| record.callable())
-            .is_some_and(|callable| callable.receives_sequence)
-    }
-
-    fn resolve_local_call_return_type(
-        &self,
-        function: &FunctionInfo,
-        argument_types: &[InferredType],
-        position: Position,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<ObjectName> {
-        let matching_codomains = self
-            .methods_for_at(function, position)
-            .into_iter()
-            .filter(|signature| self.signature_matches(signature, argument_types, knowledge))
-            .filter_map(|signature| signature.codomain.as_ref())
-            .cloned()
-            .collect::<HashSet<_>>();
-
-        if matching_codomains.len() == 1 {
-            return matching_codomains.into_iter().next();
-        }
-
-        function.typical_value.clone()
-    }
-
-    fn signature_matches(
-        &self,
-        signature: &Method,
-        argument_types: &[InferredType],
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> bool {
-        self.signature_matches_domain(&signature.domain, argument_types, knowledge)
-    }
-
-    fn signature_matches_domain(
-        &self,
-        expected_domain: &[ObjectName],
-        argument_types: &[InferredType],
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> bool {
-        expected_domain.len() == argument_types.len()
-            && expected_domain
-                .iter()
-                .zip(argument_types)
-                .all(|(expected, actual)| {
-                    actual
-                        .principal()
-                        .is_some_and(|actual| self.is_subtype(actual, expected, knowledge))
-                })
-    }
-
-    fn is_subtype(
-        &self,
-        actual: &ObjectName,
-        expected: &ObjectName,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> bool {
-        let order = SourceTypeOrder {
-            source: &self.registry.source_types,
-            external: knowledge,
-        };
-        self.resolve_ordered_type(actual, knowledge, &order)
-            .zip(self.resolve_ordered_type(expected, knowledge, &order))
-            .is_some_and(|(actual, expected)| actual <= expected)
-    }
-
-    fn resolve_source_type_id(&self, name: &ObjectName) -> Option<TypeId> {
-        self.registry.source_types.by_name.get(name).cloned()
-    }
-
-    fn resolve_type_id(
-        &self,
-        name: &ObjectName,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<TypeId> {
-        self.resolve_source_type_id(name).or_else(|| {
-            knowledge
-                .resolve_type(name)
-                .map(|type_data| type_data.id().clone())
-        })
-    }
-
-    fn resolve_ordered_type<'a, Knowledge: TypeKnowledge + ?Sized>(
-        &'a self,
-        name: &ObjectName,
-        knowledge: &'a Knowledge,
-        order: &'a SourceTypeOrder<'a, Knowledge>,
-    ) -> Option<Type<'a>> {
-        let id = self.resolve_type_id(name, knowledge)?;
-        Some(Type::new(id, order))
-    }
-
     pub fn binding_id_at(&self, name: &str, pos: Position) -> Option<BindingId> {
         let scope_idx = self.find_scope_at(pos)?;
         self.binding_id_from_scope(name, scope_idx, pos)
-    }
-}
-
-/// Binding-registration policy selected from the assignment operator.
-#[derive(Debug, Clone, Copy)]
-enum DefinitionScope {
-    Local,
-    Assign,
-}
-
-/// Complete input for creating a binding or adding a new state to one.
-///
-/// Keeping this packet typed ensures all registration paths pass through the
-/// same bookkeeping code.
-#[derive(Debug, Clone)]
-struct SymbolRegistration<'a> {
-    kind: SymbolKind,
-    role: BindingRole,
-    type_name: Option<ObjectName>,
-    indexed_element_type: Option<ObjectName>,
-    parent_type: Option<TypeId>,
-    node: M2Node<'a>,
-    value_node: Option<M2Node<'a>>,
-    scope_idx: usize,
-    potential_export: bool,
-}
-
-/// A ring-generator name and source node extracted from constructor syntax
-/// before it is registered as a binding.
-#[derive(Debug, Clone)]
-struct RingGeneratorBinding<'a> {
-    name: String,
-    kind: RingGeneratorKind,
-    node: M2Node<'a>,
-}
-
-/// Runtime binding shape produced for a ring generator.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RingGeneratorKind {
-    Direct,
-    IndexedTable,
-}
-
-/// Compact reference to a registered generator retained for later ring
-/// rebinding.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct RingGenerator {
-    name: ObjectName,
-    kind: RingGeneratorKind,
-}
-
-fn ring_constructor_variables(application: M2Node<'_>) -> Option<M2Node<'_>> {
-    let argument = application.child_by_field_name("right")?;
-    if argument.kind.is_collection_expression() {
-        return Some(argument);
-    }
-    argument
-        .child_by_field_name("left")
-        .filter(|left| left.kind.is_collection_expression())
-}
-
-fn ring_generator_bindings(container: M2Node<'_>) -> Vec<RingGeneratorBinding<'_>> {
-    let elements = container.collection_elements().collect::<Vec<_>>();
-    let variable_base = elements
-        .iter()
-        .find_map(|element| option_value_node(*element, "VariableBaseName"))
-        .and_then(generator_base_name);
-    let mut bindings = Vec::new();
-
-    for element in elements {
-        if element.is_option_assignment() {
-            if let Some(variables) = option_value_node(element, "Variables") {
-                if variables.kind == NodeKind::IntegerLiteral {
-                    let name = variable_base.clone().unwrap_or_else(|| "p".to_string());
-                    push_ring_generator(
-                        &mut bindings,
-                        RingGeneratorBinding {
-                            name,
-                            kind: RingGeneratorKind::IndexedTable,
-                            node: variables,
-                        },
-                    );
-                } else {
-                    collect_ring_generator_spec(variables, &mut bindings);
-                }
-            }
-            continue;
-        }
-        collect_ring_generator_spec(element, &mut bindings);
-    }
-
-    bindings
-}
-
-fn option_value_node<'tree>(node: M2Node<'tree>, key: &str) -> Option<M2Node<'tree>> {
-    if !node.is_option_assignment() {
-        return None;
-    }
-    node.child_by_field_name("left")
-        .filter(|left| left.kind == NodeKind::Symbol && left.text() == key)?;
-    node.child_by_field_name("right")
-}
-
-fn generator_base_name(node: M2Node<'_>) -> Option<String> {
-    match node.kind {
-        NodeKind::Symbol => Some(node.text().to_string()),
-        NodeKind::StringLiteral => node.string_literal_inner_text().map(ToString::to_string),
-        _ => None,
-    }
-}
-
-fn collect_ring_generator_spec<'tree>(
-    node: M2Node<'tree>,
-    bindings: &mut Vec<RingGeneratorBinding<'tree>>,
-) {
-    if node.kind == NodeKind::Symbol {
-        push_ring_generator(
-            bindings,
-            RingGeneratorBinding {
-                name: node.text().to_string(),
-                kind: RingGeneratorKind::Direct,
-                node,
-            },
-        );
-        return;
-    }
-
-    if node.binary_operator() == Some("_") {
-        if let Some(base) = node
-            .child_by_field_name("left")
-            .filter(|base| base.kind == NodeKind::Symbol)
-        {
-            push_ring_generator(
-                bindings,
-                RingGeneratorBinding {
-                    name: base.text().to_string(),
-                    kind: RingGeneratorKind::IndexedTable,
-                    node: base,
-                },
-            );
-        }
-        return;
-    }
-
-    if matches!(node.binary_operator(), Some("..") | Some("..<")) {
-        let left = node.child_by_field_name("left");
-        let right = node.child_by_field_name("right");
-        if let (Some(left), Some(right)) = (left, right) {
-            if let (Some(left_base), Some(right_base)) =
-                (indexed_variable_base(left), indexed_variable_base(right))
-            {
-                if left_base.text() == right_base.text() {
-                    push_ring_generator(
-                        bindings,
-                        RingGeneratorBinding {
-                            name: left_base.text().to_string(),
-                            kind: RingGeneratorKind::IndexedTable,
-                            node,
-                        },
-                    );
-                    return;
-                }
-            }
-
-            if let Some(names) = simple_symbol_range(node, left, right) {
-                for name in names {
-                    push_ring_generator(
-                        bindings,
-                        RingGeneratorBinding {
-                            name,
-                            kind: RingGeneratorKind::Direct,
-                            node,
-                        },
-                    );
-                }
-                return;
-            }
-        }
-    }
-
-    if node.kind.is_collection_expression() {
-        for element in node.collection_elements() {
-            collect_ring_generator_spec(element, bindings);
-        }
-    }
-}
-
-fn indexed_variable_base(node: M2Node<'_>) -> Option<M2Node<'_>> {
-    (node.binary_operator() == Some("_"))
-        .then(|| node.child_by_field_name("left"))
-        .flatten()
-        .filter(|base| base.kind == NodeKind::Symbol)
-}
-
-fn simple_symbol_range(
-    range: M2Node<'_>,
-    left: M2Node<'_>,
-    right: M2Node<'_>,
-) -> Option<Vec<String>> {
-    if left.kind != NodeKind::Symbol || right.kind != NodeKind::Symbol {
-        return None;
-    }
-    let [start] = left.text().as_bytes() else {
-        return None;
-    };
-    let [end] = right.text().as_bytes() else {
-        return None;
-    };
-    if !start.is_ascii_alphabetic()
-        || !end.is_ascii_alphabetic()
-        || start.is_ascii_lowercase() != end.is_ascii_lowercase()
-        || start > end
-    {
-        return None;
-    }
-
-    let exclusive = range.binary_operator() == Some("..<");
-    let stop = if exclusive {
-        *end
-    } else {
-        end.saturating_add(1)
-    };
-    Some(
-        (*start..stop)
-            .map(|letter| (letter as char).to_string())
-            .collect(),
-    )
-}
-
-fn push_ring_generator<'tree>(
-    bindings: &mut Vec<RingGeneratorBinding<'tree>>,
-    binding: RingGeneratorBinding<'tree>,
-) {
-    if !bindings
-        .iter()
-        .any(|existing| existing.name == binding.name)
-    {
-        bindings.push(binding);
     }
 }
 
@@ -2776,14 +1709,8 @@ fn declared_type_parent<'tree>(
     type_name: Option<&ObjectName>,
     knowledge: &(impl TypeKnowledge + ?Sized),
 ) -> Option<ObjectName> {
-    if type_name.is_some_and(|type_name| {
-        type_name.name() == "Ring"
-            || type_is_subtype(knowledge, type_name, &ObjectName::new("Ring"))
-    }) {
-        // A ring value is itself a runtime type. Its elements have that ring as
-        // their class, while the ring's instance hierarchy starts at
-        // `RingElement` (`parent R === RingElement`).
-        return Some(ObjectName::new("RingElement"));
+    if let Some(parent) = ring::RingSemantics::value_parent(type_name, knowledge) {
+        return Some(parent);
     }
     if value.kind != NodeKind::NewStatement
         || !type_name.is_some_and(|type_name| type_name_denotes_type(type_name, knowledge))
@@ -2891,7 +1818,7 @@ fn type_name_denotes_type(
     type_name: &ObjectName,
     knowledge: &(impl TypeKnowledge + ?Sized),
 ) -> bool {
-    type_name.name() == "Type" || type_is_subtype(knowledge, type_name, &ObjectName::new("Type"))
+    type_name.name() == "Type" || knowledge.is_subtype(type_name, &ObjectName::new("Type"))
 }
 
 pub fn method_installation_signature(node: M2Node) -> Option<(String, Vec<ObjectName>)> {
@@ -2991,25 +1918,6 @@ fn is_loop_clause(kind: NodeKind) -> bool {
             | NodeKind::ListClause
             | NodeKind::DoClause
     )
-}
-
-/// Scope behavior contributed by one control-flow child.
-#[derive(Debug, Clone, Copy)]
-struct ChildScopePolicy {
-    assignments_are_local: bool,
-    context_assignments_may_escape: bool,
-}
-
-impl ChildScopePolicy {
-    const CONDITIONAL: Self = Self {
-        assignments_are_local: true,
-        context_assignments_may_escape: true,
-    };
-
-    const LOOP_CLAUSE: Self = Self {
-        assignments_are_local: false,
-        context_assignments_may_escape: false,
-    };
 }
 
 fn child_scope_policy(parent: M2Node<'_>, child: M2Node<'_>) -> Option<ChildScopePolicy> {

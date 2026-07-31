@@ -3,7 +3,7 @@
 use crate::builtin_index::OptionFacts;
 use crate::builtin_index::Record;
 use crate::object_registry::{ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView};
-use crate::typesystem::{type_is_subtype, TypeKnowledge};
+use crate::typesystem::TypeKnowledge;
 
 /// Indexed facts needed specifically for semantic-token classification.
 ///
@@ -179,7 +179,7 @@ pub fn semantic_token_from_knowledge(
 ) -> Option<M2SemanticToken> {
     let record = knowledge.get_record(&ObjectName::new(name))?;
     let data_type = &record.class;
-    let subtype_of = |parent: &str| type_is_subtype(knowledge, data_type, &ObjectName::new(parent));
+    let subtype_of = |parent: &str| knowledge.is_subtype(data_type, &ObjectName::new(parent));
 
     let is_command = subtype_of("Command");
     let is_file = subtype_of("File");
@@ -283,8 +283,7 @@ pub fn semantic_token_for_static_type_from_knowledge(
     type_name: &str,
 ) -> Option<M2SemanticToken> {
     let type_name = ObjectName::new(type_name);
-    let subtype_of =
-        |parent: &str| type_is_subtype(knowledge, &type_name, &ObjectName::new(parent));
+    let subtype_of = |parent: &str| knowledge.is_subtype(&type_name, &ObjectName::new(parent));
     let is_command = subtype_of("Command");
     let is_file = subtype_of("File");
     let is_manipulator = subtype_of("Manipulator");

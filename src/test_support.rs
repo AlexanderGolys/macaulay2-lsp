@@ -3,9 +3,9 @@
 use crate::analysis::Analysis;
 use crate::builtin_index::Record;
 use crate::node_metadata::M2Node;
-use crate::object_registry::{ObjectId, ObjectKnowledge, ObjectName, Type, TypeId, TypeStore};
+use crate::object_registry::{ObjectId, ObjectKnowledge, ObjectName, TypeId, TypeStore};
 use crate::source::DocumentSource;
-use crate::typesystem::{LiteralOption, PositionedTypeKnowledge, TypeKnowledge};
+use crate::typesystem::{PositionedTypeKnowledge, TypeKnowledge};
 use tower_lsp::lsp_types::Position;
 
 /// Empty semantic knowledge for parser- and scope-only tests.
@@ -20,10 +20,6 @@ impl ObjectKnowledge for NoTypeKnowledge {
     fn resolve_object(&self, _name: &ObjectName) -> Option<ObjectId> {
         None
     }
-
-    fn resolve_type(&self, _name: &ObjectName) -> Option<Type<'_>> {
-        None
-    }
 }
 
 impl TypeStore for NoTypeKnowledge {
@@ -35,15 +31,6 @@ impl TypeStore for NoTypeKnowledge {
 impl TypeKnowledge for NoTypeKnowledge {
     fn is_available(&self) -> bool {
         false
-    }
-
-    fn resolve_call_return_type_with_options(
-        &self,
-        _callable: &ObjectName,
-        _argument_types: &[Option<ObjectName>],
-        _options: &[LiteralOption],
-    ) -> Option<ObjectName> {
-        None
     }
 }
 

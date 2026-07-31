@@ -21,7 +21,10 @@ pub struct LiteralOption {
 /// storage and resolution order. The complete [`ObjectRegistry`], an ordered
 /// package view, and syntax-only test knowledge all implement the same contract.
 pub trait TypeKnowledge: ObjectKnowledge {
-    fn is_available(&self) -> bool;
+    /// Whether external type facts are available for diagnostics.
+    fn is_available(&self) -> bool {
+        true
+    }
 
     /// Whether a later package inclusion shadows a global source definition of
     /// `name` made at `source_position`.
@@ -29,27 +32,99 @@ pub trait TypeKnowledge: ObjectKnowledge {
         false
     }
 
+    /// Resolve two nominal references and compare their validated type IDs.
+    fn is_subtype(&self, child: &ObjectName, parent: &ObjectName) -> bool {
+        self.resolve_type_id(child)
+            .zip(self.resolve_type_id(parent))
+            .is_some_and(|(child, parent)| self.is_subtype_id(&child, &parent))
+    }
+
+    /// Whether `smaller` is a strict componentwise subtype of `bigger`.
+    fn domain_strictly_smaller(&self, smaller: &[ObjectName], bigger: &[ObjectName]) -> bool {
+        if smaller == bigger || smaller.len() != bigger.len() {
+            return false;
+        }
+
+        let mut strict = false;
+        for (small, big) in smaller.iter().zip(bigger) {
+            if small == big {
+                continue;
+            }
+            if self.is_subtype(small, big) {
+                strict = true;
+                continue;
+            }
+            return false;
+        }
+        strict
+    }
+
+    /// Resolve a call to exactly one known return type, or stay silent when the
+    /// available metadata is ambiguous or incomplete.
     fn resolve_call_return_type_with_options(
         &self,
         callable: &ObjectName,
         argument_types: &[Option<ObjectName>],
-        options: &[LiteralOption],
-    ) -> Option<ObjectName>;
-}
+        _options: &[LiteralOption],
+    ) -> Option<ObjectName> {
+        self.resolve_installed_method_codomain(callable, argument_types)
+            .or_else(|| self.get_record(callable)?.callable()?.typical_value.clone())
+    }
 
-/// Resolve two nominal references and compare their registry-backed types.
-///
-/// Names are used only at this linking boundary; the relation itself is
-/// [`PartialOrd`] on [`crate::object_registry::Type`].
-pub fn type_is_subtype(
-    knowledge: &(impl TypeKnowledge + ?Sized),
-    child: &ObjectName,
-    parent: &ObjectName,
-) -> bool {
-    knowledge
-        .resolve_type(child)
-        .zip(knowledge.resolve_type(parent))
-        .is_some_and(|(child, parent)| child <= parent)
+    /// Resolve a call only when its known argument types select one installed
+    /// method codomain.
+    fn resolve_installed_method_codomain(
+        &self,
+        callable: &ObjectName,
+        argument_types: &[Option<ObjectName>],
+    ) -> Option<ObjectName> {
+        let callable_info = self.get_record(callable)?.callable()?;
+        let mut specialized_candidates = Vec::new();
+        let mut general_candidates = Vec::new();
+        for method in &callable_info.methods {
+            if method.domain.is_empty() || method.domain.len() != argument_types.len() {
+                continue;
+            }
+            if !argument_types
+                .iter()
+                .zip(&method.domain)
+                .all(|(argument_type, domain_type)| {
+                    argument_type.as_ref().is_some_and(|argument_type| {
+                        argument_type == domain_type || self.is_subtype(argument_type, domain_type)
+                    })
+                })
+            {
+                continue;
+            }
+            let Some((codomain, is_specialized)) = callable_info.effective_codomain(method) else {
+                continue;
+            };
+            let candidate = (method.domain.as_slice(), codomain);
+            if is_specialized {
+                specialized_candidates.push(candidate);
+            } else {
+                general_candidates.push(candidate);
+            }
+        }
+
+        let mut candidates = if specialized_candidates.is_empty() {
+            general_candidates
+        } else {
+            specialized_candidates
+        };
+        let originals = candidates.clone();
+        candidates.retain(|candidate| {
+            !originals
+                .iter()
+                .any(|other| self.domain_strictly_smaller(other.0, candidate.0))
+        });
+        candidates.sort_by(|left, right| left.0.cmp(right.0).then_with(|| left.1.cmp(right.1)));
+        candidates.dedup();
+        match candidates.as_slice() {
+            [(_, codomain)] => Some((*codomain).clone()),
+            _ => None,
+        }
+    }
 }
 
 /// Finite antichain presentation of the free cocompletion of a partial order.
@@ -57,20 +132,20 @@ pub fn type_is_subtype(
 /// Each stored generator represents its principal up-set. Their union is kept
 /// minimal by removing generators subsumed by another generator.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PosetCocompletion<Element> {
-    minimal_generators: Vec<Element>,
+pub struct InferredType {
+    minimal_generators: Vec<ObjectName>,
 }
 
-impl<Element: Clone + PartialEq> PosetCocompletion<Element> {
+impl InferredType {
     /// Construct one principal up-set.
-    pub fn principal_upset(generator: Element) -> Self {
+    fn principal_upset(generator: ObjectName) -> Self {
         Self {
             minimal_generators: vec![generator],
         }
     }
 
     /// Return the generator when this cocompletion value is principal.
-    pub fn principal(&self) -> Option<&Element> {
+    pub fn principal(&self) -> Option<&ObjectName> {
         match self.minimal_generators.as_slice() {
             [only] => Some(only),
             _ => None,
@@ -78,7 +153,7 @@ impl<Element: Clone + PartialEq> PosetCocompletion<Element> {
     }
 
     /// Form a union and minimize it using the supplied partial-order relation.
-    pub fn union_by(self, other: Self, is_below: impl Fn(&Element, &Element) -> bool) -> Self {
+    fn union_by(self, other: Self, is_below: impl Fn(&ObjectName, &ObjectName) -> bool) -> Self {
         let mut minimal_generators = self.minimal_generators;
         for generator in other.minimal_generators {
             if !minimal_generators.contains(&generator) {
@@ -93,12 +168,7 @@ impl<Element: Clone + PartialEq> PosetCocompletion<Element> {
         });
         Self { minimal_generators }
     }
-}
 
-/// Typechecker's cocompletion value over nominal Macaulay2 type references.
-pub type InferredType = PosetCocompletion<ObjectName>;
-
-impl PosetCocompletion<ObjectName> {
     /// The whole known type order, represented by its `Thing` generator.
     pub(crate) fn unknown() -> Self {
         Self::of("Thing")
@@ -132,9 +202,7 @@ impl PosetCocompletion<ObjectName> {
 
     /// Union two inferred type values using the registry's type partial order.
     pub(crate) fn join(self, other: Self, knowledge: &(impl TypeKnowledge + ?Sized)) -> Self {
-        self.union_by(other, |child, parent| {
-            type_is_subtype(knowledge, child, parent)
-        })
+        self.union_by(other, |child, parent| knowledge.is_subtype(child, parent))
     }
 }
 
@@ -166,132 +234,11 @@ impl PositionedTypeKnowledge for ObjectRegistryView<'_> {
     }
 }
 
-impl ObjectRegistry {
-    /// Resolve a call to exactly one known return type, or stay silent when the
-    /// available metadata is ambiguous or incomplete. Literal option facts are
-    /// accepted for the option-sensitive dispatch path.
-    pub fn resolve_call_return_type_with_options(
-        &self,
-        callable: &ObjectName,
-        argument_types: &[Option<ObjectName>],
-        literal_options: &[LiteralOption],
-    ) -> Option<ObjectName> {
-        resolve_call_return_type_with_options(self, callable, argument_types, literal_options)
-    }
-}
-
-/// Resolve a call to exactly one return type from a registry visibility view.
-pub fn resolve_call_return_type_with_options(
-    knowledge: &(impl TypeKnowledge + ?Sized),
-    callable: &ObjectName,
-    argument_types: &[Option<ObjectName>],
-    _literal_options: &[LiteralOption],
-) -> Option<ObjectName> {
-    if let Some(codomain) = resolve_installed_method_codomain(knowledge, callable, argument_types) {
-        return Some(codomain);
-    }
-
-    knowledge
-        .get_record(callable)?
-        .callable()?
-        .typical_value
-        .clone()
-}
-
-/// Resolve a call only when its known argument types select one installed
-/// method codomain.
-fn resolve_installed_method_codomain(
-    knowledge: &(impl TypeKnowledge + ?Sized),
-    callable: &ObjectName,
-    argument_types: &[Option<ObjectName>],
-) -> Option<ObjectName> {
-    let record = knowledge.get_record(callable)?;
-    let callable_info = record.callable()?;
-    let mut specialized_candidates = Vec::new();
-    let mut general_candidates = Vec::new();
-    for method in &callable_info.methods {
-        if method.domain.is_empty() {
-            continue;
-        }
-        if method.domain.len() != argument_types.len() {
-            continue;
-        }
-        if !argument_types
-            .iter()
-            .zip(&method.domain)
-            .all(|(argument_type, domain_type)| match argument_type {
-                Some(argument_type) => {
-                    argument_type == domain_type
-                        || type_is_subtype(knowledge, argument_type, domain_type)
-                }
-                None => false,
-            })
-        {
-            continue;
-        }
-        let Some((codomain, is_specialized)) = effective_method_codomain(callable_info, method)
-        else {
-            continue;
-        };
-        let candidate = (method.domain.as_slice(), codomain);
-        if is_specialized {
-            specialized_candidates.push(candidate);
-        } else {
-            general_candidates.push(candidate);
-        }
-    }
-
-    let mut candidates = if specialized_candidates.is_empty() {
-        general_candidates
-    } else {
-        specialized_candidates
-    };
-    take_nonminimal_signatures(knowledge, &mut candidates);
-    candidates.sort_by(|left, right| left.0.cmp(right.0).then_with(|| left.1.cmp(right.1)));
-    candidates.dedup();
-    if let [(_, codomain)] = candidates.as_slice() {
-        Some((*codomain).clone())
-    } else {
-        None
-    }
-}
-
-impl TypeKnowledge for ObjectRegistry {
-    fn is_available(&self) -> bool {
-        true
-    }
-
-    fn resolve_call_return_type_with_options(
-        &self,
-        callable: &ObjectName,
-        argument_types: &[Option<ObjectName>],
-        options: &[LiteralOption],
-    ) -> Option<ObjectName> {
-        ObjectRegistry::resolve_call_return_type_with_options(
-            self,
-            callable,
-            argument_types,
-            options,
-        )
-    }
-}
+impl TypeKnowledge for ObjectRegistry {}
 
 impl TypeKnowledge for ObjectRegistryView<'_> {
-    fn is_available(&self) -> bool {
-        true
-    }
-
     fn shadows_source(&self, name: &ObjectName, source_position: Position) -> bool {
         ObjectRegistryView::shadows_source(self, name, source_position)
-    }
-
-    fn resolve_call_return_type_with_options(
-        &self,
-        callable: &ObjectName,
-        argument_types: &[Option<ObjectName>],
-        options: &[LiteralOption],
-    ) -> Option<ObjectName> {
-        resolve_call_return_type_with_options(self, callable, argument_types, options)
     }
 }
 
@@ -303,80 +250,24 @@ impl<T: TypeKnowledge + ?Sized> TypeKnowledge for &T {
     fn shadows_source(&self, name: &ObjectName, source_position: Position) -> bool {
         T::shadows_source(self, name, source_position)
     }
-
-    fn resolve_call_return_type_with_options(
-        &self,
-        callable: &ObjectName,
-        argument_types: &[Option<ObjectName>],
-        options: &[LiteralOption],
-    ) -> Option<ObjectName> {
-        T::resolve_call_return_type_with_options(self, callable, argument_types, options)
-    }
 }
 
-fn take_nonminimal_signatures(
-    knowledge: &(impl TypeKnowledge + ?Sized),
-    signatures: &mut Vec<(&[ObjectName], &ObjectName)>,
-) {
-    let originals = signatures.clone();
-    signatures.retain(|candidate| {
-        !originals
-            .iter()
-            .any(|other| domain_strictly_smaller(knowledge, other.0, candidate.0))
-    });
-}
-
-/// Resolve the effective codomain of an installed method and whether it came
-/// from that method rather than the callable's general typical value.
-pub(crate) fn effective_method_codomain<'a>(
-    callable: &'a CallableInfo,
-    method: &'a MethodSignature,
-) -> Option<(&'a ObjectName, bool)> {
-    method
-        .codomain
-        .as_ref()
-        .map(|codomain| (codomain, true))
-        .or_else(|| {
-            callable
-                .typical_value
-                .as_ref()
-                .map(|codomain| (codomain, false))
-        })
-}
-
-/// Whether `smaller` is a strict componentwise subtype of `bigger`.
-pub(crate) fn domain_strictly_smaller(
-    knowledge: &(impl TypeKnowledge + ?Sized),
-    smaller: &[ObjectName],
-    bigger: &[ObjectName],
-) -> bool {
-    if smaller == bigger {
-        return false;
+impl CallableInfo {
+    /// Resolve a method's effective codomain and whether it is specialized.
+    pub fn effective_codomain<'a>(
+        &'a self,
+        method: &'a MethodSignature,
+    ) -> Option<(&'a ObjectName, bool)> {
+        method
+            .codomain
+            .as_ref()
+            .map(|codomain| (codomain, true))
+            .or_else(|| {
+                self.typical_value
+                    .as_ref()
+                    .map(|codomain| (codomain, false))
+            })
     }
-
-    if smaller.len() != bigger.len() {
-        return false;
-    }
-
-    let mut strict = false;
-    for (small, big) in smaller.iter().zip(bigger) {
-        if small == big {
-            continue;
-        }
-        let Some(small) = knowledge.resolve_type(small) else {
-            return false;
-        };
-        let Some(big) = knowledge.resolve_type(big) else {
-            return false;
-        };
-        if small < big {
-            strict = true;
-            continue;
-        }
-        return false;
-    }
-
-    strict
 }
 
 #[cfg(test)]
@@ -449,10 +340,7 @@ mod tests {
         // Direct parent edges (verified against M2): SelfInitializingType <: Type,
         // Array <: VisibleList.
         let subtype = |child: &str, parent: &str| {
-            builtins
-                .resolve_type(&ObjectName::new(child))
-                .zip(builtins.resolve_type(&ObjectName::new(parent)))
-                .is_some_and(|(child, parent)| child <= parent)
+            builtins.is_subtype(&ObjectName::new(child), &ObjectName::new(parent))
         };
         assert!(subtype("SelfInitializingType", "Type"));
         assert!(subtype("Array", "VisibleList"));

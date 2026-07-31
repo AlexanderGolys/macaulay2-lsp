@@ -13,7 +13,6 @@ use crate::semantic_token::{
     M2SemanticToken, M2SemanticTokenProvenance, M2SemanticTokenType, SemanticTokenKnowledge,
 };
 use crate::source::{DocumentSpan, SourceNavigation};
-use crate::typesystem::type_is_subtype;
 use crate::workspace_index::WorkspaceDefinitionKnowledge;
 
 pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
@@ -461,11 +460,7 @@ fn static_type_semantic_token_for_local_symbol(
         // locally declared and function-produced classes, as `class`.
         Some(SymbolKind::VARIABLE)
             if token.token_type == M2SemanticTokenType::Class
-                && type_is_subtype(
-                    builtins,
-                    &ObjectName::new(type_name),
-                    &ObjectName::new("Ring"),
-                ) =>
+                && builtins.is_subtype(&ObjectName::new(type_name), &ObjectName::new("Ring")) =>
         {
             token.token_type = M2SemanticTokenType::Type;
             Some(token)

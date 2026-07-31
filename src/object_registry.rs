@@ -2,10 +2,9 @@
 
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Formatter;
 use std::fmt::{Debug, Display, Result};
-use std::ptr;
 use std::sync::Arc;
-use std::{cmp::Ordering, fmt::Formatter};
 
 use crate::builtin_index::{BuiltinIndex, OptionFacts, Record};
 #[cfg(test)]
@@ -347,11 +346,6 @@ impl ObjectId {
     pub fn name(&self) -> &str {
         self.0.name()
     }
-
-    /// Borrow this identity as its canonical object name.
-    pub fn object_name(&self) -> &ObjectName {
-        &self.0
-    }
 }
 
 impl Borrow<ObjectName> for ObjectId {
@@ -389,106 +383,48 @@ pub struct TypeData {
 pub trait TypeStore {
     /// Return the mandatory parent of `type_id`.
     fn parent_type_id(&self, type_id: &TypeId) -> Option<TypeId>;
-}
 
-/// A registry-backed type value.
-///
-/// The handle carries the registry needed to turn its stored parent
-/// [`TypeId`] into another navigable `Type`.
-#[derive(Clone)]
-pub struct Type<'registry> {
-    id: TypeId,
-    store: &'registry dyn TypeStore,
-}
-
-impl<'registry> Type<'registry> {
-    /// Bind a validated type identity to its owning registry view.
-    pub fn new(id: TypeId, store: &'registry dyn TypeStore) -> Self {
-        Self { id, store }
-    }
-
-    /// Return the canonical identity of this type.
-    pub fn id(&self) -> &TypeId {
-        &self.id
-    }
-
-    /// Return this type's mandatory parent.
-    pub fn parent(&self) -> Self {
-        let parent = self
-            .store
-            .parent_type_id(&self.id)
-            .expect("a registered type must have a registered parent");
-        Self::new(parent, self.store)
-    }
-
-    /// Whether this type is below `other` in the type partial order.
-    pub fn is_subtype_of(&self, other: &Self) -> bool {
-        if !ptr::eq(self.store, other.store) {
-            return false;
-        }
-
-        let mut current = self.clone();
+    /// Whether `child` is below `parent` in this type store.
+    fn is_subtype_id(&self, child: &TypeId, parent: &TypeId) -> bool {
+        let mut current = child.clone();
         let mut visited = HashSet::new();
         loop {
-            if current.id == other.id {
+            if current == *parent {
                 return true;
             }
-            if !visited.insert(current.id.clone()) {
+            if !visited.insert(current.clone()) {
                 return false;
             }
-            let parent = current.parent();
-            if parent.id == current.id {
+            let Some(next) = self.parent_type_id(&current) else {
+                return false;
+            };
+            if next == current {
                 return false;
             }
-            current = parent;
+            current = next;
         }
-    }
-}
-
-impl Debug for Type<'_> {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> Result {
-        formatter.debug_tuple("Type").field(&self.id).finish()
-    }
-}
-
-impl PartialEq for Type<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && ptr::eq(self.store, other.store)
-    }
-}
-
-impl Eq for Type<'_> {}
-
-impl PartialOrd for Type<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self == other {
-            return Some(Ordering::Equal);
-        }
-        if self.is_subtype_of(other) {
-            return Some(Ordering::Less);
-        }
-        if other.is_subtype_of(self) {
-            return Some(Ordering::Greater);
-        }
-        None
     }
 }
 
 /// Identity and record lookup shared by every semantic object source.
-pub trait ObjectKnowledge {
+pub trait ObjectKnowledge: TypeStore {
     /// Borrow the object with `object_id`.
     fn object(&self, object_id: &ObjectId) -> Option<&Record>;
 
     /// Resolve a canonical name or alias to its object identity.
     fn resolve_object(&self, name: &ObjectName) -> Option<ObjectId>;
 
-    /// Resolve a nominal type reference to a registry-backed type value.
-    fn resolve_type(&self, name: &ObjectName) -> Option<Type<'_>>;
-
     /// Resolve a canonical name or alias to its object record.
     fn get_record(&self, name: &ObjectName) -> Option<&Record> {
         let object = self.resolve_object(name)?;
         self.object(&object)
+    }
+
+    /// Resolve a nominal type reference to its validated type identity.
+    fn resolve_type_id(&self, name: &ObjectName) -> Option<TypeId> {
+        let object = self.resolve_object(name)?;
+        self.object(&object)?.type_info()?;
+        Some(TypeId::from_object(object))
     }
 }
 
@@ -535,14 +471,6 @@ impl ObjectRegistry {
             Some((object, registration.effective_from))
         })
     }
-
-    /// Resolve a nominal type reference to a typed registry handle.
-    pub fn resolve_type(&self, name: &ObjectName) -> Option<Type<'_>> {
-        let object = self.object_id(name)?;
-        let record = self.object(&object)?;
-        record.type_info()?;
-        Some(Type::new(TypeId::from_object(object), self))
-    }
 }
 
 impl ObjectKnowledge for ObjectRegistry {
@@ -553,10 +481,6 @@ impl ObjectKnowledge for ObjectRegistry {
     fn resolve_object(&self, name: &ObjectName) -> Option<ObjectId> {
         ObjectRegistry::object_id(self, name)
     }
-
-    fn resolve_type(&self, name: &ObjectName) -> Option<Type<'_>> {
-        ObjectRegistry::resolve_type(self, name)
-    }
 }
 
 impl ObjectKnowledge for ObjectRegistryView<'_> {
@@ -566,12 +490,6 @@ impl ObjectKnowledge for ObjectRegistryView<'_> {
 
     fn resolve_object(&self, name: &ObjectName) -> Option<ObjectId> {
         self.registry.object_id_at(name, self.position)
-    }
-
-    fn resolve_type(&self, name: &ObjectName) -> Option<Type<'_>> {
-        let object = self.resolve_object(name)?;
-        self.object(&object)?.type_info()?;
-        Some(Type::new(TypeId::from_object(object), self))
     }
 }
 
@@ -591,6 +509,12 @@ impl TypeStore for ObjectRegistryView<'_> {
     }
 }
 
+impl<T: TypeStore + ?Sized> TypeStore for &T {
+    fn parent_type_id(&self, type_id: &TypeId) -> Option<TypeId> {
+        T::parent_type_id(self, type_id)
+    }
+}
+
 impl<T: ObjectKnowledge + ?Sized> ObjectKnowledge for &T {
     fn object(&self, object_id: &ObjectId) -> Option<&Record> {
         T::object(self, object_id)
@@ -598,10 +522,6 @@ impl<T: ObjectKnowledge + ?Sized> ObjectKnowledge for &T {
 
     fn resolve_object(&self, name: &ObjectName) -> Option<ObjectId> {
         T::resolve_object(self, name)
-    }
-
-    fn resolve_type(&self, name: &ObjectName) -> Option<Type<'_>> {
-        T::resolve_type(self, name)
     }
 }
 

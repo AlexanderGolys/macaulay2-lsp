@@ -840,7 +840,7 @@ mod tests {
             .expect("method function should be registered");
         assert_eq!(
             callable.methods,
-            vec![document.analysis().installations()[0].method.id.clone()]
+            vec![document.analysis().installations()[0].id]
         );
         assert_eq!(
             document.analysis().installations()[0].span.range.start.line,
@@ -863,7 +863,7 @@ mod tests {
             .function("f")
             .expect("shifted method function should be registered");
         let installation = &document.analysis().installations()[0];
-        assert_eq!(callable.methods, vec![installation.method.id.clone()]);
+        assert_eq!(callable.methods, vec![installation.id]);
         assert_eq!(installation.span.range.start.line, 2);
         assert_eq!(
             installation

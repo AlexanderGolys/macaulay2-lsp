@@ -8,9 +8,7 @@ use crate::builtin_index::{MethodSignature, OperatorInfo, Record};
 use crate::object_registry::{
     ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView, TypeId,
 };
-use crate::typesystem::{
-    domain_strictly_smaller, effective_method_codomain, type_is_subtype, TypeKnowledge,
-};
+use crate::typesystem::TypeKnowledge;
 
 /// One callable signature after indexed type and documentation facts are
 /// prepared for LSP presentation.
@@ -259,7 +257,7 @@ fn documented_signatures(record: &Record) -> Vec<ResolvedSignature> {
         .methods
         .iter()
         .filter_map(|method| {
-            let (codomain, is_specialized) = effective_method_codomain(callable, method)?;
+            let (codomain, is_specialized) = callable.effective_codomain(method)?;
             let mut signature = Vec::with_capacity(method.domain.len() + 1);
             signature.push(record.name.clone());
             signature.extend(method.domain.iter().cloned());
@@ -501,8 +499,7 @@ fn domain_possibly_matches(
         .zip(argument_types)
         .all(|(domain_type, argument_type)| {
             argument_type.as_ref().is_none_or(|argument_type| {
-                argument_type == domain_type
-                    || type_is_subtype(knowledge, argument_type, domain_type)
+                argument_type == domain_type || knowledge.is_subtype(argument_type, domain_type)
             })
         })
 }
@@ -523,11 +520,7 @@ fn take_nonminimal_signatures(
     signatures.retain(|candidate| {
         let candidate_domain = signature_domain(&candidate.signature);
         let is_dominated = originals.iter().any(|other| {
-            domain_strictly_smaller(
-                knowledge,
-                signature_domain(&other.signature),
-                candidate_domain,
-            )
+            knowledge.domain_strictly_smaller(signature_domain(&other.signature), candidate_domain)
         });
         if is_dominated {
             dominated.push(candidate.clone());

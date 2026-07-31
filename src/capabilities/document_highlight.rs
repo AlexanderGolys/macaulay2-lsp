@@ -5,7 +5,7 @@ use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
-use crate::typesystem::{type_is_subtype, TypeKnowledge};
+use crate::typesystem::TypeKnowledge;
 use tower_lsp::lsp_types::{
     DocumentHighlight, DocumentHighlightKind, DocumentHighlightOptions, OneOf, Position,
 };
@@ -61,7 +61,7 @@ fn unbound_symbol_highlights(
 
     if builtins
         .get_record(&ObjectName::new(name))
-        .is_some_and(|record| type_is_subtype(builtins, &record.class, &ObjectName::new("Keyword")))
+        .is_some_and(|record| builtins.is_subtype(&record.class, &ObjectName::new("Keyword")))
     {
         return None;
     }
