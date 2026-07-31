@@ -16,10 +16,9 @@ use tower_lsp::lsp_types::{Location, Range as TextRange, Url};
 use crate::capabilities::document_symbols::{
     collect_document_symbols, flatten_document_symbols, WorkspaceSourceSymbol,
 };
-use crate::capabilities::semantic_tokens::local_symbol_semantic_token_type;
 use crate::document::DocumentSnapshot;
 use crate::object_registry::{ObjectName, ObjectRegistry};
-use crate::semantic_token::M2SemanticTokenType;
+use crate::semantic_token::{local_symbol_semantic_token, M2SemanticTokenType};
 
 #[derive(Debug, Clone)]
 struct DefLocation {
@@ -249,7 +248,7 @@ fn top_level_definitions(
     analysis
         .bindings_in_scope(0)
         .map(|binding| {
-            let token_type = local_symbol_semantic_token_type(&binding, &knowledge);
+            let token_type = local_symbol_semantic_token(&binding, &knowledge).token_type;
             (binding.name.name().to_string(), binding.range, token_type)
         })
         .collect()

@@ -1,58 +1,17 @@
-//! Semantic-token extraction from syntax, static analysis, and builtin metadata.
+//! LSP encoding of semantic-token candidates registered in document analysis.
 
 use tower_lsp::lsp_types::*;
 
 use crate::analysis::BindingView;
 use crate::document::DocumentSnapshot;
 use crate::documentation::DocumentationSnippet;
-use crate::meta::{BindingRole, Metadata};
-use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::object_registry::ObjectName;
 use crate::object_registry::ObjectRegistry;
 use crate::semantic_token::{
-    M2SemanticToken, M2SemanticTokenProvenance, M2SemanticTokenType, SemanticTokenKnowledge,
+    classify_source_semantic_token, M2SemanticToken, M2SemanticTokenType, SourceSemanticToken,
+    SourceSemanticTokenContext,
 };
 use crate::source::{DocumentSpan, SourceNavigation};
 use crate::workspace_index::WorkspaceDefinitionKnowledge;
-
-pub(crate) const LEGEND_TYPES: &[SemanticTokenType] = &[
-    SemanticTokenType::TYPE,           // 0
-    SemanticTokenType::FUNCTION,       // 1
-    SemanticTokenType::VARIABLE,       // 2
-    SemanticTokenType::PARAMETER,      // 3
-    SemanticTokenType::PROPERTY,       // 4
-    SemanticTokenType::NAMESPACE,      // 5
-    SemanticTokenType::ENUM_MEMBER,    // 6
-    SemanticTokenType::CLASS,          // 7
-    SemanticTokenType::KEYWORD,        // 8
-    SemanticTokenType::STRING,         // 9
-    SemanticTokenType::NUMBER,         // 10
-    SemanticTokenType::OPERATOR,       // 11
-    SemanticTokenType::COMMENT,        // 12
-    SemanticTokenType::METHOD,         // 13
-    SemanticTokenType::REGEXP,         // 14
-    SemanticTokenType::MODIFIER,       // 15
-    SemanticTokenType::TYPE_PARAMETER, // 16
-    SemanticTokenType::DECORATOR,      // 17
-];
-
-pub(crate) const LEGEND_MODIFIERS: &[SemanticTokenModifier] = &[
-    SemanticTokenModifier::new("option"),   // 0
-    SemanticTokenModifier::new("command"),  // 1
-    SemanticTokenModifier::new("file"),     // 2
-    SemanticTokenModifier::DECLARATION,     // 3
-    SemanticTokenModifier::DEFAULT_LIBRARY, // 4
-    SemanticTokenModifier::new("builtin"),  // 5
-    SemanticTokenModifier::new("macro"),    // 6
-];
-
-pub(crate) const OPTION_MODIFIER: u32 = 1 << 0;
-pub(crate) const COMMAND_MODIFIER: u32 = 1 << 1;
-pub(crate) const FILE_MODIFIER: u32 = 1 << 2;
-pub(crate) const DECLARATION_MODIFIER: u32 = 1 << 3;
-pub(crate) const DEFAULT_LIBRARY_MODIFIER: u32 = 1 << 4;
-pub(crate) const BUILTIN_MODIFIER: u32 = 1 << 5;
-pub(crate) const MACRO_MODIFIER: u32 = 1 << 6;
 
 pub(crate) fn collect_semantic_tokens(
     document: &DocumentSnapshot,
@@ -61,8 +20,6 @@ pub(crate) fn collect_semantic_tokens(
     uri: &Url,
     augments_syntax_tokens: bool,
 ) -> Vec<SemanticToken> {
-    let text = document.text();
-    let root_node = document.root_node();
     let classifier = SemanticTokenClassifier {
         document,
         builtins,
@@ -71,50 +28,31 @@ pub(crate) fn collect_semantic_tokens(
     };
     let mut emitter = SemanticTokenEmitter::new(document);
 
-    let mut cursor = root_node.walk();
-    let mut reached_root = false;
-
-    while !reached_root {
-        let node = M2Node::new(cursor.node(), text);
-        let syntax_token_type = syntax_semantic_token_type(node);
-
-        let mut emitted_token = emitter.emit_documentation_container_tokens(
-            node,
-            syntax_token_type,
-            augments_syntax_tokens,
-        );
-        if !emitted_token && (node.kind.is_symbol_like() || syntax_token_type.is_some()) {
-            let source = document.span_for_node(node);
-            let position = source.range().start;
-            let binding = document
-                .source_symbol_at(node.text(), position)
-                .map(|symbol| (symbol, position == symbol.range.start));
-            let emit_syntax = !augments_syntax_tokens
-                || should_emit_syntax_token_when_augmenting(syntax_token_type);
-
-            if let Some((token_type, modifiers)) = classifier.classify(node, binding, emit_syntax) {
-                emitted_token = emitter.push(SemanticSpan {
-                    source,
-                    token_type,
-                    modifiers,
-                });
-            }
-        }
-
-        if !emitted_token && cursor.goto_first_child() {
+    for source_token in document.analysis().source_semantic_tokens() {
+        if emitter.emit_documentation_container_tokens(source_token, augments_syntax_tokens) {
             continue;
         }
-        if cursor.goto_next_sibling() {
-            continue;
-        }
-        loop {
-            if !cursor.goto_parent() {
-                reached_root = true;
-                break;
-            }
-            if cursor.goto_next_sibling() {
-                break;
-            }
+
+        let position = source_token.span.range().start;
+        let source_text = &document.text()[source_token.span.bytes()];
+        let binding = source_token
+            .is_symbol
+            .then(|| {
+                document
+                    .source_symbol_at(source_text, position)
+                    .map(|symbol| (symbol, position == symbol.range.start))
+            })
+            .flatten();
+        let emit_syntax = !augments_syntax_tokens
+            || source_token
+                .syntax_token_type
+                .is_some_and(M2SemanticTokenType::emit_with_syntax_highlighting);
+
+        if let Some(token) = classifier.classify(source_token, binding, emit_syntax) {
+            emitter.push(SemanticSpan {
+                source: source_token.span.clone(),
+                token,
+            });
         }
     }
 
@@ -138,11 +76,10 @@ impl<'a> SemanticTokenEmitter<'a> {
 
     fn emit_documentation_container_tokens(
         &mut self,
-        node: M2Node<'_>,
-        syntax_token_type: Option<M2SemanticTokenType>,
+        source_token: &SourceSemanticToken,
         augments_syntax_tokens: bool,
     ) -> bool {
-        let Some(base_type) = syntax_token_type.filter(|token_type| {
+        let Some(base_type) = source_token.syntax_token_type.filter(|token_type| {
             matches!(
                 token_type,
                 M2SemanticTokenType::Comment | M2SemanticTokenType::String
@@ -157,7 +94,8 @@ impl<'a> SemanticTokenEmitter<'a> {
             .iter()
             .filter(|snippet| {
                 let (start, end) = snippet.byte_span();
-                node.start_byte() <= start && end <= node.end_byte()
+                let source_bytes = source_token.span.bytes();
+                source_bytes.start <= start && end <= source_bytes.end
             })
             .map(|snippet| documentation_snippet_semantic_span(self.document, snippet))
             .collect::<Vec<_>>();
@@ -169,9 +107,9 @@ impl<'a> SemanticTokenEmitter<'a> {
             (bytes.start, bytes.end)
         });
 
-        let emit_base =
-            !augments_syntax_tokens || should_emit_syntax_token_when_augmenting(Some(base_type));
-        let mut cursor = node.start_byte();
+        let emit_base = !augments_syntax_tokens || base_type.emit_with_syntax_highlighting();
+        let source_bytes = source_token.span.bytes();
+        let mut cursor = source_bytes.start;
         let mut emitted = false;
 
         for span in spans {
@@ -182,19 +120,17 @@ impl<'a> SemanticTokenEmitter<'a> {
             if emit_base && cursor < span_bytes.start {
                 emitted |= self.push(SemanticSpan {
                     source: self.document.span_for_bytes(cursor..span_bytes.start),
-                    token_type: base_type,
-                    modifiers: 0,
+                    token: M2SemanticToken::new(base_type),
                 });
             }
             cursor = span_bytes.end;
             emitted |= self.push(span);
         }
 
-        if emitted && emit_base && cursor < node.end_byte() {
+        if emitted && emit_base && cursor < source_bytes.end {
             emitted |= self.push(SemanticSpan {
-                source: self.document.span_for_bytes(cursor..node.end_byte()),
-                token_type: base_type,
-                modifiers: 0,
+                source: self.document.span_for_bytes(cursor..source_bytes.end),
+                token: M2SemanticToken::new(base_type),
             });
         }
 
@@ -214,8 +150,8 @@ impl<'a> SemanticTokenEmitter<'a> {
                 delta_line,
                 delta_start,
                 length: range.end.character - range.start.character,
-                token_type: span.token_type as u32,
-                token_modifiers_bitset: span.modifiers,
+                token_type: span.token.token_type as u32,
+                token_modifiers_bitset: span.token.modifiers.bits(),
             });
             self.previous = range.start;
             emitted = true;
@@ -231,8 +167,7 @@ impl<'a> SemanticTokenEmitter<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SemanticSpan {
     source: DocumentSpan,
-    token_type: M2SemanticTokenType,
-    modifiers: u32,
+    token: M2SemanticToken,
 }
 
 fn documentation_snippet_semantic_span(
@@ -242,8 +177,7 @@ fn documentation_snippet_semantic_span(
     let (start_byte, end_byte) = snippet.byte_span();
     SemanticSpan {
         source: document.span_for_bytes(start_byte..end_byte),
-        token_type: M2SemanticTokenType::Property,
-        modifiers: 0,
+        token: M2SemanticToken::new(M2SemanticTokenType::Property),
     }
 }
 
@@ -260,506 +194,49 @@ where
 {
     fn classify(
         &self,
-        node: M2Node<'_>,
+        source_token: &SourceSemanticToken,
         binding: Option<(BindingView<'_>, bool)>,
         emit_syntax: bool,
-    ) -> Option<(M2SemanticTokenType, u32)> {
-        classify_semantic_node(self, node, binding, emit_syntax)
-    }
-}
-
-fn classify_semantic_node<W>(
-    context: &SemanticTokenClassifier<'_, W>,
-    node: M2Node<'_>,
-    binding: Option<(BindingView<'_>, bool)>,
-    emit_syntax: bool,
-) -> Option<(M2SemanticTokenType, u32)>
-where
-    W: WorkspaceDefinitionKnowledge + ?Sized,
-{
-    let document = context.document;
-    let analysis = document.analysis();
-    let builtins = context.builtins.at(document.position_for_node(node));
-    let workspace_index = context.workspace_index;
-    let node_text = node.text();
-    let syntax_token_type = syntax_semantic_token_type(node);
-    let indexed_token = node
-        .kind
-        .is_symbol_like()
-        .then(|| builtins.semantic_token(node_text))
-        .flatten();
-    let mut token_type = None;
-    let mut modifiers = 0;
-    let mut resolved_from_index = false;
-
-    if document.is_macro_name(node) {
-        token_type = Some(M2SemanticTokenType::Method);
-        modifiers |= MACRO_MODIFIER;
-    }
-
-    if token_type.is_none() && is_quoted_global_key_access(node) {
-        token_type = Some(M2SemanticTokenType::Property);
-    }
-
-    if token_type.is_none() && analysis.is_method_installation_codomain(node, document) {
-        token_type = Some(M2SemanticTokenType::Type);
-        resolved_from_index = indexed_token.is_some();
-    }
-
-    if token_type.is_none() {
-        if let Some(role) = option_assignment_role(node, &builtins) {
-            token_type = Some(role);
-            modifiers |= OPTION_MODIFIER;
-            resolved_from_index = indexed_token.is_some();
-        }
-    }
-
-    if token_type.is_none() {
-        if let Some(type_param_role) = method_installation_type_parameter(node, &builtins) {
-            token_type = Some(type_param_role);
-            resolved_from_index = true;
-        }
-    }
-
-    if token_type.is_none() {
-        if let Some((symbol, is_declaration)) = binding {
-            token_type = Some(local_symbol_semantic_token_type(&symbol, &builtins));
-            if let Some(type_name) = symbol.meta().type_name {
-                if let Some(token) =
-                    static_type_semantic_token_for_local_symbol(&symbol, type_name, &builtins)
-                {
-                    modifiers |= builtin_semantic_token_modifiers(&token);
-                }
-            }
-            if is_declaration {
-                modifiers |= DECLARATION_MODIFIER;
-            }
-        }
-    }
-
-    if token_type.is_none() {
-        if let Some(token) = indexed_token {
-            token_type = Some(token.token_type);
-            modifiers |= builtin_semantic_token_modifiers(&token);
-            resolved_from_index = true;
-        }
-    }
-
-    if token_type.is_none() {
-        token_type = workspace_index.semantic_token_type(node_text, context.uri);
-    }
-
-    if token_type.is_none() && emit_syntax {
-        token_type = syntax_token_type;
-    }
-
-    if resolved_from_index {
-        modifiers |= indexed_semantic_token_modifiers(&indexed_token?);
-    }
-    token_type.map(|token_type| (token_type, modifiers))
-}
-
-pub(crate) fn option_assignment_role(
-    node: M2Node<'_>,
-    builtins: &(impl SemanticTokenKnowledge + ?Sized),
-) -> Option<M2SemanticTokenType> {
-    let parent = node.parent()?;
-    if !parent.is_option_assignment() {
-        return None;
-    }
-
-    let node_text = node.text();
-    // The KEY of a `k => v` pair. A protected symbol key is a nominal enum
-    // member (`Strategy`, `Hilbert`); every other key — an unprotected symbol or
-    // a string used as a dictionary key — is a field/property.
-    if parent
-        .child_by_field_name("left")
-        .is_some_and(|left| left.id() == node.id())
-    {
-        if node.kind == NodeKind::Symbol && builtins.is_protected_symbol(node_text) {
-            return Some(M2SemanticTokenType::EnumMember);
-        }
-        return Some(M2SemanticTokenType::Property);
-    }
-
-    if parent
-        .child_by_field_name("right")
-        .is_some_and(|right| right.id() == node.id())
-    {
-        let option_key = parent
-            .child_by_field_name("left")
-            .filter(|left| left.kind.is_symbol_like())
-            .map(|left| left.text())?;
-        if builtins.is_option_value_for_key(option_key, node_text) {
-            return Some(M2SemanticTokenType::EnumMember);
-        }
-    }
-
-    None
-}
-
-pub(crate) fn local_symbol_semantic_token_type(
-    symbol: &(impl Metadata + ?Sized),
-    builtins: &(impl SemanticTokenKnowledge + ?Sized),
-) -> M2SemanticTokenType {
-    let meta = symbol.meta();
-    if meta.binding_role == Some(BindingRole::Parameter) {
-        return M2SemanticTokenType::Parameter;
-    }
-
-    if let Some(type_name) = meta.type_name {
-        if let Some(token) =
-            static_type_semantic_token_for_local_symbol(symbol, type_name, builtins)
-        {
-            return token.token_type;
-        }
-    }
-
-    match meta.symbol_kind {
-        Some(SymbolKind::FUNCTION) => M2SemanticTokenType::Function,
-        Some(SymbolKind::VARIABLE) => M2SemanticTokenType::Variable,
-        Some(SymbolKind::METHOD) => M2SemanticTokenType::Method,
-        Some(SymbolKind::CLASS) => M2SemanticTokenType::Class,
-        Some(SymbolKind::NAMESPACE) => M2SemanticTokenType::Namespace,
-        Some(SymbolKind::PROPERTY) => M2SemanticTokenType::Property,
-        Some(SymbolKind::CONSTANT) => M2SemanticTokenType::EnumMember,
-        _ => M2SemanticTokenType::Variable,
-    }
-}
-
-pub(crate) fn builtin_semantic_token_modifiers(token: &M2SemanticToken) -> u32 {
-    let mut modifiers = 0;
-    if token.is_command || token.is_manipulator {
-        modifiers |= COMMAND_MODIFIER;
-    }
-    if token.is_file {
-        modifiers |= FILE_MODIFIER;
-    }
-    modifiers
-}
-
-fn indexed_semantic_token_modifiers(token: &M2SemanticToken) -> u32 {
-    let mut modifiers = builtin_semantic_token_modifiers(token);
-    match token.provenance {
-        M2SemanticTokenProvenance::None => {}
-        M2SemanticTokenProvenance::DefaultLibrary => modifiers |= DEFAULT_LIBRARY_MODIFIER,
-        M2SemanticTokenProvenance::Builtin => modifiers |= BUILTIN_MODIFIER,
-    }
-    modifiers
-}
-
-fn static_type_semantic_token_for_local_symbol(
-    symbol: &(impl Metadata + ?Sized),
-    type_name: &str,
-    builtins: &(impl SemanticTokenKnowledge + ?Sized),
-) -> Option<M2SemanticToken> {
-    let mut token = builtins.semantic_token_for_static_type(type_name)?;
-    match symbol.meta().symbol_kind {
-        // A ring value (`R = QQ[x]`) is itself the runtime type of its elements,
-        // but it is not an M2 class declaration. Keep actual classes, including
-        // locally declared and function-produced classes, as `class`.
-        Some(SymbolKind::VARIABLE)
-            if token.token_type == M2SemanticTokenType::Class
-                && builtins.is_subtype(&ObjectName::new(type_name), &ObjectName::new("Ring")) =>
-        {
-            token.token_type = M2SemanticTokenType::Type;
-            Some(token)
-        }
-        Some(SymbolKind::VARIABLE)
-            if matches!(
-                token.token_type,
-                M2SemanticTokenType::String | M2SemanticTokenType::Number
-            ) =>
-        {
-            None
-        }
-        _ => Some(token),
-    }
-}
-
-fn syntax_semantic_token_type(node: M2Node<'_>) -> Option<M2SemanticTokenType> {
-    if node.is_operator() {
-        return Some(M2SemanticTokenType::Operator);
-    }
-
-    match node.kind {
-        NodeKind::IntegerLiteral | NodeKind::FloatLiteral => Some(M2SemanticTokenType::Number),
-        NodeKind::StringLiteral if is_regexp_string_argument(node) => {
-            Some(M2SemanticTokenType::Regexp)
-        }
-        NodeKind::StringLiteral if is_namespace_string_argument(node) => {
-            Some(M2SemanticTokenType::Namespace)
-        }
-        NodeKind::StringLiteral if is_hash_key_string(node) => Some(M2SemanticTokenType::Property),
-        NodeKind::StringLiteral => Some(M2SemanticTokenType::String),
-        kind if kind.is_comment() => Some(M2SemanticTokenType::Comment),
-        _ if node.is_modifier_token() => Some(M2SemanticTokenType::Modifier),
-        _ if node.is_keyword_token() => Some(M2SemanticTokenType::Keyword),
-        _ => None,
-    }
-}
-
-fn should_emit_syntax_token_when_augmenting(token_type: Option<M2SemanticTokenType>) -> bool {
-    matches!(
-        token_type,
-        Some(M2SemanticTokenType::Modifier)
-            | Some(M2SemanticTokenType::Regexp)
-            | Some(M2SemanticTokenType::EnumMember)
-            | Some(M2SemanticTokenType::Property)
-            | Some(M2SemanticTokenType::Namespace)
-    )
-}
-
-fn is_regexp_string_argument(node: M2Node<'_>) -> bool {
-    if node.kind != NodeKind::StringLiteral {
-        return false;
-    }
-
-    call_like_left_symbol_for_argument(node, false)
-        .is_some_and(|name| matches!(name, "match" | "regex" | "select" | "replace" | "separate"))
-}
-
-fn is_namespace_string_argument(node: M2Node<'_>) -> bool {
-    if node.kind != NodeKind::StringLiteral {
-        return false;
-    }
-
-    // Only the first positional argument of these calls names a package (a real
-    // namespace): `loadPackage "Pkg"`, `importFrom("Pkg", {syms})`, and so on.
-    // Passing `false` for `allow_list_argument` means a string buried in a list
-    // argument never resolves to its callee, so the symbol names in
-    // `export {"foo"}` or the imported names in `importFrom("Pkg", {"foo"})` stay
-    // plain strings. `export`/`exportMutable` are absent entirely: their arguments
-    // name symbols defined in this package, not modules.
-    call_like_left_symbol_for_argument(node, false).is_some_and(|name| {
-        matches!(
-            name,
-            "loadPackage"
-                | "installPackage"
-                | "uninstallPackage"
-                | "needsPackage"
-                | "endPackage"
-                | "newPackage"
-                | "importFrom"
-                | "exportFrom"
+    ) -> Option<M2SemanticToken> {
+        let source_text = &self.document.text()[source_token.span.bytes()];
+        let position = source_token.span.range().start;
+        let knowledge = self.builtins.at(position);
+        classify_source_semantic_token(
+            SourceSemanticTokenContext {
+                source_text,
+                source_token,
+                binding: binding.as_ref().map(|(binding, _)| binding),
+                is_declaration: binding.is_some_and(|(_, is_declaration)| is_declaration),
+                is_macro: self.document.is_macro_name_span(&source_token.span),
+                workspace_token_type: self
+                    .workspace_index
+                    .semantic_token_type(source_text, self.uri),
+                emit_syntax,
+            },
+            &knowledge,
         )
-    })
-}
-
-/// A string literal used as a hash-table key: the left operand of `=>`
-/// (`"Quote" => "symbol"`), or the right operand of the `#` / `#?` lookup
-/// operators (`h#"key"`, `h#?"key"`). The value on the right of `=>` keeps its
-/// own classification, and symbol keys to `#` stay value references (they are
-/// evaluated, not quoted).
-fn is_hash_key_string(node: M2Node<'_>) -> bool {
-    if node.kind != NodeKind::StringLiteral {
-        return false;
     }
-    node.parent().is_some_and(|parent| {
-        let is_assignment_key = parent.is_option_assignment()
-            && parent
-                .child_by_field_name("left")
-                .is_some_and(|left| left.id() == node.id());
-        let is_lookup_key = matches!(parent.binary_operator(), Some("#" | "#?"))
-            && parent
-                .child_by_field_name("right")
-                .is_some_and(|right| right.id() == node.id());
-        is_assignment_key || is_lookup_key
-    })
-}
-
-/// A symbol read as a quoted global key: the right operand of the `.` or `.?`
-/// member operator (`R.name`, `R.?name`). M2 quotes the right side as a global
-/// symbol used as a hash key, so it is a property rather than a value reference.
-fn is_quoted_global_key_access(node: M2Node<'_>) -> bool {
-    if !node.kind.is_symbol_like() {
-        return false;
-    }
-    node.parent().is_some_and(|parent| {
-        matches!(parent.binary_operator(), Some("." | ".?"))
-            && parent
-                .child_by_field_name("right")
-                .is_some_and(|right| right.id() == node.id())
-    })
-}
-
-fn call_like_left_symbol_for_argument<'tree>(
-    mut node: M2Node<'tree>,
-    allow_list_argument: bool,
-) -> Option<&'tree str> {
-    let mut parent = node.parent()?;
-    if parent.kind == NodeKind::Sequence && !parent.is_first_collection_element(node) {
-        return None;
-    }
-
-    loop {
-        if let Some(name) = binary_expression_left_symbol(parent) {
-            return Some(name);
-        }
-
-        if parent.kind == NodeKind::List && !allow_list_argument {
-            return None;
-        }
-
-        // A single parenthesized argument `f("x")` is a `parenthesized_expression`,
-        // a multi-argument call a `sequence`; both wrap an argument before the
-        // `callee ARG` application.
-        if !matches!(
-            parent.kind,
-            NodeKind::Sequence | NodeKind::List | NodeKind::ParenthesizedExpression
-        ) {
-            return None;
-        }
-
-        node = parent;
-        parent = node.parent()?;
-    }
-}
-
-fn binary_expression_left_symbol(node: M2Node<'_>) -> Option<&str> {
-    if !node.is_space_application() {
-        return None;
-    }
-
-    let left = node.child_by_field_name("left")?;
-    if left.kind != NodeKind::Symbol {
-        return None;
-    }
-
-    Some(left.text())
-}
-
-fn method_installation_type_parameter(
-    node: M2Node<'_>,
-    builtins: &(impl SemanticTokenKnowledge + ?Sized),
-) -> Option<M2SemanticTokenType> {
-    let node_text = node.text();
-    let parent = node.parent()?;
-
-    if is_type_parameter_in_domain(parent) && is_known_type(builtins, node_text) {
-        return Some(M2SemanticTokenType::Type);
-    }
-
-    if is_type_parameter_in_lambda(node, parent) && is_known_type(builtins, node_text) {
-        return Some(M2SemanticTokenType::Type);
-    }
-
-    None
-}
-
-fn is_known_type(builtins: &(impl SemanticTokenKnowledge + ?Sized), name: &str) -> bool {
-    builtins.semantic_token(name).is_some_and(|token| {
-        matches!(
-            token.token_type,
-            M2SemanticTokenType::Class | M2SemanticTokenType::Type
-        )
-    })
-}
-
-fn is_type_parameter_in_domain(mut ancestor: M2Node<'_>) -> bool {
-    // A domain type sits inside `(T1, T2)` (sequence) or, for a single-type domain
-    // `f(T) := …`, a `parenthesized_expression`; climb through either.
-    while matches!(
-        ancestor.kind,
-        NodeKind::Sequence | NodeKind::List | NodeKind::ParenthesizedExpression
-    ) {
-        ancestor = match ancestor.parent() {
-            Some(p) => p,
-            None => return false,
-        };
-    }
-
-    if ancestor.kind != NodeKind::BinaryExpression {
-        return false;
-    }
-    let op_text = match ancestor.binary_operator() {
-        Some(op) => op,
-        None => return false,
-    };
-    if matches!(op_text, "=" | ":=" | "<-" | "=>") {
-        return false;
-    }
-
-    let grandparent = match ancestor.parent() {
-        Some(gp) => gp,
-        None => return false,
-    };
-    if !grandparent.is_assignment() {
-        return false;
-    }
-    let assignment_op = match grandparent.binary_operator() {
-        Some(op) => op,
-        None => return false,
-    };
-    if !matches!(assignment_op, "=" | ":=") {
-        return false;
-    }
-
-    grandparent
-        .child_by_field_name("left")
-        .is_some_and(|left| left.id() == ancestor.id())
-}
-
-fn is_type_parameter_in_lambda(node: M2Node<'_>, lambda: M2Node<'_>) -> bool {
-    if lambda.kind != NodeKind::LambdaExpression {
-        return false;
-    }
-    if lambda
-        .child_by_field_name("left")
-        .is_none_or(|param| param.id() != node.id())
-    {
-        return false;
-    }
-
-    let mut current = lambda;
-    loop {
-        let parent = match current.parent() {
-            Some(p) => p,
-            None => return false,
-        };
-
-        if parent.kind == NodeKind::BinaryExpression {
-            let op = parent.binary_operator();
-            if matches!(op, Some("=" | ":=")) {
-                let lhs = match parent.child_by_field_name("left") {
-                    Some(l) => l,
-                    None => return false,
-                };
-                if !is_method_installation_lhs(lhs) {
-                    return false;
-                }
-                let rhs = match parent.child_by_field_name("right") {
-                    Some(r) => r,
-                    None => return false,
-                };
-                return rhs.contains(lambda);
-            }
-            current = parent;
-            continue;
-        }
-        current = parent;
-    }
-}
-
-fn is_method_installation_lhs(node: M2Node<'_>) -> bool {
-    if node.kind != NodeKind::BinaryExpression {
-        return false;
-    }
-    let op = match node.binary_operator() {
-        Some(op) => op,
-        None => return false,
-    };
-    !matches!(op, "=" | ":=" | "<-" | "=>")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::document::DocumentSnapshot;
-    use crate::node_metadata::M2Parser;
+    use crate::meta::BindingRole;
     use crate::object_registry::ObjectRegistry;
-    use crate::semantic_token::{M2SemanticToken, M2SemanticTokenType};
+    use crate::semantic_token::{
+        local_symbol_semantic_token, M2SemanticToken, M2SemanticTokenModifier, M2SemanticTokenType,
+        LEGEND_MODIFIERS,
+    };
     use crate::workspace_index::WorkspaceIndex;
+
+    const OPTION_MODIFIER: u32 = M2SemanticTokenModifier::Option.bit();
+    const COMMAND_MODIFIER: u32 = M2SemanticTokenModifier::Command.bit();
+    const FILE_MODIFIER: u32 = M2SemanticTokenModifier::File.bit();
+    const DECLARATION_MODIFIER: u32 = M2SemanticTokenModifier::Declaration.bit();
+    const DEFAULT_LIBRARY_MODIFIER: u32 = M2SemanticTokenModifier::DefaultLibrary.bit();
+    const BUILTIN_MODIFIER: u32 = M2SemanticTokenModifier::Builtin.bit();
+    const MACRO_MODIFIER: u32 = M2SemanticTokenModifier::Macro.bit();
 
     fn document(text: &str, builtins: &ObjectRegistry) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), builtins).expect("fixture should parse")
@@ -1548,57 +1025,39 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
         let builtins = ObjectRegistry::default();
 
         assert_eq!(
-            local_symbol_semantic_token_type(&symbol, &builtins),
+            local_symbol_semantic_token(&symbol, &builtins).token_type,
             M2SemanticTokenType::Parameter
         );
     }
 
     #[test]
     fn builtin_type_tokens_do_not_use_custom_type_modifier() {
-        let token = M2SemanticToken {
-            token_type: M2SemanticTokenType::Type,
-            is_command: false,
-            is_file: false,
-            is_manipulator: false,
-            is_constructor: false,
-            provenance: M2SemanticTokenProvenance::None,
-        };
-
-        let modifiers = builtin_semantic_token_modifiers(&token);
-
-        assert_eq!(modifiers, 0);
+        assert_eq!(
+            M2SemanticToken::new(M2SemanticTokenType::Type)
+                .modifiers
+                .bits(),
+            0
+        );
     }
 
     #[test]
     fn builtin_class_tokens_do_not_use_custom_type_modifier() {
-        let token = M2SemanticToken {
-            token_type: M2SemanticTokenType::Class,
-            is_command: false,
-            is_file: false,
-            is_manipulator: false,
-            is_constructor: false,
-            provenance: M2SemanticTokenProvenance::None,
-        };
-
-        let modifiers = builtin_semantic_token_modifiers(&token);
-
-        assert_eq!(modifiers, 0);
+        assert_eq!(
+            M2SemanticToken::new(M2SemanticTokenType::Class)
+                .modifiers
+                .bits(),
+            0
+        );
     }
 
     #[test]
     fn builtin_function_role_does_not_bake_in_provenance_modifier() {
-        let token = M2SemanticToken {
-            token_type: M2SemanticTokenType::Function,
-            is_command: false,
-            is_file: false,
-            is_manipulator: false,
-            is_constructor: false,
-            provenance: M2SemanticTokenProvenance::None,
-        };
-
-        let modifiers = builtin_semantic_token_modifiers(&token);
-
-        assert_eq!(modifiers, 0);
+        assert_eq!(
+            M2SemanticToken::new(M2SemanticTokenType::Function)
+                .modifiers
+                .bits(),
+            0
+        );
     }
 
     #[test]
@@ -1609,7 +1068,10 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             .expect("toString should have builtin metadata");
 
         assert_eq!(token.token_type, M2SemanticTokenType::Method);
-        assert_eq!(builtin_semantic_token_modifiers(&token), 0);
+        assert_eq!(
+            token.modifiers.bits() & (COMMAND_MODIFIER | FILE_MODIFIER),
+            0
+        );
     }
 
     #[test]
@@ -1620,17 +1082,17 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
         // value `7` is not a symbol, so it is not classified here.
         let text = "f(x, Strategy => 4, myKey => 7)";
         let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
-        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
-        let root = parser.parse(text).expect("fixture should parse");
-        let mut roles = Vec::new();
-        for node in root.descendants() {
-            if node.kind == NodeKind::Symbol {
-                roles.push((node.text(), option_assignment_role(node, &builtins)));
-            }
-        }
+        let document = document(text, &builtins);
+        let tokens = collect_tokens(&document, &builtins, false);
 
-        assert!(roles.contains(&("Strategy", Some(M2SemanticTokenType::EnumMember))));
-        assert!(roles.contains(&("myKey", Some(M2SemanticTokenType::Property))));
+        assert_eq!(
+            token_type_at(&tokens, 0, text.find("Strategy").unwrap() as u32),
+            Some(M2SemanticTokenType::EnumMember as u32)
+        );
+        assert_eq!(
+            token_type_at(&tokens, 0, text.find("myKey").unwrap() as u32),
+            Some(M2SemanticTokenType::Property as u32)
+        );
     }
 
     #[test]
@@ -1812,7 +1274,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
             let token = builtins
                 .get_semantic_token(name)
                 .unwrap_or_else(|| panic!("{name} should have semantic metadata"));
-            let modifiers = indexed_semantic_token_modifiers(&token);
+            let modifiers = token.modifiers.bits();
             assert_eq!(
                 modifiers & DEFAULT_LIBRARY_MODIFIER,
                 DEFAULT_LIBRARY_MODIFIER,
@@ -1828,7 +1290,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
         let scan = builtins
             .get_semantic_token("scan")
             .expect("scan should have semantic metadata");
-        let modifiers = indexed_semantic_token_modifiers(&scan);
+        let modifiers = scan.modifiers.bits();
         assert_eq!(modifiers & BUILTIN_MODIFIER, BUILTIN_MODIFIER);
         assert_eq!(
             modifiers & DEFAULT_LIBRARY_MODIFIER,

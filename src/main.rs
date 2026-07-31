@@ -54,7 +54,7 @@ use capabilities::navigation::{
     prepare_rename_range, reference_target, references_response, rename_edits,
     workspace_symbols_response, ReferenceTarget,
 };
-use capabilities::semantic_tokens::{collect_semantic_tokens, LEGEND_MODIFIERS, LEGEND_TYPES};
+use capabilities::semantic_tokens::collect_semantic_tokens;
 use capabilities::signature_help::signature_help_response;
 use capabilities::type_hierarchy::{
     TypeHierarchyCapabilityService, TypeHierarchyContext, TYPE_HIERARCHY_METHOD,
@@ -68,6 +68,7 @@ use document::DocumentSnapshot;
 use package_index::SourceResolver;
 
 use crate::object_registry::ObjectRegistry;
+use crate::semantic_token::{LEGEND_MODIFIERS, LEGEND_TYPES};
 use crate::settings::{ServerSettings, SettingsStore};
 use crate::workspace_index::WorkspaceIndex;
 

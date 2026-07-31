@@ -158,6 +158,39 @@ fn token_at(
 }
 
 #[tokio::test]
+async fn registered_source_roles_drive_semantic_tokens_through_the_server() {
+    let source = concat!(
+        "p = method(TypicalValue => List)\n",
+        "p(ZZ) := Array => x -> [x]\n",
+        "f(Strategy => LongPolynomial)\n",
+        "R.name\n",
+        "h#\"key\"\n",
+        "match \"pattern\"\n",
+        "needsPackage \"JSON\"\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    let tokens = semantic_tokens(&mut session).await;
+
+    for (needle, expected_role, description) in [
+        ("ZZ", "type", "method domain"),
+        ("Array", "type", "method codomain"),
+        ("Strategy", "enumMember", "option key"),
+        ("name", "property", "quoted member key"),
+        ("\"key\"", "property", "lookup key"),
+        ("\"pattern\"", "regexp", "regexp argument"),
+        ("\"JSON\"", "namespace", "package argument"),
+    ] {
+        assert_eq!(
+            token_at(&tokens, source, needle, 0).0,
+            session.semantic_token_type(expected_role),
+            "unexpected semantic role for {description}"
+        );
+    }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn installation_and_syntax_diagnostics_run_through_the_server_pipeline() {
     let mut session = DocumentSession::open("ZZ > ZZ := (a, b) -> a\n").await;
     assert!(session.diagnostic_codes().contains(&"E09"));
@@ -418,9 +451,11 @@ async fn scopes_bindings_and_callable_metadata_drive_editor_capabilities() {
     assert_eq!(hover_type_at(&mut session, 10, 0).await, "List");
 
     let tokens = semantic_tokens(&mut session).await;
+    let function_token = session.semantic_token_type("function");
+    let parameter_token = session.semantic_token_type("parameter");
     let (function_type, function_modifiers) = token_at(&tokens, source, "f", 0);
     assert_eq!(
-        function_type, 1,
+        function_type, function_token,
         "local callables should be function tokens"
     );
     assert_ne!(
@@ -431,7 +466,7 @@ async fn scopes_bindings_and_callable_metadata_drive_editor_capabilities() {
     for occurrence in [0, 1] {
         assert_eq!(
             token_at(&tokens, source, "parameter", occurrence).0,
-            3,
+            parameter_token,
             "function parameters should retain the standard parameter role"
         );
     }

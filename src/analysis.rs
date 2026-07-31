@@ -4,7 +4,8 @@
 mod ring;
 mod typechecker;
 
-use std::collections::{HashMap, HashSet};
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Deref;
 use tower_lsp::lsp_types::{Diagnostic, Position, Range as TextRange, SymbolKind};
 
@@ -13,6 +14,7 @@ use crate::meta::{BindingRole, Meta, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::object_registry::ObjectName;
 use crate::object_registry::{ObjectId, OperatorForm, TypeData, TypeId};
+use crate::semantic_token::{syntax_semantic_token_type, SourceSemanticRole, SourceSemanticToken};
 use crate::source::SourceNavigation;
 use crate::typesystem::{InferredType, LiteralOption, PositionedTypeKnowledge, TypeKnowledge};
 use crate::util::position_in_range;
@@ -120,6 +122,7 @@ fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
 pub struct MethodInstallation {
     pub id: MethodInstallationId,
     pub method: Method,
+    pub domain_spans: Vec<TextRange>,
     pub codomain_span: Option<TextRange>,
     pub span: TextRange,
     pub target: TextRange,
@@ -128,6 +131,21 @@ pub struct MethodInstallation {
     /// the assigned value in addition to the operands in `domain`.
     expected_rhs_arity: usize,
     pub rhs_lambda_dispatch: Option<Dispatch>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SourceRangeKey(TextRange);
+
+impl Ord for SourceRangeKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.0.start, self.0.end).cmp(&(other.0.start, other.0.end))
+    }
+}
+
+impl PartialOrd for SourceRangeKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug)]
@@ -274,6 +292,8 @@ pub struct SemanticRegistry {
     pub functions: HashMap<ObjectName, FunctionInfo>,
     installations: Vec<MethodInstallation>,
     composite_assignment_declarations: Vec<CompositeAssignmentDeclaration>,
+    pending_source_semantic_roles: BTreeMap<SourceRangeKey, SourceSemanticRole>,
+    source_semantic_tokens: Vec<SourceSemanticToken>,
     source_types: SourceTypeFacts,
     ring_generators: HashMap<ObjectName, Vec<ring::RingGenerator>>,
 }
@@ -466,18 +486,6 @@ impl Analysis {
         installation.method.codomain.as_ref().map(ObjectName::name)
     }
 
-    pub fn is_method_installation_codomain(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-    ) -> bool {
-        let span = source.range_for_node(node);
-        self.registry
-            .installations
-            .iter()
-            .any(|installation| installation.codomain_span.as_ref() == Some(&span))
-    }
-
     pub fn function_for_binding(&self, binding: &BindingInfo) -> Option<&FunctionInfo> {
         self.registry.functions.get(&binding.name)
     }
@@ -548,6 +556,10 @@ impl Analysis {
             .scopes
             .iter()
             .position(|scope| scope.range == range)
+    }
+
+    pub fn source_semantic_tokens(&self) -> &[SourceSemanticToken] {
+        &self.registry.source_semantic_tokens
     }
 
     pub fn bindings_in_scope(&self, scope_idx: usize) -> impl Iterator<Item = BindingView<'_>> {
@@ -647,6 +659,7 @@ impl Analysis {
         // Analysis-first: derive bindings, scopes, and method installations
         // before running diagnostics that consume those facts.
         analysis.build_scopes(root, source, 0, 0, knowledge);
+        analysis.registry.pending_source_semantic_roles.clear();
         analysis.collect_installation_diagnostics(knowledge);
         analysis.collect_install_form_diagnostics(root, source, knowledge);
         analysis.collect_diagnostics(root, source, knowledge);
@@ -662,6 +675,8 @@ impl Analysis {
         assignment_scope_idx: usize,
         knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
     ) {
+        self.record_source_semantic_roles(node, source);
+        self.record_source_semantic_token(node, source);
         let knowledge = knowledge_provider.at_position(source.position_for_node(node));
         let mut next_scope_idx = current_scope_idx;
         let mut next_assignment_scope_idx = assignment_scope_idx;
@@ -838,6 +853,115 @@ impl Analysis {
         }
     }
 
+    fn record_source_semantic_roles(
+        &mut self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+    ) {
+        if node.is_option_assignment() {
+            if let Some(left) = node.child_by_field_name("left") {
+                self.register_source_semantic_role(
+                    source.range_for_node(left),
+                    SourceSemanticRole::OptionKey,
+                );
+                if let (Some(key), Some(right)) = (
+                    symbol_node_text(left).map(ObjectName::new),
+                    node.child_by_field_name("right"),
+                ) {
+                    self.register_source_semantic_role(
+                        source.range_for_node(right),
+                        SourceSemanticRole::OptionValue(key),
+                    );
+                }
+            }
+        }
+
+        if let Some(operator) = node.binary_operator() {
+            if matches!(operator, "#" | "#?") {
+                if let Some(right) = node
+                    .child_by_field_name("right")
+                    .filter(|right| right.kind == NodeKind::StringLiteral)
+                {
+                    self.register_source_semantic_role(
+                        source.range_for_node(right),
+                        SourceSemanticRole::PropertyKey,
+                    );
+                }
+            }
+            if matches!(operator, "." | ".?") {
+                if let Some(right) = node
+                    .child_by_field_name("right")
+                    .filter(|right| right.kind.is_symbol_like())
+                {
+                    self.register_source_semantic_role(
+                        source.range_for_node(right),
+                        SourceSemanticRole::PropertyKey,
+                    );
+                }
+            }
+        }
+
+        if node.kind == NodeKind::StringLiteral {
+            let role = call_like_left_symbol_for_argument(node, false).and_then(|name| {
+                if matches!(name, "match" | "regex" | "select" | "replace" | "separate") {
+                    Some(SourceSemanticRole::RegexpArgument)
+                } else if matches!(
+                    name,
+                    "loadPackage"
+                        | "installPackage"
+                        | "uninstallPackage"
+                        | "needsPackage"
+                        | "endPackage"
+                        | "newPackage"
+                        | "importFrom"
+                        | "exportFrom"
+                ) {
+                    Some(SourceSemanticRole::NamespaceArgument)
+                } else {
+                    None
+                }
+            });
+            if let Some(role) = role {
+                self.register_source_semantic_role(source.range_for_node(node), role);
+            }
+        }
+    }
+
+    fn register_source_semantic_role(&mut self, range: TextRange, role: SourceSemanticRole) {
+        self.registry
+            .pending_source_semantic_roles
+            .entry(SourceRangeKey(range))
+            .or_insert(role);
+    }
+
+    fn record_source_semantic_token(
+        &mut self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+    ) {
+        let syntax_token_type = syntax_semantic_token_type(node);
+        let is_symbol = node.kind.is_symbol_like();
+        if !is_symbol && syntax_token_type.is_none() {
+            return;
+        }
+
+        let span = source.span_for_node(node);
+        let source_role = self
+            .registry
+            .pending_source_semantic_roles
+            .get(&SourceRangeKey(span.range()))
+            .cloned();
+        self.registry
+            .source_semantic_tokens
+            .push(SourceSemanticToken {
+                span,
+                syntax_token_type,
+                source_role,
+                is_symbol,
+                is_unquoted_symbol: node.kind == NodeKind::Symbol,
+            });
+    }
+
     /// The installation characterized for the assignment spanning `node`, if any.
     pub fn installation_for(
         &self,
@@ -870,7 +994,15 @@ impl Analysis {
     ) -> Option<MethodInstallation> {
         let operator = node.binary_operator()?;
         let left = node.child_by_field_name("left")?;
-        let (head, domain) = self.installation_shape(left, knowledge)?;
+        let (head, domain_nodes) = self.installation_shape(left, knowledge)?;
+        let domain = domain_nodes
+            .iter()
+            .map(|node| ObjectName::new(symbol_node_text(*node).unwrap_or_else(|| node.text())))
+            .collect::<Vec<_>>();
+        let domain_spans = domain_nodes
+            .iter()
+            .map(|node| source.range_for_node(*node))
+            .collect::<Vec<_>>();
         let operand_arity = domain.len();
         let span = source.range_for_node(node);
         let target = source.range_for_node(left);
@@ -895,6 +1027,7 @@ impl Analysis {
             ":=" => Some(MethodInstallation {
                 id,
                 method: Method::new(head, domain, codomain),
+                domain_spans,
                 codomain_span,
                 span,
                 target,
@@ -915,6 +1048,7 @@ impl Analysis {
                     Some(MethodInstallation {
                         id,
                         method: Method::new(MethodHead::Operator(op), domain, codomain),
+                        domain_spans,
                         codomain_span,
                         span,
                         target,
@@ -932,11 +1066,11 @@ impl Analysis {
     /// Classify the left side of an assignment into a `(MethodHead, domain)`
     /// pair (the bare, non-assignment head), or `None` if it is not an
     /// installation target at all. The `=`/`:=` rule is applied by the caller.
-    fn installation_shape(
+    fn installation_shape<'tree>(
         &self,
-        node: M2Node,
+        node: M2Node<'tree>,
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<(MethodHead, Vec<ObjectName>)> {
+    ) -> Option<(MethodHead, Vec<M2Node<'tree>>)> {
         // A parenthesized expression is identified with its final value, so
         // `(T op S) := f` installs exactly like `T op S := f`. A final `muted`
         // child means the group evaluates to null and is not an installation
@@ -955,18 +1089,18 @@ impl Analysis {
                     // operator method on the type pair when `A` is a type.
                     let left_name = symbol_node_text(left)?;
                     if self.operand_is_type(left_name, knowledge) {
-                        let right_name = symbol_node_text(right)?;
+                        symbol_node_text(right)?;
                         Some((
                             MethodHead::Operator(Operator {
                                 token: ObjectName::new(SPACE_OPERATOR),
                                 form: OperatorForm::Binary,
                             }),
-                            vec![ObjectName::new(left_name), ObjectName::new(right_name)],
+                            vec![left, right],
                         ))
                     } else {
                         Some((
                             MethodHead::Function(ObjectName::new(left_name)),
-                            method_installation_domain(right)?,
+                            method_installation_domain_nodes(right)?,
                         ))
                     }
                 } else {
@@ -975,36 +1109,39 @@ impl Analysis {
                     if matches!(operator, "=" | ":=" | "<-" | "=>") {
                         return None;
                     }
+                    symbol_node_text(left)?;
+                    symbol_node_text(right)?;
                     Some((
                         MethodHead::Operator(Operator {
                             token: ObjectName::new(operator),
                             form: OperatorForm::Binary,
                         }),
-                        vec![
-                            ObjectName::new(symbol_node_text(left)?),
-                            ObjectName::new(symbol_node_text(right)?),
-                        ],
+                        vec![left, right],
                     ))
                 }
             }
-            NodeKind::PrefixExpression => Some((
-                MethodHead::Operator(Operator {
-                    token: ObjectName::new(operator_text(node)?),
-                    form: OperatorForm::Prefix,
-                }),
-                vec![ObjectName::new(symbol_node_text(
-                    node.child_by_field_name("operand")?,
-                )?)],
-            )),
-            NodeKind::PostfixExpression => Some((
-                MethodHead::Operator(Operator {
-                    token: ObjectName::new(operator_text(node)?),
-                    form: OperatorForm::Postfix,
-                }),
-                vec![ObjectName::new(symbol_node_text(
-                    node.child_by_field_name("operand")?,
-                )?)],
-            )),
+            NodeKind::PrefixExpression => {
+                let operand = node.child_by_field_name("operand")?;
+                symbol_node_text(operand)?;
+                Some((
+                    MethodHead::Operator(Operator {
+                        token: ObjectName::new(operator_text(node)?),
+                        form: OperatorForm::Prefix,
+                    }),
+                    vec![operand],
+                ))
+            }
+            NodeKind::PostfixExpression => {
+                let operand = node.child_by_field_name("operand")?;
+                symbol_node_text(operand)?;
+                Some((
+                    MethodHead::Operator(Operator {
+                        token: ObjectName::new(operator_text(node)?),
+                        form: OperatorForm::Postfix,
+                    }),
+                    vec![operand],
+                ))
+            }
             _ => None,
         }
     }
@@ -1608,6 +1745,16 @@ impl Analysis {
             self.attach_method_installation(&mut installation, knowledge);
         }
 
+        for range in installation
+            .domain_spans
+            .iter()
+            .copied()
+            .chain(installation.codomain_span)
+        {
+            self.registry
+                .pending_source_semantic_roles
+                .insert(SourceRangeKey(range), SourceSemanticRole::MethodType);
+        }
         debug_assert_eq!(installation.id.0, self.registry.installations.len());
         self.registry.installations.push(installation);
         Some(id)
@@ -1972,25 +2119,55 @@ fn parenthesized_value(node: M2Node) -> Option<M2Node> {
     Some(current)
 }
 
-pub fn method_installation_domain(node: M2Node) -> Option<Vec<ObjectName>> {
+fn method_installation_domain_nodes(node: M2Node) -> Option<Vec<M2Node>> {
     let node = parenthesized_value(node)?;
     if matches!(node.kind, NodeKind::Sequence | NodeKind::List) {
-        // Each element is one dispatch position, so the arity is the count of
-        // them — that must be preserved exactly. A non-symbol element is still a
-        // real position: `f(ZZ, a.b) := …` installs at arity 2, because `a.b`
-        // evaluates to a type at install time. We just cannot resolve its type
-        // name statically, so we keep the position under its source text (which
-        // will not match any known type → an unresolved parameter type) rather
-        // than dropping it and under-counting the arity. Comments ride along as
-        // named children and are not dispatch positions.
-        let domain = node
-            .collection_elements()
-            .map(|child| ObjectName::new(symbol_node_text(child).unwrap_or_else(|| child.text())))
-            .collect::<Vec<_>>();
+        let domain = node.collection_elements().collect::<Vec<_>>();
         return (!domain.is_empty()).then_some(domain);
     }
 
-    symbol_node_text(node).map(|name| vec![ObjectName::new(name)])
+    symbol_node_text(node).map(|_| vec![node])
+}
+
+pub fn method_installation_domain(node: M2Node) -> Option<Vec<ObjectName>> {
+    method_installation_domain_nodes(node).map(|nodes| {
+        nodes
+            .into_iter()
+            .map(|node| ObjectName::new(symbol_node_text(node).unwrap_or_else(|| node.text())))
+            .collect()
+    })
+}
+
+fn call_like_left_symbol_for_argument<'tree>(
+    mut node: M2Node<'tree>,
+    allow_list_argument: bool,
+) -> Option<&'tree str> {
+    let mut parent = node.parent()?;
+    if parent.kind == NodeKind::Sequence && !parent.is_first_collection_element(node) {
+        return None;
+    }
+
+    loop {
+        if parent.is_space_application() {
+            let left = parent.child_by_field_name("left")?;
+            if left.kind == NodeKind::Symbol {
+                return Some(left.text());
+            }
+        }
+
+        if parent.kind == NodeKind::List && !allow_list_argument {
+            return None;
+        }
+        if !matches!(
+            parent.kind,
+            NodeKind::Sequence | NodeKind::List | NodeKind::ParenthesizedExpression
+        ) {
+            return None;
+        }
+
+        node = parent;
+        parent = node.parent()?;
+    }
 }
 
 fn is_colon_equal_assignment_left(node: M2Node) -> bool {

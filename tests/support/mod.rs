@@ -362,13 +362,20 @@ pub(crate) struct DocumentSession {
     source: String,
     version: i32,
     diagnostics: Value,
+    semantic_token_types: Vec<String>,
 }
 
 impl DocumentSession {
     pub(crate) async fn open(source: &str) -> Self {
         let workspace = TestWorkspace::new(source);
         let mut server = LspProcess::spawn().await;
-        server.initialize(&workspace.root_uri()).await;
+        let initialized = server.initialize(&workspace.root_uri()).await;
+        let semantic_token_types = response_array(
+            &initialized["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"],
+        )
+        .iter()
+        .filter_map(|token_type| token_type.as_str().map(str::to_string))
+        .collect();
         server
             .notify(
                 "textDocument/didOpen",
@@ -392,6 +399,7 @@ impl DocumentSession {
             source: source.to_string(),
             version: 1,
             diagnostics,
+            semantic_token_types,
         }
     }
 
@@ -478,6 +486,13 @@ impl DocumentSession {
 
     pub(crate) fn uri(&self) -> &str {
         &self.workspace.uri
+    }
+
+    pub(crate) fn semantic_token_type(&self, name: &str) -> u64 {
+        self.semantic_token_types
+            .iter()
+            .position(|token_type| token_type == name)
+            .unwrap_or_else(|| panic!("semantic-token legend should contain {name}")) as u64
     }
 
     pub(crate) async fn shutdown(self) {

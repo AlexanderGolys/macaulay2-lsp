@@ -10,7 +10,7 @@ use crate::analysis::{Analysis, BindingView, FunctionInfo};
 use crate::documentation::{collect_documentation, DocumentationReference, DocumentationSnippet};
 use crate::object_registry::ObjectRegistry;
 use crate::package_index::{collect_imported_packages_in_tree, PackageImport};
-use crate::source::{DocumentSource, SourceNavigation};
+use crate::source::{DocumentSource, DocumentSpan, SourceNavigation};
 
 /// One immutable source, syntax, and semantic-analysis snapshot served to LSP
 /// requests.
@@ -89,9 +89,9 @@ impl DocumentSnapshot {
         SourceNavigation::text(self)
     }
 
-    pub(crate) fn is_macro_name(&self, node: M2Node<'_>) -> bool {
-        self.macro_syntax
-            .is_macro_name(node.start_byte(), node.end_byte())
+    pub(crate) fn is_macro_name_span(&self, span: &DocumentSpan) -> bool {
+        let bytes = span.bytes();
+        self.macro_syntax.is_macro_name(bytes.start, bytes.end)
     }
 
     /// The packages this document imports, memoized from its tree.
