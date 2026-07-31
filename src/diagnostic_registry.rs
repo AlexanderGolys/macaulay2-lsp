@@ -32,10 +32,11 @@ pub enum DiagnosticKind {
     MissingOutputCell,
     InvalidControlTransfer,
     ParallelAssignmentType,
+    TypeError,
 }
 
 impl DiagnosticKind {
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::SyntaxError,
         Self::MissingNode,
         Self::AmbiguousFloatMemberAccess,
@@ -53,6 +54,7 @@ impl DiagnosticKind {
         Self::MissingOutputCell,
         Self::InvalidControlTransfer,
         Self::ParallelAssignmentType,
+        Self::TypeError,
     ];
 
     /// The stable `E..` code surfaced to the editor (rustc-style).
@@ -75,6 +77,7 @@ impl DiagnosticKind {
             Self::MissingOutputCell => "E14",
             Self::InvalidControlTransfer => "E15",
             Self::ParallelAssignmentType => "E16",
+            Self::TypeError => "E17",
         }
     }
 
@@ -99,6 +102,7 @@ impl DiagnosticKind {
             Self::MissingOutputCell => "missing-output-cell",
             Self::InvalidControlTransfer => "invalid-control-transfer",
             Self::ParallelAssignmentType => "parallel-assignment-type",
+            Self::TypeError => "type-error",
         }
     }
 
@@ -113,7 +117,8 @@ impl DiagnosticKind {
             | Self::InstallArity
             | Self::InstallNeedsColonEquals
             | Self::InvalidControlTransfer
-            | Self::ParallelAssignmentType => DiagnosticSeverity::ERROR,
+            | Self::ParallelAssignmentType
+            | Self::TypeError => DiagnosticSeverity::ERROR,
             Self::AmbiguousFloatMemberAccess | Self::UnusedBinding | Self::InstallNoEffect => {
                 DiagnosticSeverity::WARNING
             }

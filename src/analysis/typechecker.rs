@@ -696,36 +696,66 @@ impl TypeChecker<'_> {
         position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<Vec<ObjectName>> {
-        if let Some(parameter_names) = function
-            .parameter_names
-            .as_ref()
-            .filter(|names| names.len() == argument_types.len())
-        {
-            return Some(parameter_names.clone());
+        match function.kind {
+            LocalFunctionKind::Plain => {
+                let Dispatch::Fixed(arity) = function.dispatch? else {
+                    return None;
+                };
+                (arity == argument_types.len())
+                    .then(|| function.parameter_names.clone())
+                    .flatten()
+            }
+            LocalFunctionKind::Method => {
+                let candidates = self
+                    .methods_for_at(function, position)
+                    .into_iter()
+                    .filter(|method| self.signature_matches(method, argument_types, knowledge))
+                    .collect::<Vec<_>>();
+                let dispatched = candidates
+                    .iter()
+                    .copied()
+                    .filter(|candidate| {
+                        !candidates.iter().copied().any(|other| {
+                            self.method_domain_strictly_smaller(
+                                &other.domain,
+                                &candidate.domain,
+                                knowledge,
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                let [method] = dispatched.as_slice() else {
+                    return None;
+                };
+                method
+                    .parameter_names
+                    .as_ref()
+                    .filter(|names| names.len() == argument_types.len())
+                    .cloned()
+            }
         }
+    }
 
-        let candidates = self
-            .methods_for_at(function, position)
-            .into_iter()
-            .filter(|method| method.domain.len() == argument_types.len())
-            .filter_map(|method| method.parameter_names.as_ref().map(|names| (method, names)))
-            .collect::<Vec<_>>();
-        let matching_names = candidates
-            .iter()
-            .filter(|(method, _)| self.signature_matches(method, argument_types, knowledge))
-            .map(|(_, names)| (*names).clone())
-            .collect::<HashSet<_>>();
-        if matching_names.len() == 1 {
-            return matching_names.into_iter().next();
+    fn method_domain_strictly_smaller(
+        &self,
+        smaller: &[ObjectName],
+        bigger: &[ObjectName],
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> bool {
+        if smaller.len() != bigger.len() {
+            return false;
         }
-
-        let candidate_names = candidates
-            .into_iter()
-            .map(|(_, names)| names.clone())
-            .collect::<HashSet<_>>();
-        (candidate_names.len() == 1)
-            .then(|| candidate_names.into_iter().next())
-            .flatten()
+        let mut strict = false;
+        for (smaller, bigger) in smaller.iter().zip(bigger) {
+            if smaller == bigger {
+                continue;
+            }
+            if !self.is_subtype(smaller, bigger, knowledge) {
+                return false;
+            }
+            strict = true;
+        }
+        strict
     }
 
     fn signature_matches(

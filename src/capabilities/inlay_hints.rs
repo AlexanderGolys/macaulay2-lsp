@@ -253,6 +253,22 @@ fn parameter_name_hints(
             let Some(arguments) = call.child_by_field_name("right") else {
                 return Vec::new();
             };
+            if !matches!(
+                arguments.kind,
+                NodeKind::ParenthesizedExpression | NodeKind::Sequence
+            ) {
+                return Vec::new();
+            }
+            let Some(callable) = call.child_by_field_name("left") else {
+                return Vec::new();
+            };
+            if document
+                .analysis()
+                .local_method_installation_signature_at(callable, document)
+                .is_some()
+            {
+                return Vec::new();
+            }
             let view = knowledge.at(document.position_for_node(call));
             let Some(parameter_names) = document
                 .analysis()

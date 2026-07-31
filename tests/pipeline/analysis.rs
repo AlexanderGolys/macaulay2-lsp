@@ -198,6 +198,35 @@ async fn unassigned_symbols_are_enum_members_until_their_binding() {
 }
 
 #[tokio::test]
+async fn control_flow_conditions_require_booleans_without_function_coloring() {
+    let source = concat!(
+        "while i do 2;\n",
+        "while true do 2;\n",
+        "condition := true\n",
+        "while condition do 2;\n",
+        "while 1 do 2;\n",
+        "if j then 2 else 3\n",
+        "if false then 2 else 3\n",
+        "if condition then 2 else 3\n",
+        "if 1 then 2 else 3\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    let tokens = semantic_tokens(&mut session).await;
+
+    assert_eq!(
+        token_at(&tokens, source, "i", 1).0,
+        session.semantic_token_type("enumMember")
+    );
+    assert_eq!(
+        token_at(&tokens, source, "j", 0).0,
+        session.semantic_token_type("enumMember")
+    );
+    assert_eq!(diagnostic_lines(&session, "E17"), vec![0, 4, 5, 8]);
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn only_original_core_compiled_functions_are_builtin() {
     let source = "f = scan\nf\nscan\nscan = f\nscan\n";
     let mut session = DocumentSession::open(source).await;
@@ -455,6 +484,22 @@ async fn assignment_and_protection_diagnostics_preserve_source_sensitive_analysi
     assert_eq!(diagnostic_lines(&session, "E05"), vec![0, 1, 4, 5]);
 
     session
+        .replace("(x, (y, z, z), w) = (1, [2, \"3\"], 3)\n")
+        .await;
+    let diagnostic = session
+        .diagnostics()
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "E05")
+        .expect("nested assignment shape mismatch should be diagnosed");
+    assert_eq!(
+        diagnostic["range"],
+        json!({
+            "start": {"line": 0, "character": 4},
+            "end": {"line": 0, "character": 13}
+        })
+    );
+
+    session
         .replace("[x, y] = [ignored; 2, 3]\n[x, y, z] = [, 1,]\n[x, y] = [, 1,]\n")
         .await;
     assert_eq!(diagnostic_lines(&session, "E05"), vec![2]);
@@ -690,8 +735,8 @@ async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
         "x = if condition then 3 else 4\n",
         "x = if condition then \"a\" else \"b\"\n",
         "broad = method()\n",
-        "broad Thing := (item) -> item\n",
-        "unknown = broad missing\n",
+        "broad(Thing) := (item) -> item\n",
+        "unknown = broad(missing)\n",
         "literalString = \"a\"\n",
         "literalArray = [1]\n",
         "literalInteger = 1\n",
@@ -750,6 +795,55 @@ async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
             quiet_line + 1
         );
     }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn parameter_inlay_hints_require_parenthesized_fixed_user_dispatch() {
+    let source = concat!(
+        "fixed = (left, right) -> left\n",
+        "fixed(1, 2)\n",
+        "fixed (3, 4)\n",
+        "unary = (item) -> item\n",
+        "unary 1\n",
+        "unary(1)\n",
+        "variadic = values -> values\n",
+        "variadic(1, 2)\n",
+        "dispatch = method()\n",
+        "dispatch(Thing) := (value) -> value\n",
+        "dispatch(ZZ) := (integer) -> integer\n",
+        "dispatch(1)\n",
+        "dispatch(\"a\")\n",
+        "builtin = ideal\n",
+        "builtin(1, 2)\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    session.set_expression_type_hints(false).await;
+    let hints = inlay_hints(&mut session).await;
+    let parameter_hints = hints
+        .iter()
+        .filter(|hint| hint["kind"] == 2)
+        .map(|hint| {
+            (
+                hint["position"]["line"].as_u64().expect("hint line"),
+                hint["label"].as_str().expect("hint label"),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        parameter_hints,
+        vec![
+            (1, "left:"),
+            (1, "right:"),
+            (2, "left:"),
+            (2, "right:"),
+            (5, "item:"),
+            (11, "integer:"),
+            (12, "value:"),
+        ]
+    );
 
     session.shutdown().await;
 }

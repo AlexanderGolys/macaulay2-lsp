@@ -84,10 +84,42 @@ impl Analysis {
         self.diagnose_control_transfer(node, source, &knowledge);
         self.diagnose_output_reference(node, source, &knowledge);
         self.diagnose_protect_argument(node, source, &knowledge);
+        self.diagnose_condition_type(node, source, &knowledge);
 
         for child in node.children() {
             self.collect_diagnostics(child, source, builtins);
         }
+    }
+
+    fn diagnose_condition_type(
+        &mut self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) {
+        let (construct, condition) = match node.kind {
+            NodeKind::IfStatement => ("if", node.child_by_field_name("condition")),
+            NodeKind::WhileStatement => ("while", node.named_child(0)),
+            _ => return,
+        };
+        let Some(condition) = condition else {
+            return;
+        };
+        let Some(actual) = self.infer_expression_static_type(condition, source, knowledge) else {
+            return;
+        };
+        if actual == TypeRole::Thing.object_name()
+            || knowledge.is_subtype(&actual, &TypeRole::Boolean.object_name())
+        {
+            return;
+        }
+        self.diagnostics.push(DiagnosticKind::TypeError.at(
+            source.range_for_node(condition),
+            format!(
+                "{construct} condition must have type `Boolean`, but this expression has type `{}`",
+                actual.name()
+            ),
+        ));
     }
 
     fn diagnose_control_transfer(
@@ -365,7 +397,7 @@ impl Analysis {
         let value_nodes = right.collection_elements().collect::<Vec<_>>();
         if target_nodes.len() != value_nodes.len() {
             self.diagnostics.push(DiagnosticKind::ParallelAssignmentArity.at(
-                source.range_for_node(right),
+                source.range_for_node(left),
                 format!(
                     "parallel assignment binds {} targets but the right-hand side lists {}; their lengths must match",
                     target_nodes.len(),

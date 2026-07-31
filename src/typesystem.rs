@@ -12,6 +12,7 @@ use crate::object_registry::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TypeRole {
+    Boolean,
     Function,
     MethodFunction,
     Package,
@@ -25,6 +26,7 @@ pub enum TypeRole {
 impl TypeRole {
     pub fn object_name(self) -> ObjectName {
         ObjectName::new(match self {
+            Self::Boolean => "Boolean",
             Self::Function => "Function",
             Self::MethodFunction => "MethodFunction",
             Self::Package => "Package",
