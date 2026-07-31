@@ -242,6 +242,16 @@ async fn output_references_follow_prior_cell_types_without_semantic_tokens() {
     session.replace("1\n\"hidden\";\na = oo\n").await;
     assert_eq!(hover_type_at(&mut session, 2, 0).await, "ZZ");
 
+    session.replace("o100 := \"hello\"\nx = o100\n").await;
+    assert_eq!(hover_type_at(&mut session, 1, 0).await, "String");
+    let tokens = semantic_tokens(&mut session).await;
+    assert!(
+        tokens
+            .iter()
+            .any(|(line, character, _, _)| *line == 1 && *character == 4),
+        "a resolved user binding named like an output reference must retain its semantic token"
+    );
+
     session.shutdown().await;
 }
 
@@ -258,8 +268,10 @@ async fn installation_and_syntax_diagnostics_run_through_the_server_pipeline() {
         ("ZZ * ZZ = (a, b) -> a\n", "E10", true),
         ("f = x -> x\nf ZZ := y -> y\n", "E08", true),
         ("f = method()\nf ZZ := y -> y\n", "E08", false),
+        ("f = first {ideal}\nf ZZ := y -> y\n", "E08", false),
         ("f = method()\nf ZZ = x -> x\n", "E11", true),
         ("f = x -> x\nf ZZ = y -> y\n", "E11", true),
+        ("f = 1\nf ZZ = y -> y\n", "E11", false),
         ("f = method()\nf ZZ := x -> x\n", "E11", false),
         ("ZZ * ZZ = (a, b, c) -> c\n", "E11", false),
         ("if x then y\n    else z", "E00", true),
@@ -510,6 +522,35 @@ async fn callable_aliases_reinstall_methods_and_reassignments_remain_source_orde
         )
         .await;
     assert_eq!(after_reassignment["range"]["start"]["line"], 2);
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn indexed_callable_aliases_preserve_identity_for_local_installations() {
+    let source = "f = ideal\ng = f\nf ZZ := x -> x\ny = g 1\n";
+    let mut session = DocumentSession::open(source).await;
+
+    assert!(!session.diagnostic_codes().contains(&"E08"));
+    assert_eq!(hover_type_at(&mut session, 3, 0).await, "Thing");
+
+    let signature_help = session
+        .request(
+            "textDocument/signatureHelp",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": {"line": 3, "character": 6}
+            }),
+        )
+        .await;
+    assert!(
+        signature_help["signatures"]
+            .as_array()
+            .is_some_and(|signatures| signatures
+                .iter()
+                .any(|signature| { signature["label"] == "g(ZZ)" })),
+        "indexed alias installation should drive signature help: {signature_help}"
+    );
 
     session.shutdown().await;
 }

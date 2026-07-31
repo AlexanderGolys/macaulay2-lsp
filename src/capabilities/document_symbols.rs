@@ -5,13 +5,15 @@
 //! function. Runtime values and names supplied by indexed packages are not
 //! treated as document definitions.
 
+use std::collections::HashSet;
+
 use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
+use crate::analysis::AssignmentFactKind;
 use crate::document::DocumentSnapshot;
 use crate::meta::BindingRole;
 use crate::object_registry::ObjectName;
-use crate::source::SourceNavigation;
 
 #[derive(Debug, Clone)]
 pub struct WorkspaceSourceSymbol {
@@ -26,12 +28,6 @@ pub struct WorkspaceSourceSymbol {
 pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<DocumentSymbol> {
     let analysis = document.analysis();
     let mut declarations = Vec::new();
-    let assignments = document
-        .root_node()
-        .descendants()
-        .filter(|node| node.is_assignment())
-        .map(|node| (document.range_for_node(node), node))
-        .collect::<Vec<_>>();
 
     for binding in analysis
         .bindings()
@@ -56,79 +52,39 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
         });
     }
 
-    for installation in analysis.installations() {
-        let Some(assignment) = assignments
-            .iter()
-            .find_map(|(range, node)| (*range == installation.span).then_some(*node))
-        else {
-            continue;
+    for assignment in analysis.assignment_facts() {
+        let child_scope_idx = assignment
+            .value_span
+            .and_then(|range| analysis.scope_with_range(range));
+        let (kind, detail) = match assignment.kind {
+            AssignmentFactKind::MethodInstallation(id) => {
+                let Some(installation) = analysis.method_installation(id) else {
+                    continue;
+                };
+                (
+                    SymbolKind::METHOD,
+                    Some(method_signature_detail(
+                        analysis,
+                        installation,
+                        &assignment.label,
+                    )),
+                )
+            }
+            AssignmentFactKind::IndexedVariable => {
+                (SymbolKind::VARIABLE, Some("indexed variable".to_string()))
+            }
+            AssignmentFactKind::ScopedCallable if child_scope_idx.is_some() => {
+                (SymbolKind::METHOD, Some(assignment.label.clone()))
+            }
+            AssignmentFactKind::ScopedCallable => continue,
         };
-        let (Some(target), value) = (
-            assignment.child_by_field_name("left"),
-            assignment.child_by_field_name("right"),
-        ) else {
-            continue;
-        };
-        let name = target.text();
-        let scope_idx = analysis
-            .scope_at_position(installation.span.start)
-            .unwrap_or(0);
         declarations.push(Declaration {
-            name: name.to_string(),
-            detail: Some(method_signature_detail(analysis, installation, name)),
-            kind: SymbolKind::METHOD,
-            range: installation.span,
-            selection_range: document.range_for_node(target),
-            scope_idx,
-            child_scope_idx: value
-                .map(|value| document.range_for_node(value))
-                .and_then(|range| analysis.scope_with_range(range)),
-            symbol: None,
-        });
-    }
-
-    let installation_spans = analysis
-        .installations()
-        .iter()
-        .map(|installation| installation.span)
-        .collect::<Vec<_>>();
-    for (range, assignment) in assignments
-        .iter()
-        .copied()
-        .filter(|(_, node)| node.binary_operator() == Some("="))
-    {
-        if installation_spans.contains(&range) {
-            continue;
-        }
-        let (Some(target), Some(value)) = (
-            assignment.child_by_field_name("left"),
-            assignment.child_by_field_name("right"),
-        ) else {
-            continue;
-        };
-        let Some(operator) = target.binary_operator() else {
-            continue;
-        };
-        let value_range = document.range_for_node(value);
-        let child_scope_idx = analysis.scope_with_range(value_range);
-        let kind = match operator {
-            "_" => SymbolKind::VARIABLE,
-            _ if child_scope_idx.is_some() => SymbolKind::METHOD,
-            _ => continue,
-        };
-        let name = target.text();
-        let detail = Some(if kind == SymbolKind::METHOD {
-            name.to_string()
-        } else {
-            "indexed variable".to_string()
-        });
-        declarations.push(Declaration {
-            name: name.to_string(),
+            name: assignment.label.clone(),
             detail,
             kind,
-            range,
-            selection_range: document.range_for_node(target),
-            scope_idx: analysis.scope_at_position(range.start).unwrap_or(0),
+            range: assignment.span,
+            selection_range: assignment.target_span,
+            scope_idx: assignment.scope_idx,
             child_scope_idx,
             symbol: None,
         });
@@ -240,16 +196,15 @@ fn build_document_symbol_tree(
     let mut by_scope: Vec<Vec<Declaration>> = (0..analysis.registry.scopes.len())
         .map(|_| Vec::new())
         .collect();
-    let mut seen_symbols: Vec<Vec<ObjectName>> = (0..analysis.registry.scopes.len())
-        .map(|_| Vec::new())
+    let mut seen_symbols: Vec<HashSet<ObjectName>> = (0..analysis.registry.scopes.len())
+        .map(|_| HashSet::new())
         .collect();
     for declaration in declarations {
         let scope_idx = nearest_container_scope(analysis, &container_scopes, declaration.scope_idx);
         if let Some(symbol) = declaration.symbol.as_ref() {
-            if seen_symbols[scope_idx].contains(symbol) {
+            if !seen_symbols[scope_idx].insert(symbol.clone()) {
                 continue;
             }
-            seen_symbols[scope_idx].push(symbol.clone());
         }
         by_scope[scope_idx].push(declaration);
     }

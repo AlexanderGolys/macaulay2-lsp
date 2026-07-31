@@ -35,7 +35,9 @@ impl Analysis {
         out: &mut Vec<M2Diagnostic>,
     ) {
         let knowledge = knowledge_provider.at_position(source.position_for_node(node));
-        if let Some(name) = self.illegal_equals_install_head(node, &knowledge) {
+        if let Some(name) =
+            self.illegal_equals_install_head(node, source.position_for_node(node), &knowledge)
+        {
             out.push(DiagnosticKind::InstallNeedsColonEquals.at(
                 source.range_for_node(node),
                 format!(
@@ -52,6 +54,7 @@ impl Analysis {
     fn illegal_equals_install_head(
         &self,
         node: M2Node,
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<String> {
         if node.binary_operator() != Some("=") {
@@ -65,7 +68,8 @@ impl Analysis {
         let (MethodHead::Function(name), _) = self.installation_shape(left, knowledge)? else {
             return None;
         };
-        Some(name.name().to_string())
+        (self.callable_head_kind(name.name(), position, knowledge) != CallableHeadKind::Unknown)
+            .then(|| name.name().to_string())
     }
 
     fn installation_diagnostics(
@@ -76,7 +80,9 @@ impl Analysis {
     ) {
         match &installation.method.head {
             MethodHead::Function(name) => {
-                if !self.head_is_method_function(name.name(), installation.span.start, knowledge) {
+                if self.callable_head_kind(name.name(), installation.span.start, knowledge)
+                    == CallableHeadKind::PlainFunction
+                {
                     out.push(DiagnosticKind::InstallNoEffect.at(
                         installation.span,
                         format!(

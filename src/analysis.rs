@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Deref;
 use tower_lsp::lsp_types::{Position, Range as TextRange, SymbolKind};
 
+use crate::builtin_index::CallableKind;
 use crate::diagnostic_registry::{DiagnosticKind, M2Diagnostic};
 use crate::meta::{BindingRole, Meta, Metadata};
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
@@ -79,9 +80,9 @@ pub enum MethodHead {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MethodInstallationId(usize);
 
-/// Identity of one statically known source-created runtime object.
+/// Identity of one statically known callable runtime object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SourceObjectId(usize);
+pub struct CallableObjectId(usize);
 
 /// Source-characterized method signature.
 ///
@@ -141,6 +142,25 @@ pub struct MethodInstallation {
     pub rhs_lambda_dispatch: Option<Dispatch>,
 }
 
+/// The outline-relevant semantic shape of one characterized assignment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignmentFactKind {
+    MethodInstallation(MethodInstallationId),
+    IndexedVariable,
+    ScopedCallable,
+}
+
+/// Source-facing assignment facts retained by analysis for capability projections.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignmentFact {
+    pub label: String,
+    pub span: TextRange,
+    pub target_span: TextRange,
+    pub value_span: Option<TextRange>,
+    pub scope_idx: usize,
+    pub kind: AssignmentFactKind,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SourceRangeKey(TextRange);
 
@@ -171,7 +191,14 @@ enum LocalFunctionKind {
     Method,
 }
 
-/// Semantic information about one locally defined callable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CallableHeadKind {
+    PlainFunction,
+    MethodFunction,
+    Unknown,
+}
+
+/// Semantic information about one statically tracked callable.
 ///
 /// Installed methods are referenced by identity in the snapshot's semantic
 /// registry
@@ -182,13 +209,6 @@ pub struct FunctionInfo {
     pub installations: Vec<MethodInstallationId>,
     pub dispatch: Option<Dispatch>,
     kind: LocalFunctionKind,
-}
-
-/// Static facts owned by one source-created runtime object.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceObject {
-    pub class: ObjectName,
-    pub function: FunctionInfo,
 }
 
 /// Static facts computed for one call after separating positional arguments
@@ -221,7 +241,7 @@ pub struct BindingInfo {
 pub struct BindingStateInfo {
     pub presentation_kind: SymbolKind,
     pub type_name: Option<ObjectName>,
-    pub object_id: Option<SourceObjectId>,
+    pub object_id: Option<CallableObjectId>,
     pub indexed_element_type: Option<ObjectName>,
     pub value_range: Option<TextRange>,
     pub span: TextRange,
@@ -274,9 +294,12 @@ pub struct SemanticRegistry {
     pub scopes: Vec<ScopeInfo>,
     pub bindings: Vec<BindingInfo>,
     pub bindings_by_name: HashMap<ObjectName, Vec<BindingId>>,
-    pub objects: Vec<SourceObject>,
+    callable_objects: Vec<FunctionInfo>,
+    indexed_callable_objects: HashMap<ObjectId, CallableObjectId>,
     operator_functions: HashMap<Operator, FunctionInfo>,
     installations: Vec<MethodInstallation>,
+    assignment_facts: Vec<AssignmentFact>,
+    scopes_by_range: BTreeMap<SourceRangeKey, usize>,
     pending_source_semantic_roles: BTreeMap<SourceRangeKey, SourceSemanticRole>,
     source_semantic_tokens: Vec<SourceSemanticToken>,
     source_types: SourceTypeFacts,
@@ -318,7 +341,7 @@ struct SymbolRegistration {
     presentation_kind: SymbolKind,
     role: BindingRole,
     type_name: Option<ObjectName>,
-    object_id: Option<SourceObjectId>,
+    object_id: Option<CallableObjectId>,
     indexed_element_type: Option<ObjectName>,
     parent_type: Option<TypeId>,
     scope_idx: usize,
@@ -482,13 +505,9 @@ impl Analysis {
     }
 
     pub fn function_for_binding(&self, binding: BindingView<'_>) -> Option<&FunctionInfo> {
-        Some(
-            &self
-                .registry
-                .objects
-                .get(binding.state.object_id?.0)?
-                .function,
-        )
+        self.registry
+            .callable_objects
+            .get(binding.state.object_id?.0)
     }
 
     pub fn methods_for<'a>(
@@ -539,20 +558,25 @@ impl Analysis {
         methods
     }
 
-    fn method_installation(&self, id: MethodInstallationId) -> Option<&MethodInstallation> {
+    pub fn method_installation(&self, id: MethodInstallationId) -> Option<&MethodInstallation> {
         self.registry.installations.get(id.0)
     }
 
     /// Borrow every characterized method installation in source order.
+    #[cfg(test)]
     pub fn installations(&self) -> &[MethodInstallation] {
         &self.registry.installations
     }
 
+    pub fn assignment_facts(&self) -> &[AssignmentFact] {
+        &self.registry.assignment_facts
+    }
+
     pub fn scope_with_range(&self, range: TextRange) -> Option<usize> {
         self.registry
-            .scopes
-            .iter()
-            .position(|scope| scope.range == range)
+            .scopes_by_range
+            .get(&SourceRangeKey(range))
+            .copied()
     }
 
     pub fn source_semantic_tokens(&self) -> &[SourceSemanticToken] {
@@ -634,11 +658,6 @@ impl Analysis {
         best_idx
     }
 
-    /// Return the most-nested lexical scope containing `position`.
-    pub(crate) fn scope_at_position(&self, position: Position) -> Option<usize> {
-        self.find_scope_at(position)
-    }
-
     pub fn new_with_knowledge(
         root: M2Node<'_>,
         source: &(impl SourceNavigation + ?Sized),
@@ -655,6 +674,10 @@ impl Analysis {
                 ..Default::default()
             },
         };
+        analysis
+            .registry
+            .scopes_by_range
+            .insert(SourceRangeKey(TextRange::new(pos!(), pos_max!())), 0);
         // Analysis-first: derive bindings, scopes, and method installations
         // before running diagnostics that consume those facts.
         analysis.build_scopes(root, source, 0, 0, knowledge);
@@ -676,7 +699,7 @@ impl Analysis {
     ) {
         let knowledge = knowledge_provider.at_position(source.position_for_node(node));
         self.record_source_semantic_roles(node, source, &knowledge);
-        self.record_source_semantic_token(node, source);
+        self.record_source_semantic_token(node, source, &knowledge);
         let mut next_scope_idx = current_scope_idx;
         let mut next_assignment_scope_idx = assignment_scope_idx;
 
@@ -702,7 +725,15 @@ impl Analysis {
 
                 if let (Some(left), Some(op)) = (left, op) {
                     let op_text = op.text();
-                    self.record_method_installation(node, source, &knowledge);
+                    let installation_id = self.record_method_installation(node, source, &knowledge);
+                    self.record_assignment_fact(
+                        node,
+                        left,
+                        right,
+                        current_scope_idx,
+                        installation_id,
+                        source,
+                    );
                     let type_name = right.and_then(|right| {
                         if method_declaration_typical_value(right).is_some()
                             || is_method_call(right)
@@ -739,12 +770,7 @@ impl Analysis {
                     };
                     let target_name = single_symbol_assignment_target(left);
                     let object_id = right.zip(target_name).and_then(|(right, _)| {
-                        self.source_object_for_value(
-                            right,
-                            type_name.as_ref(),
-                            source,
-                            current_scope_idx,
-                        )
+                        self.callable_object_for_value(right, source, current_scope_idx, &knowledge)
                     });
 
                     match op_text {
@@ -882,9 +908,19 @@ impl Analysis {
         &mut self,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
         if node.kind == NodeKind::Symbol && OutputReference::parse(node.text()).is_some() {
-            return;
+            let position = source.position_for_node(node);
+            let binding_is_visible =
+                self.get_binding_at(node.text(), position)
+                    .is_some_and(|binding| {
+                        binding.scope_idx != 0
+                            || !knowledge.shadows_source(&binding.name, binding.state.span.start)
+                    });
+            if !binding_is_visible {
+                return;
+            }
         }
         let syntax_token_type = syntax_semantic_token_type(node);
         let is_symbol = node.kind.is_symbol_like();
@@ -907,6 +943,37 @@ impl Analysis {
                 is_symbol,
                 is_unquoted_symbol: node.kind == NodeKind::Symbol,
             });
+    }
+
+    fn record_assignment_fact(
+        &mut self,
+        assignment: M2Node,
+        target: M2Node,
+        value: Option<M2Node>,
+        scope_idx: usize,
+        installation_id: Option<MethodInstallationId>,
+        source: &(impl SourceNavigation + ?Sized),
+    ) {
+        let kind = if let Some(id) = installation_id {
+            AssignmentFactKind::MethodInstallation(id)
+        } else {
+            if assignment.binary_operator() != Some("=") {
+                return;
+            }
+            match target.binary_operator() {
+                Some("_") => AssignmentFactKind::IndexedVariable,
+                Some(_) => AssignmentFactKind::ScopedCallable,
+                None => return,
+            }
+        };
+        self.registry.assignment_facts.push(AssignmentFact {
+            label: target.text().to_string(),
+            span: source.range_for_node(assignment),
+            target_span: source.range_for_node(target),
+            value_span: value.map(|value| source.range_for_node(value)),
+            scope_idx,
+            kind,
+        });
     }
 
     /// The installation characterized for the assignment spanning `node`, if any.
@@ -1110,24 +1177,44 @@ impl Analysis {
         TypeChecker::new(self).resolve_type_id(&parent, knowledge)
     }
 
-    fn head_is_method_function(
+    fn callable_head_kind(
         &self,
         name: &str,
         position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> bool {
+    ) -> CallableHeadKind {
         if let Some(binding) = self.get_binding_at(name, position) {
             if let Some(function) = self.function_for_binding(binding) {
-                return function.kind == LocalFunctionKind::Method;
+                return match function.kind {
+                    LocalFunctionKind::Plain => CallableHeadKind::PlainFunction,
+                    LocalFunctionKind::Method => CallableHeadKind::MethodFunction,
+                };
             }
-            return binding.state.type_name.as_ref().is_some_and(|type_name| {
-                knowledge.has_type_role(type_name, TypeRole::MethodFunction)
-            });
+            return binding
+                .state
+                .type_name
+                .as_ref()
+                .map(|type_name| {
+                    if knowledge.has_type_role(type_name, TypeRole::MethodFunction) {
+                        CallableHeadKind::MethodFunction
+                    } else if knowledge.has_type_role(type_name, TypeRole::Function) {
+                        CallableHeadKind::PlainFunction
+                    } else {
+                        CallableHeadKind::Unknown
+                    }
+                })
+                .unwrap_or(CallableHeadKind::Unknown);
         }
         knowledge
             .get_record(&ObjectName::new(name))
             .and_then(|record| record.callable())
-            .is_some_and(|callable| callable.is_method_function())
+            .map_or(CallableHeadKind::Unknown, |callable| {
+                if callable.is_method_function() {
+                    CallableHeadKind::MethodFunction
+                } else {
+                    CallableHeadKind::PlainFunction
+                }
+            })
     }
 
     fn collect_parameters(
@@ -1402,26 +1489,63 @@ impl Analysis {
         TypeChecker::new(self).dispatch_argument_ids(facts, knowledge)
     }
 
-    fn source_object_for_value(
+    fn callable_object_for_value(
         &mut self,
         value: M2Node,
-        type_name: Option<&ObjectName>,
         source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
-    ) -> Option<SourceObjectId> {
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Option<CallableObjectId> {
         if value.kind == NodeKind::ParenthesizedExpression {
-            return self.source_object_for_value(
+            return self.callable_object_for_value(
                 value.final_value_child()?,
-                type_name,
                 source,
                 scope_idx,
+                knowledge,
             );
         }
         if value.kind == NodeKind::Symbol {
-            return self
-                .get_binding_from_scope(value.text(), scope_idx, source.position_for_node(value))?
-                .state
-                .object_id;
+            if let Some(binding) = self.get_binding_from_scope(
+                value.text(),
+                scope_idx,
+                source.position_for_node(value),
+            ) {
+                if binding.scope_idx != 0
+                    || !knowledge.shadows_source(&binding.name, binding.state.span.start)
+                {
+                    return binding.state.object_id;
+                }
+            }
+
+            let indexed_id = knowledge.resolve_object(&ObjectName::new(value.text()))?;
+            if let Some(object_id) = self
+                .registry
+                .indexed_callable_objects
+                .get(&indexed_id)
+                .copied()
+            {
+                return Some(object_id);
+            }
+            let callable = knowledge.object(&indexed_id)?.callable()?;
+            let function = FunctionInfo {
+                typical_value: callable
+                    .typical_value
+                    .as_ref()
+                    .and_then(|type_id| knowledge.type_name(type_id))
+                    .cloned(),
+                installations: Vec::new(),
+                dispatch: None,
+                kind: match callable.kind {
+                    CallableKind::MethodFunction => LocalFunctionKind::Method,
+                    CallableKind::Function | CallableKind::Operator(_) => LocalFunctionKind::Plain,
+                },
+            };
+            let object_id = CallableObjectId(self.registry.callable_objects.len());
+            self.registry.callable_objects.push(function);
+            self.registry
+                .indexed_callable_objects
+                .insert(indexed_id, object_id);
+            return Some(object_id);
         }
 
         let function = if let Some(typical_value) = method_declaration_typical_value(value) {
@@ -1441,10 +1565,9 @@ impl Analysis {
         } else {
             None
         };
-        let class = type_name?.clone();
         let function = function?;
-        let id = SourceObjectId(self.registry.objects.len());
-        self.registry.objects.push(SourceObject { class, function });
+        let id = CallableObjectId(self.registry.callable_objects.len());
+        self.registry.callable_objects.push(function);
         Some(id)
     }
 
@@ -1484,7 +1607,9 @@ impl Analysis {
     ) {
         match &installation.method.head {
             MethodHead::Function(name) => {
-                if !self.head_is_method_function(name.name(), installation.span.start, knowledge) {
+                if self.callable_head_kind(name.name(), installation.span.start, knowledge)
+                    != CallableHeadKind::MethodFunction
+                {
                     return;
                 }
                 let Some(object_id) = self
@@ -1493,12 +1618,7 @@ impl Analysis {
                 else {
                     return;
                 };
-                let Some(function) = self
-                    .registry
-                    .objects
-                    .get_mut(object_id.0)
-                    .map(|object| &mut object.function)
-                else {
+                let Some(function) = self.registry.callable_objects.get_mut(object_id.0) else {
                     return;
                 };
                 if installation.method.codomain.is_none() {
@@ -1539,6 +1659,9 @@ impl Analysis {
             parent_idx,
             assignments_may_escape,
         });
+        self.registry
+            .scopes_by_range
+            .insert(SourceRangeKey(range), scope_idx);
         scope_idx
     }
 

@@ -309,9 +309,6 @@ impl TypeChecker<'_> {
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         let name = node.text();
-        if let Some(reference) = OutputReference::parse(name) {
-            return self.output_reference_type(node, reference, source, knowledge);
-        }
         if let Some(binding) =
             self.get_binding_from_scope(name, scope_idx, source.position_for_node(node))
         {
@@ -326,6 +323,10 @@ impl TypeChecker<'_> {
                         InferredType::from_id(type_name.clone())
                     });
             }
+        }
+
+        if let Some(reference) = OutputReference::parse(name) {
+            return self.output_reference_type(node, reference, source, knowledge);
         }
 
         if let Some(record) = knowledge.get_record(&ObjectName::new(name)) {
