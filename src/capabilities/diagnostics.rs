@@ -97,9 +97,17 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        let (construct, condition) = match node.kind {
-            NodeKind::IfStatement => ("if", node.child_by_field_name("condition")),
-            NodeKind::WhileStatement => ("while", node.named_child(0)),
+        let (kind, construct, condition) = match node.kind {
+            NodeKind::IfStatement => (
+                DiagnosticKind::IfConditionType,
+                "if",
+                node.child_by_field_name("condition"),
+            ),
+            NodeKind::WhileStatement => (
+                DiagnosticKind::WhileConditionType,
+                "while",
+                node.named_child(0),
+            ),
             _ => return,
         };
         let Some(condition) = condition else {
@@ -113,7 +121,7 @@ impl Analysis {
         {
             return;
         }
-        self.diagnostics.push(DiagnosticKind::TypeError.at(
+        self.diagnostics.push(kind.at(
             source.range_for_node(condition),
             format!(
                 "{construct} condition must have type `Boolean`, but this expression has type `{}`",

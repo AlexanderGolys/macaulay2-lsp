@@ -1097,6 +1097,7 @@ impl Analysis {
                 is_symbol,
                 is_unquoted_symbol: node.kind == NodeKind::Symbol,
                 is_expression_symbol: is_expression_symbol(node),
+                is_bare_condition: is_bare_condition(node),
             });
     }
 
@@ -1929,6 +1930,31 @@ fn is_expression_symbol(node: M2Node<'_>) -> bool {
     }
 
     true
+}
+
+fn is_bare_condition(node: M2Node<'_>) -> bool {
+    if node.kind != NodeKind::Symbol {
+        return false;
+    }
+    let mut condition = node;
+    while condition
+        .parent()
+        .is_some_and(|parent| parent.kind == NodeKind::ParenthesizedExpression)
+    {
+        condition = condition.parent().expect("parent checked above");
+    }
+    let Some(parent) = condition.parent() else {
+        return false;
+    };
+    match parent.kind {
+        NodeKind::IfStatement => parent
+            .child_by_field_name("condition")
+            .is_some_and(|candidate| candidate.id() == condition.id()),
+        NodeKind::WhileStatement => parent
+            .named_child(0)
+            .is_some_and(|candidate| candidate.id() == condition.id()),
+        _ => false,
+    }
 }
 
 fn method_declaration_typical_value(node: M2Node) -> Option<Option<ObjectName>> {

@@ -152,6 +152,7 @@ pub struct SourceSemanticToken {
     pub is_symbol: bool,
     pub is_unquoted_symbol: bool,
     pub is_expression_symbol: bool,
+    pub is_bare_condition: bool,
 }
 
 pub struct SourceSemanticTokenContext<'a, M: ?Sized> {

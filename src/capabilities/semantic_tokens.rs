@@ -208,9 +208,12 @@ where
                 binding: binding.as_ref().map(|(binding, _)| binding),
                 is_declaration: binding.is_some_and(|(_, is_declaration)| is_declaration),
                 is_macro: self.document.is_macro_name_span(&source_token.span),
-                workspace_token_type: self
-                    .workspace_index
-                    .semantic_token_type(source_text, self.uri),
+                workspace_token_type: (!source_token.is_bare_condition)
+                    .then(|| {
+                        self.workspace_index
+                            .semantic_token_type(source_text, self.uri)
+                    })
+                    .flatten(),
                 emit_syntax,
             },
             &knowledge,

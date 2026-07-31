@@ -368,7 +368,13 @@ pub(crate) struct DocumentSession {
 
 impl DocumentSession {
     pub(crate) async fn open(source: &str) -> Self {
+        Self::open_with_related(source, "crossFileResult = localValue\n").await
+    }
+
+    pub(crate) async fn open_with_related(source: &str, related_source: &str) -> Self {
         let workspace = TestWorkspace::new(source);
+        fs::write(&workspace.related_source_path, related_source)
+            .expect("the related integration fixture should be replaced");
         let mut server = LspProcess::spawn().await;
         let initialized = server.initialize(&workspace.root_uri()).await;
         let semantic_token_types = response_array(

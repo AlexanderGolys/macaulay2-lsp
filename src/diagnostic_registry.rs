@@ -32,11 +32,12 @@ pub enum DiagnosticKind {
     MissingOutputCell,
     InvalidControlTransfer,
     ParallelAssignmentType,
-    TypeError,
+    WhileConditionType,
+    IfConditionType,
 }
 
 impl DiagnosticKind {
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::SyntaxError,
         Self::MissingNode,
         Self::AmbiguousFloatMemberAccess,
@@ -54,7 +55,8 @@ impl DiagnosticKind {
         Self::MissingOutputCell,
         Self::InvalidControlTransfer,
         Self::ParallelAssignmentType,
-        Self::TypeError,
+        Self::WhileConditionType,
+        Self::IfConditionType,
     ];
 
     /// The stable `E..` code surfaced to the editor (rustc-style).
@@ -77,7 +79,8 @@ impl DiagnosticKind {
             Self::MissingOutputCell => "E14",
             Self::InvalidControlTransfer => "E15",
             Self::ParallelAssignmentType => "E16",
-            Self::TypeError => "E17",
+            Self::WhileConditionType => "E17",
+            Self::IfConditionType => "E18",
         }
     }
 
@@ -102,7 +105,8 @@ impl DiagnosticKind {
             Self::MissingOutputCell => "missing-output-cell",
             Self::InvalidControlTransfer => "invalid-control-transfer",
             Self::ParallelAssignmentType => "parallel-assignment-type",
-            Self::TypeError => "type-error",
+            Self::WhileConditionType => "while-condition-type",
+            Self::IfConditionType => "if-condition-type",
         }
     }
 
@@ -118,7 +122,8 @@ impl DiagnosticKind {
             | Self::InstallNeedsColonEquals
             | Self::InvalidControlTransfer
             | Self::ParallelAssignmentType
-            | Self::TypeError => DiagnosticSeverity::ERROR,
+            | Self::WhileConditionType
+            | Self::IfConditionType => DiagnosticSeverity::ERROR,
             Self::AmbiguousFloatMemberAccess | Self::UnusedBinding | Self::InstallNoEffect => {
                 DiagnosticSeverity::WARNING
             }

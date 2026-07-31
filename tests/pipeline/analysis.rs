@@ -210,7 +210,9 @@ async fn control_flow_conditions_require_booleans_without_function_coloring() {
         "if condition then 2 else 3\n",
         "if 1 then 2 else 3\n",
     );
-    let mut session = DocumentSession::open(source).await;
+    let mut session =
+        DocumentSession::open_with_related(source, "i = value -> value\nj = value -> value\n")
+            .await;
     let tokens = semantic_tokens(&mut session).await;
 
     assert_eq!(
@@ -221,7 +223,8 @@ async fn control_flow_conditions_require_booleans_without_function_coloring() {
         token_at(&tokens, source, "j", 0).0,
         session.semantic_token_type("enumMember")
     );
-    assert_eq!(diagnostic_lines(&session, "E17"), vec![0, 4, 5, 8]);
+    assert_eq!(diagnostic_lines(&session, "E17"), vec![0, 4]);
+    assert_eq!(diagnostic_lines(&session, "E18"), vec![5, 8]);
 
     session.shutdown().await;
 }
