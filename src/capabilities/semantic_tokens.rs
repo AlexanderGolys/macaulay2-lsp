@@ -209,7 +209,7 @@ where
                 binding: binding.as_ref().map(|(binding, _)| binding),
                 is_declaration: binding.is_some_and(|(_, is_declaration)| is_declaration),
                 is_macro: self.document.is_macro_name_span(&source_token.span),
-                workspace_token_type: (!source_token.is_bare_condition)
+                workspace_token_type: (!source_token.is_condition_value)
                     .then(|| {
                         self.workspace_index
                             .semantic_token_type(source_text, self.uri)
@@ -219,7 +219,7 @@ where
             },
             &knowledge,
         );
-        if !source_token.is_bare_condition {
+        if !source_token.is_condition_value {
             return token;
         }
         match token {

@@ -143,7 +143,7 @@ fn binding_type_hints(
             }) {
                 continue;
             }
-            let position = value_range.map_or(state.span.end, |value_range| value_range.end);
+            let position = state.span.end;
             if position_in_range(position, *range) {
                 hints.push(type_hint(position, &type_name));
             }
@@ -448,7 +448,7 @@ mod tests {
     fn calm_default_shows_informative_computed_assignment_types() {
         let initial = hints("Comment = new SelfInitializingType of TokenTree\n", false);
         assert_eq!(labels(&initial), vec!["SelfInitializingType".to_string()]);
-        assert_eq!(initial[0].position, Position::new(0, 47));
+        assert_eq!(initial[0].position, Position::new(0, 7));
 
         let self_describing = "x = 1\nx = (2)\nx = [1]\nf = x -> x\n";
         assert!(hints(self_describing, false).is_empty());

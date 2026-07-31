@@ -201,6 +201,8 @@ async fn unassigned_symbols_are_enum_members_until_their_binding() {
 async fn control_flow_conditions_require_booleans_without_function_coloring() {
     let source = concat!(
         "while i do 2;\n",
+        "while i == 0 do 2;\n",
+        "while i(0) do 2;\n",
         "while true do 2;\n",
         "condition := true\n",
         "while condition do 2;\n",
@@ -222,6 +224,14 @@ async fn control_flow_conditions_require_booleans_without_function_coloring() {
         session.semantic_token_type("enumMember")
     );
     assert_eq!(
+        token_at(&tokens, source, "i == 0", 0).0,
+        session.semantic_token_type("enumMember")
+    );
+    assert_eq!(
+        token_at(&tokens, source, "i(0)", 0).0,
+        session.semantic_token_type("function")
+    );
+    assert_eq!(
         token_at(&tokens, source, "j", 0).0,
         session.semantic_token_type("enumMember")
     );
@@ -229,8 +239,8 @@ async fn control_flow_conditions_require_booleans_without_function_coloring() {
         token_at(&tokens, source, "callable", 1).0,
         session.semantic_token_type("variable")
     );
-    assert_eq!(diagnostic_lines(&session, "E17"), vec![0, 4]);
-    assert_eq!(diagnostic_lines(&session, "E18"), vec![5, 8, 10]);
+    assert_eq!(diagnostic_lines(&session, "E17"), vec![0, 6]);
+    assert_eq!(diagnostic_lines(&session, "E18"), vec![7, 10, 12]);
 
     session.shutdown().await;
 }
@@ -787,7 +797,7 @@ async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
             )
         })
         .collect::<Vec<_>>();
-    for expected in [(2, 16, "ZZ"), (2, 22, "String"), (2, 27, "RR")] {
+    for expected in [(2, 2, "ZZ"), (2, 6, "String"), (2, 9, "RR")] {
         assert!(
             type_hints.contains(&expected),
             "missing destructuring hint {expected:?}: {type_hints:?}"
@@ -804,6 +814,21 @@ async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
             quiet_line + 1
         );
     }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn assignment_type_hint_follows_the_binding_target() {
+    let mut session = DocumentSession::open("x = y\n").await;
+    session.set_expression_type_hints(false).await;
+    let hints = inlay_hints(&mut session).await;
+    let type_hint = hints
+        .iter()
+        .find(|hint| hint["kind"] == 1)
+        .expect("the assignment should have a type hint");
+
+    assert_eq!(type_hint["position"], json!({"line": 0, "character": 1}));
 
     session.shutdown().await;
 }

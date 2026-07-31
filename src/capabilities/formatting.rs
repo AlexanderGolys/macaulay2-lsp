@@ -972,9 +972,12 @@ fn is_right_operand_first_token(
     let mut current = node;
     while let Some(parent) = current.parent() {
         if let Some((operator, right)) = parent.infix_operator_and_right_operand() {
+            let assignment_conditional =
+                parent.is_assignment() && right.kind == NodeKind::IfStatement;
             if right.start_byte() == node.start_byte()
                 && operator.start_position().row < row
                 && is_spaced_line_final_operator(operator.text(), compact_factor_operators)
+                && !assignment_conditional
             {
                 return true;
             }
@@ -1183,7 +1186,9 @@ fn collect_format_edits(
         }
 
         if node.is_semicolon() {
-            push_semicolon_whitespace_edits(text, node, options.break_after_semicolon, edits);
+            let break_after_semicolon =
+                options.break_after_semicolon && !semicolon_terminates_collection_entry(node);
+            push_semicolon_whitespace_edits(text, node, break_after_semicolon, edits);
         }
 
         if let Some(operator) = node.child_by_field_name("operator") {
@@ -1537,6 +1542,13 @@ fn push_comma_whitespace_edits(text: &str, comma: M2Node<'_>, edits: &mut Vec<Fo
         end_byte,
         replacement,
     });
+}
+
+fn semicolon_terminates_collection_entry(semicolon: M2Node<'_>) -> bool {
+    semicolon
+        .parent()
+        .and_then(|muted| muted.parent())
+        .is_some_and(|container| container.kind.is_collection_expression())
 }
 
 fn push_semicolon_whitespace_edits(

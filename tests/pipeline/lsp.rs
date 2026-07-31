@@ -772,3 +772,65 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
 
     server.shutdown().await;
 }
+
+#[tokio::test]
+async fn formatting_preserves_collection_and_assignment_control_flow_layout() {
+    let source = concat!(
+        "[xx := 1;yy = 2, zz := 3;]\n",
+        "i=0;j=0;\n",
+        "x =\n",
+        "if x === null then (\n",
+        "    2\n",
+        ") else 3.1\n",
+    );
+    let workspace = TestWorkspace::new(source);
+    let mut server = LspProcess::spawn().await;
+    server.initialize(&workspace.root_uri()).await;
+    server
+        .notify(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": workspace.uri,
+                    "languageId": "macaulay2",
+                    "version": 1,
+                    "text": source
+                }
+            }),
+        )
+        .await;
+    server
+        .wait_for_notification("textDocument/publishDiagnostics")
+        .await;
+
+    let formatting = server
+        .request(
+            "textDocument/formatting",
+            json!({
+                "textDocument": {"uri": workspace.uri},
+                "options": {
+                    "tabSize": 4,
+                    "insertSpaces": true
+                }
+            }),
+        )
+        .await;
+    let formatted = response_array(&formatting)
+        .first()
+        .and_then(|edit| edit["newText"].as_str())
+        .expect("the unformatted source should produce a whole-document edit");
+    assert_eq!(
+        formatted,
+        concat!(
+            "[xx := 1; yy = 2, zz := 3;]\n",
+            "i = 0;\n",
+            "j = 0;\n",
+            "x =\n",
+            "if x === null then (\n",
+            "    2\n",
+            ") else 3.1\n",
+        )
+    );
+
+    server.shutdown().await;
+}
