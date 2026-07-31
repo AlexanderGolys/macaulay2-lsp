@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use dashmap::DashMap;
-use tower_lsp::lsp_types::{Location, Range, Url};
+use tower_lsp::lsp_types::{Location, Range as TextRange, Url};
 
 use crate::capabilities::semantic_tokens::local_symbol_semantic_token_type;
 use crate::document::DocumentSnapshot;
@@ -21,7 +21,7 @@ use crate::semantic_token::M2SemanticTokenType;
 #[derive(Debug, Clone)]
 struct DefLocation {
     uri: Url,
-    range: Range,
+    range: TextRange,
     semantic_token_type: M2SemanticTokenType,
 }
 
@@ -202,7 +202,7 @@ fn collect_m2_files(dir: &Path, out: &mut Vec<PathBuf>) {
 fn top_level_definitions(
     text: &str,
     knowledge_provider: &ObjectRegistry,
-) -> Vec<(String, Range, M2SemanticTokenType)> {
+) -> Vec<(String, TextRange, M2SemanticTokenType)> {
     let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), knowledge_provider) else {
         return Vec::new();
     };

@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use tower_lsp::lsp_types::Url;
-use tower_lsp::lsp_types::{Range as LspRange, SymbolKind};
+use tower_lsp::lsp_types::{Range as TextRange, SymbolKind};
 use tower_lsp::Client;
 
 use crate::analysis::{symbol_node_text, Analysis};
@@ -396,7 +396,7 @@ pub(crate) fn member_index_for_ambiguous_float_literal(float_text: &str) -> Opti
 fn ambiguous_float_member_access_range(
     node: M2Node<'_>,
     source: &(impl SourceNavigation + ?Sized),
-) -> Option<LspRange> {
+) -> Option<TextRange> {
     ambiguous_float_member_access_rewrite(node).map(|_| source.range_for_node(node))
 }
 

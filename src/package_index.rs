@@ -3,7 +3,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use tower_lsp::lsp_types::{Location, Position, Range, Url};
+use tower_lsp::lsp_types::{Location, Position, Range as TextRange, Url};
 
 #[cfg(test)]
 use crate::node_metadata::M2Parser;
@@ -81,7 +81,7 @@ impl SourceResolver {
         let position = Position::new(0, 0);
         Some(Location {
             uri,
-            range: Range::new(position, position),
+            range: TextRange::new(position, position),
         })
     }
 }

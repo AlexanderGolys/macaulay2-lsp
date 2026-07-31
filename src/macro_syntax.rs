@@ -6,12 +6,12 @@
 //! unchanged names and bodies. Strings and comments are opaque, matching the
 //! package's scanner.
 
-use std::ops::Range;
+use crate::source::ByteRange;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MacroSyntax {
     masked_text: String,
-    name_spans: Vec<Range<usize>>,
+    name_spans: Vec<ByteRange>,
 }
 
 impl MacroSyntax {

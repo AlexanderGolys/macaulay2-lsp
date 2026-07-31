@@ -149,6 +149,7 @@ fn signature_informations(
         let domain = method
             .domain
             .iter()
+            .filter_map(|object_id| knowledge.object(object_id).map(|record| &record.name))
             .map(|name| name.0.clone())
             .collect::<Vec<_>>();
         signatures.push(signature_information(callable, &domain, None));

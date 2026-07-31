@@ -3,7 +3,7 @@
 
 use crate::macro_syntax::MacroSyntax;
 use crate::node_metadata::{M2Node, M2Parser, M2Tree, NodeKind, NodeKindMetadata};
-use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
+use tower_lsp::lsp_types::{Position, Range as TextRange, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Point};
 
 use crate::analysis::{Analysis, BindingView, FunctionInfo};
@@ -39,7 +39,7 @@ impl SourceNavigation for DocumentSnapshot {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TargetSymbol<'a> {
     pub name: &'a str,
-    pub range: Range,
+    pub range: TextRange,
     pub symbol: BindingView<'a>,
 }
 
@@ -133,7 +133,7 @@ impl DocumentSnapshot {
             && self
                 .object_registry
                 .at(position)
-                .shadows_source(&binding.name, binding.state.span.range.start);
+                .shadows_source(&binding.name, binding.state.span.start);
         (!package_shadows).then_some(binding)
     }
 
@@ -201,13 +201,13 @@ impl DocumentSnapshot {
                     || !self
                         .object_registry
                         .at(reference.range().start)
-                        .shadows_source(&binding.name, binding.state.span.range.start)
+                        .shadows_source(&binding.name, binding.state.span.start)
             })
     }
 
     /// A real CST symbol or a backtick-delimited symbol mention under the
     /// cursor. The range always covers only the identifier text.
-    pub(crate) fn symbol_occurrence_at(&self, position: Position) -> Option<(&str, Range)> {
+    pub(crate) fn symbol_occurrence_at(&self, position: Position) -> Option<(&str, TextRange)> {
         if let Some(reference) = self.documentation_reference_at(position) {
             return Some((reference.name(self.text()), reference.range()));
         }
@@ -274,7 +274,7 @@ impl DocumentSnapshot {
 
     fn apply_incremental_change(
         &mut self,
-        range: Range,
+        range: TextRange,
         replacement: &str,
         knowledge_provider: &ObjectRegistry,
     ) -> Option<()> {
@@ -394,7 +394,7 @@ mod tests {
         document
             .apply_changes(
                 &[TextDocumentContentChangeEvent {
-                    range: Some(Range::new(end, end)),
+                    range: Some(TextRange::new(end, end)),
                     range_length: None,
                     text: "needsPackage \"Text\"\n".to_string(),
                 }],
@@ -634,13 +634,19 @@ mod tests {
             DocumentSnapshot::from_text("needsPackage \"Pkg\"\n".to_string(), &provider)
                 .expect("scoped fixture should parse");
         let scoped = scoped_document.object_registry().at(Position::new(1, 0));
+        let zz = scoped
+            .resolve_type_id(&ObjectName::new("ZZ"))
+            .expect("ZZ type should resolve");
+        let string = scoped
+            .resolve_type_id(&ObjectName::new("String"))
+            .expect("String type should resolve");
         assert_eq!(
             scoped.resolve_call_return_type_with_options(
                 &ObjectName::new("pkgFn"),
-                &[Some(ObjectName::new("ZZ"))],
+                &[Some(zz.object().clone())],
                 &[],
             ),
-            Some(ObjectName::new("String"))
+            Some(string)
         );
         let mut document = DocumentSnapshot::from_text(
             "needsPackage \"Pkg\"\ny := pkgFn 1\ny\n".to_string(),
@@ -664,7 +670,7 @@ mod tests {
         document
             .apply_changes(
                 &[TextDocumentContentChangeEvent {
-                    range: Some(Range::new(Position::new(0, 0), Position::new(1, 0))),
+                    range: Some(TextRange::new(Position::new(0, 0), Position::new(1, 0))),
                     range_length: None,
                     text: String::new(),
                 }],
@@ -698,7 +704,7 @@ mod tests {
         document
             .apply_changes(
                 &[TextDocumentContentChangeEvent {
-                    range: Some(Range::new(Position::new(0, 1), Position::new(0, 1))),
+                    range: Some(TextRange::new(Position::new(0, 1), Position::new(0, 1))),
                     range_length: None,
                     text: "+".to_string(),
                 }],
@@ -718,12 +724,12 @@ mod tests {
             .apply_changes(
                 &[
                     TextDocumentContentChangeEvent {
-                        range: Some(Range::new(Position::new(0, 1), Position::new(0, 2))),
+                        range: Some(TextRange::new(Position::new(0, 1), Position::new(0, 2))),
                         range_length: None,
                         text: "B".to_string(),
                     },
                     TextDocumentContentChangeEvent {
-                        range: Some(Range::new(Position::new(0, 2), Position::new(0, 3))),
+                        range: Some(TextRange::new(Position::new(0, 2), Position::new(0, 3))),
                         range_length: None,
                         text: "C".to_string(),
                     },
@@ -780,7 +786,7 @@ mod tests {
         document
             .apply_changes(
                 &[TextDocumentContentChangeEvent {
-                    range: Some(Range::new(Position::new(0, 0), Position::new(2, 0))),
+                    range: Some(TextRange::new(Position::new(0, 0), Position::new(2, 0))),
                     range_length: None,
                     text: String::new(),
                 }],
@@ -842,15 +848,12 @@ mod tests {
             callable.methods,
             vec![document.analysis().installations()[0].id]
         );
-        assert_eq!(
-            document.analysis().installations()[0].span.range.start.line,
-            1
-        );
+        assert_eq!(document.analysis().installations()[0].span.start.line, 1);
 
         document
             .apply_changes(
                 &[TextDocumentContentChangeEvent {
-                    range: Some(Range::new(Position::new(0, 0), Position::new(0, 0))),
+                    range: Some(TextRange::new(Position::new(0, 0), Position::new(0, 0))),
                     range_length: None,
                     text: "-- moved down\n".to_string(),
                 }],
@@ -864,7 +867,7 @@ mod tests {
             .expect("shifted method function should be registered");
         let installation = &document.analysis().installations()[0];
         assert_eq!(callable.methods, vec![installation.id]);
-        assert_eq!(installation.span.range.start.line, 2);
+        assert_eq!(installation.span.start.line, 2);
         assert_eq!(
             installation
                 .method
@@ -885,7 +888,7 @@ mod tests {
         document
             .apply_changes(
                 &[TextDocumentContentChangeEvent {
-                    range: Some(Range::new(Position::new(0, 0), Position::new(1, 0))),
+                    range: Some(TextRange::new(Position::new(0, 0), Position::new(1, 0))),
                     range_length: None,
                     text: String::new(),
                 }],

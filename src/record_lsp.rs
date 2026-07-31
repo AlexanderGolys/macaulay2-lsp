@@ -1,12 +1,12 @@
 //! Conversion of indexed builtin records into LSP-facing hover and symbol data.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, SymbolKind};
 
 use crate::builtin_index::{MethodSignature, OperatorInfo, Record};
 use crate::object_registry::{
-    ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView, TypeId,
+    ObjectId, ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView, TypeId,
 };
 use crate::typesystem::TypeKnowledge;
 
@@ -35,7 +35,7 @@ pub trait LspKnowledge: TypeKnowledge {
     fn resolve_call_signature_usage(
         &self,
         callable: &str,
-        argument_types: &[Option<ObjectName>],
+        argument_types: &[Option<ObjectId>],
     ) -> Option<SignatureUsage>;
 
     /// Return signatures with their documented output facts.
@@ -102,6 +102,12 @@ pub struct SignatureUsage {
     pub excluded: Vec<ResolvedSignature>,
 }
 
+#[derive(Clone)]
+struct DispatchSignature {
+    domain: Vec<ObjectId>,
+    presentation: ResolvedSignature,
+}
+
 impl ObjectRegistry {
     /// Primary names beginning with `prefix`, in corpus order and capped at
     /// `limit`.
@@ -146,7 +152,7 @@ impl ObjectRegistry {
 
     /// Resolve indexed method codomains into their LSP-facing representation.
     pub fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
-        documented_signatures(record)
+        documented_signatures(self, record)
     }
 
     /// Installed method domains not represented by a resolved documented
@@ -160,7 +166,7 @@ impl ObjectRegistry {
     pub fn resolve_call_signature_usage(
         &self,
         callable: &str,
-        argument_types: &[Option<ObjectName>],
+        argument_types: &[Option<ObjectId>],
     ) -> Option<SignatureUsage> {
         resolve_call_signature_usage(self, callable, argument_types)
     }
@@ -170,22 +176,27 @@ impl ObjectRegistry {
 pub(crate) fn resolve_call_signature_usage(
     knowledge: &(impl TypeKnowledge + ?Sized),
     callable: &str,
-    argument_types: &[Option<ObjectName>],
+    argument_types: &[Option<ObjectId>],
 ) -> Option<SignatureUsage> {
     let record = knowledge.get_record(&ObjectName::new(callable))?;
     let mut possible = Vec::new();
     let mut excluded = Vec::new();
 
-    for signature in all_installed_signatures(record) {
-        if signature.signature.first().map(|name| name.0.as_str()) != Some(callable) {
+    for signature in all_installed_signatures(knowledge, record) {
+        if signature
+            .presentation
+            .signature
+            .first()
+            .map(|name| name.0.as_str())
+            != Some(callable)
+        {
             continue;
         }
-        let domain = signature.signature.get(1..).unwrap_or_default();
-        if domain.len() != argument_types.len() {
+        if signature.domain.len() != argument_types.len() {
             continue;
         }
 
-        if domain_possibly_matches(knowledge, domain, argument_types) {
+        if knowledge.domain_possibly_matches(&signature.domain, argument_types) {
             possible.push(signature);
         } else {
             excluded.push(signature);
@@ -198,7 +209,7 @@ pub(crate) fn resolve_call_signature_usage(
 
     let all_arguments_known = argument_types.iter().all(Option::is_some);
     let pinned = if all_arguments_known && possible.len() == 1 {
-        Some(possible.remove(0))
+        Some(possible.remove(0).presentation)
     } else {
         None
     };
@@ -208,70 +219,93 @@ pub(crate) fn resolve_call_signature_usage(
     } else {
         Some(SignatureUsage {
             pinned,
-            possible,
-            excluded,
+            possible: possible
+                .into_iter()
+                .map(|signature| signature.presentation)
+                .collect(),
+            excluded: excluded
+                .into_iter()
+                .map(|signature| signature.presentation)
+                .collect(),
         })
     }
 }
 
 /// Collect all indexed signatures represented by one callable record.
-fn all_installed_signatures(record: &Record) -> Vec<ResolvedSignature> {
+fn all_installed_signatures(
+    knowledge: &(impl TypeKnowledge + ?Sized),
+    record: &Record,
+) -> Vec<DispatchSignature> {
     let Some(callable) = record.callable() else {
         return Vec::new();
     };
 
-    let documented = documented_signatures(record);
-    let documented_by_domain: HashMap<_, _> = documented
-        .into_iter()
-        .filter_map(|signature| {
-            signature_domain_key(&signature.signature).map(|key| (key, signature))
+    callable
+        .methods
+        .iter()
+        .filter_map(|method| {
+            Some(DispatchSignature {
+                domain: method.domain.clone(),
+                presentation: resolved_method_signature(knowledge, record, callable, method)?,
+            })
         })
-        .collect();
+        .collect()
+}
 
-    let mut signatures = Vec::new();
-    for method in &callable.methods {
-        if let Some(documented_signature) = documented_by_domain.get(&method.domain) {
-            signatures.push(documented_signature.clone());
-        } else {
-            let mut signature = Vec::with_capacity(method.domain.len() + 1);
-            signature.push(record.name.clone());
-            signature.extend(method.domain.iter().cloned());
-            signatures.push(ResolvedSignature {
-                signature,
-                output_types: Vec::new(),
-                is_specialized: false,
-                doc_key: None,
-            });
-        }
-    }
-
-    signatures
+fn resolved_method_signature(
+    knowledge: &(impl TypeKnowledge + ?Sized),
+    record: &Record,
+    callable: &crate::builtin_index::CallableInfo,
+    method: &MethodSignature,
+) -> Option<ResolvedSignature> {
+    let mut signature = Vec::with_capacity(method.domain.len() + 1);
+    signature.push(record.name.clone());
+    signature.extend(
+        method
+            .domain
+            .iter()
+            .map(|object_id| {
+                knowledge
+                    .object(object_id)
+                    .map(|record| record.name.clone())
+            })
+            .collect::<Option<Vec<_>>>()?,
+    );
+    let (output_types, is_specialized) = callable
+        .effective_codomain(method)
+        .and_then(|(codomain, specialized)| {
+            Some((vec![knowledge.type_name(codomain)?.clone()], specialized))
+        })
+        .unwrap_or_default();
+    Some(ResolvedSignature {
+        signature,
+        output_types,
+        is_specialized,
+        doc_key: None,
+    })
 }
 
 /// Resolve a record's method signatures without consulting a name index.
-fn documented_signatures(record: &Record) -> Vec<ResolvedSignature> {
+fn documented_signatures(
+    knowledge: &(impl TypeKnowledge + ?Sized),
+    record: &Record,
+) -> Vec<ResolvedSignature> {
     let Some(callable) = record.callable() else {
         return Vec::new();
     };
     let mut signatures = callable
         .methods
         .iter()
-        .filter_map(|method| {
-            let (codomain, is_specialized) = callable.effective_codomain(method)?;
-            let mut signature = Vec::with_capacity(method.domain.len() + 1);
-            signature.push(record.name.clone());
-            signature.extend(method.domain.iter().cloned());
-            Some(ResolvedSignature {
-                signature,
-                output_types: vec![codomain.clone()],
-                is_specialized,
-                doc_key: None,
-            })
-        })
+        .filter_map(|method| resolved_method_signature(knowledge, record, callable, method))
+        .filter(|signature| !signature.output_types.is_empty())
         .collect::<Vec<_>>();
 
     if signatures.is_empty() {
-        if let Some(codomain) = &callable.typical_value {
+        if let Some(codomain) = callable
+            .typical_value
+            .as_ref()
+            .and_then(|type_id| knowledge.type_name(type_id))
+        {
             signatures.push(ResolvedSignature {
                 signature: vec![record.name.clone()],
                 output_types: vec![codomain.clone()],
@@ -320,7 +354,7 @@ impl LspKnowledge for ObjectRegistry {
     fn resolve_call_signature_usage(
         &self,
         callable: &str,
-        argument_types: &[Option<ObjectName>],
+        argument_types: &[Option<ObjectId>],
     ) -> Option<SignatureUsage> {
         ObjectRegistry::resolve_call_signature_usage(self, callable, argument_types)
     }
@@ -382,13 +416,13 @@ impl LspKnowledge for ObjectRegistryView<'_> {
     fn resolve_call_signature_usage(
         &self,
         callable: &str,
-        argument_types: &[Option<ObjectName>],
+        argument_types: &[Option<ObjectId>],
     ) -> Option<SignatureUsage> {
         resolve_call_signature_usage(self, callable, argument_types)
     }
 
     fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
-        documented_signatures(record)
+        documented_signatures(self, record)
     }
 
     fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature> {
@@ -477,68 +511,43 @@ fn undocumented_installed_methods(record: &Record) -> Vec<MethodSignature> {
     let Some(callable) = record.callable() else {
         return Vec::new();
     };
-    let documented_domains: HashSet<_> = documented_signatures(record)
-        .iter()
-        .filter_map(|method| signature_domain_key(&method.signature))
-        .collect();
     callable
         .methods
         .iter()
-        .filter(|method| !documented_domains.contains(&method.domain))
+        .filter(|method| callable.effective_codomain(method).is_none())
         .cloned()
         .collect()
 }
 
-fn domain_possibly_matches(
-    knowledge: &(impl TypeKnowledge + ?Sized),
-    domain: &[ObjectName],
-    argument_types: &[Option<ObjectName>],
-) -> bool {
-    domain
-        .iter()
-        .zip(argument_types)
-        .all(|(domain_type, argument_type)| {
-            argument_type.as_ref().is_none_or(|argument_type| {
-                argument_type == domain_type || knowledge.is_subtype(argument_type, domain_type)
-            })
-        })
-}
-
-fn dedup_signatures(signatures: &mut Vec<ResolvedSignature>) {
+fn dedup_signatures(signatures: &mut Vec<DispatchSignature>) {
     let mut seen = HashSet::new();
     signatures.retain(|signature| {
-        seen.insert((signature.signature.clone(), signature.output_types.clone()))
+        seen.insert((
+            signature.domain.clone(),
+            signature.presentation.output_types.clone(),
+        ))
     });
 }
 
 fn take_nonminimal_signatures(
     knowledge: &(impl TypeKnowledge + ?Sized),
-    signatures: &mut Vec<ResolvedSignature>,
-) -> Vec<ResolvedSignature> {
-    let originals = signatures.clone();
+    signatures: &mut Vec<DispatchSignature>,
+) -> Vec<DispatchSignature> {
+    let original_domains = signatures
+        .iter()
+        .map(|signature| signature.domain.clone())
+        .collect::<Vec<_>>();
     let mut dominated = Vec::new();
     signatures.retain(|candidate| {
-        let candidate_domain = signature_domain(&candidate.signature);
-        let is_dominated = originals.iter().any(|other| {
-            knowledge.domain_strictly_smaller(signature_domain(&other.signature), candidate_domain)
-        });
+        let is_dominated = original_domains
+            .iter()
+            .any(|other| knowledge.domain_strictly_smaller(other, &candidate.domain));
         if is_dominated {
             dominated.push(candidate.clone());
         }
         !is_dominated
     });
     dominated
-}
-
-fn signature_domain(signature: &[ObjectName]) -> &[ObjectName] {
-    signature.get(1..).unwrap_or_default()
-}
-
-fn signature_domain_key(signature: &[ObjectName]) -> Option<Vec<ObjectName>> {
-    if signature.is_empty() {
-        return None;
-    }
-    Some(signature_domain(signature).to_vec())
 }
 
 pub(crate) fn record_symbol_kind(record: &Record) -> SymbolKind {
@@ -618,7 +627,7 @@ fn record_hover_markdown(
         }
     }
 
-    if let Some(typical_value) = record_typical_value(record) {
+    if let Some(typical_value) = record_typical_value(record, knowledge) {
         markdown.push_str(&format!("Typical Value: `{typical_value}`\n\n"));
     }
 
@@ -675,7 +684,11 @@ fn append_record_signatures(
     for method in knowledge.undocumented_installed_methods(record) {
         let mut signature = Vec::with_capacity(method.domain.len() + 1);
         signature.push(record.name.clone());
-        signature.extend(method.domain);
+        signature.extend(method.domain.iter().filter_map(|object_id| {
+            knowledge
+                .object(object_id)
+                .map(|record| record.name.clone())
+        }));
         let signature = ResolvedSignature {
             signature,
             output_types: Vec::new(),
@@ -946,11 +959,16 @@ fn append_blockquote_fence(markdown: &mut String, language: &str, content: &str)
     markdown.push_str("> ```\n");
 }
 
-fn record_typical_value(record: &Record) -> Option<String> {
+fn record_typical_value(
+    record: &Record,
+    knowledge: &(impl TypeKnowledge + ?Sized),
+) -> Option<String> {
     record
         .callable()
         .and_then(|info| info.typical_value.as_ref())
-        .map(|type_id| type_id.name().to_string())
+        .and_then(|type_id| knowledge.type_name(type_id))
+        .map(ObjectName::name)
+        .map(str::to_string)
 }
 
 fn signature_label(signature: &ResolvedSignature, operator_info: Option<&OperatorInfo>) -> String {
@@ -1158,8 +1176,8 @@ mod tests {
             .resolve_call_signature_usage(
                 "scan",
                 &[
-                    Some(ObjectName::new("BasicList")),
-                    Some(ObjectName::new("Function")),
+                    knowledge.resolve_object(&ObjectName::new("BasicList")),
+                    knowledge.resolve_object(&ObjectName::new("Function")),
                 ],
             )
             .expect("scan should resolve the BasicList, Function usage");
@@ -1275,7 +1293,10 @@ mod tests {
             .get_record(&ObjectName::new("f"))
             .expect("f should have builtin metadata");
         let usage = knowledge
-            .resolve_call_signature_usage("f", &[Some(ObjectName::new("String"))])
+            .resolve_call_signature_usage(
+                "f",
+                &[knowledge.resolve_object(&ObjectName::new("String"))],
+            )
             .expect("f String should resolve to a documented installation");
 
         let hover =

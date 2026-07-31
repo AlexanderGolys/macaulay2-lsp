@@ -8,7 +8,7 @@
 //! diagnostic they fix by [`diagnostic_has_kind`] — a code match, not the
 //! former brittle message-string comparison.
 
-use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range as LspRange};
+use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range as TextRange};
 
 /// Every diagnostic the server can publish. Each variant is forced through the
 /// exhaustive `match`es below (code, name, severity), so a new diagnostic
@@ -111,7 +111,7 @@ impl M2Diagnostic {
     /// Build the LSP diagnostic for this rule over `range` with `message`,
     /// stamping severity, the `E..` code, and the rule name as `source` from the
     /// registry so no call site re-specifies them.
-    pub fn at(self, range: LspRange, message: impl Into<String>) -> Diagnostic {
+    pub fn at(self, range: TextRange, message: impl Into<String>) -> Diagnostic {
         Diagnostic {
             range,
             severity: Some(self.severity()),

@@ -1,12 +1,13 @@
 //! Indexed source text and the repository's single position-conversion API.
 
-use std::ops::Range as ByteRange;
-
 use tower_lsp::lsp_types::Position;
-use tower_lsp::lsp_types::Range;
+use tower_lsp::lsp_types::Range as TextRange;
 use tree_sitter::Point;
 
 use crate::node_metadata::M2Node;
+
+/// A half-open range of byte offsets into source text.
+pub type ByteRange = std::ops::Range<usize>;
 
 /// Immutable coordinates for a source span in both parser-byte and LSP UTF-16
 /// space.
@@ -15,25 +16,25 @@ use crate::node_metadata::M2Node;
 /// together by [`SourceNavigation::span_for_bytes`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocumentSpan {
-    bytes: ByteRange<usize>,
-    range: Range,
+    bytes: ByteRange,
+    range: TextRange,
 }
 
 impl DocumentSpan {
     /// The parser-oriented byte range of this span.
-    pub fn bytes(&self) -> ByteRange<usize> {
+    pub fn bytes(&self) -> ByteRange {
         self.bytes.clone()
     }
 
     /// The protocol-oriented UTF-16 range of this span.
-    pub fn range(&self) -> Range {
+    pub fn range(&self) -> TextRange {
         self.range
     }
 }
 /// Cached byte ranges for every line's visible content.
 #[derive(Debug)]
 struct LineIndex {
-    content_ranges: Vec<ByteRange<usize>>,
+    content_ranges: Vec<ByteRange>,
 }
 
 /// Original source text paired with its cached line-content byte ranges.
@@ -54,7 +55,7 @@ impl DocumentSource {
     }
 
     /// Replace one byte range and rebuild the line index exactly once.
-    pub fn replace_range(&mut self, bytes: ByteRange<usize>, replacement: &str) {
+    pub fn replace_range(&mut self, bytes: ByteRange, replacement: &str) {
         self.text.replace_range(bytes, replacement);
         self.line_index = LineIndex::new(&self.text);
     }
@@ -95,7 +96,7 @@ pub trait SourceNavigation {
     }
 
     /// Convert an LSP UTF-16 range to its source byte range.
-    fn bytes_for_range(&self, range: Range) -> Option<ByteRange<usize>> {
+    fn bytes_for_range(&self, range: TextRange) -> Option<ByteRange> {
         let start = self.byte_for_position(range.start)?;
         let end = self.byte_for_position(range.end)?;
         (start <= end).then_some(start..end)
@@ -116,9 +117,9 @@ pub trait SourceNavigation {
     }
 
     /// Convert a byte range once and retain both coordinate representations.
-    fn span_for_bytes(&self, bytes: ByteRange<usize>) -> DocumentSpan {
+    fn span_for_bytes(&self, bytes: ByteRange) -> DocumentSpan {
         DocumentSpan {
-            range: Range::new(
+            range: TextRange::new(
                 self.position_for_byte(bytes.start),
                 self.position_for_byte(bytes.end),
             ),
@@ -132,12 +133,12 @@ pub trait SourceNavigation {
     }
 
     /// Convert one byte range to its LSP UTF-16 range.
-    fn range_for_bytes(&self, bytes: ByteRange<usize>) -> Range {
+    fn range_for_bytes(&self, bytes: ByteRange) -> TextRange {
         self.span_for_bytes(bytes).range()
     }
 
     /// Convert one parser node to its LSP UTF-16 range.
-    fn range_for_node(&self, node: M2Node<'_>) -> Range {
+    fn range_for_node(&self, node: M2Node<'_>) -> TextRange {
         self.span_for_node(node).range()
     }
 
@@ -147,29 +148,29 @@ pub trait SourceNavigation {
     }
 
     /// Slice source text using an LSP UTF-16 range.
-    fn text_in_range(&self, range: Range) -> Option<&str> {
+    fn text_in_range(&self, range: TextRange) -> Option<&str> {
         self.text().get(self.bytes_for_range(range)?)
     }
 
     /// The full LSP range of the indexed source snapshot.
-    fn full_range(&self) -> Range {
+    fn full_range(&self) -> TextRange {
         self.range_for_bytes(0..self.text().len())
     }
 
     /// The range from a byte position through the end of its visible line.
-    fn remainder_of_line_range(&self, start_byte: usize) -> Range {
+    fn remainder_of_line_range(&self, start_byte: usize) -> TextRange {
         let source = self.source();
         let start = self.position_for_byte(start_byte);
         let line = source
             .line_index
             .content_range(start.line)
             .expect("a byte within source text must belong to an indexed line");
-        Range::new(start, self.position_for_byte(line.end))
+        TextRange::new(start, self.position_for_byte(line.end))
     }
 
     /// Split a possibly multiline span into legal single-line semantic-token
     /// ranges, excluding line endings and empty lines.
-    fn visible_ranges(&self, span: &DocumentSpan) -> Vec<Range> {
+    fn visible_ranges(&self, span: &DocumentSpan) -> Vec<TextRange> {
         let source = self.source();
         let bytes = span.bytes();
         let range = span.range();
@@ -220,7 +221,7 @@ impl LineIndex {
 
     /// The indexed line containing `byte_index`, with line endings attributed to
     /// the preceding line.
-    fn line_for_byte(&self, byte_index: usize) -> (usize, &ByteRange<usize>) {
+    fn line_for_byte(&self, byte_index: usize) -> (usize, &ByteRange) {
         let line_index = self
             .content_ranges
             .partition_point(|range| range.start <= byte_index)
@@ -229,7 +230,7 @@ impl LineIndex {
     }
 
     /// The visible byte range for an LSP line number.
-    fn content_range(&self, line: u32) -> Option<&ByteRange<usize>> {
+    fn content_range(&self, line: u32) -> Option<&ByteRange> {
         self.content_ranges.get(line as usize)
     }
 }
@@ -285,7 +286,7 @@ mod tests {
         );
         assert_eq!(
             source.full_range(),
-            Range::new(Position::new(0, 0), Position::new(2, 0))
+            TextRange::new(Position::new(0, 0), Position::new(2, 0))
         );
     }
 
@@ -297,9 +298,9 @@ mod tests {
         assert_eq!(
             source.visible_ranges(&span),
             vec![
-                Range::new(Position::new(0, 1), Position::new(0, 2)),
-                Range::new(Position::new(1, 0), Position::new(1, 2)),
-                Range::new(Position::new(2, 0), Position::new(2, 1)),
+                TextRange::new(Position::new(0, 1), Position::new(0, 2)),
+                TextRange::new(Position::new(1, 0), Position::new(1, 2)),
+                TextRange::new(Position::new(2, 0), Position::new(2, 1)),
             ]
         );
     }

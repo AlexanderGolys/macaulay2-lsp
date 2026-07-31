@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
 use crate::capabilities::diagnostics::ambiguous_float_member_access_rewrite;
@@ -96,7 +97,7 @@ struct CodeActionSpec {
 }
 
 impl CodeActionSpec {
-    fn build(self, uri: &Url, range: Range, new_text: String) -> CodeAction {
+    fn build(self, uri: &Url, range: TextRange, new_text: String) -> CodeAction {
         CodeAction {
             title: self.title.to_string(),
             kind: Some(self.kind),
@@ -801,7 +802,7 @@ mod tests {
 
         assert_eq!(
             change.range,
-            Range::new(Position::new(0, 0), Position::new(0, 29))
+            TextRange::new(Position::new(0, 0), Position::new(0, 29))
         );
         assert_eq!(change.new_text, "if ready then value");
     }
@@ -840,7 +841,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("test uri should parse");
         let document = document(text);
         let diagnostic = M2Diagnostic::AmbiguousFloatMemberAccess.at(
-            Range::new(Position::new(0, 0), Position::new(0, 3)),
+            TextRange::new(Position::new(0, 0), Position::new(0, 3)),
             "ambiguous float member access",
         );
 
@@ -864,7 +865,7 @@ mod tests {
 
         assert_eq!(
             change.range,
-            Range::new(Position::new(0, 0), Position::new(0, 3))
+            TextRange::new(Position::new(0, 0), Position::new(0, 3))
         );
         assert_eq!(change.new_text, "x#3");
     }

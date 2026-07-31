@@ -38,7 +38,7 @@ pub enum ObjectData {
 #[derive(Debug, Clone)]
 pub struct CallableInfo {
     pub kind: CallableKind,
-    pub typical_value: Option<ObjectName>,
+    pub typical_value: Option<TypeId>,
     pub methods: Vec<MethodSignature>,
     pub options: Vec<CallableOption>,
     pub receives_sequence: bool,
@@ -174,11 +174,26 @@ impl OptionFacts {
     }
 }
 
-/// The argument domain and optional codomain of one installed method.
+/// Resolved dispatch domain and optional return type of one indexed method.
+///
+/// Domains use general object identities because M2 supports singleton dispatch
+/// objects as well as types. Codomains are validated type identities.
 #[derive(Debug, Clone)]
 pub struct MethodSignature {
-    pub domain: Vec<ObjectName>,
-    pub codomain: Option<ObjectName>,
+    pub domain: Vec<ObjectId>,
+    pub codomain: Option<TypeId>,
+}
+
+/// Type references retained only until every corpus object has been indexed.
+struct PendingCallableTypes {
+    callable: ObjectId,
+    typical_value: Option<ObjectName>,
+    methods: Vec<PendingMethodTypes>,
+}
+
+struct PendingMethodTypes {
+    domain: Vec<ObjectName>,
+    codomain: Option<ObjectName>,
 }
 
 /// Parser and runtime metadata for an operator-backed callable.
@@ -215,6 +230,7 @@ impl BuiltinIndex {
     pub fn load(corpus: &str) -> Self {
         let mut index = BuiltinIndex::default();
         let mut pending_type_parents = Vec::new();
+        let mut pending_callable_types = Vec::new();
         let mut referenced_packages = HashMap::new();
         for mut raw in deserialize_records(corpus) {
             if raw.kind != "meta" {
@@ -251,13 +267,9 @@ impl BuiltinIndex {
                     let methods = raw
                         .methods
                         .into_iter()
-                        .map(|method| MethodSignature {
-                            domain: method
-                                .domain
-                                .iter()
-                                .map(|domain| ObjectName(deref_ref(domain)))
-                                .collect(),
-                            codomain: concrete_codomain(method.typical_value.as_deref()),
+                        .map(|method| PendingMethodTypes {
+                            domain: method.domain.into_iter().map(ObjectName).collect(),
+                            codomain: concrete_type_reference(method.typical_value.as_deref()),
                         })
                         .collect();
                     let kind = match raw.kind.as_str() {
@@ -285,10 +297,15 @@ impl BuiltinIndex {
                     };
                     record.data = ObjectData::Callable(CallableInfo {
                         kind,
-                        typical_value: concrete_codomain(raw.typical_value.as_deref()),
-                        methods,
+                        typical_value: None,
+                        methods: Vec::new(),
                         options: raw.options.into_iter().map(CallableOption::from).collect(),
                         receives_sequence: record.class == ObjectName::new("MethodFunctionSingle"),
+                    });
+                    pending_callable_types.push(PendingCallableTypes {
+                        callable: record.id.clone(),
+                        typical_value: concrete_type_reference(raw.typical_value.as_deref()),
+                        methods,
                     });
                     index.insert(record);
                 }
@@ -314,7 +331,7 @@ impl BuiltinIndex {
             let parent = index.resolve_or_insert_type_reference(&parent_name);
             assert!(
                 index
-                    .object(&parent)
+                    .object(parent.object())
                     .is_some_and(|record| record.type_info().is_some()),
                 "type parent '{parent_name}' is not a type"
             );
@@ -322,7 +339,34 @@ impl BuiltinIndex {
             let type_info = index.records[record_index]
                 .type_info_mut()
                 .expect("pending type parent must belong to a type record");
-            type_info.parent = TypeId::from_object(parent);
+            type_info.parent = parent;
+        }
+        for pending in pending_callable_types {
+            let typical_value = pending
+                .typical_value
+                .as_ref()
+                .map(|reference| index.resolve_or_insert_type_reference(reference));
+            let methods = pending
+                .methods
+                .into_iter()
+                .map(|method| MethodSignature {
+                    domain: method
+                        .domain
+                        .iter()
+                        .map(|reference| index.resolve_or_insert_dispatch_reference(reference))
+                        .collect(),
+                    codomain: method
+                        .codomain
+                        .as_ref()
+                        .map(|reference| index.resolve_or_insert_type_reference(reference)),
+                })
+                .collect();
+            let callable = index
+                .record_mut(&pending.callable)
+                .and_then(Record::callable_mut)
+                .expect("pending callable types must belong to a callable record");
+            callable.typical_value = typical_value;
+            callable.methods = methods;
         }
         for (package, name) in referenced_packages {
             if index.object(&package).is_some() {
@@ -377,9 +421,14 @@ impl BuiltinIndex {
 
     /// Resolve a referenced type, creating an unloaded placeholder when a
     /// partial package fixture or future lazy package boundary omits its record.
-    fn resolve_or_insert_type_reference(&mut self, reference: &ObjectName) -> ObjectId {
+    fn resolve_or_insert_type_reference(&mut self, reference: &ObjectName) -> TypeId {
         if let Some(object) = self.resolve_reference(reference) {
-            return object;
+            assert!(
+                self.object(&object)
+                    .is_some_and(|record| record.type_info().is_some()),
+                "type reference '{reference}' resolves to a non-type object"
+            );
+            return TypeId::from_object(object);
         }
 
         let id = ObjectId::new(reference.name());
@@ -402,7 +451,23 @@ impl BuiltinIndex {
             aliases: Vec::new(),
             markdown: None,
         });
-        id
+        TypeId::from_object(id)
+    }
+
+    /// Resolve one dispatch slot. M2 domains may contain either a type or a
+    /// singleton object such as `OO`; absent corpus references are retained as
+    /// placeholder types because no stronger classification is available.
+    fn resolve_or_insert_dispatch_reference(&mut self, reference: &ObjectName) -> ObjectId {
+        self.resolve_reference(reference).unwrap_or_else(|| {
+            self.resolve_or_insert_type_reference(reference)
+                .object()
+                .clone()
+        })
+    }
+
+    fn record_mut(&mut self, object_id: &ObjectId) -> Option<&mut Record> {
+        let index = *self.record_index_by_id.get(object_id)?;
+        self.records.get_mut(index)
     }
 
     pub fn object(&self, object_id: &ObjectId) -> Option<&Record> {
@@ -465,6 +530,13 @@ fn core_package_id() -> ObjectId {
 }
 
 impl Record {
+    fn callable_mut(&mut self) -> Option<&mut CallableInfo> {
+        match &mut self.data {
+            ObjectData::Callable(callable) => Some(callable),
+            ObjectData::Plain | ObjectData::Type(_) => None,
+        }
+    }
+
     fn type_info_mut(&mut self) -> Option<&mut TypeData> {
         match &mut self.data {
             ObjectData::Type(type_info) => Some(type_info),
@@ -513,11 +585,11 @@ fn deref_ref(key: &str) -> String {
 /// typecheck information — returning them as a positive fact would pollute
 /// inference. This maps them to `None` ("unknown"), preserving the
 /// known-facts-only contract.
-fn concrete_codomain(raw_key: Option<&str>) -> Option<ObjectName> {
-    let name = raw_key.map(deref_ref)?;
-    match name.as_str() {
+fn concrete_type_reference(raw_key: Option<&str>) -> Option<ObjectName> {
+    let reference = raw_key.map(ObjectName::new)?;
+    match deref_ref(reference.name()).as_str() {
         "Thing" | "Any" => None,
-        _ => Some(ObjectName(name)),
+        _ => Some(reference),
     }
 }
 
@@ -574,6 +646,23 @@ mod tests {
             .filter(|record| record.callable().is_some())
     }
 
+    fn type_id(index: &BuiltinIndex, name: &str) -> TypeId {
+        TypeId::from_object(
+            type_entry(index, name)
+                .expect("type should be indexed")
+                .id
+                .clone(),
+        )
+    }
+
+    fn type_name<'index>(index: &'index BuiltinIndex, type_id: &TypeId) -> &'index str {
+        index
+            .object(type_id.object())
+            .expect("type identity should resolve")
+            .name
+            .name()
+    }
+
     #[test]
     fn load_parses_new_format_corpus() {
         let index = BuiltinIndex::load(include_str!("./data/m2-index.jsonl"));
@@ -597,10 +686,11 @@ mod tests {
         let beta = callable(&index, "Beta").expect("Beta callable present");
         let beta_info = beta.callable().expect("Beta callable facts");
         assert!(beta_info.is_method_function());
-        assert!(beta_info
-            .methods
-            .iter()
-            .any(|method| method.codomain.as_ref().map(AsRef::as_ref) == Some("RR"))); // $Core$RR -> RR
+        assert!(beta_info.methods.iter().any(|method| method
+            .codomain
+            .as_ref()
+            .map(|id| type_name(&index, id))
+            == Some("RR")));
 
         // operator record -> callable + capitalized forms from the `operator` object
         let minus = callable(&index, "-").expect("- operator present");
@@ -668,8 +758,9 @@ mod tests {
             .methods
             .iter()
             .any(|method| {
-                method.domain == [ObjectName::new("Ideal")]
-                    && method.codomain.as_ref().map(AsRef::as_ref) == Some("GroebnerBasis")
+                method.domain == [type_id(&index, "Ideal").object().clone()]
+                    && method.codomain.as_ref().map(|id| type_name(&index, id))
+                        == Some("GroebnerBasis")
             }));
     }
 
@@ -728,7 +819,7 @@ mod tests {
             for method in &callable.callable().expect("callable facts").methods {
                 assert!(
                     !matches!(
-                        method.codomain.as_ref().map(AsRef::as_ref),
+                        method.codomain.as_ref().map(|id| type_name(&index, id)),
                         Some("Thing") | Some("Any")
                     ),
                     "callable '{}' has a Thing/Any signature codomain (domain={:?})",
@@ -741,7 +832,7 @@ mod tests {
                     callable
                         .callable()
                         .and_then(|info| info.typical_value.as_ref())
-                        .map(ObjectName::name),
+                        .map(|id| type_name(&index, id)),
                     Some("Thing") | Some("Any")
                 ),
                 "callable '{}' has a Thing/Any typical_value",
@@ -757,7 +848,7 @@ mod tests {
             .expect("next callable facts")
             .methods
             .iter()
-            .find(|method| method.domain == [ObjectName::new("Iterator")])
+            .find(|method| method.domain == [type_id(&index, "Iterator").object().clone()])
             .expect("next(Iterator) signature present");
         assert_eq!(
             next_iter_sig.codomain, None,

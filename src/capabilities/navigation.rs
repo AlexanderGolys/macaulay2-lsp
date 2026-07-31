@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
 use crate::document::{DocumentSnapshot, TargetSymbol};
@@ -179,7 +180,7 @@ pub(crate) fn goto_definition_response(
                 if let Ok(uri) = Url::from_file_path(path) {
                     return Some(GotoDefinitionResponse::Scalar(Location {
                         uri,
-                        range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+                        range: TextRange::new(Position::new(0, 0), Position::new(0, 0)),
                     }));
                 }
             }
@@ -231,7 +232,7 @@ pub(crate) fn collect_reference_ranges(
     document: &DocumentSnapshot,
     position: Position,
     include_declaration: bool,
-) -> Vec<Range> {
+) -> Vec<TextRange> {
     let Some(target) = document.target_symbol_at(position) else {
         return Vec::new();
     };
@@ -246,7 +247,7 @@ pub(crate) fn reference_ranges_resolved(
     target: TargetSymbol<'_>,
     document: &DocumentSnapshot,
     include_declaration: bool,
-) -> Vec<Range> {
+) -> Vec<TextRange> {
     let root_node = document.root_node();
     let target_name = target.name;
     let target_range = target.symbol.range;
@@ -291,7 +292,7 @@ pub(crate) fn reference_ranges_resolved(
 pub(crate) fn prepare_rename_range(
     document: &DocumentSnapshot,
     position: Position,
-) -> Option<Range> {
+) -> Option<TextRange> {
     let target = document.target_symbol_at(position)?;
     Some(target.range)
 }
@@ -357,7 +358,7 @@ pub(crate) fn reference_target(
 /// Every occurrence of `name` in `document` that refers to a global (top-level)
 /// definition — i.e. one not shadowed by a local binding at that point. Used to
 /// gather a workspace-global symbol's references file by file.
-pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<Range> {
+pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<TextRange> {
     let analysis = document.analysis();
     let root_node = document.root_node();
     let mut references = Vec::new();
@@ -393,7 +394,7 @@ pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -
 /// Every occurrence of `name` that is not bound by user code at that source
 /// position. Used for in-document builtin highlighting: local shadows must not
 /// light up with the library object they replace.
-pub(crate) fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<Range> {
+pub(crate) fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<TextRange> {
     let analysis = document.analysis();
     let mut references = document
         .root_node()
@@ -475,7 +476,7 @@ mod tests {
     use crate::document::DocumentSnapshot;
     use crate::object_registry::ObjectRegistry;
     use crate::workspace_index::WorkspaceIndex;
-    use tower_lsp::lsp_types::{Position, Range};
+    use tower_lsp::lsp_types::{Position, Range as TextRange};
 
     fn document(text: &str) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
@@ -546,16 +547,16 @@ mod tests {
         assert_eq!(
             with_declaration,
             vec![
-                Range::new(Position::new(0, 5), Position::new(0, 6)),
-                Range::new(Position::new(0, 16), Position::new(0, 17)),
-                Range::new(Position::new(0, 20), Position::new(0, 21)),
+                TextRange::new(Position::new(0, 5), Position::new(0, 6)),
+                TextRange::new(Position::new(0, 16), Position::new(0, 17)),
+                TextRange::new(Position::new(0, 20), Position::new(0, 21)),
             ]
         );
         assert_eq!(
             without_declaration,
             vec![
-                Range::new(Position::new(0, 16), Position::new(0, 17)),
-                Range::new(Position::new(0, 20), Position::new(0, 21)),
+                TextRange::new(Position::new(0, 16), Position::new(0, 17)),
+                TextRange::new(Position::new(0, 20), Position::new(0, 21)),
             ]
         );
     }
@@ -572,11 +573,11 @@ mod tests {
         let ranges = collect_reference_ranges(&document, Position::new(1, 0), true);
 
         assert!(
-            ranges.contains(&Range::new(Position::new(0, 10), Position::new(0, 11))),
+            ranges.contains(&TextRange::new(Position::new(0, 10), Position::new(0, 11))),
             "forward reference to `h` in g's body must be collected, got {ranges:?}"
         );
         assert!(
-            ranges.contains(&Range::new(Position::new(1, 0), Position::new(1, 1))),
+            ranges.contains(&TextRange::new(Position::new(1, 0), Position::new(1, 1))),
             "the declaration of `h` must be collected, got {ranges:?}"
         );
     }
@@ -590,9 +591,9 @@ mod tests {
         assert_eq!(
             ranges,
             vec![
-                Range::new(Position::new(0, 0), Position::new(0, 1)),
-                Range::new(Position::new(1, 8), Position::new(1, 9)),
-                Range::new(Position::new(2, 0), Position::new(2, 1)),
+                TextRange::new(Position::new(0, 0), Position::new(0, 1)),
+                TextRange::new(Position::new(1, 8), Position::new(1, 9)),
+                TextRange::new(Position::new(2, 0), Position::new(2, 1)),
             ]
         );
         assert!(matches!(
@@ -614,9 +615,9 @@ mod tests {
         assert_eq!(
             ranges,
             vec![
-                Range::new(Position::new(0, 8), Position::new(0, 9)),
-                Range::new(Position::new(1, 0), Position::new(1, 1)),
-                Range::new(Position::new(2, 0), Position::new(2, 1)),
+                TextRange::new(Position::new(0, 8), Position::new(0, 9)),
+                TextRange::new(Position::new(1, 0), Position::new(1, 1)),
+                TextRange::new(Position::new(2, 0), Position::new(2, 1)),
             ]
         );
         assert!(matches!(
@@ -650,7 +651,7 @@ mod tests {
             ),
             Some(GotoDefinitionResponse::Scalar(Location {
                 uri,
-                range: Range::new(Position::new(1, 0), Position::new(1, 1)),
+                range: TextRange::new(Position::new(1, 0), Position::new(1, 1)),
             }))
         );
     }
@@ -671,10 +672,10 @@ mod tests {
         assert_eq!(
             edits,
             vec![
-                Range::new(Position::new(0, 5), Position::new(0, 6)),
-                Range::new(Position::new(1, 11), Position::new(1, 12)),
-                Range::new(Position::new(2, 0), Position::new(2, 1)),
-                Range::new(Position::new(2, 4), Position::new(2, 5)),
+                TextRange::new(Position::new(0, 5), Position::new(0, 6)),
+                TextRange::new(Position::new(1, 11), Position::new(1, 12)),
+                TextRange::new(Position::new(2, 0), Position::new(2, 1)),
+                TextRange::new(Position::new(2, 4), Position::new(2, 5)),
             ]
         );
     }
@@ -689,9 +690,9 @@ mod tests {
         assert_eq!(
             ranges,
             vec![
-                Range::new(Position::new(0, 5), Position::new(0, 6)),
-                Range::new(Position::new(0, 17), Position::new(0, 18)),
-                Range::new(Position::new(0, 21), Position::new(0, 22)),
+                TextRange::new(Position::new(0, 5), Position::new(0, 6)),
+                TextRange::new(Position::new(0, 17), Position::new(0, 18)),
+                TextRange::new(Position::new(0, 21), Position::new(0, 22)),
             ]
         );
     }
@@ -718,9 +719,9 @@ mod tests {
         assert_eq!(
             edits.iter().map(|e| e.range).collect::<Vec<_>>(),
             vec![
-                Range::new(Position::new(0, 5), Position::new(0, 6)),
-                Range::new(Position::new(0, 16), Position::new(0, 17)),
-                Range::new(Position::new(0, 20), Position::new(0, 21)),
+                TextRange::new(Position::new(0, 5), Position::new(0, 6)),
+                TextRange::new(Position::new(0, 16), Position::new(0, 17)),
+                TextRange::new(Position::new(0, 20), Position::new(0, 21)),
             ]
         );
         assert!(edits.iter().all(|e| e.new_text == "z"));
@@ -820,9 +821,9 @@ mod tests {
         assert_eq!(
             ranges,
             vec![
-                Range::new(Position::new(0, 0), Position::new(0, 1)),
-                Range::new(Position::new(2, 4), Position::new(2, 5)),
-                Range::new(Position::new(2, 8), Position::new(2, 9)),
+                TextRange::new(Position::new(0, 0), Position::new(0, 1)),
+                TextRange::new(Position::new(2, 4), Position::new(2, 5)),
+                TextRange::new(Position::new(2, 8), Position::new(2, 9)),
             ]
         );
     }

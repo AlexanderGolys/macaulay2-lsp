@@ -68,28 +68,30 @@ impl Deref for TypeChecker<'_> {
 }
 
 impl TypeChecker<'_> {
-    /// Project call arguments into the nominal names understood by dispatch.
-    pub(super) fn dispatch_argument_types(
+    /// Project call arguments into the validated identities used by dispatch.
+    pub(super) fn dispatch_argument_ids(
         &self,
         facts: &CallStaticFacts,
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Vec<Option<ObjectName>> {
+    ) -> Vec<Option<ObjectId>> {
         facts
             .argument_types
             .iter()
-            .map(|inferred| self.dispatch_type_id(inferred, knowledge))
+            .map(|inferred| self.dispatch_object_id(inferred, knowledge))
             .collect()
     }
 
     /// Project an inferred source type into the external dispatch hierarchy.
-    pub(super) fn dispatch_type_id(
+    pub(super) fn dispatch_object_id(
         &self,
         inferred: &InferredType,
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<ObjectName> {
+    ) -> Option<ObjectId> {
         let principal = inferred.principal()?;
         let Some(mut current) = self.resolve_source_type_id(principal) else {
-            return Some(principal.clone());
+            return knowledge
+                .resolve_type_id(principal)
+                .map(|type_id| type_id.object().clone());
         };
         let mut visited = HashSet::new();
 
@@ -98,15 +100,21 @@ impl TypeChecker<'_> {
                 return None;
             }
             let Some(data) = self.registry.source_types.data.get(&current) else {
-                return Some(
-                    knowledge
-                        .object(current.object())
-                        .map(|record| record.name.clone())
-                        .unwrap_or_else(|| ObjectName::new(current.object().name())),
-                );
+                return Some(current.object().clone());
             };
             current.clone_from(&data.parent);
         }
+    }
+
+    pub(super) fn inferred_external_type(
+        &self,
+        type_id: TypeId,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> InferredType {
+        knowledge
+            .type_name(&type_id)
+            .cloned()
+            .map_or_else(InferredType::unknown, InferredType::from_id)
     }
 
     /// The inferred type of the value `node` evaluates to — see [`InferredType`].
@@ -305,7 +313,7 @@ impl TypeChecker<'_> {
             self.get_binding_from_scope(name, scope_idx, source.position_for_node(node))
         {
             let package_shadows = binding.scope_idx == 0
-                && knowledge.shadows_source(&binding.name, binding.state.span.range.start);
+                && knowledge.shadows_source(&binding.name, binding.state.span.start);
             if !package_shadows {
                 return binding
                     .state
@@ -459,10 +467,10 @@ impl TypeChecker<'_> {
             if let Some(callable) = callable_name {
                 if let Some(return_type) = knowledge.resolve_call_return_type_with_options(
                     &ObjectName::new(callable),
-                    &self.dispatch_argument_types(&call_facts, knowledge),
+                    &self.dispatch_argument_ids(&call_facts, knowledge),
                     &call_facts.literal_options,
                 ) {
-                    return InferredType::from_id(return_type);
+                    return self.inferred_external_type(return_type, knowledge);
                 }
             }
             // Applying a function yields at least a Thing.
@@ -502,7 +510,7 @@ impl TypeChecker<'_> {
             .get_binding_from_scope(name, scope_idx, position)
             .filter(|binding| binding.state.kind == SymbolKind::FUNCTION)?;
         if binding.scope_idx == 0
-            && knowledge.shadows_source(&binding.name, binding.state.span.range.start)
+            && knowledge.shadows_source(&binding.name, binding.state.span.start)
         {
             return None;
         }
@@ -551,11 +559,11 @@ impl TypeChecker<'_> {
             &ObjectName::new(callable),
             &args
                 .iter()
-                .map(|argument| self.dispatch_type_id(argument, knowledge))
+                .map(|argument| self.dispatch_object_id(argument, knowledge))
                 .collect::<Vec<_>>(),
             options,
         ) {
-            return InferredType::from_id(return_type);
+            return self.inferred_external_type(return_type, knowledge);
         }
         if knowledge.get_record(&ObjectName::new(callable)).is_some() {
             return InferredType::of("Thing");

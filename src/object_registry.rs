@@ -333,7 +333,7 @@ impl ObjectRegistryView<'_> {
 /// Package records retain their qualified corpus symbol (for example
 /// `$Core$Thing`). That qualification is internal to the linked corpus; source
 /// lookup uses [`ObjectName`] spellings and aliases.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ObjectId(ObjectName);
 
 impl ObjectId {
@@ -358,7 +358,7 @@ impl Borrow<ObjectName> for ObjectId {
 ///
 /// Construction stays inside the registry so arbitrary objects cannot be used
 /// as type-order elements.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeId(ObjectId);
 
 impl TypeId {
@@ -423,8 +423,20 @@ pub trait ObjectKnowledge: TypeStore {
     /// Resolve a nominal type reference to its validated type identity.
     fn resolve_type_id(&self, name: &ObjectName) -> Option<TypeId> {
         let object = self.resolve_object(name)?;
-        self.object(&object)?.type_info()?;
-        Some(TypeId::from_object(object))
+        self.type_id(&object)
+    }
+
+    /// Refine a general object identity after verifying that it is a type.
+    fn type_id(&self, object: &ObjectId) -> Option<TypeId> {
+        self.object(object)?.type_info()?;
+        Some(TypeId::from_object(object.clone()))
+    }
+
+    /// Borrow the display name of a validated type identity.
+    fn type_name(&self, type_id: &TypeId) -> Option<&ObjectName> {
+        let record = self.object(type_id.object())?;
+        record.type_info()?;
+        Some(&record.name)
     }
 }
 

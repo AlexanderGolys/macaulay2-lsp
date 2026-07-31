@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 use serde_json::{json, Value};
 use tower::Service;
 use tower_lsp::jsonrpc::{Request, Response};
-use tower_lsp::lsp_types::{Position, Range, TypeHierarchyItem, Url};
+use tower_lsp::lsp_types::{Position, Range as TextRange, TypeHierarchyItem, Url};
 
 use crate::builtin_index::Record;
 use crate::document::DocumentSnapshot;
@@ -131,7 +131,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
         package: &str,
         record: &Record,
         occurrence_uri: Option<Url>,
-        occurrence_range: Option<Range>,
+        occurrence_range: Option<TextRange>,
     ) -> TypeHierarchyItem {
         let location = self.source_resolver.package_location(package);
         let uri = occurrence_uri
@@ -139,7 +139,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
             .unwrap_or_else(|| Url::parse("macaulay2:/builtins").expect("valid builtin URI"));
         let range = occurrence_range
             .or_else(|| location.as_ref().map(|location| location.range))
-            .unwrap_or_else(|| Range::new(Position::new(0, 0), Position::new(0, 0)));
+            .unwrap_or_else(|| TextRange::new(Position::new(0, 0), Position::new(0, 0)));
         let detail = record
             .type_info()
             .and_then(|type_info| {

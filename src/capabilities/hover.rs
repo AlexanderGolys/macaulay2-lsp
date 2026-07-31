@@ -148,7 +148,7 @@ fn call_signature_usage_for_hover(
 
         let argument = parent.child_by_field_name("right")?;
         let facts = analysis.infer_call_static_facts(argument, source, knowledge);
-        analysis.dispatch_argument_types(&facts, knowledge)
+        analysis.dispatch_argument_ids(&facts, knowledge)
     } else if parent
         .child_by_field_name("operator")
         .is_some_and(|operator| operator.id() == node.id())
@@ -156,8 +156,12 @@ fn call_signature_usage_for_hover(
         let left = parent.child_by_field_name("left")?;
         let right = parent.child_by_field_name("right")?;
         vec![
-            analysis.infer_expression_static_type(left, source, knowledge),
-            analysis.infer_expression_static_type(right, source, knowledge),
+            analysis
+                .infer_expression_static_type(left, source, knowledge)
+                .and_then(|name| knowledge.resolve_object(&name)),
+            analysis
+                .infer_expression_static_type(right, source, knowledge)
+                .and_then(|name| knowledge.resolve_object(&name)),
         ]
     } else {
         return None;
@@ -250,7 +254,7 @@ mod tests {
     use crate::object_registry::ObjectRegistry;
     use crate::source::DocumentSource;
     use crate::test_support::analyze;
-    use tower_lsp::lsp_types::{HoverContents, Position, SymbolKind};
+    use tower_lsp::lsp_types::{HoverContents, Position, Range as TextRange, SymbolKind};
 
     #[test]
     fn local_hover_includes_known_static_type() {
@@ -404,7 +408,7 @@ mod tests {
         assert!(markup.value.contains("User-defined variable"));
         assert_eq!(
             hover.range,
-            Some(Range::new(Position::new(0, 8), Position::new(0, 9)))
+            Some(TextRange::new(Position::new(0, 8), Position::new(0, 9)))
         );
     }
 
@@ -428,7 +432,7 @@ mod tests {
         );
         assert_eq!(
             hover.range,
-            Some(Range::new(Position::new(0, 8), Position::new(0, 13)))
+            Some(TextRange::new(Position::new(0, 8), Position::new(0, 13)))
         );
     }
 

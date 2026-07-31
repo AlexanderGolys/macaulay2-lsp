@@ -11,6 +11,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use tokio::{io, task};
 use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -141,7 +142,7 @@ impl Backend {
         &'a self,
         name: &'a str,
         exclude: &'a Url,
-    ) -> impl Iterator<Item = (Url, Range)> + 'a {
+    ) -> impl Iterator<Item = (Url, TextRange)> + 'a {
         self.workspace_index
             .workspace_file_uris()
             .into_iter()

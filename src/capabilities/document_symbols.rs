@@ -5,6 +5,7 @@
 //! function. Runtime values and names supplied by indexed packages are not
 //! treated as document definitions.
 
+use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
 use crate::document::DocumentSnapshot;
@@ -42,23 +43,22 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
     }
 
     for installation in analysis.installations() {
-        let Some(name) = document.text_in_range(installation.target.range) else {
+        let Some(name) = document.text_in_range(installation.target) else {
             continue;
         };
         let scope_idx = analysis
-            .scope_at_position(installation.span.range.start)
+            .scope_at_position(installation.span.start)
             .unwrap_or(0);
         declarations.push(Declaration {
             name: name.to_string(),
             detail: Some(method_signature_detail(analysis, installation, name)),
             kind: SymbolKind::METHOD,
-            range: installation.span.range,
-            selection_range: installation.target.range,
+            range: installation.span,
+            selection_range: installation.target,
             scope_idx,
             child_scope_idx: installation
                 .value
-                .as_ref()
-                .and_then(|value| scope_with_range(analysis, value.range)),
+                .and_then(|range| scope_with_range(analysis, range)),
             symbol: None,
         });
     }
@@ -71,7 +71,7 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
         if analysis
             .installations()
             .iter()
-            .any(|installation| installation.span.range == range)
+            .any(|installation| installation.span == range)
         {
             continue;
         }
@@ -138,8 +138,8 @@ fn document_symbol(
     name: String,
     detail: Option<String>,
     kind: SymbolKind,
-    range: Range,
-    selection_range: Range,
+    range: TextRange,
+    selection_range: TextRange,
     children: Option<Vec<DocumentSymbol>>,
 ) -> DocumentSymbol {
     DocumentSymbol {
@@ -159,14 +159,14 @@ struct Declaration {
     name: String,
     detail: Option<String>,
     kind: SymbolKind,
-    range: Range,
-    selection_range: Range,
+    range: TextRange,
+    selection_range: TextRange,
     scope_idx: usize,
     child_scope_idx: Option<usize>,
     symbol: Option<ObjectName>,
 }
 
-fn scope_with_range(analysis: &crate::analysis::Analysis, range: Range) -> Option<usize> {
+fn scope_with_range(analysis: &crate::analysis::Analysis, range: TextRange) -> Option<usize> {
     analysis
         .registry
         .scopes
@@ -248,7 +248,7 @@ mod tests {
     use crate::document::DocumentSnapshot;
     use crate::node_metadata::{M2Node, M2Parser, NodeKind};
     use crate::object_registry::ObjectRegistry;
-    use tower_lsp::lsp_types::{Position, Range};
+    use tower_lsp::lsp_types::{Position, Range as TextRange};
 
     fn document(text: &str, builtins: &ObjectRegistry) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), builtins).expect("fixture should parse")
@@ -265,7 +265,7 @@ mod tests {
         assert_eq!(symbols[0].name, "f");
         assert_eq!(
             symbols[0].selection_range,
-            Range::new(Position::new(0, 6), Position::new(0, 7))
+            TextRange::new(Position::new(0, 6), Position::new(0, 7))
         );
     }
 

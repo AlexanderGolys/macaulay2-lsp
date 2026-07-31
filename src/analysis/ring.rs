@@ -444,11 +444,11 @@ impl TypeChecker<'_> {
         let result = knowledge.resolve_call_return_type_with_options(
             &ObjectName::new(operator),
             &[
-                self.dispatch_type_id(&ring_type, knowledge),
-                self.dispatch_type_id(&trailing_type, knowledge),
+                self.dispatch_object_id(&ring_type, knowledge),
+                self.dispatch_object_id(&trailing_type, knowledge),
             ],
             &[],
         )?;
-        Some(InferredType::from_id(result))
+        Some(self.inferred_external_type(result, knowledge))
     }
 }

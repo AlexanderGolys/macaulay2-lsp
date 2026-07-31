@@ -5,18 +5,16 @@
 //! deliberately treats those regions as opaque, so each span receives a small
 //! isolated parse for reference extraction.
 
-use std::ops::Range as ByteRange;
-
-use tower_lsp::lsp_types::{Position, Range};
+use tower_lsp::lsp_types::{Position, Range as TextRange};
 
 use crate::node_metadata::{M2Node, M2Parser, NodeKind, NodeKindMetadata};
-use crate::source::{DocumentSpan, SourceNavigation};
+use crate::source::{ByteRange, DocumentSpan, SourceNavigation};
 use crate::util::position_in_range;
 
 /// One backtick-delimited source snippet parsed for embedded references.
 #[derive(Debug)]
 pub(crate) struct DocumentationSnippet {
-    bytes: ByteRange<usize>,
+    bytes: ByteRange,
 }
 
 impl DocumentationSnippet {
@@ -36,7 +34,7 @@ impl DocumentationReference {
         &text[self.span.bytes()]
     }
 
-    pub(crate) fn range(&self) -> Range {
+    pub(crate) fn range(&self) -> TextRange {
         self.span.range()
     }
 
@@ -146,7 +144,7 @@ fn is_code_candidate(candidate: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn references(text: &str) -> Vec<(String, Range)> {
+    fn references(text: &str) -> Vec<(String, TextRange)> {
         let source = crate::source::DocumentSource::new(text.to_string());
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let root = parser.parse(text).expect("fixture should parse");
@@ -170,15 +168,15 @@ mod tests {
             vec![
                 (
                     "x".to_string(),
-                    Range::new(Position::new(0, 14), Position::new(0, 15)),
+                    TextRange::new(Position::new(0, 14), Position::new(0, 15)),
                 ),
                 (
                     "x".to_string(),
-                    Range::new(Position::new(1, 12), Position::new(1, 13)),
+                    TextRange::new(Position::new(1, 12), Position::new(1, 13)),
                 ),
                 (
                     "ideal".to_string(),
-                    Range::new(Position::new(1, 20), Position::new(1, 25)),
+                    TextRange::new(Position::new(1, 20), Position::new(1, 25)),
                 ),
             ]
         );
@@ -191,7 +189,7 @@ mod tests {
             references(text),
             vec![(
                 "ideal".to_string(),
-                Range::new(Position::new(0, 11), Position::new(0, 16)),
+                TextRange::new(Position::new(0, 11), Position::new(0, 16)),
             )]
         );
     }

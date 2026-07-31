@@ -3,7 +3,8 @@
 use std::collections::HashSet;
 
 use tower_lsp::lsp_types::{
-    InlayHint, InlayHintKind, InlayHintLabel, InlayHintServerCapabilities, OneOf, Position, Range,
+    InlayHint, InlayHintKind, InlayHintLabel, InlayHintServerCapabilities, OneOf, Position,
+    Range as TextRange,
 };
 
 use crate::document::DocumentSnapshot;
@@ -19,7 +20,7 @@ pub(crate) fn inlay_hint_provider_capability() -> Option<OneOf<bool, InlayHintSe
 /// per-expression hints when `expression_types` is opted in.
 pub(crate) fn inlay_hints_response(
     document: &DocumentSnapshot,
-    range: Range,
+    range: TextRange,
     expression_types: bool,
     knowledge: &ObjectRegistry,
 ) -> Vec<InlayHint> {
@@ -71,7 +72,7 @@ fn type_hint(position: Position, type_name: &str) -> InlayHint {
     }
 }
 
-fn binding_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<InlayHint> {
+fn binding_type_hints(document: &DocumentSnapshot, range: &TextRange) -> Vec<InlayHint> {
     document
         .analysis()
         .typed_bindings_in_range(*range)
@@ -95,7 +96,7 @@ fn binding_type_hints(document: &DocumentSnapshot, range: &Range) -> Vec<InlayHi
 
 fn expression_type_hints(
     document: &DocumentSnapshot,
-    range: &Range,
+    range: &TextRange,
     knowledge: &ObjectRegistry,
 ) -> Vec<InlayHint> {
     let analysis = document.analysis();
@@ -136,7 +137,7 @@ fn expression_type_hints(
         .collect()
 }
 
-fn range_contains(outer: Range, inner: Range) -> bool {
+fn range_contains(outer: TextRange, inner: TextRange) -> bool {
     outer.start <= inner.start && inner.end <= outer.end
 }
 
@@ -150,7 +151,7 @@ mod tests {
         let registry = ObjectRegistry::default();
         let document =
             DocumentSnapshot::from_text(text.to_string(), &registry).expect("fixture should parse");
-        let range = Range::new(Position::new(0, 0), Position::new(u32::MAX, 0));
+        let range = TextRange::new(Position::new(0, 0), Position::new(u32::MAX, 0));
         inlay_hints_response(&document, range, expression_types, &registry)
     }
 

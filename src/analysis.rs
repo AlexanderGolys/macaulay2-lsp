@@ -5,9 +5,8 @@ mod ring;
 mod typechecker;
 
 use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
 use std::ops::Deref;
-use tower_lsp::lsp_types::{Diagnostic, Position, Range, SymbolKind};
+use tower_lsp::lsp_types::{Diagnostic, Position, Range as TextRange, SymbolKind};
 
 use crate::diagnostic_registry::M2Diagnostic;
 use crate::meta::{BindingRole, Meta, Metadata};
@@ -64,57 +63,28 @@ pub enum MethodHead {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MethodInstallationId(usize);
 
-/// A named M2 method object identified by its callable and dispatch domain.
+/// Source-characterized method signature.
+///
+/// Domain and codomain names remain nominal here because local bindings and
+/// package inclusions make their resolution source-position dependent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Method {
-    pub id: ObjectId,
     pub head: MethodHead,
     pub domain: Vec<ObjectName>,
-    /// The effective codomain of this method at its installation.
     pub codomain: Option<ObjectName>,
 }
 
 impl Method {
     fn new(head: MethodHead, domain: Vec<ObjectName>, codomain: Option<ObjectName>) -> Self {
-        let head_name = match &head {
-            MethodHead::Function(name) => name.name(),
-            MethodHead::Operator(operator) => operator.token.name(),
-        };
-        let domain_name = domain
-            .iter()
-            .map(ObjectName::name)
-            .collect::<Vec<_>>()
-            .join(",");
         Self {
-            id: ObjectId::new(format!("{head_name}({domain_name})")),
             head,
             domain,
             codomain,
         }
     }
-}
 
-/// Value-semantic source location used to key facts independently of borrowed
-/// syntax-tree nodes.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SpanKey {
-    pub range: Range,
-}
-
-impl SpanKey {
-    fn from_node(source: &(impl SourceNavigation + ?Sized), node: M2Node) -> Self {
-        Self {
-            range: source.range_for_node(node),
-        }
-    }
-}
-
-impl Hash for SpanKey {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.range.start.line.hash(state);
-        self.range.start.character.hash(state);
-        self.range.end.line.hash(state);
-        self.range.end.character.hash(state);
+    fn has_same_dispatch_as(&self, other: &Self) -> bool {
+        self.head == other.head && self.domain == other.domain
     }
 }
 
@@ -150,10 +120,10 @@ fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
 pub struct MethodInstallation {
     pub id: MethodInstallationId,
     pub method: Method,
-    pub codomain_span: Option<SpanKey>,
-    pub span: SpanKey,
-    pub target: SpanKey,
-    pub value: Option<SpanKey>,
+    pub codomain_span: Option<TextRange>,
+    pub span: TextRange,
+    pub target: TextRange,
+    pub value: Option<TextRange>,
     /// Required arity of the installed function. Assignment handlers receive
     /// the assigned value in addition to the operands in `domain`.
     expected_rhs_arity: usize,
@@ -220,9 +190,9 @@ pub struct BindingInfo {
     pub role: BindingRole,
     pub declaration_kind: SymbolKind,
     pub potential_export: bool,
-    pub range: Range,
+    pub range: TextRange,
     pub scope_idx: usize,
-    pub declaration_range: Range,
+    pub declaration_range: TextRange,
     pub definition_state: BindingStateId,
 }
 
@@ -236,8 +206,8 @@ pub struct BindingStateInfo {
     /// For an `IndexedVariableTable` binding, the local ring type produced by
     /// subscripting the table after a ring constructor or `use`-style rebind.
     pub indexed_element_type: Option<ObjectName>,
-    pub value_range: Option<Range>,
-    pub span: SpanKey,
+    pub value_range: Option<TextRange>,
+    pub span: TextRange,
     pub scope_idx: usize,
 }
 
@@ -270,7 +240,7 @@ impl Metadata for BindingView<'_> {
 /// One lexical scope and its relationship to the enclosing scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopeInfo {
-    pub range: Range,
+    pub range: TextRange,
     pub parent_idx: Option<usize>,
     /// `=` definitions in this statically isolated scope may still become
     /// visible outside it when the region executes at runtime.
@@ -351,7 +321,7 @@ pub struct Analysis {
 }
 
 impl Analysis {
-    pub fn find_definition(&self, name: &str, pos: Position) -> Option<Range> {
+    pub fn find_definition(&self, name: &str, pos: Position) -> Option<TextRange> {
         self.get_symbol_at(name, pos).map(|symbol| symbol.range)
     }
 
@@ -464,14 +434,9 @@ impl Analysis {
                 .iter()
                 .filter_map(|state_id| self.binding_state(*state_id))
                 .filter(|state| {
-                    state.scope_idx == idx && (!constrain_to_prior || state.span.range.start <= pos)
+                    state.scope_idx == idx && (!constrain_to_prior || state.span.start <= pos)
                 })
-                .max_by_key(|state| {
-                    (
-                        state.span.range.start.line,
-                        state.span.range.start.character,
-                    )
-                });
+                .max_by_key(|state| (state.span.start.line, state.span.start.character));
             if state.is_some() {
                 return self.binding_view(state?);
             }
@@ -496,7 +461,7 @@ impl Analysis {
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
     ) -> bool {
-        let span = SpanKey::from_node(source, node);
+        let span = source.range_for_node(node);
         self.registry
             .installations
             .iter()
@@ -525,22 +490,34 @@ impl Analysis {
         function: &'a FunctionInfo,
         position: Position,
     ) -> Vec<&'a Method> {
-        let method_ids = function
+        let active_methods = function
             .methods
             .iter()
             .filter_map(|id| self.method_installation(*id))
-            .map(|installation| &installation.method.id)
-            .collect::<HashSet<_>>();
-        let mut seen = HashSet::new();
-        self.registry
+            .map(|installation| &installation.method)
+            .collect::<Vec<_>>();
+        let mut seen = Vec::new();
+        let mut methods = Vec::new();
+        for method in self
+            .registry
             .installations
             .iter()
             .rev()
-            .filter(|installation| installation.span.range.start <= position)
+            .filter(|installation| installation.span.start <= position)
             .map(|installation| &installation.method)
-            .filter(|method| method_ids.contains(&method.id))
-            .filter(|method| seen.insert(method.id.clone()))
-            .collect()
+        {
+            if active_methods
+                .iter()
+                .any(|active| active.has_same_dispatch_as(method))
+                && !seen
+                    .iter()
+                    .any(|previous: &&Method| previous.has_same_dispatch_as(method))
+            {
+                seen.push(method);
+                methods.push(method);
+            }
+        }
+        methods
     }
 
     fn method_installation(&self, id: MethodInstallationId) -> Option<&MethodInstallation> {
@@ -564,7 +541,7 @@ impl Analysis {
             .filter_map(|binding| self.binding_definition(binding.binding_id))
     }
 
-    pub fn typed_bindings_in_range(&self, range: Range) -> Vec<BindingView<'_>> {
+    pub fn typed_bindings_in_range(&self, range: TextRange) -> Vec<BindingView<'_>> {
         self.registry
             .bindings
             .iter()
@@ -603,7 +580,7 @@ impl Analysis {
 
     fn find_scope_at(&self, pos: Position) -> Option<usize> {
         let mut best_idx = None;
-        let mut best_range: Option<Range> = None;
+        let mut best_range: Option<TextRange> = None;
 
         for (idx, scope) in self.registry.scopes.iter().enumerate() {
             if position_in_range(pos, scope.range) {
@@ -639,7 +616,7 @@ impl Analysis {
             diagnostics: Vec::new(),
             registry: SemanticRegistry {
                 scopes: vec![ScopeInfo {
-                    range: Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+                    range: TextRange::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
                     parent_idx: None,
                     context_assignments_may_escape: false,
                 }],
@@ -711,7 +688,8 @@ impl Analysis {
                         } else {
                             TypeChecker::new(self)
                                 .type_of(right, source, current_scope_idx, &knowledge)
-                                .dispatch_id()
+                                .principal()
+                                .cloned()
                         }
                     });
                     let parent_type = right
@@ -832,7 +810,7 @@ impl Analysis {
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
     ) -> Option<&MethodInstallation> {
-        let span = SpanKey::from_node(source, node);
+        let span = source.range_for_node(node);
         self.registry
             .installations
             .iter()
@@ -860,17 +838,17 @@ impl Analysis {
         let left = node.child_by_field_name("left")?;
         let (head, domain) = self.installation_shape(left, knowledge)?;
         let operand_arity = domain.len();
-        let span = SpanKey::from_node(source, node);
-        let target = SpanKey::from_node(source, left);
+        let span = source.range_for_node(node);
+        let target = source.range_for_node(left);
         let right = node.child_by_field_name("right");
-        let value = right.map(|right| SpanKey::from_node(source, right));
+        let value = right.map(|right| source.range_for_node(right));
         let codomain_node = right
             .filter(|right| right.is_option_assignment())
             .and_then(|right| right.child_by_field_name("left"));
         let codomain = codomain_node
             .and_then(symbol_node_text)
             .map(ObjectName::new);
-        let codomain_span = codomain_node.map(|node| SpanKey::from_node(source, node));
+        let codomain_span = codomain_node.map(|node| source.range_for_node(node));
         // The RHS function shape, read once here so the arity diagnostic need not
         // re-walk the tree. Only a plain lambda RHS carries a checkable arity.
         let rhs_lambda_dispatch = node
@@ -1045,7 +1023,7 @@ impl Analysis {
         }
         let mut diagnostics = Vec::new();
         for installation in &self.registry.installations {
-            let knowledge = knowledge_provider.at_position(installation.span.range.start);
+            let knowledge = knowledge_provider.at_position(installation.span.start);
             self.installation_diagnostics(installation, &knowledge, &mut diagnostics);
         }
         self.diagnostics.extend(diagnostics);
@@ -1132,7 +1110,7 @@ impl Analysis {
                     == HeadFunctionKind::NonMethodFunction
                 {
                     out.push(M2Diagnostic::InstallNoEffect.at(
-                        installation.span.range,
+                        installation.span,
                         format!(
                             "Installing a method on `{name}` has no effect: `{name}` is not a \
                              method function. Define it with `{name} = method()` to make method \
@@ -1147,7 +1125,7 @@ impl Analysis {
                     == Some(false)
                 {
                     out.push(M2Diagnostic::OperatorNotFlexible.at(
-                        installation.span.range,
+                        installation.span,
                         format!(
                             "Cannot install a method on the {form} operator `{}`: it is not \
                              flexible, so M2 rejects the assignment.",
@@ -1164,7 +1142,7 @@ impl Analysis {
             let expected = installation.expected_rhs_arity();
             if actual != expected {
                 out.push(M2Diagnostic::InstallArity.at(
-                    installation.span.range,
+                    installation.span,
                     format!(
                         "This method's function takes {actual} argument(s) but the installation \
                          expects {expected}. Match the domain arity or use a variadic `x -> …`."
@@ -1402,7 +1380,7 @@ impl Analysis {
             type_name,
             indexed_element_type,
             value_range: value_node.map(|value| source.range_for_node(value)),
-            span: SpanKey::from_node(source, node),
+            span: source.range_for_node(node),
             scope_idx,
         };
         self.registry.bindings.push(binding);
@@ -1458,7 +1436,7 @@ impl Analysis {
             value_range: registration
                 .value_node
                 .map(|value| source.range_for_node(value)),
-            span: SpanKey::from_node(source, registration.node),
+            span: source.range_for_node(registration.node),
             scope_idx: registration.scope_idx,
         });
         self.registry
@@ -1483,7 +1461,7 @@ impl Analysis {
             .methods
             .iter()
             .filter_map(|id| self.method_installation(*id))
-            .any(|current| current.method.id == installation.method.id)
+            .any(|current| current.method.has_same_dispatch_as(&installation.method))
             .then_some((method, installation))
     }
 
@@ -1510,7 +1488,8 @@ impl Analysis {
             .unwrap_or(0);
         TypeChecker::new(self)
             .type_of(node, source, scope_idx, knowledge)
-            .dispatch_id()
+            .principal()
+            .cloned()
     }
 
     /// Infer a display label for one expression without retaining the result in
@@ -1529,16 +1508,16 @@ impl Analysis {
             .label()
     }
 
-    /// Project inferred types into the nominal names understood by method
+    /// Project inferred types into the validated identities used by method
     /// dispatch. Locally-created runtime types (most importantly a ring
     /// such as `R = QQ[x]`) walk through the local parent registry first, so an
     /// element whose exact class is `R` dispatches as a `RingElement`.
-    pub fn dispatch_argument_types(
+    pub fn dispatch_argument_ids(
         &self,
         facts: &CallStaticFacts,
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Vec<Option<ObjectName>> {
-        TypeChecker::new(self).dispatch_argument_types(facts, knowledge)
+    ) -> Vec<Option<ObjectId>> {
+        TypeChecker::new(self).dispatch_argument_ids(facts, knowledge)
     }
 
     /// Record the [`Dispatch`] shape of a lambda-defined local function on its
@@ -1623,8 +1602,9 @@ impl Analysis {
         let name = ObjectName::new(name);
         let existing_method = self.registry.functions.get(&name).and_then(|function| {
             function.methods.iter().position(|id| {
-                self.method_installation(*id)
-                    .is_some_and(|existing| existing.method.id == installation.method.id)
+                self.method_installation(*id).is_some_and(|existing| {
+                    existing.method.has_same_dispatch_as(&installation.method)
+                })
             })
         });
         let method = self
@@ -1786,7 +1766,7 @@ fn literal_option_assignment(node: M2Node) -> Option<LiteralOption> {
 fn enclosing_definition_range(
     node: M2Node<'_>,
     source: &(impl SourceNavigation + ?Sized),
-) -> Range {
+) -> TextRange {
     let mut current = node;
     while let Some(parent) = current.parent() {
         if parent.kind == NodeKind::Cell {
@@ -2000,7 +1980,7 @@ fn is_colon_equal_assignment_left(node: M2Node) -> bool {
         .is_some_and(|operator| operator.text() == ":=")
 }
 
-fn is_range_smaller(a: Range, b: Range) -> bool {
+fn is_range_smaller(a: TextRange, b: TextRange) -> bool {
     // Very simple check: is a contained in b?
     let starts_inside = a.start.line > b.start.line
         || (a.start.line == b.start.line && a.start.character >= b.start.character);
