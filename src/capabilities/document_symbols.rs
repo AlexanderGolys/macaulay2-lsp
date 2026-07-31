@@ -13,6 +13,14 @@ use crate::meta::BindingRole;
 use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
 
+#[derive(Debug, Clone)]
+pub struct WorkspaceSourceSymbol {
+    pub name: ObjectName,
+    pub kind: SymbolKind,
+    pub location: Location,
+    pub container_name: Option<ObjectName>,
+}
+
 /// The outline view of a document: assignment bindings (functions nested under
 /// their body), method installations, and indexed variables.
 pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<DocumentSymbol> {
@@ -37,7 +45,7 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
             child_scope_idx: binding
                 .state
                 .value_range
-                .and_then(|range| scope_with_range(analysis, range)),
+                .and_then(|range| analysis.scope_with_range(range)),
             symbol: Some(binding.name.clone()),
         });
     }
@@ -58,36 +66,21 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
             scope_idx,
             child_scope_idx: installation
                 .value
-                .and_then(|range| scope_with_range(analysis, range)),
+                .and_then(|range| analysis.scope_with_range(range)),
             symbol: None,
         });
     }
 
-    for node in document.root_node().descendants() {
-        if !node.is_assignment() || node.binary_operator() != Some("=") {
-            continue;
-        }
-        let range = document.range_for_node(node);
-        if analysis
-            .installations()
-            .iter()
-            .any(|installation| installation.span == range)
-        {
-            continue;
-        }
-        let Some(left) = node.child_by_field_name("left") else {
-            continue;
-        };
-        let selection_range = document.range_for_node(left);
-        let child_scope_idx = node
-            .child_by_field_name("right")
-            .and_then(|right| scope_with_range(analysis, document.range_for_node(right)));
-        let kind = match left.binary_operator() {
-            Some("_") => SymbolKind::VARIABLE,
-            Some(_) if child_scope_idx.is_some() => SymbolKind::METHOD,
+    for assignment in analysis.composite_assignment_declarations() {
+        let child_scope_idx = assignment
+            .value
+            .and_then(|range| analysis.scope_with_range(range));
+        let kind = match assignment.operator.name() {
+            "_" => SymbolKind::VARIABLE,
+            _ if child_scope_idx.is_some() => SymbolKind::METHOD,
             _ => continue,
         };
-        let Some(name) = document.text_in_range(selection_range) else {
+        let Some(name) = document.text_in_range(assignment.target) else {
             continue;
         };
         let detail = Some(if kind == SymbolKind::METHOD {
@@ -99,9 +92,9 @@ pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<Docum
             name: name.to_string(),
             detail,
             kind,
-            range,
-            selection_range,
-            scope_idx: analysis.scope_at_position(range.start).unwrap_or(0),
+            range: assignment.span,
+            selection_range: assignment.target,
+            scope_idx: assignment.scope_idx,
             child_scope_idx,
             symbol: None,
         });
@@ -166,12 +159,36 @@ struct Declaration {
     symbol: Option<ObjectName>,
 }
 
-fn scope_with_range(analysis: &crate::analysis::Analysis, range: TextRange) -> Option<usize> {
-    analysis
-        .registry
-        .scopes
-        .iter()
-        .position(|scope| scope.range == range)
+pub fn flatten_document_symbols(
+    uri: &Url,
+    symbols: Vec<DocumentSymbol>,
+) -> Vec<WorkspaceSourceSymbol> {
+    fn flatten(
+        uri: &Url,
+        symbols: Vec<DocumentSymbol>,
+        container_name: Option<ObjectName>,
+        flattened: &mut Vec<WorkspaceSourceSymbol>,
+    ) {
+        for symbol in symbols {
+            let name = ObjectName::new(symbol.name);
+            flattened.push(WorkspaceSourceSymbol {
+                name: name.clone(),
+                kind: symbol.kind,
+                location: Location {
+                    uri: uri.clone(),
+                    range: symbol.selection_range,
+                },
+                container_name: container_name.clone(),
+            });
+            if let Some(children) = symbol.children {
+                flatten(uri, children, Some(name), flattened);
+            }
+        }
+    }
+
+    let mut flattened = Vec::new();
+    flatten(uri, symbols, None, &mut flattened);
+    flattened
 }
 
 fn build_document_symbol_tree(

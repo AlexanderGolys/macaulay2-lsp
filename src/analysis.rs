@@ -130,6 +130,15 @@ pub struct MethodInstallation {
     pub rhs_lambda_dispatch: Option<Dispatch>,
 }
 
+#[derive(Debug)]
+pub struct CompositeAssignmentDeclaration {
+    pub span: TextRange,
+    pub target: TextRange,
+    pub value: Option<TextRange>,
+    pub scope_idx: usize,
+    pub operator: ObjectName,
+}
+
 impl MethodInstallation {
     /// The argument count the right-hand-side function must take.
     pub fn expected_rhs_arity(&self) -> usize {
@@ -264,6 +273,7 @@ pub struct SemanticRegistry {
     pub states_by_binding: HashMap<BindingId, Vec<BindingStateId>>,
     pub functions: HashMap<ObjectName, FunctionInfo>,
     installations: Vec<MethodInstallation>,
+    composite_assignment_declarations: Vec<CompositeAssignmentDeclaration>,
     source_types: SourceTypeFacts,
     ring_generators: HashMap<ObjectName, Vec<ring::RingGenerator>>,
 }
@@ -529,6 +539,17 @@ impl Analysis {
         &self.registry.installations
     }
 
+    pub fn composite_assignment_declarations(&self) -> &[CompositeAssignmentDeclaration] {
+        &self.registry.composite_assignment_declarations
+    }
+
+    pub fn scope_with_range(&self, range: TextRange) -> Option<usize> {
+        self.registry
+            .scopes
+            .iter()
+            .position(|scope| scope.range == range)
+    }
+
     pub fn bindings_in_scope(&self, scope_idx: usize) -> impl Iterator<Item = BindingView<'_>> {
         self.bindings()
             .filter(move |binding| binding.scope_idx == scope_idx)
@@ -667,7 +688,20 @@ impl Analysis {
 
                 if let (Some(left), Some(op)) = (left, op) {
                     let op_text = op.text();
-                    self.record_method_installation(node, source, &knowledge);
+                    let installation = self.record_method_installation(node, source, &knowledge);
+                    if installation.is_none() && op_text == "=" {
+                        if let Some(operator) = left.binary_operator() {
+                            self.registry.composite_assignment_declarations.push(
+                                CompositeAssignmentDeclaration {
+                                    span: source.range_for_node(node),
+                                    target: source.range_for_node(left),
+                                    value: right.map(|right| source.range_for_node(right)),
+                                    scope_idx: current_scope_idx,
+                                    operator: ObjectName::new(operator),
+                                },
+                            );
+                        }
+                    }
                     let symbol_kind = match right {
                         Some(right) if right.kind == NodeKind::LambdaExpression => {
                             SymbolKind::FUNCTION
@@ -1563,12 +1597,9 @@ impl Analysis {
         assignment: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) {
+    ) -> Option<MethodInstallationId> {
         let id = MethodInstallationId(self.registry.installations.len());
-        let Some(mut installation) = self.classify_installation(id, assignment, source, knowledge)
-        else {
-            return;
-        };
+        let mut installation = self.classify_installation(id, assignment, source, knowledge)?;
 
         // Preserve M2's distinct assignment-method form: only `:=` contributes
         // a callable signature here. `=` installations are retained for
@@ -1579,6 +1610,7 @@ impl Analysis {
 
         debug_assert_eq!(installation.id.0, self.registry.installations.len());
         self.registry.installations.push(installation);
+        Some(id)
     }
 
     fn attach_method_installation(

@@ -9,6 +9,30 @@ use crate::support::{document_position, position, response_array, LspProcess, Te
 const SOURCE: &str = include_str!("../fixtures/capability_spectrum.m2");
 
 #[tokio::test]
+async fn workspace_symbols_flatten_document_symbols_from_unopened_files() {
+    let workspace = TestWorkspace::new("outer := x -> (inner := x; inner)\n");
+    let mut server = LspProcess::spawn().await;
+    server.initialize(&workspace.root_uri()).await;
+
+    let symbols = server
+        .request("workspace/symbol", json!({"query": ""}))
+        .await;
+    let symbols = response_array(&symbols);
+    assert!(symbols.iter().any(|symbol| {
+        symbol["name"] == "outer"
+            && symbol["location"]["uri"] == workspace.uri
+            && symbol["containerName"].is_null()
+    }));
+    assert!(symbols.iter().any(|symbol| {
+        symbol["name"] == "inner"
+            && symbol["location"]["uri"] == workspace.uri
+            && symbol["containerName"] == "outer"
+    }));
+
+    server.shutdown().await;
+}
+
+#[tokio::test]
 async fn example_document_exercises_the_capability_spectrum_over_stdio() {
     let workspace = TestWorkspace::new(SOURCE);
     let mut server = LspProcess::spawn().await;
@@ -41,6 +65,19 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
             "initialize should advertise {capability}"
         );
     }
+
+    let unopened_workspace_symbols = server
+        .request("workspace/symbol", json!({"query": "crossFile"}))
+        .await;
+    assert!(
+        response_array(&unopened_workspace_symbols)
+            .iter()
+            .any(|symbol| {
+                symbol["name"] == "crossFileResult"
+                    && symbol["location"]["uri"] == workspace.related_uri
+            }),
+        "workspace symbols should include files that have not been opened: {unopened_workspace_symbols}"
+    );
 
     let unopened_hover = server
         .request(
@@ -357,11 +394,20 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
     );
 
     let workspace_symbols = server
-        .request("workspace/symbol", json!({"query": "ideal"}))
+        .request("workspace/symbol", json!({"query": ""}))
         .await;
     assert!(
-        workspace_symbols.is_array(),
-        "workspace symbols should return an LSP collection"
+        response_array(&workspace_symbols).iter().any(|symbol| {
+            symbol["name"] == "double" && symbol["location"]["uri"] == workspace.uri
+        }),
+        "workspace symbols should include document symbols from the primary source file: {workspace_symbols}"
+    );
+    assert!(
+        response_array(&workspace_symbols).iter().any(|symbol| {
+            symbol["name"] == "crossFileResult"
+                && symbol["location"]["uri"] == workspace.related_uri
+        }),
+        "workspace symbols should include document symbols from other source files: {workspace_symbols}"
     );
 
     server

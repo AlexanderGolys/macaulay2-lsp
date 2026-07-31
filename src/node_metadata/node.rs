@@ -2,7 +2,7 @@
 
 use std::{iter, ops::Deref};
 
-use tree_sitter::Node;
+use tree_sitter::{Node, Point};
 
 use super::{NodeKind, NodeKindMetadata};
 
@@ -22,22 +22,10 @@ impl<'tree> M2Node<'tree> {
         }
     }
 
-    /// The exact source text this node spans, as tree-sitter parsed it.
-    ///
-    /// This is the ONLY sanctioned way to read code. Never slice the raw buffer
-    /// or scan bytes to re-derive structure the parser already determined:
-    /// escaped `/////` inside raw strings, `--` inside strings, `"` inside
-    /// comments, and similar quirks are handled correctly by the parser and must
-    /// not be re-implemented here.
     pub fn text(&self) -> &'tree str {
         &self.source[self.node.start_byte()..self.node.end_byte()]
     }
 
-    /// The grammar's raw node-type name. PRIVATE on purpose: node-type names are
-    /// an implementation detail of the grammar (which is renamed from time to
-    /// time), so they must never be referenced outside this module. Classify with
-    /// `NodeKind` / the typed predicates below instead; a grammar rename then
-    /// touches only `NodeKind::from_str` and the anonymous-token predicates here.
     fn raw_kind(&self) -> &'tree str {
         self.node.kind()
     }
@@ -256,11 +244,7 @@ impl<'tree> M2Node<'tree> {
     }
 
     /// Return the smallest descendant spanning the requested point range.
-    pub fn descendant_for_point_range(
-        &self,
-        start: tree_sitter::Point,
-        end: tree_sitter::Point,
-    ) -> Option<M2Node<'tree>> {
+    pub fn descendant_for_point_range(&self, start: Point, end: Point) -> Option<M2Node<'tree>> {
         let source = self.source;
         self.node
             .descendant_for_point_range(start, end)

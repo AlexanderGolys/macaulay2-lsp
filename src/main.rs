@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use tokio::{io, task};
-use tower_lsp::jsonrpc::Result;
+use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
@@ -262,10 +262,12 @@ fn install_panic_logging() {
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
         self.workspace_index.set_roots(workspace_roots(&params));
-        // Index every `.m2` file under the project roots off the request path.
+        // Index every `.m2` file without blocking the async runtime.
         let index = Arc::clone(&self.workspace_index);
         let knowledge = self.registry.clone();
-        task::spawn_blocking(move || index.scan(&knowledge));
+        task::spawn_blocking(move || index.scan(&knowledge))
+            .await
+            .map_err(|_| Error::internal_error())?;
         self.semantic_tokens_augment_syntax
             .negotiate(&params.capabilities);
         self.type_hierarchy_dynamic_registration
@@ -717,15 +719,9 @@ impl LanguageServer for Backend {
         params: WorkspaceSymbolParams,
     ) -> Result<Option<Vec<SymbolInformation>>> {
         let query = params.query.trim();
-        if query.is_empty() {
-            return Ok(Some(Vec::new()));
-        }
-
-        // No open-document context here, so scope to the default-loaded baseline.
         Ok(Some(workspace_symbols_response(
             query,
-            &self.registry,
-            |package| self.source_resolver.package_location(package),
+            &self.workspace_index,
         )))
     }
 

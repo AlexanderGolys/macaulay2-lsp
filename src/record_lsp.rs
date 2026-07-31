@@ -28,9 +28,6 @@ pub trait LspKnowledge: TypeKnowledge {
     /// Return visible names beginning with `prefix`.
     fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)>;
 
-    /// Return visible names containing `query`.
-    fn matching_names(&self, query: &str, limit: usize) -> Vec<(String, String)>;
-
     /// Partition callable signatures by their applicability to a call site.
     fn resolve_call_signature_usage(
         &self,
@@ -113,11 +110,6 @@ impl ObjectRegistry {
     /// `limit`.
     pub fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<&str> {
         visible_names(self.records_by_precedence(), prefix, limit, true)
-    }
-
-    /// Primary names containing `query` case-insensitively, capped at `limit`.
-    pub fn matching_names(&self, query: &str, limit: usize) -> Vec<&str> {
-        visible_names(self.records_by_precedence(), query, limit, false)
     }
 
     /// The pre-rendered hover markdown for `name` or one of its aliases.
@@ -338,19 +330,6 @@ impl LspKnowledge for ObjectRegistry {
             .collect()
     }
 
-    fn matching_names(&self, query: &str, limit: usize) -> Vec<(String, String)> {
-        ObjectRegistry::matching_names(self, query, limit)
-            .into_iter()
-            .map(|name| {
-                let package = ObjectRegistry::get_record(self, &ObjectName::new(name))
-                    .and_then(|record| self.package_name(&record.package))
-                    .map(str::to_string)
-                    .unwrap_or_else(|| "Core".to_string());
-                (package, name.to_string())
-            })
-            .collect()
-    }
-
     fn resolve_call_signature_usage(
         &self,
         callable: &str,
@@ -389,19 +368,6 @@ impl LspKnowledge for ObjectRegistryView<'_> {
 
     fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)> {
         visible_names(self.records_by_precedence(), prefix, limit, true)
-            .into_iter()
-            .map(|name| {
-                let package = self
-                    .get_record(&ObjectName::new(name))
-                    .and_then(|record| self.package_name(&record.package))
-                    .unwrap_or("Core");
-                (package.to_string(), name.to_string())
-            })
-            .collect()
-    }
-
-    fn matching_names(&self, query: &str, limit: usize) -> Vec<(String, String)> {
-        visible_names(self.records_by_precedence(), query, limit, false)
             .into_iter()
             .map(|name| {
                 let package = self

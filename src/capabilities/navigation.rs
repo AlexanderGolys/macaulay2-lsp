@@ -10,10 +10,9 @@ use crate::document::{DocumentSnapshot, TargetSymbol};
 use crate::node_metadata::{NodeKind, NodeKindMetadata};
 use crate::object_registry::ObjectName;
 use crate::package_index::SourceResolver;
-use crate::record_lsp::record_symbol_kind;
 use crate::record_lsp::LspKnowledge;
 use crate::source::SourceNavigation;
-use crate::workspace_index::WorkspaceDefinitionKnowledge;
+use crate::workspace_index::{WorkspaceDefinitionKnowledge, WorkspaceSymbolKnowledge};
 
 /// The M2 keywords offered as completions — the control-flow, declaration, and
 /// value keywords a user types (a subset of all reserved words: the ones worth
@@ -127,35 +126,20 @@ pub(crate) fn references_response(
 #[allow(deprecated)]
 pub(crate) fn workspace_symbols_response(
     query: &str,
-    knowledge: &(impl LspKnowledge + ?Sized),
-    package_location: impl Fn(&str) -> Option<Location>,
+    workspace: &(impl WorkspaceSymbolKnowledge + ?Sized),
 ) -> Vec<SymbolInformation> {
-    let mut symbols = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-
-    for (package, name) in knowledge.matching_names(query, 120) {
-        if !should_include_workspace_symbol(&package, &name) {
-            continue;
-        }
-        let Some(record) = knowledge.get_record(&ObjectName::new(&name)) else {
-            continue;
-        };
-        let Some(location) = package_location(&package) else {
-            continue;
-        };
-        if seen.insert(workspace_symbol_dedupe_key(&package, &name)) {
-            symbols.push(SymbolInformation {
-                name,
-                kind: record_symbol_kind(record),
-                tags: None,
-                deprecated: None,
-                location,
-                container_name: Some(package),
-            });
-        }
-    }
-
-    symbols
+    workspace
+        .matching_symbols(query)
+        .into_iter()
+        .map(|symbol| SymbolInformation {
+            name: symbol.name.to_string(),
+            kind: symbol.kind,
+            tags: None,
+            deprecated: None,
+            location: symbol.location,
+            container_name: symbol.container_name.map(|name| name.to_string()),
+        })
+        .collect()
 }
 
 /// Go-to-definition at `position`: package-source jump for an import string,
@@ -451,14 +435,6 @@ pub(crate) fn symbol_prefix_at(
     (!prefix.is_empty()).then(|| prefix.to_string())
 }
 
-pub(crate) fn workspace_symbol_dedupe_key(package: &str, name: &str) -> String {
-    format!("{package}:{name}")
-}
-
-pub(crate) fn should_include_workspace_symbol(package: &str, name: &str) -> bool {
-    !(package == "Core" && name.starts_with("Core$"))
-}
-
 /// Whether `name` is a valid M2 identifier (a letter followed by letters and
 /// digits). A rename target failing this would silently produce unparsable
 /// code, so the rename request must reject it instead of editing.
@@ -695,13 +671,6 @@ mod tests {
                 TextRange::new(Position::new(0, 21), Position::new(0, 22)),
             ]
         );
-    }
-
-    #[test]
-    fn workspace_symbols_omit_core_qualified_twins() {
-        assert!(!should_include_workspace_symbol("Core", "Core$name"));
-        assert!(should_include_workspace_symbol("Core", "name"));
-        assert!(should_include_workspace_symbol("SomePackage", "Core$name"));
     }
 
     #[test]

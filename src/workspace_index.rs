@@ -13,6 +13,9 @@ use std::sync::{Arc, RwLock};
 use dashmap::DashMap;
 use tower_lsp::lsp_types::{Location, Range as TextRange, Url};
 
+use crate::capabilities::document_symbols::{
+    collect_document_symbols, flatten_document_symbols, WorkspaceSourceSymbol,
+};
 use crate::capabilities::semantic_tokens::local_symbol_semantic_token_type;
 use crate::document::DocumentSnapshot;
 use crate::object_registry::{ObjectName, ObjectRegistry};
@@ -23,6 +26,16 @@ struct DefLocation {
     uri: Url,
     range: TextRange,
     semantic_token_type: M2SemanticTokenType,
+}
+
+pub trait WorkspaceSymbolKnowledge {
+    fn matching_symbols(&self, query: &str) -> Vec<WorkspaceSourceSymbol>;
+}
+
+impl<T: WorkspaceSymbolKnowledge + ?Sized> WorkspaceSymbolKnowledge for Arc<T> {
+    fn matching_symbols(&self, query: &str) -> Vec<WorkspaceSourceSymbol> {
+        self.as_ref().matching_symbols(query)
+    }
 }
 
 pub(crate) trait WorkspaceDefinitionKnowledge {
@@ -52,6 +65,7 @@ impl<T: WorkspaceDefinitionKnowledge + ?Sized> WorkspaceDefinitionKnowledge for 
 pub(crate) struct WorkspaceIndex {
     definitions_by_name: DashMap<ObjectName, Vec<DefLocation>>,
     names_by_file: DashMap<Url, Vec<ObjectName>>,
+    symbols_by_file: DashMap<Url, Vec<WorkspaceSourceSymbol>>,
     roots: RwLock<Vec<PathBuf>>,
 }
 
@@ -91,7 +105,15 @@ impl WorkspaceIndex {
     /// Replace the definitions recorded for `uri` with those parsed from `text`.
     pub(crate) fn index_file(&self, uri: &Url, text: &str, knowledge_provider: &ObjectRegistry) {
         self.remove_file(uri);
-        let definitions = top_level_definitions(text, knowledge_provider);
+        let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), knowledge_provider)
+        else {
+            return;
+        };
+        let definitions = top_level_definitions(&snapshot);
+        let symbols = flatten_document_symbols(uri, collect_document_symbols(&snapshot));
+        if !symbols.is_empty() {
+            self.symbols_by_file.insert(uri.clone(), symbols);
+        }
         if definitions.is_empty() {
             return;
         }
@@ -112,6 +134,7 @@ impl WorkspaceIndex {
     }
 
     pub(crate) fn remove_file(&self, uri: &Url) {
+        self.symbols_by_file.remove(uri);
         let Some((_, names)) = self.names_by_file.remove(uri) else {
             return;
         };
@@ -142,6 +165,25 @@ impl WorkspaceIndex {
             );
         }
         uris
+    }
+}
+
+impl WorkspaceSymbolKnowledge for WorkspaceIndex {
+    fn matching_symbols(&self, query: &str) -> Vec<WorkspaceSourceSymbol> {
+        let query = query.to_lowercase();
+        let mut symbols = self
+            .symbols_by_file
+            .iter()
+            .flat_map(|symbols| symbols.value().clone())
+            .filter(|symbol| symbol.name.name().to_lowercase().contains(&query))
+            .collect::<Vec<_>>();
+        symbols.sort_by(|left, right| {
+            left.name
+                .cmp(&right.name)
+                .then_with(|| left.location.uri.as_str().cmp(right.location.uri.as_str()))
+                .then_with(|| left.location.range.start.cmp(&right.location.range.start))
+        });
+        symbols
     }
 }
 
@@ -200,12 +242,8 @@ fn collect_m2_files(dir: &Path, out: &mut Vec<PathBuf>) {
 /// where `range` is the definition site — the same range go-to-definition
 /// returns for an in-file symbol.
 fn top_level_definitions(
-    text: &str,
-    knowledge_provider: &ObjectRegistry,
+    snapshot: &DocumentSnapshot,
 ) -> Vec<(String, TextRange, M2SemanticTokenType)> {
-    let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), knowledge_provider) else {
-        return Vec::new();
-    };
     let knowledge = snapshot.object_registry();
     let analysis = snapshot.analysis();
     analysis
