@@ -13,9 +13,7 @@ use std::sync::{Arc, RwLock};
 use dashmap::DashMap;
 use tower_lsp::lsp_types::{Location, Range as TextRange, Url};
 
-use crate::capabilities::document_symbols::{
-    collect_document_symbols, flatten_document_symbols, WorkspaceSourceSymbol,
-};
+use crate::capabilities::document_symbols::{collect_workspace_symbols, WorkspaceSourceSymbol};
 use crate::document::DocumentSnapshot;
 use crate::object_registry::{ObjectName, ObjectRegistry};
 use crate::semantic_token::{local_symbol_semantic_token, M2SemanticTokenType};
@@ -109,7 +107,7 @@ impl WorkspaceIndex {
             return;
         };
         let definitions = top_level_definitions(&snapshot);
-        let symbols = flatten_document_symbols(uri, collect_document_symbols(&snapshot));
+        let symbols = collect_workspace_symbols(&snapshot, uri);
         if !symbols.is_empty() {
             self.symbols_by_file.insert(uri.clone(), symbols);
         }

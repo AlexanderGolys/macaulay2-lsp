@@ -137,7 +137,7 @@ pub(crate) fn workspace_symbols_response(
             tags: None,
             deprecated: None,
             location: symbol.location,
-            container_name: symbol.container_name.map(|name| name.to_string()),
+            container_name: None,
         })
         .collect()
 }

@@ -20,7 +20,6 @@ pub struct WorkspaceSourceSymbol {
     pub name: ObjectName,
     pub kind: SymbolKind,
     pub location: Location,
-    pub container_name: Option<ObjectName>,
 }
 
 /// The outline view of a document: assignment bindings (functions nested under
@@ -149,36 +148,21 @@ struct Declaration {
     symbol: Option<ObjectName>,
 }
 
-pub fn flatten_document_symbols(
+pub fn collect_workspace_symbols(
+    document: &DocumentSnapshot,
     uri: &Url,
-    symbols: Vec<DocumentSymbol>,
 ) -> Vec<WorkspaceSourceSymbol> {
-    fn flatten(
-        uri: &Url,
-        symbols: Vec<DocumentSymbol>,
-        container_name: Option<ObjectName>,
-        flattened: &mut Vec<WorkspaceSourceSymbol>,
-    ) {
-        for symbol in symbols {
-            let name = ObjectName::new(symbol.name);
-            flattened.push(WorkspaceSourceSymbol {
-                name: name.clone(),
-                kind: symbol.kind,
-                location: Location {
-                    uri: uri.clone(),
-                    range: symbol.selection_range,
-                },
-                container_name: container_name.clone(),
-            });
-            if let Some(children) = symbol.children {
-                flatten(uri, children, Some(name), flattened);
-            }
-        }
-    }
-
-    let mut flattened = Vec::new();
-    flatten(uri, symbols, None, &mut flattened);
-    flattened
+    collect_document_symbols(document)
+        .into_iter()
+        .map(|symbol| WorkspaceSourceSymbol {
+            name: ObjectName::new(symbol.name),
+            kind: symbol.kind,
+            location: Location {
+                uri: uri.clone(),
+                range: symbol.selection_range,
+            },
+        })
+        .collect()
 }
 
 fn build_document_symbol_tree(

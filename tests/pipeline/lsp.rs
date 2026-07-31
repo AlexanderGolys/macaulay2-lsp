@@ -9,8 +9,9 @@ use crate::support::{document_position, position, response_array, LspProcess, Te
 const SOURCE: &str = include_str!("../fixtures/capability_spectrum.m2");
 
 #[tokio::test]
-async fn workspace_symbols_flatten_document_symbols_from_unopened_files() {
-    let workspace = TestWorkspace::new("outer := x -> (inner := x; inner)\n");
+async fn workspace_symbols_exclude_function_body_bindings_from_unopened_files() {
+    let source = "outer := x -> (localBinding := x; globalBinding = x; localBinding)\n";
+    let workspace = TestWorkspace::new(source);
     let mut server = LspProcess::spawn().await;
     server.initialize(&workspace.root_uri()).await;
 
@@ -23,11 +24,40 @@ async fn workspace_symbols_flatten_document_symbols_from_unopened_files() {
             && symbol["location"]["uri"] == workspace.uri
             && symbol["containerName"].is_null()
     }));
-    assert!(symbols.iter().any(|symbol| {
-        symbol["name"] == "inner"
-            && symbol["location"]["uri"] == workspace.uri
-            && symbol["containerName"] == "outer"
-    }));
+    assert!(symbols
+        .iter()
+        .all(|symbol| { symbol["name"] != "localBinding" && symbol["name"] != "globalBinding" }));
+
+    server
+        .notify(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": workspace.uri,
+                    "languageId": "macaulay2",
+                    "version": 1,
+                    "text": source
+                }
+            }),
+        )
+        .await;
+    server
+        .wait_for_notification("textDocument/publishDiagnostics")
+        .await;
+
+    let document_symbols = server
+        .request(
+            "textDocument/documentSymbol",
+            json!({"textDocument": {"uri": workspace.uri}}),
+        )
+        .await;
+    let children = &response_array(&document_symbols)[0]["children"];
+    assert!(response_array(children)
+        .iter()
+        .any(|symbol| symbol["name"] == "localBinding"));
+    assert!(response_array(children)
+        .iter()
+        .any(|symbol| symbol["name"] == "globalBinding"));
 
     server.shutdown().await;
 }
