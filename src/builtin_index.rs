@@ -215,6 +215,7 @@ pub struct BuiltinIndex {
     records: Vec<Record>,
     record_index_by_id: HashMap<ObjectId, usize>,
     record_index_by_name: HashMap<ObjectName, ObjectId>,
+    opaque_types: HashMap<ObjectName, TypeId>,
     default_loaded: Vec<String>,
 }
 
@@ -331,6 +332,16 @@ impl BuiltinIndex {
                 .expect("pending type parent must belong to a type record");
             type_info.parent = Some(parent);
         }
+        for pending in &pending_callable_types {
+            if let Some(reference) = &pending.typical_value {
+                index.resolve_or_insert_type_reference(reference);
+            }
+            for method in &pending.methods {
+                if let Some(reference) = &method.codomain {
+                    index.resolve_or_insert_type_reference(reference);
+                }
+            }
+        }
         for pending in pending_callable_types {
             let typical_value = pending
                 .typical_value
@@ -382,6 +393,14 @@ impl BuiltinIndex {
     }
 
     fn insert(&mut self, record: Record) {
+        self.insert_with_name_lookup(record, true);
+    }
+
+    fn insert_without_name_lookup(&mut self, record: Record) {
+        self.insert_with_name_lookup(record, false);
+    }
+
+    fn insert_with_name_lookup(&mut self, record: Record, include_names: bool) {
         let object_id = record.id.clone();
         let record_index = self.records.len();
         let previous = self
@@ -391,14 +410,16 @@ impl BuiltinIndex {
             previous.is_none(),
             "object ID {object_id:?} inserted more than once"
         );
-        self.record_index_by_name
-            .insert(ObjectName::new(object_id.name()), object_id.clone());
-        self.record_index_by_name
-            .insert(record.name.clone(), object_id.clone());
-        for alias in &record.aliases {
+        if include_names {
             self.record_index_by_name
-                .entry(ObjectName::new(alias))
-                .or_insert_with(|| object_id.clone());
+                .insert(ObjectName::new(object_id.name()), object_id.clone());
+            self.record_index_by_name
+                .insert(record.name.clone(), object_id.clone());
+            for alias in &record.aliases {
+                self.record_index_by_name
+                    .entry(ObjectName::new(alias))
+                    .or_insert_with(|| object_id.clone());
+            }
         }
         self.records.push(record);
     }
@@ -406,24 +427,23 @@ impl BuiltinIndex {
     fn resolve_reference(&self, reference: &ObjectName) -> Option<ObjectId> {
         if reference.name().starts_with('$') {
             let canonical = ObjectId::new(reference.name());
-            if self.record_index_by_id.contains_key(&canonical) {
-                return Some(canonical);
-            }
-            return self.object_id(&ObjectName::new(deref_ref(reference.name())));
+            return self
+                .record_index_by_id
+                .contains_key(&canonical)
+                .then_some(canonical);
         }
         self.object_id(reference)
     }
 
     fn resolve_or_insert_type_reference(&mut self, reference: &ObjectName) -> TypeId {
+        if let Some(type_id) = self.opaque_types.get(reference) {
+            return type_id.clone();
+        }
         if let Some(object) = self.resolve_reference(reference) {
-            assert!(
-                self.object(&object)
-                    .is_some_and(|record| record.type_info().is_some()),
-                "type reference '{reference}' resolves to a non-type object"
-            );
-            return self
-                .type_id(&object)
-                .expect("resolved type records produce validated identities");
+            if let Some(type_id) = self.type_id(&object) {
+                return type_id;
+            }
+            return self.insert_opaque_type_reference(reference);
         }
 
         let id = if reference.name().starts_with('$') {
@@ -459,7 +479,36 @@ impl BuiltinIndex {
         type_id
     }
 
+    fn insert_opaque_type_reference(&mut self, reference: &ObjectName) -> TypeId {
+        let id = ObjectId::new(format!(
+            "$Unresolved${}",
+            reference.name().trim_start_matches('$')
+        ));
+        self.insert_without_name_lookup(Record {
+            id: id.clone(),
+            name: ObjectName::new(deref_ref(reference.name())),
+            class: ObjectName::new("Type"),
+            package: unresolved_package_id(),
+            data: ObjectData::Type(TypeData { parent: None }),
+            protected: true,
+            aliases: Vec::new(),
+            markdown: None,
+        });
+        let type_id = self
+            .type_id(&id)
+            .expect("opaque placeholders are registered types");
+        self.record_mut(&id)
+            .and_then(Record::type_info_mut)
+            .expect("opaque placeholder has type data")
+            .parent = Some(type_id.clone());
+        self.opaque_types.insert(reference.clone(), type_id.clone());
+        type_id
+    }
+
     fn resolve_or_insert_dispatch_reference(&mut self, reference: &ObjectName) -> ObjectId {
+        if let Some(type_id) = self.opaque_types.get(reference) {
+            return type_id.object().clone();
+        }
         self.resolve_reference(reference).unwrap_or_else(|| {
             self.resolve_or_insert_type_reference(reference)
                 .object()
@@ -667,6 +716,37 @@ mod tests {
             .expect("type identity should resolve")
             .name
             .name()
+    }
+
+    #[test]
+    fn type_slots_preserve_opaque_identity_when_a_reference_names_a_symbol() {
+        let corpus = concat!(
+            r#"{"kind":"meta","default_loaded":["Core"]}"#,
+            "\n",
+            r#"{"kind":"symbol","name":"Graph","package":"$Foo$Foo"}"#,
+            "\n",
+            r#"{"kind":"function","name":"f","package":"$Core$Core","typical_value":"$Foo$Graph","methods":[{"domain":["$Foo$Graph"],"typicalValue":"$Foo$Graph"}]}"#,
+        );
+        let index = BuiltinIndex::load(corpus);
+        let graph = index
+            .object_id(&ObjectName::new("$Foo$Graph"))
+            .expect("qualified symbol is indexed");
+        let callable = callable(&index, "f")
+            .and_then(Record::callable)
+            .expect("function has callable facts");
+        let opaque = callable
+            .typical_value
+            .as_ref()
+            .expect("function has a typical type");
+
+        assert_ne!(opaque.object(), &graph);
+        assert_eq!(callable.methods[0].domain, [opaque.object().clone()]);
+        assert_eq!(callable.methods[0].codomain.as_ref(), Some(opaque));
+        assert_eq!(index.object_id(&ObjectName::new("Graph")), Some(graph));
+        assert_eq!(
+            index.object(opaque.object()).map(|record| &record.package),
+            Some(&unresolved_package_id())
+        );
     }
 
     #[test]

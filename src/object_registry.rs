@@ -611,13 +611,18 @@ mod tests {
         let corpus = concat!(
             r#"{"kind":"meta","default_loaded":["Core"]}"#,
             "\n",
+            r#"{"kind":"type","name":"T","package":"$Core$Core"}"#,
+            "\n",
             r#"{"kind":"function","name":"f","package":"$Core$Core","methods":[{"domain":["$Foo$T"]}]}"#,
         );
         let registry = ObjectRegistry::load(corpus);
         let imported = registry.with_source_imports("needsPackage \"Foo\"");
 
         assert!(imported.package_id(&ObjectName::new("Foo")).is_some());
-        assert!(imported.get_record(&ObjectName::new("T")).is_some());
+        let (package, _) = imported
+            .get_record_with_package(&ObjectName::new("T"))
+            .expect("qualified placeholder resolves from its imported package");
+        assert_eq!(package, "Foo");
     }
 
     #[test]
