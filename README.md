@@ -32,14 +32,20 @@ the type system and some heuristics are still evolving. Expect rough edges.
 
 ## Requirements
 
-- Rust stable toolchain with Cargo.
+- Rust 1.85 or newer with Cargo.
 - A `tree-sitter-macaulay2` grammar (fetched as a pinned dependency by Cargo).
 - Macaulay2 itself is only needed at runtime by your editor; the builtin
   metadata is checked in.
 
 ## Build and install
 
-From the repository root:
+Install the latest crates.io release:
+
+```sh
+cargo install m2-ls
+```
+
+To build the current source checkout instead:
 
 ```sh
 cargo build --release
@@ -133,7 +139,6 @@ src/
   diagnostic_registry.rs  the single registry of every diagnostic
   document.rs             per-document snapshot and incremental edits
   object_registry.rs      shared object catalog + loaded package registry
-  object_environment.rs   package loading and explicit-package queries
   workspace_index.rs      cross-file global definition index
   capabilities/           one module per LSP capability
   data/

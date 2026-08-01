@@ -2,6 +2,7 @@
 name = "m2-ls"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.85"
 description = "Language server for Macaulay2, built on Tree-sitter and a generated builtin metadata corpus"
 license = "GPL-3.0-only"
 repository = "https://github.com/AlexanderGolys/macaulay2-lsp"
