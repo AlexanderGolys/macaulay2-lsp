@@ -450,6 +450,13 @@ async fn method_codomain_diagnostics_offer_annotation_quick_fixes() {
     assert!(missing["message"]
         .as_str()
         .is_some_and(|message| message.contains("`Array`")));
+    assert_eq!(
+        missing["range"],
+        json!({
+            "start": {"line": 0, "character": 0},
+            "end": {"line": 0, "character": 4}
+        })
+    );
 
     let uri = session.uri().to_string();
     let actions = session
@@ -672,6 +679,39 @@ async fn assignment_and_protection_diagnostics_preserve_source_sensitive_analysi
 }
 
 #[tokio::test]
+async fn callback_equal_assignments_are_not_unused_variables() {
+    let source = concat!(
+        "A = apply(A, e -> e_(T | toList(n..(n + d - 1))));\n",
+        "-- successive projections eliminate the variables 'T'.\n",
+        "if A =!= {} then\n",
+        "    scan(T, t -> (\n",
+        "        D := fourierMotzkin'(A, V, t);\n",
+        "        A = D#0;\n",
+        "        V = D#1;\n",
+        "    )\n",
+        "    );\n",
+        "-- output formatting\n",
+        "A = apply(A, e -> primitive e);\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    assert!(
+        !session.diagnostic_codes().contains(&"E07"),
+        "escaping callback assignments must not be reported as unused: {:?}",
+        session.diagnostics()
+    );
+
+    session.replace("f = x -> (unused := x; x)\n").await;
+    let diagnostic = session
+        .diagnostics()
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "E07")
+        .expect("an unused lambda-local variable should still be reported");
+    assert_eq!(diagnostic["message"], "Unused variable unused");
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn inferred_binding_types_flow_to_hover_across_language_constructs() {
     let mut session = DocumentSession::open("value := 1\nvalue\n").await;
     assert_eq!(hover_type_at(&mut session, 1, 0).await, "ZZ");
@@ -749,12 +789,17 @@ async fn inferred_binding_types_flow_to_hover_across_language_constructs() {
             "joined := if condition then 1 else 2.0\njoined\n",
             "ZZ | RR",
         ),
-        ("joined := if condition then 1\njoined\n", "ZZ | Nothing"),
+        ("joined := if condition then 1\njoined\n", "ZZ?"),
+        ("joined := if condition then null else 1\njoined\n", "ZZ?"),
         (
             "joined := try unknownName then 1 else 2.0\njoined\n",
             "ZZ | RR",
         ),
-        ("fallback := try 1\nfallback\n", "ZZ | Nothing"),
+        (
+            "joined := if condition then 1 else if other then 2.0\njoined\n",
+            "ZZ | RR | Nothing",
+        ),
+        ("fallback := try 1\nfallback\n", "ZZ?"),
     ] {
         session.replace(source).await;
         let labels = inlay_labels(&mut session).await;
@@ -860,6 +905,7 @@ async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
         "literalReal = 1.1\n",
         "literalParenthesized = (2)\n",
         "lambda = argument -> argument\n",
+        "constructed = new MutableList from {1, 2}\n",
     );
     let mut session = DocumentSession::open(source).await;
     session.set_expression_type_hints(false).await;
@@ -905,13 +951,37 @@ async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
         .iter()
         .any(|(line, _, label)| { *line == 5 && *label == "String" }));
     assert!(type_hints.iter().all(|(_, _, label)| *label != "Thing"));
-    for quiet_line in [3, 4, 8, 9, 10, 11, 12, 13, 14] {
+    for quiet_line in [3, 4, 8, 9, 10, 11, 12, 13, 14, 15] {
         assert!(
             type_hints.iter().all(|(line, _, _)| *line != quiet_line),
             "line {} should not have a type hint: {type_hints:?}",
             quiet_line + 1
         );
     }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn trivial_parallel_assignments_hint_each_target_occurrence() {
+    let mut session = DocumentSession::open("(x, x) := (1, 3)\n").await;
+    session.set_expression_type_hints(false).await;
+    let hints = inlay_hints(&mut session).await;
+    let type_hints = hints
+        .iter()
+        .filter(|hint| hint["kind"] == 1)
+        .map(|hint| {
+            (
+                hint["position"]["line"].as_u64().expect("hint line"),
+                hint["position"]["character"]
+                    .as_u64()
+                    .expect("hint character"),
+                hint["label"].as_str().expect("hint label"),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(type_hints, [(0, 2, "ZZ"), (0, 5, "ZZ")]);
 
     session.shutdown().await;
 }

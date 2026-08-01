@@ -875,7 +875,7 @@ impl Analysis {
 
         match node.kind {
             NodeKind::LambdaExpression => {
-                next_scope_idx = self.push_scope(node, source, Some(current_scope_idx), false);
+                next_scope_idx = self.push_scope(node, source, Some(current_scope_idx), true);
                 next_assignment_scope_idx = next_scope_idx;
 
                 if let Some(params_node) = node.child_by_field_name("parameters") {
@@ -1665,10 +1665,10 @@ impl Analysis {
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<MethodCodomainDeduction> {
         self.installation_for(assignment, source)?;
+        let left = assignment.child_by_field_name("left")?;
         let right = assignment.child_by_field_name("right")?;
         let lambda = assigned_lambda(right)?;
         let body = lambda.child_by_field_name("body")?;
-        let lambda_operator = lambda.child_by_field_name("operator")?;
         let codomain = self.infer_expression_static_type(body, source, knowledge)?;
         if codomain == TypeRole::Thing.object_name() {
             return None;
@@ -1697,7 +1697,7 @@ impl Analysis {
         Some(MethodCodomainDeduction {
             codomain,
             diagnostic_range: annotation.map_or_else(
-                || source.range_for_node(lambda_operator),
+                || source.range_for_node(left),
                 |node| source.range_for_node(node),
             ),
             edit,

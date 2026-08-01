@@ -458,11 +458,11 @@ impl Analysis {
                 let noun = if binding.state.presentation_kind == SymbolKind::FUNCTION {
                     "function"
                 } else {
-                    "binding"
+                    "variable"
                 };
                 Some(
                     DiagnosticKind::UnusedBinding
-                        .at(binding.range, format!("Unused {noun} `{name}`")),
+                        .at(binding.range, format!("Unused {noun} {name}")),
                 )
             })
             .collect::<Vec<_>>();

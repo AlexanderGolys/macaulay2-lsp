@@ -64,6 +64,14 @@ fn label_text(label: &InlayHintLabel) -> &str {
     }
 }
 
+fn inlay_type_label(type_name: String) -> String {
+    let members = type_name.split(" | ").collect::<Vec<_>>();
+    match members.as_slice() {
+        ["Nothing", value] | [value, "Nothing"] => format!("{value}?"),
+        _ => type_name,
+    }
+}
+
 fn type_hint(position: Position, type_name: &str) -> InlayHint {
     InlayHint {
         position,
@@ -131,7 +139,9 @@ fn binding_type_hints(
             };
             let changed = previous_type.as_ref() != Some(&type_name);
             previous_type = Some(type_name.clone());
-            if !changed || type_name == "Thing" {
+            if (!changed && assigned.is_none_or(|value| !value.destructured))
+                || type_name == "Thing"
+            {
                 continue;
             }
             let value_range = assigned
@@ -185,7 +195,8 @@ fn expression_type_hints(
                 return None;
             }
             let view = knowledge.at(expression_range.start);
-            let type_name = analysis.infer_expression_type_label(node, document, &view)?;
+            let type_name =
+                inlay_type_label(analysis.infer_expression_type_label(node, document, &view)?);
             if type_name == "Thing" {
                 return None;
             }
@@ -339,6 +350,7 @@ fn assigned_values(document: &DocumentSnapshot, knowledge: &ObjectRegistry) -> V
             let Some(type_name) = document
                 .analysis()
                 .infer_expression_type_label(value, document, &view)
+                .map(inlay_type_label)
             else {
                 continue;
             };
@@ -401,6 +413,7 @@ fn is_self_describing_value(node: M2Node<'_>) -> bool {
     node.kind.is_literal()
         || node.kind.is_nothing_value()
         || node.kind == NodeKind::LambdaExpression
+        || node.kind == NodeKind::NewStatement
         || (node.kind.is_collection_expression()
             && node.collection_elements().all(is_self_describing_value))
 }
@@ -446,11 +459,12 @@ mod tests {
 
     #[test]
     fn calm_default_shows_informative_computed_assignment_types() {
-        let initial = hints("Comment = new SelfInitializingType of TokenTree\n", false);
-        assert_eq!(labels(&initial), vec!["SelfInitializingType".to_string()]);
-        assert_eq!(initial[0].position, Position::new(0, 7));
+        let computed = hints("x = if condition then 1 else 2\n", false);
+        assert_eq!(labels(&computed), vec!["ZZ".to_string()]);
+        assert_eq!(computed[0].position, Position::new(0, 1));
 
-        let self_describing = "x = 1\nx = (2)\nx = [1]\nf = x -> x\n";
+        let self_describing =
+            "x = 1\nx = (2)\nx = [1]\nf = x -> x\ny = new MutableList from {1, 2}\n";
         assert!(hints(self_describing, false).is_empty());
         assert!(hints(self_describing, true).is_empty());
     }
@@ -459,8 +473,9 @@ mod tests {
     fn expression_types_opt_in_adds_sub_expression_hints() {
         // The maximal readout is opt-in and yields strictly more hints than the
         // calm default (it annotates sub-expressions too).
-        let calm = hints("Comment = new SelfInitializingType of TokenTree\n", false);
-        let verbose = hints("Comment = new SelfInitializingType of TokenTree\n", true);
+        let source = "x = if condition then 1 else 2\n";
+        let calm = hints(source, false);
+        let verbose = hints(source, true);
         assert!(
             verbose.len() > calm.len(),
             "opt-in readout should add hints: calm={}, verbose={}",
