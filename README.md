@@ -1,5 +1,11 @@
 # Macaulay2 LSP
 
+[![crates.io](https://img.shields.io/crates/v/m2-ls.svg)](https://crates.io/crates/m2-ls)
+[![GitHub release](https://img.shields.io/github/v/release/AlexanderGolys/m2-ls?sort=semver)](https://github.com/AlexanderGolys/m2-ls/releases/latest)
+[![crate downloads](https://img.shields.io/crates/d/m2-ls.svg)](https://crates.io/crates/m2-ls)
+[![license](https://img.shields.io/crates/l/m2-ls.svg)](LICENSE)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://www.rust-lang.org/)
+
 A Rust language server for [Macaulay2](https://macaulay2.com/), built on
 Tree-sitter syntax analysis plus a generated database of Macaulay2 builtin
 metadata (types, methods, options, documentation).
@@ -70,11 +76,20 @@ install -m755 target/release/m2-ls ~/.local/bin/m2-ls
 The binary is `m2-ls` (hyphen). Point your editor's LSP client at the installed
 path.
 
-## Editor setup (Neovim, native LSP)
+## Neovim setup
+
+The native configuration API below requires Neovim 0.11 or newer. After
+installing `m2-ls`, add this to `init.lua` or a Lua module loaded by it:
 
 ```lua
-vim.lsp.config['m2-ls'] = {
-  cmd = { vim.fn.expand('~/.local/bin/m2-ls') },
+vim.filetype.add({
+  extension = {
+    m2 = 'macaulay2',
+  },
+})
+
+vim.lsp.config('m2_ls', {
+  cmd = { vim.fn.expand('~/.cargo/bin/m2-ls') },
   filetypes = { 'macaulay2' },
   root_markers = { '.git' },
   settings = {
@@ -97,12 +112,22 @@ vim.lsp.config['m2-ls'] = {
       },
     },
   },
-}
-vim.lsp.enable('m2-ls')
+})
+
+vim.lsp.enable('m2_ls')
 ```
 
-Restart the client after rebuilding (`:LspRestart m2-ls`) so it picks up a new
-binary.
+If `m2-ls` is already available on Neovim's `$PATH`, `cmd = { 'm2-ls' }` is
+equivalent. The explicit Cargo path is useful when a graphical Neovim session
+does not inherit the shell's `$PATH`.
+
+Open an `.m2` file and run `:checkhealth vim.lsp` to confirm that `m2_ls` is
+attached. Neovim wires up supported navigation, hover, semantic tokens, code
+actions, symbols, and LSP omnifunc completion; use `<C-x><C-o>` in Insert mode
+to request completion without an additional completion plugin. Useful built-in
+commands include `:lua vim.lsp.buf.format()` for formatting and
+`:lua vim.lsp.inlay_hint.enable(true)` to display inlay hints. Restart the
+client after upgrading the binary with `:LspRestart m2_ls`.
 
 ## Settings
 
@@ -110,21 +135,22 @@ Settings may be sent under the `m2-ls` or `macaulay2` section of
 `workspace/didChangeConfiguration`, or directly through
 `initializationOptions`. Changes apply without restarting the server. When the
 client advertises `workspace.inlayHint.refreshSupport`, changing inlay-hint
-settings also refreshes hints already visible in the editor.
+settings also refreshes hints already visible in the editor. Every object is
+optional, so a configuration may specify only the values it wants to change.
 
-| Setting | Default | Effect |
-| --- | --- | --- |
-| `diagnostics.enabled` | `true` | Enables or suppresses all published diagnostics. |
-| `diagnostics.disabled` | `[]` | Suppresses selected rules by name or code, such as `unused-binding` or `E07`. |
-| `formatting.indentWidth` | client value | Overrides the LSP formatting request's `tabSize`. |
-| `formatting.useTabs` | client value | Overrides the LSP formatting request's `insertSpaces`. |
-| `formatting.softLineWidth` | `100` | Preferred width used to choose among safe parsed line-break positions. |
-| `formatting.hardLineWidth` | `100` | Triggers wrapping when exceeded; `null` or `0` disables wrapping. |
-| `formatting.maxLineWidth` | unset | Compatibility setting that makes the soft and hard widths equal; `null` or `0` disables both. |
-| `formatting.controlFlowLayout` | `multilineCompactElse` | Formats parsed control clauses as `compact`, `multiline`, or `multilineCompactElse`; the last form keeps the final `else value` together. |
-| `formatting.compactFactorOperators` | `false` | Uses compact products such as `2*x`; the default is the conventional `2 * x`. |
-| `formatting.breakAfterSemicolon` | `true` | Places the following statement on a new line; `false` keeps it inline with one space. |
-| `inlayHints.expressionTypes` | `false` | Adds inferred types for expressions in addition to calm binding hints. |
+| Setting | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `diagnostics.enabled` | boolean | `true` | Enables or suppresses all published diagnostics. |
+| `diagnostics.disabled` | string array | `[]` | Suppresses selected rules by stable name or code, such as `unused-binding` or `E07`. |
+| `formatting.indentWidth` | non-negative integer or `null` | client value | Overrides the formatting request's `tabSize`; `0` is treated as `1`, while `null` uses the client value. |
+| `formatting.useTabs` | boolean or `null` | client value | Overrides the inverse of the formatting request's `insertSpaces`; `null` uses the client value. |
+| `formatting.softLineWidth` | non-negative integer or `null` | `100` | Preferred width used to choose safe parsed line-break positions; `0` or `null` disables the soft target. |
+| `formatting.hardLineWidth` | non-negative integer or `null` | `100` | Triggers wrapping when exceeded; `0` or `null` disables forced wrapping. The soft width is clamped to this value. |
+| `formatting.maxLineWidth` | non-negative integer or `null` | unset | Compatibility override that sets both line widths; `0` or `null` disables both. When present, it takes precedence over `softLineWidth` and `hardLineWidth`. |
+| `formatting.controlFlowLayout` | string enum | `multilineCompactElse` | Selects `compact`, `multiline`, or `multilineCompactElse`; the last form keeps the final `else value` together. |
+| `formatting.compactFactorOperators` | boolean | `false` | Uses compact products such as `2*x`; `false` produces `2 * x`. |
+| `formatting.breakAfterSemicolon` | boolean | `true` | Places the next statement on a new line; `false` keeps it inline with one space. |
+| `inlayHints.expressionTypes` | boolean | `false` | Adds inferred subexpression types to the binding, lambda-return, and parameter hints already produced by the server. |
 
 Diagnostic names and stable codes are listed in `src/diagnostic_registry.rs`.
 Invalid diagnostic selectors reject the settings update and leave the previous
