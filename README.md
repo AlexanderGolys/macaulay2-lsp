@@ -9,26 +9,41 @@ the type system and some heuristics are still evolving. Expect rough edges.
 
 ## Features
 
-- Full-document and incremental sync over stdio (`tower-lsp`).
-- Tree-sitter parsing with syntax and semantic diagnostics, including
+- Incremental document synchronization over stdio.
+- Push diagnostics from Tree-sitter syntax and semantic analysis, including
   Macaulay2-specific checks: invalid method installations (non-flexible
   operators, no-effect installs, `=` vs `:=`, arity), parallel-assignment
   arity, and option-key conventions. Diagnostic messages double as M2-idiom
   hints.
-- **Expression type inference**: an inferred type for each expression
-  (literals, collections, applications, operator dispatch, control flow such as
-  `if`/`try`/`for`/`while`), surfaced through inlay hints and hover.
-- **Hover**: documentation, signatures, and inferred types for both local
+- Completion for local symbols, Macaulay2 keywords, builtins, and imported
+  package names.
+- Hover documentation, signatures, and inferred types for both local
   symbols and indexed builtin/imported-package objects.
-- **Completion**: local in-scope symbols, Macaulay2 keywords, and
-  builtin/imported names.
-- **Signature help**: method signatures with the active parameter highlighted.
-- **Semantic tokens**: rich highlighting for local, builtin, and cross-file
+- Signature help for builtin and local methods with active-parameter tracking.
+- Full-document semantic tokens for local, builtin, imported, and cross-file
   workspace symbols.
-- **Navigation**: go-to-definition and references, both in-file and across
-  workspace files; workspace and document symbols; prepare/rename across files;
-  document highlight; type hierarchy.
-- **Formatting**: tree-driven whitespace and indentation; folding ranges.
+- Go to definition for local, workspace, builtin, package, and documentation
+  targets.
+- Find references within a lexical scope or across indexed workspace files.
+- Document highlights for bindings, control-flow keywords, delimiters, and
+  other related syntax.
+- Prepare rename and rename for local and workspace symbols, including
+  backtick documentation references.
+- Hierarchical document symbols for bindings, assignments, and functions.
+- Workspace symbol search across indexed Macaulay2 files.
+- Type hierarchy preparation, supertypes, and subtypes for source and indexed
+  types.
+- Type and parameter inlay hints, with optional per-expression type hints.
+- Quick-fix and refactor code actions for method codomains, ambiguous member
+  access, raw strings, conditionals, `try`, and `else if` structure.
+- Whole-document formatting with configurable indentation, line wrapping,
+  control-flow layout, operator spacing, and semicolon layout.
+- Folding ranges for parsed blocks and consecutive comment sections.
+- Workspace indexing with live-buffer precedence and watched-file refresh.
+- Runtime configuration updates with diagnostic republishing and negotiated
+  inlay-hint refresh.
+- Expression type inference for literals, collections, applications, operator
+  dispatch, and control flow such as `if`, `try`, `for`, and `while`.
 
 ## Requirements
 
