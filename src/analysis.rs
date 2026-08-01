@@ -265,6 +265,7 @@ pub struct BindingStateInfo {
     pub type_name: Option<ObjectName>,
     pub object_id: Option<CallableObjectId>,
     pub indexed_element_type: Option<ObjectName>,
+    pub source_type: Option<TypeId>,
     pub value_range: Option<TextRange>,
     pub definition_range: TextRange,
     pub span: TextRange,
@@ -307,7 +308,6 @@ pub struct ScopeInfo {
 /// Typed source-declared type edges and their source-symbol identities.
 #[derive(Debug, Default)]
 struct SourceTypeFacts {
-    by_name: HashMap<ObjectName, TypeId>,
     data: HashMap<TypeId, TypeData>,
 }
 
@@ -910,7 +910,12 @@ impl Analysis {
                         }
                     });
                     let parent_type = right.and_then(|right| {
-                        self.declared_type_parent(right, type_name.as_ref(), &knowledge)
+                        self.declared_type_parent(
+                            right,
+                            type_name.as_ref(),
+                            source.position_for_node(right),
+                            &knowledge,
+                        )
                     });
                     let presentation_kind = if right.is_some_and(|right| {
                         right.kind == NodeKind::LambdaExpression
@@ -924,6 +929,7 @@ impl Analysis {
                         TypeChecker::new(self).is_subtype(
                             type_name,
                             &TypeRole::Type.object_name(),
+                            source.position_for_node(left),
                             &knowledge,
                         )
                     }) {
@@ -985,7 +991,12 @@ impl Analysis {
                     ) {
                         if knowledge.has_type_role(type_name, TypeRole::Ring) {
                             self.collect_ring_generator_bindings(
-                                ring_name, right, left, source, &knowledge,
+                                ring_name,
+                                right,
+                                left,
+                                current_scope_idx,
+                                source,
+                                &knowledge,
                             );
                         }
                     }
@@ -1170,7 +1181,8 @@ impl Analysis {
     ) -> Option<(MethodInstallation, Vec<TextRange>)> {
         let operator = node.binary_operator()?;
         let left = node.child_by_field_name("left")?;
-        let (head, domain_nodes) = self.installation_shape(left, knowledge)?;
+        let position = source.position_for_node(left);
+        let (head, domain_nodes) = self.installation_shape(left, position, knowledge)?;
         let domain = domain_nodes
             .iter()
             .map(|node| ObjectName::new(symbol_node_text(*node).unwrap_or_else(|| node.text())))
@@ -1211,9 +1223,9 @@ impl Analysis {
             "=" => match head {
                 MethodHead::Operator(op)
                     if op.form == OperatorForm::Binary
-                        && domain
-                            .iter()
-                            .all(|operand| self.operand_is_type(operand.name(), knowledge)) =>
+                        && domain.iter().all(|operand| {
+                            self.operand_is_type(operand.name(), position, knowledge)
+                        }) =>
                 {
                     Some((
                         MethodInstallation {
@@ -1243,6 +1255,7 @@ impl Analysis {
     fn installation_shape<'tree>(
         &self,
         node: M2Node<'tree>,
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<(MethodHead, Vec<M2Node<'tree>>)> {
         // A parenthesized expression is identified with its final value, so
@@ -1251,7 +1264,7 @@ impl Analysis {
         // target.
         if node.kind == NodeKind::ParenthesizedExpression {
             let inner = node.final_value_child()?;
-            return self.installation_shape(inner, knowledge);
+            return self.installation_shape(inner, position, knowledge);
         }
         match node.kind {
             NodeKind::BinaryExpression => {
@@ -1263,7 +1276,7 @@ impl Analysis {
                     // named function `A` when `A` is a function, or a SPACE
                     // operator method on the type pair when `A` is a type.
                     let left_name = symbol_node_text(left)?;
-                    if self.operand_is_type(left_name, knowledge) {
+                    if self.operand_is_type(left_name, position, knowledge) {
                         symbol_node_text(right)?;
                         Some((MethodHead::Operator(operator), vec![left, right]))
                     } else {
@@ -1306,11 +1319,14 @@ impl Analysis {
     /// type universe is layered:
     /// a local binding whose inferred class is `Type` (e.g. `X = new Type of …`)
     /// takes precedence over objects visible in the current environment.
-    fn operand_is_type(&self, name: &str, knowledge: &(impl TypeKnowledge + ?Sized)) -> bool {
-        self.registry
-            .source_types
-            .by_name
-            .contains_key(&ObjectName::new(name))
+    fn operand_is_type(
+        &self,
+        name: &str,
+        position: Position,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> bool {
+        self.get_binding_at(name, position)
+            .is_some_and(|binding| binding.state.source_type.is_some())
             || knowledge
                 .get_record(&ObjectName::new(name))
                 .is_some_and(|record| record.type_info().is_some())
@@ -1320,16 +1336,18 @@ impl Analysis {
         &self,
         value: M2Node<'_>,
         type_name: Option<&ObjectName>,
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<TypeId> {
         if let Some(parent) = ring::RingSemantics::value_parent(type_name, knowledge) {
-            return TypeChecker::new(self).resolve_type_id(&parent, knowledge);
+            return TypeChecker::new(self).resolve_type_id_at(&parent, position, knowledge);
         }
         let type_name = type_name.filter(|type_name| {
             value.kind == NodeKind::NewStatement
                 && TypeChecker::new(self).is_subtype(
                     type_name,
                     &TypeRole::Type.object_name(),
+                    position,
                     knowledge,
                 )
         })?;
@@ -1338,7 +1356,7 @@ impl Analysis {
             .and_then(symbol_node_text)
             .map(ObjectName::new)
             .unwrap_or_else(|| type_name.clone());
-        TypeChecker::new(self).resolve_type_id(&parent, knowledge)
+        TypeChecker::new(self).resolve_type_id_at(&parent, position, knowledge)
     }
 
     fn callable_head_kind(
@@ -1493,26 +1511,27 @@ impl Analysis {
             potential_export,
         } = registration;
         let name = ObjectName::new(name);
-        if let Some(parent_type) = parent_type {
-            let type_id = TypeId::from_object(ObjectId::new(name.name()));
-            self.registry
-                .source_types
-                .by_name
-                .insert(name.clone(), type_id.clone());
+        let binding_id = BindingId(self.registry.bindings.len() as u32);
+        let source_type = parent_type.map(|parent_type| {
+            let type_id = TypeId::from_source_type(
+                ObjectId::new(format!("$Source${}:0", binding_id.0)),
+                &parent_type,
+            );
             self.registry.source_types.data.insert(
-                type_id,
+                type_id.clone(),
                 TypeData {
-                    parent: parent_type,
+                    parent: Some(parent_type),
                 },
             );
-        }
-        let binding_id = BindingId(self.registry.bindings.len() as u32);
+            type_id
+        });
         let range = source.range_for_node(node);
         let state = BindingStateInfo {
             presentation_kind,
             type_name,
             object_id,
             indexed_element_type,
+            source_type,
             value_range: value_node.map(|value| source.range_for_node(value)),
             definition_range: enclosing_definition_range(node, source),
             span: range,
@@ -1543,34 +1562,28 @@ impl Analysis {
         registration: SymbolRegistration,
         source: &(impl SourceNavigation + ?Sized),
     ) {
-        let Some(name) = self.binding(binding_id).map(|binding| binding.name.clone()) else {
+        let Some(state_index) = self.binding(binding_id).map(|binding| binding.states.len()) else {
             return;
         };
-        match registration.parent_type {
-            Some(parent_type) => {
-                let type_id = TypeId::from_object(ObjectId::new(name.name()));
-                self.registry
-                    .source_types
-                    .by_name
-                    .insert(name.clone(), type_id.clone());
-                self.registry.source_types.data.insert(
-                    type_id,
-                    TypeData {
-                        parent: parent_type,
-                    },
-                );
-            }
-            None => {
-                if let Some(type_id) = self.registry.source_types.by_name.remove(&name) {
-                    self.registry.source_types.data.remove(&type_id);
-                }
-            }
-        }
+        let source_type = registration.parent_type.map(|parent_type| {
+            let type_id = TypeId::from_source_type(
+                ObjectId::new(format!("$Source${}:{state_index}", binding_id.0)),
+                &parent_type,
+            );
+            self.registry.source_types.data.insert(
+                type_id.clone(),
+                TypeData {
+                    parent: Some(parent_type),
+                },
+            );
+            type_id
+        });
         let state = BindingStateInfo {
             presentation_kind: registration.presentation_kind,
             type_name: registration.type_name,
             object_id: registration.object_id,
             indexed_element_type: registration.indexed_element_type,
+            source_type,
             value_range: value_node.map(|value| source.range_for_node(value)),
             definition_range: enclosing_definition_range(node, source),
             span: source.range_for_node(node),
@@ -1672,6 +1685,7 @@ impl Analysis {
             TypeChecker::new(self).is_subtype(
                 &codomain,
                 &ObjectName::new(annotation.text()),
+                source.position_for_node(annotation),
                 knowledge,
             )
         }) {
@@ -1720,9 +1734,10 @@ impl Analysis {
     pub fn dispatch_argument_ids(
         &self,
         facts: &CallStaticFacts,
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Vec<Option<ObjectId>> {
-        TypeChecker::new(self).dispatch_argument_ids(facts, knowledge)
+        TypeChecker::new(self).dispatch_argument_ids(facts, position, knowledge)
     }
 
     fn callable_object_for_value(

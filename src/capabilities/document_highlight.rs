@@ -10,8 +10,7 @@ use tower_lsp::lsp_types::{
     DocumentHighlight, DocumentHighlightKind, DocumentHighlightOptions, OneOf, Position,
 };
 
-pub(crate) fn document_highlight_provider_capability(
-) -> Option<OneOf<bool, DocumentHighlightOptions>> {
+pub fn document_highlight_provider_capability() -> Option<OneOf<bool, DocumentHighlightOptions>> {
     Some(OneOf::Left(true))
 }
 
@@ -19,7 +18,7 @@ pub(crate) fn document_highlight_provider_capability(
 /// up all its in-file references; a keyword lights up its compound statement's
 /// keyword sequence; a semicolon lights up compact boundary markers for the
 /// expression it terminates.
-pub(crate) fn document_highlights(
+pub fn document_highlights(
     document: &DocumentSnapshot,
     position: Position,
     builtins: &(impl TypeKnowledge + ?Sized),

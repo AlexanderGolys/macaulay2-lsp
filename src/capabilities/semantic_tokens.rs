@@ -13,7 +13,7 @@ use crate::semantic_token::{
 use crate::source::{DocumentSpan, SourceNavigation};
 use crate::workspace_index::WorkspaceDefinitionKnowledge;
 
-pub(crate) fn collect_semantic_tokens(
+pub fn collect_semantic_tokens(
     document: &DocumentSnapshot,
     builtins: &ObjectRegistry,
     workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),

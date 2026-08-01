@@ -115,7 +115,7 @@ fn method_codomain_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAct
 /// whose producer returns `Some`. The deepest CST node covering `position` is
 /// resolved a single time here and threaded through the registry, so the
 /// tree-sitter descent happens once per request instead of once per producer.
-pub(crate) fn available_code_actions(
+pub fn available_code_actions(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
@@ -539,7 +539,7 @@ fn negated_condition_text(node: M2Node<'_>) -> String {
     }
 }
 
-pub(crate) fn refactor_if_null_branch(if_node: M2Node<'_>) -> Option<String> {
+pub fn refactor_if_null_branch(if_node: M2Node<'_>) -> Option<String> {
     let condition = if_node.child_by_field_name("condition")?;
     let then_branch = expression_of_clause(clause_child(if_node, NodeKind::ThenClause)?)?;
     let else_branch = expression_of_clause(clause_child(if_node, NodeKind::ElseClause)?)?;
@@ -575,7 +575,7 @@ fn try_condition(try_node: M2Node<'_>) -> Option<M2Node<'_>> {
     })
 }
 
-pub(crate) fn refactor_try_statement(try_node: M2Node<'_>) -> Option<String> {
+pub fn refactor_try_statement(try_node: M2Node<'_>) -> Option<String> {
     let condition = try_condition(try_node)?;
     let consequence = clause_child(try_node, NodeKind::ThenClause).and_then(expression_of_clause);
     let else_clause = clause_child(try_node, NodeKind::ElseClause);

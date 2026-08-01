@@ -9,19 +9,18 @@ use tree_sitter::{InputEdit, Point};
 use crate::analysis::{Analysis, BindingView, FunctionInfo};
 use crate::documentation::{collect_documentation, DocumentationReference, DocumentationSnippet};
 use crate::object_registry::ObjectRegistry;
-use crate::package_index::{collect_imported_packages_in_tree, PackageImport};
+use crate::package_index::collect_imported_packages_in_tree;
 use crate::source::{DocumentSource, DocumentSpan, SourceNavigation};
 
 /// One immutable source, syntax, and semantic-analysis snapshot served to LSP
 /// requests.
 #[derive(Debug)]
-pub(crate) struct DocumentSnapshot {
+pub struct DocumentSnapshot {
     source: DocumentSource,
     macro_syntax: MacroSyntax,
     tree: M2Tree,
     analysis: Analysis,
     object_registry: ObjectRegistry,
-    imported_packages: Vec<PackageImport>,
     documentation_snippets: Vec<DocumentationSnippet>,
     documentation_references: Vec<DocumentationReference>,
 }
@@ -37,14 +36,14 @@ impl SourceNavigation for DocumentSnapshot {
 /// The occurrence may be a CST symbol or a backtick mention in documentation.
 /// Resolved once per request and threaded through downstream collection.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct TargetSymbol<'a> {
+pub struct TargetSymbol<'a> {
     pub name: &'a str,
     pub range: TextRange,
     pub symbol: BindingView<'a>,
 }
 
 impl DocumentSnapshot {
-    pub(crate) fn from_text(text: String, knowledge_provider: &ObjectRegistry) -> Option<Self> {
+    pub fn from_text(text: String, knowledge_provider: &ObjectRegistry) -> Option<Self> {
         let source = DocumentSource::new(text);
         let mut parser = M2Parser::new()?;
         let macro_syntax = MacroSyntax::scan(source.text());
@@ -61,13 +60,12 @@ impl DocumentSnapshot {
             tree,
             analysis,
             object_registry: knowledge,
-            imported_packages,
             documentation_snippets,
             documentation_references,
         })
     }
 
-    pub(crate) fn apply_changes(
+    pub fn apply_changes(
         &mut self,
         changes: &[TextDocumentContentChangeEvent],
         knowledge_provider: &ObjectRegistry,
@@ -85,29 +83,28 @@ impl DocumentSnapshot {
         Some(())
     }
 
-    pub(crate) fn text(&self) -> &str {
+    pub fn text(&self) -> &str {
         SourceNavigation::text(self)
     }
 
-    pub(crate) fn is_macro_name_span(&self, span: &DocumentSpan) -> bool {
+    pub fn is_macro_name_span(&self, span: &DocumentSpan) -> bool {
         let bytes = span.bytes();
         self.macro_syntax.is_macro_name(bytes.start, bytes.end)
     }
 
-    /// Registry containing exactly the packages loaded for this document version.
-    pub(crate) fn object_registry(&self) -> &ObjectRegistry {
+    pub fn object_registry(&self) -> &ObjectRegistry {
         &self.object_registry
     }
 
-    pub(crate) fn analysis(&self) -> &Analysis {
+    pub fn analysis(&self) -> &Analysis {
         &self.analysis
     }
 
-    pub(crate) fn diagnostics(&self) -> &[crate::diagnostic_registry::M2Diagnostic] {
+    pub fn diagnostics(&self) -> &[crate::diagnostic_registry::M2Diagnostic] {
         &self.analysis.diagnostics
     }
 
-    pub(crate) fn binding_at_position(&self, position: Position) -> Option<BindingView<'_>> {
+    pub fn binding_at_position(&self, position: Position) -> Option<BindingView<'_>> {
         if let Some(reference) = self.documentation_reference_at(position) {
             return self.documentation_symbol(&reference);
         }
@@ -115,32 +112,16 @@ impl DocumentSnapshot {
         self.source_binding_at(node.text(), position)
     }
 
-    /// The source binding effective at `position`, unless a later package
-    /// inclusion has shadowed that global name.
-    pub(crate) fn source_binding_at(
-        &self,
-        name: &str,
-        position: Position,
-    ) -> Option<BindingView<'_>> {
+    pub fn source_binding_at(&self, name: &str, position: Position) -> Option<BindingView<'_>> {
         self.analysis
             .visible_source_binding_at(name, position, &self.object_registry.at(position))
     }
 
-    /// The declaration of the source binding effective at `position`.
-    pub(crate) fn source_symbol_at(
-        &self,
-        name: &str,
-        position: Position,
-    ) -> Option<BindingView<'_>> {
+    pub fn source_symbol_at(&self, name: &str, position: Position) -> Option<BindingView<'_>> {
         self.source_binding_at(name, position)
     }
 
-    /// Resolve the user symbol under `position`: its tree-sitter node plus the
-    /// scope-aware `BindingInfo` for the same site. Returns `None` when the
-    /// cursor is not on a renameable / referenceable symbol (builtins, keywords,
-    /// punctuation, or whitespace). The single entry point shared by reference,
-    /// highlight, and rename requests.
-    pub(crate) fn target_symbol_at(&self, position: Position) -> Option<TargetSymbol<'_>> {
+    pub fn target_symbol_at(&self, position: Position) -> Option<TargetSymbol<'_>> {
         let documentation_reference = self.documentation_reference_at(position);
         let (name, range) = if let Some(reference) = documentation_reference.as_ref() {
             (reference.name(self.text()), reference.range())
@@ -160,25 +141,22 @@ impl DocumentSnapshot {
         })
     }
 
-    pub(crate) fn documentation_references(&self) -> &[DocumentationReference] {
+    pub fn documentation_references(&self) -> &[DocumentationReference] {
         &self.documentation_references
     }
 
-    pub(crate) fn documentation_snippets(&self) -> &[DocumentationSnippet] {
+    pub fn documentation_snippets(&self) -> &[DocumentationSnippet] {
         &self.documentation_snippets
     }
 
-    pub(crate) fn documentation_reference_at(
-        &self,
-        position: Position,
-    ) -> Option<DocumentationReference> {
+    pub fn documentation_reference_at(&self, position: Position) -> Option<DocumentationReference> {
         self.documentation_references
             .iter()
             .find(|reference| reference.contains(position))
             .cloned()
     }
 
-    pub(crate) fn documentation_symbol(
+    pub fn documentation_symbol(
         &self,
         reference: &DocumentationReference,
     ) -> Option<BindingView<'_>> {
@@ -192,9 +170,7 @@ impl DocumentSnapshot {
             })
     }
 
-    /// A real CST symbol or a backtick-delimited symbol mention under the
-    /// cursor. The range always covers only the identifier text.
-    pub(crate) fn symbol_occurrence_at(&self, position: Position) -> Option<(&str, TextRange)> {
+    pub fn symbol_occurrence_at(&self, position: Position) -> Option<(&str, TextRange)> {
         if let Some(reference) = self.documentation_reference_at(position) {
             return Some((reference.name(self.text()), reference.range()));
         }
@@ -202,21 +178,21 @@ impl DocumentSnapshot {
         Some((node.text(), self.range_for_node(node)))
     }
 
-    pub(crate) fn callable_at_position(&self, position: Position) -> Option<&FunctionInfo> {
+    pub fn callable_at_position(&self, position: Position) -> Option<&FunctionInfo> {
         let binding = self.binding_at_position(position)?;
         self.analysis.function_for_binding(binding)
     }
 
-    pub(crate) fn root_node(&self) -> M2Node<'_> {
+    pub fn root_node(&self) -> M2Node<'_> {
         self.tree.root(self.text())
     }
 
-    pub(crate) fn node_at_position_minimal(&self, position: Position) -> Option<M2Node<'_>> {
+    pub fn node_at_position_minimal(&self, position: Position) -> Option<M2Node<'_>> {
         let point = self.point_for_position(position)?;
         self.root_node().descendant_for_point_range(point, point)
     }
 
-    pub(crate) fn symbol_node_at_position(&self, position: Position) -> Option<M2Node<'_>> {
+    pub fn symbol_node_at_position(&self, position: Position) -> Option<M2Node<'_>> {
         let point = self.point_for_position(position)?;
         let root = self.root_node();
         // When the cursor sits on the boundary between the anonymous SPACE
@@ -246,7 +222,7 @@ impl DocumentSnapshot {
         None
     }
 
-    pub(crate) fn enclosing_node_of_kind<'a>(
+    pub fn enclosing_node_of_kind<'a>(
         &self,
         mut node: M2Node<'a>,
         kind: NodeKind,
@@ -300,7 +276,6 @@ impl DocumentSnapshot {
         let analysis = Analysis::new_with_knowledge(root, &self.source, &knowledge);
         let (documentation_snippets, documentation_references) =
             collect_documentation(&self.source, root);
-        self.imported_packages = imported_packages;
         self.macro_syntax = macro_syntax;
         self.tree = tree;
         self.analysis = analysis;

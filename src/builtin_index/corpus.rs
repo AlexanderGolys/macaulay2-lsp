@@ -8,7 +8,7 @@ use serde::Deserialize;
 ///
 /// Markdown newlines are escaped inside each JSON object, so one physical line
 /// always contains one complete record.
-pub(super) fn deserialize_records(corpus: &str) -> impl Iterator<Item = RawRecord> + '_ {
+pub fn deserialize_records(corpus: &str) -> impl Iterator<Item = RawRecord> + '_ {
     corpus.lines().filter_map(|line| {
         let line = line.trim();
         if line.is_empty() {
@@ -28,68 +28,68 @@ pub(super) fn deserialize_records(corpus: &str) -> impl Iterator<Item = RawRecor
 
 /// Wire representation of one generated corpus record.
 #[derive(Debug, Deserialize)]
-pub(super) struct RawRecord {
-    pub(super) kind: String,
+pub struct RawRecord {
+    pub kind: String,
     #[serde(default)]
-    pub(super) name: String,
+    pub name: String,
     #[serde(default)]
-    pub(super) normalized_name: String,
+    pub normalized_name: String,
     #[serde(default)]
-    pub(super) aliases: Vec<String>,
+    pub aliases: Vec<String>,
     #[serde(default)]
-    pub(super) extra_keys: Vec<String>,
+    pub extra_keys: Vec<String>,
     #[serde(default)]
-    pub(super) package: Option<String>,
+    pub package: Option<String>,
     #[serde(default)]
-    pub(super) class: Option<String>,
+    pub class: Option<String>,
     #[serde(default)]
-    pub(super) parent: Option<String>,
+    pub parent: Option<String>,
     #[serde(default)]
-    pub(super) typical_value: Option<String>,
+    pub typical_value: Option<String>,
     #[serde(default)]
-    pub(super) options: Vec<RawOptionSpec>,
+    pub options: Vec<RawOptionSpec>,
     #[serde(default)]
-    pub(super) methods: Vec<RawMethod>,
+    pub methods: Vec<RawMethod>,
     #[serde(default)]
-    pub(super) operator: Option<RawOperator>,
+    pub operator: Option<RawOperator>,
     #[serde(default)]
-    pub(super) default_loaded: Vec<String>,
+    pub default_loaded: Vec<String>,
     #[serde(default)]
-    pub(super) protected: Option<bool>,
+    pub protected: Option<bool>,
     #[serde(default)]
-    pub(super) markdown: Option<String>,
+    pub markdown: Option<String>,
 }
 
 /// Wire representation of one callable method signature.
 #[derive(Debug, Deserialize)]
-pub(super) struct RawMethod {
+pub struct RawMethod {
     #[serde(default)]
-    pub(super) domain: Vec<String>,
+    pub domain: Vec<String>,
     #[serde(default, rename = "typicalValue")]
-    pub(super) typical_value: Option<String>,
+    pub typical_value: Option<String>,
 }
 
 /// Wire representation of one callable option specification.
 #[derive(Debug, Deserialize)]
-pub(super) struct RawOptionSpec {
-    pub(super) key: String,
+pub struct RawOptionSpec {
+    pub key: String,
     #[serde(default, rename = "possibleValues")]
-    pub(super) possible_values: Vec<String>,
+    pub possible_values: Vec<String>,
 }
 
 /// Wire representation of an operator's forms and form attributes.
 #[derive(Debug, Deserialize)]
-pub(super) struct RawOperator {
+pub struct RawOperator {
     #[serde(default)]
-    pub(super) forms: Vec<String>,
+    pub forms: Vec<String>,
     #[serde(default)]
-    pub(super) attributes: HashMap<RawOperatorForm, Vec<String>>,
+    pub attributes: HashMap<RawOperatorForm, Vec<String>>,
 }
 
 /// Lowercase operator form used by the generated corpus.
 #[derive(Debug, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
-pub(super) enum RawOperatorForm {
+pub enum RawOperatorForm {
     Binary,
     Prefix,
     Postfix,

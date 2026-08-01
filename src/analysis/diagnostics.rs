@@ -3,7 +3,7 @@
 use super::*;
 
 impl Analysis {
-    pub(super) fn collect_diagnostics(
+    pub fn collect_diagnostics(
         &mut self,
         root: M2Node,
         source: &(impl SourceNavigation + ?Sized),
@@ -123,7 +123,8 @@ impl Analysis {
             return None;
         }
         let left = node.child_by_field_name("left")?;
-        let (MethodHead::Function(name), _) = self.installation_shape(left, knowledge)? else {
+        let (MethodHead::Function(name), _) = self.installation_shape(left, position, knowledge)?
+        else {
             return None;
         };
         (self.callable_head_kind(name.name(), position, knowledge) != CallableHeadKind::Unknown)

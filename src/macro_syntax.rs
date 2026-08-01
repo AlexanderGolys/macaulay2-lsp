@@ -9,13 +9,13 @@
 use crate::source::ByteRange;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct MacroSyntax {
+pub struct MacroSyntax {
     masked_text: String,
     name_spans: Vec<ByteRange>,
 }
 
 impl MacroSyntax {
-    pub(crate) fn scan(text: &str) -> Self {
+    pub fn scan(text: &str) -> Self {
         let bytes = text.as_bytes();
         let mut masked = bytes.to_vec();
         let mut name_spans = Vec::new();
@@ -62,15 +62,15 @@ impl MacroSyntax {
         }
     }
 
-    pub(crate) fn parse_text(&self) -> &str {
+    pub fn parse_text(&self) -> &str {
         &self.masked_text
     }
 
-    pub(crate) fn has_macros(&self) -> bool {
+    pub fn has_macros(&self) -> bool {
         !self.name_spans.is_empty()
     }
 
-    pub(crate) fn is_macro_name(&self, start_byte: usize, end_byte: usize) -> bool {
+    pub fn is_macro_name(&self, start_byte: usize, end_byte: usize) -> bool {
         self.name_spans
             .iter()
             .any(|span| span.start == start_byte && span.end == end_byte)

@@ -21,7 +21,7 @@ macro_rules! pos_max {
 }
 
 /// Whether `position` lies in `range` (start-inclusive, end-exclusive).
-pub(crate) fn position_in_range(position: Position, range: TextRange) -> bool {
+pub fn position_in_range(position: Position, range: TextRange) -> bool {
     if position.line < range.start.line || position.line > range.end.line {
         return false;
     }

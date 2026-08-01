@@ -438,6 +438,68 @@ async fn installation_and_syntax_diagnostics_run_through_the_server_pipeline() {
 }
 
 #[tokio::test]
+async fn lexical_types_and_operator_methods_respect_scope_and_source_order() {
+    let source = concat!(
+        "f := () -> (T := new Type of HashTable; T)\n",
+        "T ZZ = (a, b, c, d) -> a\n",
+        "if 1 + 2 then 3\n",
+        "ZZ + ZZ := Boolean => (a, b) -> true\n",
+    );
+    let session = DocumentSession::open(source).await;
+
+    assert_eq!(diagnostic_lines(&session, "E10"), Vec::<u64>::new());
+    assert_eq!(diagnostic_lines(&session, "E18"), vec![2]);
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn unresolved_package_types_do_not_leak_into_core_completion() {
+    let mut session = DocumentSession::open("Simplicial\n").await;
+    let labels = session.completion_labels("Simplicial", 0).await;
+
+    assert!(!labels
+        .iter()
+        .any(|label| { matches!(label.as_str(), "SimplicialComplex" | "SimplicialMap") }));
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn ring_constructor_aliases_resolve_in_their_lexical_scope() {
+    let source = "f := () -> (P := QQ; R := P[x]; x)\n";
+    let mut session = DocumentSession::open(source).await;
+
+    assert_eq!(hover_type_at(&mut session, 0, 32).await, "R");
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn inlay_hint_ranges_are_end_exclusive() {
+    let source = "x = 1\ny = 2\n";
+    let mut session = DocumentSession::open(source).await;
+    let hints = session
+        .request(
+            "textDocument/inlayHint",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "range": {
+                    "start": {"line": 0, "character": 0},
+                    "end": {"line": 1, "character": 1}
+                }
+            }),
+        )
+        .await;
+
+    assert!(response_array(&hints)
+        .iter()
+        .all(|hint| { hint["position"] != json!({"line": 1, "character": 1}) }));
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn method_codomain_diagnostics_offer_annotation_quick_fixes() {
     let mut session = DocumentSession::open("f ZZ := x -> [x]\n").await;
     let missing = session

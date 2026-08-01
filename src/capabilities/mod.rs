@@ -1,13 +1,13 @@
 //! LSP feature handlers, grouped by protocol capability.
 
-pub(crate) mod code_actions;
-pub(crate) mod diagnostics;
-pub(crate) mod document_highlight;
-pub(crate) mod document_symbols;
-pub(crate) mod formatting;
-pub(crate) mod hover;
-pub(crate) mod inlay_hints;
-pub(crate) mod navigation;
-pub(crate) mod semantic_tokens;
-pub(crate) mod signature_help;
-pub(crate) mod type_hierarchy;
+pub mod code_actions;
+pub mod diagnostics;
+pub mod document_highlight;
+pub mod document_symbols;
+pub mod formatting;
+pub mod hover;
+pub mod inlay_hints;
+pub mod navigation;
+pub mod semantic_tokens;
+pub mod signature_help;
+pub mod type_hierarchy;

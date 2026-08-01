@@ -50,7 +50,7 @@ const COMPLETION_KEYWORDS: &[&str] = &[
     "threadLocal",
 ];
 
-pub(crate) fn completion_response(
+pub fn completion_response(
     document: &DocumentSnapshot,
     position: Position,
     knowledge: &(impl LspKnowledge + ?Sized),
@@ -108,7 +108,7 @@ fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
 }
 
 /// The in-file references of the symbol at `position` as LSP locations.
-pub(crate) fn references_response(
+pub fn references_response(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
@@ -124,7 +124,7 @@ pub(crate) fn references_response(
 }
 
 #[allow(deprecated)]
-pub(crate) fn workspace_symbols_response(
+pub fn workspace_symbols_response(
     query: &str,
     workspace: &(impl WorkspaceSymbolKnowledge + ?Sized),
 ) -> Vec<SymbolInformation> {
@@ -145,7 +145,7 @@ pub(crate) fn workspace_symbols_response(
 /// Go-to-definition at `position`: package-source jump for an import string,
 /// else local binding, else a cross-file workspace definition, else the
 /// builtin/package record's source location.
-pub(crate) fn goto_definition_response(
+pub fn goto_definition_response(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
@@ -208,7 +208,7 @@ pub(crate) fn goto_definition_response(
 
 /// Every in-file range referring to the same binding as the symbol at
 /// `position` (scope-aware: shadowed names in other scopes are excluded).
-pub(crate) fn collect_reference_ranges(
+pub fn collect_reference_ranges(
     document: &DocumentSnapshot,
     position: Position,
     include_declaration: bool,
@@ -223,7 +223,7 @@ pub(crate) fn collect_reference_ranges(
 /// of [`collect_reference_ranges`] so a caller that has already resolved the
 /// target (e.g. document highlight, which also needs the declaration range) can
 /// reuse it instead of resolving a second time.
-pub(crate) fn reference_ranges_resolved(
+pub fn reference_ranges_resolved(
     target: TargetSymbol<'_>,
     document: &DocumentSnapshot,
     include_declaration: bool,
@@ -269,10 +269,7 @@ pub(crate) fn reference_ranges_resolved(
 /// position is not on a renameable symbol. Only user symbols with a resolvable
 /// binding qualify — builtins and package symbols are excluded, since renaming
 /// them in this file alone would silently break the calls they stand for.
-pub(crate) fn prepare_rename_range(
-    document: &DocumentSnapshot,
-    position: Position,
-) -> Option<TextRange> {
+pub fn prepare_rename_range(document: &DocumentSnapshot, position: Position) -> Option<TextRange> {
     let target = document.target_symbol_at(position)?;
     Some(target.range)
 }
@@ -281,7 +278,7 @@ pub(crate) fn prepare_rename_range(
 /// (including its declaration) to `new_name`, or `None` if there is nothing to
 /// rename. References are resolved scope-aware via [`collect_reference_ranges`],
 /// so shadowed names in other scopes are left untouched.
-pub(crate) fn rename_edits(
+pub fn rename_edits(
     document: &DocumentSnapshot,
     uri: &Url,
     position: Position,
@@ -311,7 +308,7 @@ pub(crate) fn rename_edits(
 /// What a references request at `position` targets. A local binding's references
 /// stay in the document; a global (top-level / workspace) symbol's references
 /// span every file.
-pub(crate) enum ReferenceTarget {
+pub enum ReferenceTarget {
     Local,
     Global(String),
 }
@@ -319,7 +316,7 @@ pub(crate) enum ReferenceTarget {
 /// Classify the symbol at `position`: a binding in an inner scope is `Local`; a
 /// top-level binding, or an undefined-here name that is defined at top level
 /// elsewhere in the workspace, is `Global`.
-pub(crate) fn reference_target(
+pub fn reference_target(
     document: &DocumentSnapshot,
     position: Position,
     workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
@@ -338,7 +335,7 @@ pub(crate) fn reference_target(
 /// Every occurrence of `name` in `document` that refers to a global (top-level)
 /// definition — i.e. one not shadowed by a local binding at that point. Used to
 /// gather a workspace-global symbol's references file by file.
-pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<TextRange> {
+pub fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<TextRange> {
     let analysis = document.analysis();
     let root_node = document.root_node();
     let mut references = Vec::new();
@@ -374,7 +371,7 @@ pub(crate) fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -
 /// Every occurrence of `name` that is not bound by user code at that source
 /// position. Used for in-document builtin highlighting: local shadows must not
 /// light up with the library object they replace.
-pub(crate) fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<TextRange> {
+pub fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<TextRange> {
     let analysis = document.analysis();
     let mut references = document
         .root_node()
@@ -407,7 +404,7 @@ pub(crate) fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) 
     references
 }
 
-pub(crate) fn symbol_prefix_at(
+pub fn symbol_prefix_at(
     source: &(impl SourceNavigation + ?Sized),
     position: Position,
 ) -> Option<String> {
@@ -434,7 +431,7 @@ pub(crate) fn symbol_prefix_at(
 /// Whether `name` is a valid M2 identifier (a letter followed by letters and
 /// digits). A rename target failing this would silently produce unparsable
 /// code, so the rename request must reject it instead of editing.
-pub(crate) fn is_valid_m2_identifier(name: &str) -> bool {
+pub fn is_valid_m2_identifier(name: &str) -> bool {
     let mut chars = name.chars();
     chars
         .next()

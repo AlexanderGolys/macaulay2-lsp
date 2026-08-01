@@ -9,14 +9,15 @@ use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::object_registry::{ObjectName, ObjectRegistry};
 use crate::source::SourceNavigation;
+use crate::util::position_in_range;
 
-pub(crate) fn inlay_hint_provider_capability() -> Option<OneOf<bool, InlayHintServerCapabilities>> {
+pub fn inlay_hint_provider_capability() -> Option<OneOf<bool, InlayHintServerCapabilities>> {
     Some(OneOf::Left(true))
 }
 
 /// The inlay type hints for `range`: one per typed binding by default, plus
 /// per-expression hints when `expression_types` is opted in.
-pub(crate) fn inlay_hints_response(
+pub fn inlay_hints_response(
     document: &DocumentSnapshot,
     range: TextRange,
     expression_types: bool,
@@ -475,10 +476,6 @@ fn parenthesized_value(mut node: M2Node<'_>) -> M2Node<'_> {
 
 fn range_contains(outer: TextRange, inner: TextRange) -> bool {
     outer.start <= inner.start && inner.end <= outer.end
-}
-
-fn position_in_range(position: Position, range: TextRange) -> bool {
-    range.start <= position && position <= range.end
 }
 
 #[cfg(test)]

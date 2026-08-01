@@ -54,7 +54,6 @@ pub enum CallableKind {
 }
 
 impl Record {
-    /// Borrow this object's callable facts when it is callable.
     pub fn callable(&self) -> Option<&CallableInfo> {
         match &self.data {
             ObjectData::Callable(callable) => Some(callable),
@@ -62,7 +61,6 @@ impl Record {
         }
     }
 
-    /// Borrow this object's type-hierarchy facts when it is a type.
     pub fn type_info(&self) -> Option<&TypeData> {
         match &self.data {
             ObjectData::Type(type_info) => Some(type_info),
@@ -70,29 +68,24 @@ impl Record {
         }
     }
 
-    /// Borrow this callable's operator facts when it is an operator.
     pub fn operator_info(&self) -> Option<&OperatorInfo> {
         self.callable()?.operator_info()
     }
 
-    /// Every visible corpus spelling that exports this object from its package.
     pub fn lookup_names(&self) -> impl Iterator<Item = ObjectName> + '_ {
         iter::once(self.name.clone()).chain(self.aliases.iter().map(ObjectName::new))
     }
 
-    /// Borrow this object's generated documentation body.
     pub fn markdown(&self) -> Option<&str> {
         self.markdown.as_deref()
     }
 }
 
 impl CallableInfo {
-    /// Whether this callable was indexed as a method function.
     pub fn is_method_function(&self) -> bool {
         matches!(self.kind, CallableKind::MethodFunction)
     }
 
-    /// Borrow the operator specialization carried by this callable.
     pub fn operator_info(&self) -> Option<&OperatorInfo> {
         match &self.kind {
             CallableKind::Operator(operator) => Some(operator),
@@ -209,7 +202,6 @@ pub struct OperatorInfo {
 const FLEXIBLE_ATTRIBUTE: &str = "Flexible";
 
 impl OperatorInfo {
-    /// Whether this operator accepts a method installed on the given form.
     pub fn is_flexible(&self, form: OperatorForm) -> bool {
         self.form_attributes
             .get(&form)
@@ -253,9 +245,7 @@ impl BuiltinIndex {
                         .map(ObjectName::new)
                         .unwrap_or_else(|| ObjectName::new(object_id.name()));
                     let mut record = base_record(object_id.clone(), &mut raw, keys, "Type");
-                    record.data = ObjectData::Type(TypeData {
-                        parent: TypeId::from_object(object_id.clone()),
-                    });
+                    record.data = ObjectData::Type(TypeData { parent: None });
                     index.insert(record);
                     pending_type_parents.push((object_id, parent));
                 }
@@ -339,7 +329,7 @@ impl BuiltinIndex {
             let type_info = index.records[record_index]
                 .type_info_mut()
                 .expect("pending type parent must belong to a type record");
-            type_info.parent = parent;
+            type_info.parent = Some(parent);
         }
         for pending in pending_callable_types {
             let typical_value = pending
@@ -367,6 +357,11 @@ impl BuiltinIndex {
                 .expect("pending callable types must belong to a callable record");
             callable.typical_value = typical_value;
             callable.methods = methods;
+        }
+        for record in index.records() {
+            referenced_packages
+                .entry(record.package.clone())
+                .or_insert_with(|| package_name_from_id(&record.package));
         }
         for (package, name) in referenced_packages {
             if index.object(&package).is_some() {
@@ -419,8 +414,6 @@ impl BuiltinIndex {
         self.object_id(reference)
     }
 
-    /// Resolve a referenced type, creating an unloaded placeholder when a
-    /// partial package fixture or future lazy package boundary omits its record.
     fn resolve_or_insert_type_reference(&mut self, reference: &ObjectName) -> TypeId {
         if let Some(object) = self.resolve_reference(reference) {
             assert!(
@@ -428,35 +421,44 @@ impl BuiltinIndex {
                     .is_some_and(|record| record.type_info().is_some()),
                 "type reference '{reference}' resolves to a non-type object"
             );
-            return TypeId::from_object(object);
+            return self
+                .type_id(&object)
+                .expect("resolved type records produce validated identities");
         }
 
-        let id = ObjectId::new(reference.name());
+        let id = if reference.name().starts_with('$') {
+            ObjectId::new(reference.name())
+        } else {
+            ObjectId::new(format!("$Unresolved${}", reference.name()))
+        };
         let display_name = deref_ref(reference.name());
         let package = reference
             .name()
             .strip_prefix('$')
             .and_then(|rest| rest.split_once('$'))
-            .map_or_else(core_package_id, |(package, _)| {
+            .map_or_else(unresolved_package_id, |(package, _)| {
                 ObjectId::new(format!("${package}${package}"))
             });
-        let parent = TypeId::from_object(id.clone());
         self.insert(Record {
             id: id.clone(),
             name: ObjectName(display_name),
             class: ObjectName::new("Type"),
             package,
-            data: ObjectData::Type(TypeData { parent }),
+            data: ObjectData::Type(TypeData { parent: None }),
             protected: true,
             aliases: Vec::new(),
             markdown: None,
         });
-        TypeId::from_object(id)
+        let type_id = self
+            .type_id(&id)
+            .expect("inserted placeholders are registered types");
+        self.record_mut(&id)
+            .and_then(Record::type_info_mut)
+            .expect("inserted placeholder has type data")
+            .parent = Some(type_id.clone());
+        type_id
     }
 
-    /// Resolve one dispatch slot. M2 domains may contain either a type or a
-    /// singleton object such as `OO`; absent corpus references are retained as
-    /// placeholder types because no stronger classification is available.
     fn resolve_or_insert_dispatch_reference(&mut self, reference: &ObjectName) -> ObjectId {
         self.resolve_reference(reference).unwrap_or_else(|| {
             self.resolve_or_insert_type_reference(reference)
@@ -490,7 +492,6 @@ impl BuiltinIndex {
         &self.records
     }
 
-    /// Packages loaded by a fresh Macaulay2 session.
     pub fn default_loaded_packages(&self) -> &[String] {
         &self.default_loaded
     }
@@ -527,6 +528,14 @@ fn package_object_name(raw: &RawRecord) -> ObjectName {
 
 fn core_package_id() -> ObjectId {
     ObjectId::new("$Core$Core")
+}
+
+fn unresolved_package_id() -> ObjectId {
+    ObjectId::new("$Unresolved$Unresolved")
+}
+
+fn package_name_from_id(package: &ObjectId) -> ObjectName {
+    ObjectName::new(deref_ref(package.name()))
 }
 
 impl Record {
@@ -647,12 +656,9 @@ mod tests {
     }
 
     fn type_id(index: &BuiltinIndex, name: &str) -> TypeId {
-        TypeId::from_object(
-            type_entry(index, name)
-                .expect("type should be indexed")
-                .id
-                .clone(),
-        )
+        index
+            .type_id(&type_entry(index, name).expect("type should be indexed").id)
+            .expect("type records produce validated identities")
     }
 
     fn type_name<'index>(index: &'index BuiltinIndex, type_id: &TypeId) -> &'index str {
@@ -674,7 +680,12 @@ mod tests {
             index.object(&zz.package).map(|package| package.name.name()),
             Some("Core")
         );
-        let parent = &zz.type_info().expect("ZZ type facts").parent;
+        let parent = zz
+            .type_info()
+            .expect("ZZ type facts")
+            .parent
+            .as_ref()
+            .expect("ZZ parent");
         assert!(index.object(parent.object()).is_some());
         // markdown is now folded onto the entry (documented Core type).
         assert!(
@@ -788,7 +799,12 @@ mod tests {
         let index = index();
         // Every canonical type record carries one resolvable parent edge.
         if let Some(zz) = type_entry(&index, "ZZ") {
-            let parent = &zz.type_info().expect("ZZ type facts").parent;
+            let parent = zz
+                .type_info()
+                .expect("ZZ type facts")
+                .parent
+                .as_ref()
+                .expect("ZZ parent");
             assert!(index.object(parent.object()).is_some());
         }
     }
@@ -802,9 +818,6 @@ mod tests {
         assert_eq!(deref_ref("RingElement"), "RingElement"); // already bare
     }
 
-    /// Monotone index invariant: `Thing` and `Any` are the top of the M2 type
-    /// lattice and carry no information — storing them as a positive codomain
-    /// fact would pollute inference and hover. The loader must drop them to `None`.
     #[test]
     fn no_callable_carries_thing_or_any_codomain() {
         let index = index();

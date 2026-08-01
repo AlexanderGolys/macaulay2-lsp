@@ -6,12 +6,12 @@ use tower_lsp::jsonrpc;
 use tower_lsp::lsp_types::ClientCapabilities;
 use tower_lsp::Client;
 
-pub(crate) trait ClientCapability {
+pub trait ClientCapability {
     fn supported_by(capabilities: &ClientCapabilities) -> bool;
 }
 
 #[derive(Debug)]
-pub(crate) struct ClientSupport<C> {
+pub struct ClientSupport<C> {
     supported: AtomicBool,
     capability: PhantomData<fn() -> C>,
 }
@@ -26,21 +26,21 @@ impl<C> Default for ClientSupport<C> {
 }
 
 impl<C: ClientCapability> ClientSupport<C> {
-    pub(crate) fn negotiate(&self, capabilities: &ClientCapabilities) {
+    pub fn negotiate(&self, capabilities: &ClientCapabilities) {
         self.supported
             .store(C::supported_by(capabilities), Ordering::Relaxed);
     }
 
-    pub(crate) fn is_supported(&self) -> bool {
+    pub fn is_supported(&self) -> bool {
         self.supported.load(Ordering::Relaxed)
     }
 }
 
-pub(crate) trait WorkspaceRefresh<C> {
+pub trait WorkspaceRefresh<C> {
     fn refresh(&self) -> impl Future<Output = jsonrpc::Result<()>> + Send;
 }
 
-pub(crate) async fn refresh_if_changed<C>(
+pub async fn refresh_if_changed<C>(
     support: &ClientSupport<C>,
     client: &(impl WorkspaceRefresh<C> + ?Sized),
     changed: bool,
@@ -56,7 +56,7 @@ where
 }
 
 #[derive(Debug)]
-pub(crate) struct InlayHintRefresh;
+pub struct InlayHintRefresh;
 
 impl ClientCapability for InlayHintRefresh {
     fn supported_by(capabilities: &ClientCapabilities) -> bool {
@@ -76,7 +76,7 @@ impl WorkspaceRefresh<InlayHintRefresh> for Client {
 }
 
 #[derive(Debug)]
-pub(crate) struct SemanticTokensAugmentSyntax;
+pub struct SemanticTokensAugmentSyntax;
 
 impl ClientCapability for SemanticTokensAugmentSyntax {
     fn supported_by(capabilities: &ClientCapabilities) -> bool {
@@ -90,7 +90,7 @@ impl ClientCapability for SemanticTokensAugmentSyntax {
 }
 
 #[derive(Debug)]
-pub(crate) struct TypeHierarchyDynamicRegistration;
+pub struct TypeHierarchyDynamicRegistration;
 
 impl ClientCapability for TypeHierarchyDynamicRegistration {
     fn supported_by(capabilities: &ClientCapabilities) -> bool {

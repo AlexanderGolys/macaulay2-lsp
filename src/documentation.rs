@@ -13,42 +13,42 @@ use crate::util::position_in_range;
 
 /// One backtick-delimited source snippet parsed for embedded references.
 #[derive(Debug)]
-pub(crate) struct DocumentationSnippet {
+pub struct DocumentationSnippet {
     bytes: ByteRange,
 }
 
 impl DocumentationSnippet {
-    pub(crate) fn byte_span(&self) -> (usize, usize) {
+    pub fn byte_span(&self) -> (usize, usize) {
         (self.bytes.start, self.bytes.end)
     }
 }
 
 /// One symbol mention extracted from an otherwise opaque documentation region.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DocumentationReference {
+pub struct DocumentationReference {
     span: DocumentSpan,
 }
 
 impl DocumentationReference {
-    pub(crate) fn name<'a>(&self, text: &'a str) -> &'a str {
+    pub fn name<'a>(&self, text: &'a str) -> &'a str {
         &text[self.span.bytes()]
     }
 
-    pub(crate) fn range(&self) -> TextRange {
+    pub fn range(&self) -> TextRange {
         self.span.range()
     }
 
-    pub(crate) fn byte_span(&self) -> (usize, usize) {
+    pub fn byte_span(&self) -> (usize, usize) {
         let bytes = self.span.bytes();
         (bytes.start, bytes.end)
     }
 
-    pub(crate) fn contains(&self, position: Position) -> bool {
+    pub fn contains(&self, position: Position) -> bool {
         position_in_range(position, self.span.range())
     }
 }
 
-pub(crate) fn collect_documentation(
+pub fn collect_documentation(
     source: &(impl SourceNavigation + ?Sized),
     root: M2Node<'_>,
 ) -> (Vec<DocumentationSnippet>, Vec<DocumentationReference>) {

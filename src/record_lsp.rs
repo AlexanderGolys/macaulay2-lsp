@@ -16,51 +16,39 @@ use crate::typesystem::TypeKnowledge;
 pub struct ResolvedSignature {
     pub signature: Vec<ObjectName>,
     pub output_types: Vec<ObjectName>,
-    pub is_specialized: bool,
-    pub doc_key: Option<ObjectName>,
 }
 
 /// Indexed queries used by hover, completion, navigation, and signature help.
 pub trait LspKnowledge: TypeKnowledge {
-    /// Resolve an object and report the loaded package that supplied it.
     fn get_record_with_package(&self, name: &ObjectName) -> Option<(String, &Record)>;
 
-    /// Return visible names beginning with `prefix`.
     fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)>;
 
-    /// Partition callable signatures by their applicability to a call site.
     fn resolve_call_signature_usage(
         &self,
         callable: &str,
         argument_types: &[Option<ObjectId>],
     ) -> Option<SignatureUsage>;
 
-    /// Return signatures with their documented output facts.
     fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature>;
 
-    /// Return installed methods not represented by a resolved documented
-    /// signature.
     fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature>;
 
-    /// Return callables that accept `option_name`.
     fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String>;
 
-    /// Return callable/option slots that admit `value_name`.
     fn option_value_usage_names(&self, value_name: &str, limit: usize) -> Vec<String>;
 
-    /// Return pre-rendered documentation for an object.
     fn doc_markdown(&self, name: &ObjectName) -> Option<String>;
 }
 
 /// Package-addressed record lookup used by static type-hierarchy navigation.
 pub trait PartitionedTypeKnowledge {
-    /// Borrow `name` from one explicit package partition.
     fn get_record_from_package(&self, package: &str, name: &ObjectName) -> Option<&Record>;
 
-    /// Borrow a type by its canonical identity and report its home package.
     fn get_type_by_id(&self, type_id: &TypeId) -> Option<(String, &Record)>;
 
-    /// Borrow every type whose mandatory parent is `type_id`.
+    fn type_id(&self, object_id: &ObjectId) -> Option<TypeId>;
+
     fn direct_subtypes(&self, type_id: &TypeId) -> Vec<(String, &Record)>;
 }
 
@@ -77,13 +65,18 @@ impl PartitionedTypeKnowledge for ObjectRegistry {
         Some((self.package_name(&record.package)?.to_string(), record))
     }
 
+    fn type_id(&self, object_id: &ObjectId) -> Option<TypeId> {
+        ObjectKnowledge::type_id(self, object_id)
+    }
+
     fn direct_subtypes(&self, type_id: &TypeId) -> Vec<(String, &Record)> {
         self.catalog_records()
             .iter()
             .filter_map(|record| {
                 record
                     .type_info()
-                    .filter(|type_info| &type_info.parent == type_id)
+                    .and_then(|type_info| type_info.parent.as_ref())
+                    .filter(|parent| *parent == type_id)
                     .filter(|_| &record.id != type_id.object())
                     .and_then(|_| Some((self.package_name(&record.package)?.to_string(), record)))
             })
@@ -106,23 +99,18 @@ struct DispatchSignature {
 }
 
 impl ObjectRegistry {
-    /// Primary names beginning with `prefix`, in corpus order and capped at
-    /// `limit`.
     pub fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<&str> {
         visible_names(self.records_by_precedence(), prefix, limit, true)
     }
 
-    /// The pre-rendered hover markdown for `name` or one of its aliases.
     pub fn doc_markdown(&self, name: &ObjectName) -> Option<&str> {
         self.get_record(name)?.markdown()
     }
 
-    /// Return callables which document `option_name`.
     pub fn option_usage_names(&self, option_name: &str, limit: usize) -> Vec<String> {
         option_usage_names(self, self.records_by_precedence(), option_name, limit)
     }
 
-    /// Return `callable.option` slots that admit `value_name` in indexed facts.
     pub fn option_value_usage_names(&self, value_name: &str, limit: usize) -> Vec<String> {
         if limit == 0 {
             return Vec::new();
@@ -142,19 +130,14 @@ impl ObjectRegistry {
             .collect()
     }
 
-    /// Resolve indexed method codomains into their LSP-facing representation.
     pub fn documented_signatures(&self, record: &Record) -> Vec<ResolvedSignature> {
         documented_signatures(self, record)
     }
 
-    /// Installed method domains not represented by a resolved documented
-    /// signature.
     pub fn undocumented_installed_methods(&self, record: &Record) -> Vec<MethodSignature> {
         undocumented_installed_methods(record)
     }
 
-    /// Partition installed signatures into possible and excluded candidates;
-    /// pin one only when every argument type is known and unambiguous.
     pub fn resolve_call_signature_usage(
         &self,
         callable: &str,
@@ -165,7 +148,7 @@ impl ObjectRegistry {
 }
 
 /// Partition installed signatures using one registry visibility view.
-pub(crate) fn resolve_call_signature_usage(
+pub fn resolve_call_signature_usage(
     knowledge: &(impl TypeKnowledge + ?Sized),
     callable: &str,
     argument_types: &[Option<ObjectId>],
@@ -263,17 +246,13 @@ fn resolved_method_signature(
             })
             .collect::<Option<Vec<_>>>()?,
     );
-    let (output_types, is_specialized) = callable
+    let output_types = callable
         .effective_codomain(method)
-        .and_then(|(codomain, specialized)| {
-            Some((vec![knowledge.type_name(codomain)?.clone()], specialized))
-        })
+        .and_then(|(codomain, _)| Some(vec![knowledge.type_name(codomain)?.clone()]))
         .unwrap_or_default();
     Some(ResolvedSignature {
         signature,
         output_types,
-        is_specialized,
-        doc_key: None,
     })
 }
 
@@ -301,8 +280,6 @@ fn documented_signatures(
             signatures.push(ResolvedSignature {
                 signature: vec![record.name.clone()],
                 output_types: vec![codomain.clone()],
-                is_specialized: false,
-                doc_key: None,
             });
         }
     }
@@ -516,7 +493,7 @@ fn take_nonminimal_signatures(
     dominated
 }
 
-pub(crate) fn record_symbol_kind(record: &Record) -> SymbolKind {
+pub fn record_symbol_kind(record: &Record) -> SymbolKind {
     if record.type_info().is_some() {
         return SymbolKind::CLASS;
     }
@@ -533,7 +510,7 @@ pub(crate) fn record_symbol_kind(record: &Record) -> SymbolKind {
     }
 }
 
-pub(crate) fn record_hover_with_package_and_usage(
+pub fn record_hover_with_package_and_usage(
     record: &Record,
     package: Option<&str>,
     knowledge: &(impl LspKnowledge + ?Sized),
@@ -658,8 +635,6 @@ fn append_record_signatures(
         let signature = ResolvedSignature {
             signature,
             output_types: Vec::new(),
-            is_specialized: false,
-            doc_key: None,
         };
         let label = signature_label(&signature, record.operator_info());
         if !labels.contains(&label) {
@@ -1251,8 +1226,8 @@ mod tests {
     fn record_hover_keeps_excluded_signatures_when_usage_is_pinned() {
         let knowledge = ObjectRegistry::load(concat!(
             "{\"kind\":\"methodFunction\",\"name\":\"f\",\"methods\":[",
-            "{\"domain\":[\"String\"],\"typicalValue\":\"File\"},",
-            "{\"domain\":[\"ZZ\"],\"typicalValue\":\"Ring\"}",
+            "{\"domain\":[\"$Core$String\"],\"typicalValue\":\"$Core$File\"},",
+            "{\"domain\":[\"$Core$ZZ\"],\"typicalValue\":\"$Core$Ring\"}",
             "]}\n",
         ));
         let record = knowledge

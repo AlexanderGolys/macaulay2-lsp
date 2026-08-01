@@ -22,7 +22,7 @@ pub struct WorkspaceSourceSymbol {
 
 /// The outline view of a document: assignment bindings (functions nested under
 /// their body), method installations, and indexed variables.
-pub(crate) fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<DocumentSymbol> {
+pub fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<DocumentSymbol> {
     let analysis = document.analysis();
     let mut declarations = Vec::new();
 

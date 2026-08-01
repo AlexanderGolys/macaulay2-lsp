@@ -14,7 +14,7 @@ use crate::source::SourceNavigation;
 /// The hover at `position`: a local symbol renders its binding info and local
 /// method signatures; a builtin/package object renders its record from the
 /// partition that owns it (with call-context signature specialization).
-pub(crate) fn hover_response(
+pub fn hover_response(
     document: &DocumentSnapshot,
     position: Position,
     knowledge: &(impl LspKnowledge + ?Sized),
@@ -147,7 +147,7 @@ fn call_signature_usage_for_hover(
 
         let argument = parent.child_by_field_name("right")?;
         let facts = analysis.infer_call_static_facts(argument, source, knowledge);
-        analysis.dispatch_argument_ids(&facts, knowledge)
+        analysis.dispatch_argument_ids(&facts, source.position_for_node(parent), knowledge)
     } else if parent
         .child_by_field_name("operator")
         .is_some_and(|operator| operator.id() == node.id())

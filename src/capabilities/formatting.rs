@@ -8,7 +8,7 @@ use tower_lsp::lsp_types::{
 use crate::node_metadata::{M2Node, M2Parser, NodeKind, NodeKindMetadata};
 use crate::source::SourceNavigation;
 
-pub(crate) trait FormattingConfiguration {
+pub trait FormattingConfiguration {
     fn indent_width(&self) -> Option<u32>;
     fn use_tabs(&self) -> Option<bool>;
     fn line_widths(&self) -> (Option<u32>, Option<u32>);
@@ -19,7 +19,7 @@ pub(crate) trait FormattingConfiguration {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) enum ControlFlowLayout {
+pub enum ControlFlowLayout {
     Compact,
     Multiline,
     #[default]
@@ -67,7 +67,7 @@ impl FormatOptions {
         }
     }
 
-    pub(crate) fn from_configuration(
+    pub fn from_configuration(
         tab_size: u32,
         insert_spaces: bool,
         configuration: &(impl FormattingConfiguration + ?Sized),
@@ -85,16 +85,15 @@ impl FormatOptions {
     }
 }
 
-pub(crate) fn document_formatting_provider_capability(
-) -> Option<OneOf<bool, DocumentFormattingOptions>> {
+pub fn document_formatting_provider_capability() -> Option<OneOf<bool, DocumentFormattingOptions>> {
     Some(OneOf::Left(true))
 }
 
-pub(crate) fn folding_range_provider_capability() -> Option<FoldingRangeProviderCapability> {
+pub fn folding_range_provider_capability() -> Option<FoldingRangeProviderCapability> {
     Some(FoldingRangeProviderCapability::Simple(true))
 }
 
-pub(crate) fn document_formatting_text_edits(
+pub fn document_formatting_text_edits(
     source: &(impl SourceNavigation + ?Sized),
     tab_size: u32,
     insert_spaces: bool,
@@ -113,7 +112,7 @@ pub(crate) fn document_formatting_text_edits(
     }]
 }
 
-pub(crate) fn folding_ranges(text: &str) -> Vec<FoldingRange> {
+pub fn folding_ranges(text: &str) -> Vec<FoldingRange> {
     folding_ranges_for_text(text)
         .into_iter()
         .map(|range| FoldingRange {

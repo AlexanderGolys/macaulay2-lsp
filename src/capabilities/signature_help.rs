@@ -18,7 +18,7 @@ use crate::object_registry::ObjectName;
 use crate::record_lsp::{LspKnowledge, ResolvedSignature};
 use crate::source::SourceNavigation;
 
-pub(crate) fn signature_help_response(
+pub fn signature_help_response(
     document: &DocumentSnapshot,
     position: Position,
     knowledge: &(impl LspKnowledge + ?Sized),

@@ -18,12 +18,12 @@ impl<Knowledge: TypeKnowledge + ?Sized> TypeStore for SourceTypeOrder<'_, Knowle
         self.source
             .data
             .get(type_id)
-            .map(|data| data.parent.clone())
+            .and_then(|data| data.parent.clone())
             .or_else(|| {
                 self.external
                     .object(type_id.object())?
                     .type_info()
-                    .map(|data| data.parent.clone())
+                    .and_then(|data| data.parent.clone())
             })
     }
 }
@@ -36,22 +36,22 @@ struct NodeFactId(usize);
 ///
 /// The cache belongs only to this checker and is discarded with it; no
 /// expression-level intermediate facts are retained in the semantic registry.
-pub(super) struct TypeChecker<'analysis> {
+pub struct TypeChecker<'analysis> {
     analysis: &'analysis Analysis,
     type_cache: RefCell<HashMap<NodeFactId, InferredType>>,
 }
 
 /// One transient operator-inference request passed to specialized rule sets.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct OperatorTypeQuery<'tree> {
-    pub(super) operator: &'tree str,
-    pub(super) left: M2Node<'tree>,
-    pub(super) right: Option<M2Node<'tree>>,
-    pub(super) scope_idx: usize,
+pub struct OperatorTypeQuery<'tree> {
+    pub operator: &'tree str,
+    pub left: M2Node<'tree>,
+    pub right: Option<M2Node<'tree>>,
+    pub scope_idx: usize,
 }
 
 impl<'analysis> TypeChecker<'analysis> {
-    pub(super) fn new(analysis: &'analysis Analysis) -> Self {
+    pub fn new(analysis: &'analysis Analysis) -> Self {
         Self {
             analysis,
             type_cache: RefCell::new(HashMap::new()),
@@ -69,26 +69,28 @@ impl Deref for TypeChecker<'_> {
 
 impl TypeChecker<'_> {
     /// Project call arguments into the validated identities used by dispatch.
-    pub(super) fn dispatch_argument_ids(
+    pub fn dispatch_argument_ids(
         &self,
         facts: &CallStaticFacts,
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Vec<Option<ObjectId>> {
         facts
             .argument_types
             .iter()
-            .map(|inferred| self.dispatch_object_id(inferred, knowledge))
+            .map(|inferred| self.dispatch_object_id(inferred, position, knowledge))
             .collect()
     }
 
     /// Project an inferred source type into the external dispatch hierarchy.
-    pub(super) fn dispatch_object_id(
+    pub fn dispatch_object_id(
         &self,
         inferred: &InferredType,
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<ObjectId> {
         let principal = inferred.principal()?;
-        let Some(mut current) = self.resolve_source_type_id(principal) else {
+        let Some(mut current) = self.resolve_source_type_id(principal, position) else {
             return knowledge
                 .resolve_type_id(principal)
                 .map(|type_id| type_id.object().clone());
@@ -102,11 +104,11 @@ impl TypeChecker<'_> {
             let Some(data) = self.registry.source_types.data.get(&current) else {
                 return Some(current.object().clone());
             };
-            current.clone_from(&data.parent);
+            current.clone_from(data.parent.as_ref()?);
         }
     }
 
-    pub(super) fn inferred_external_type(
+    pub fn inferred_external_type(
         &self,
         type_id: TypeId,
         knowledge: &(impl TypeKnowledge + ?Sized),
@@ -121,7 +123,7 @@ impl TypeChecker<'_> {
     /// Every value-producing node has a type; control-flow and unhandled forms
     /// fall to `Unknown`. The bound is a lower bound (a `typicalValue`), never
     /// asserted exact.
-    pub(super) fn type_of(
+    pub fn type_of(
         &self,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
@@ -386,7 +388,13 @@ impl TypeChecker<'_> {
         };
         let left_type = self.type_of(left, source, scope_idx, knowledge);
         let right_type = self.type_of(right, source, scope_idx, knowledge);
-        self.dispatch_codomain(knowledge, &operator, &[left_type, right_type], &[])
+        self.dispatch_codomain(
+            knowledge,
+            &operator,
+            &[left_type, right_type],
+            &[],
+            source.position_for_node(node),
+        )
     }
 
     /// The function-dependent operators, whose result depends on the specific
@@ -490,7 +498,11 @@ impl TypeChecker<'_> {
             if let Some(callable) = callable_name {
                 if let Some(return_type) = knowledge.resolve_call_return_type_with_options(
                     &ObjectName::new(callable),
-                    &self.dispatch_argument_ids(&call_facts, knowledge),
+                    &self.dispatch_argument_ids(
+                        &call_facts,
+                        source.position_for_node(node),
+                        knowledge,
+                    ),
                     &call_facts.literal_options,
                 ) {
                     return self.inferred_external_type(return_type, knowledge);
@@ -517,6 +529,7 @@ impl TypeChecker<'_> {
             &operator,
             &[head, argument_type],
             &call_facts.literal_options,
+            source.position_for_node(node),
         )
     }
 
@@ -554,23 +567,30 @@ impl TypeChecker<'_> {
             return InferredType::unknown();
         };
         let operand_type = self.type_of(operand, source, scope_idx, knowledge);
-        self.dispatch_codomain(knowledge, &operator, &[operand_type], &[])
+        self.dispatch_codomain(
+            knowledge,
+            &operator,
+            &[operand_type],
+            &[],
+            source.position_for_node(node),
+        )
     }
 
     /// Dispatch `callable` on `args` through the M2 type table. A matched but
     /// undocumented codomain is `Thing` (≡ a null `typicalValue` under the
     /// lower-bound reading) — approximated by "the callable/operator resolves to
     /// a known object, so it dispatches"; an unidentifiable head stays `Unknown`.
-    pub(super) fn dispatch_codomain(
+    pub fn dispatch_codomain(
         &self,
         knowledge: &(impl TypeKnowledge + ?Sized),
         operator: &Operator,
         args: &[InferredType],
         options: &[LiteralOption],
+        position: Position,
     ) -> InferredType {
         if let Some(function) = self.registry.operator_functions.get(operator) {
             if let Some(return_type) =
-                self.resolve_local_call_return_type(function, args, pos_max!(), knowledge)
+                self.resolve_local_call_return_type(function, args, position, knowledge)
             {
                 return InferredType::from_id(return_type);
             }
@@ -579,7 +599,7 @@ impl TypeChecker<'_> {
             &operator.token,
             &args
                 .iter()
-                .map(|argument| self.dispatch_object_id(argument, knowledge))
+                .map(|argument| self.dispatch_object_id(argument, position, knowledge))
                 .collect::<Vec<_>>(),
             options,
         ) {
@@ -591,7 +611,7 @@ impl TypeChecker<'_> {
         InferredType::unknown()
     }
 
-    pub(super) fn infer_call_facts(
+    pub fn infer_call_facts(
         &self,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
@@ -677,7 +697,9 @@ impl TypeChecker<'_> {
         let matching_codomains = self
             .methods_for_at(function, position)
             .into_iter()
-            .filter(|signature| self.signature_matches(signature, argument_types, knowledge))
+            .filter(|signature| {
+                self.signature_matches(signature, argument_types, position, knowledge)
+            })
             .filter_map(|signature| signature.codomain.as_ref())
             .cloned()
             .collect::<HashSet<_>>();
@@ -689,7 +711,7 @@ impl TypeChecker<'_> {
         function.typical_value.clone()
     }
 
-    pub(super) fn local_call_parameter_names(
+    pub fn local_call_parameter_names(
         &self,
         function: &FunctionInfo,
         argument_types: &[InferredType],
@@ -709,7 +731,9 @@ impl TypeChecker<'_> {
                 let candidates = self
                     .methods_for_at(function, position)
                     .into_iter()
-                    .filter(|method| self.signature_matches(method, argument_types, knowledge))
+                    .filter(|method| {
+                        self.signature_matches(method, argument_types, position, knowledge)
+                    })
                     .collect::<Vec<_>>();
                 let dispatched = candidates
                     .iter()
@@ -719,6 +743,7 @@ impl TypeChecker<'_> {
                             self.method_domain_strictly_smaller(
                                 &other.domain,
                                 &candidate.domain,
+                                position,
                                 knowledge,
                             )
                         })
@@ -740,6 +765,7 @@ impl TypeChecker<'_> {
         &self,
         smaller: &[ObjectName],
         bigger: &[ObjectName],
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
         if smaller.len() != bigger.len() {
@@ -750,7 +776,7 @@ impl TypeChecker<'_> {
             if smaller == bigger {
                 continue;
             }
-            if !self.is_subtype(smaller, bigger, knowledge) {
+            if !self.is_subtype(smaller, bigger, position, knowledge) {
                 return false;
             }
             strict = true;
@@ -762,15 +788,17 @@ impl TypeChecker<'_> {
         &self,
         signature: &Method,
         argument_types: &[InferredType],
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
-        self.signature_matches_domain(&signature.domain, argument_types, knowledge)
+        self.signature_matches_domain(&signature.domain, argument_types, position, knowledge)
     }
 
     fn signature_matches_domain(
         &self,
         expected_domain: &[ObjectName],
         argument_types: &[InferredType],
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
         expected_domain.len() == argument_types.len()
@@ -778,37 +806,42 @@ impl TypeChecker<'_> {
                 .iter()
                 .zip(argument_types)
                 .all(|(expected, actual)| {
-                    actual
-                        .principal()
-                        .is_some_and(|actual| self.is_subtype(actual, expected, knowledge))
+                    actual.principal().is_some_and(|actual| {
+                        self.is_subtype(actual, expected, position, knowledge)
+                    })
                 })
     }
 
-    pub(super) fn is_subtype(
+    pub fn is_subtype(
         &self,
         actual: &ObjectName,
         expected: &ObjectName,
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
         let order = SourceTypeOrder {
             source: &self.registry.source_types,
             external: knowledge,
         };
-        self.resolve_type_id(actual, knowledge)
-            .zip(self.resolve_type_id(expected, knowledge))
+        self.resolve_type_id_at(actual, position, knowledge)
+            .zip(self.resolve_type_id_at(expected, position, knowledge))
             .is_some_and(|(actual, expected)| order.is_subtype_id(&actual, &expected))
     }
 
-    fn resolve_source_type_id(&self, name: &ObjectName) -> Option<TypeId> {
-        self.registry.source_types.by_name.get(name).cloned()
+    fn resolve_source_type_id(&self, name: &ObjectName, position: Position) -> Option<TypeId> {
+        self.get_binding_at(name.name(), position)?
+            .state
+            .source_type
+            .clone()
     }
 
-    pub(super) fn resolve_type_id(
+    pub fn resolve_type_id_at(
         &self,
         name: &ObjectName,
+        position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<TypeId> {
-        self.resolve_source_type_id(name)
+        self.resolve_source_type_id(name, position)
             .or_else(|| knowledge.resolve_type_id(name))
     }
 }

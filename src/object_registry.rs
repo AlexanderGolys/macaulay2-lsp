@@ -17,12 +17,10 @@ use tower_lsp::lsp_types::Position;
 pub struct ObjectName(pub String);
 
 impl ObjectName {
-    /// Construct a nominal lookup spelling.
     pub fn new(name: impl Into<String>) -> Self {
         Self(name.into())
     }
 
-    /// Borrow the spelling.
     pub fn name(&self) -> &str {
         &self.0
     }
@@ -111,12 +109,10 @@ impl Default for ObjectRegistry {
 }
 
 impl ObjectRegistry {
-    /// Build the shared catalog and a registry containing its default packages.
     pub fn load(corpus: &str) -> Self {
         Self::from_index(BuiltinIndex::load(corpus))
     }
 
-    /// Number of primary objects; aliases do not increase this count.
     pub fn len(&self) -> usize {
         let mut seen = HashSet::new();
         self.packages
@@ -127,7 +123,6 @@ impl ObjectRegistry {
             .sum()
     }
 
-    /// Build the shared catalog and load only the fresh-session package baseline.
     pub fn from_index(index: BuiltinIndex) -> Self {
         let option_facts = OptionFacts::from_records(index.records());
         let default_loaded = index.default_loaded_packages().to_vec();
@@ -172,18 +167,14 @@ impl ObjectRegistry {
         registry
     }
 
-    /// Add one catalogued package to this registry, preserving load order.
     pub fn load_package(&mut self, name: &ObjectName) -> bool {
         self.register_package(name, None)
     }
 
-    /// Register one package from the end of its source inclusion onward.
     pub fn load_package_at(&mut self, name: &ObjectName, position: Position) -> bool {
         self.register_package(name, Some(position))
     }
 
-    /// Derive one immutable document registry by recording its package
-    /// inclusions once in source order.
     pub fn with_imports(&self, imports: &[PackageImport]) -> Self {
         let mut registry = self.clone();
         for import in imports {
@@ -192,7 +183,6 @@ impl ObjectRegistry {
         registry
     }
 
-    /// Derive the range-aware registry for one test source.
     #[cfg(test)]
     pub fn with_source_imports(&self, text: &str) -> Self {
         self.with_imports(&collect_imported_packages(text))
@@ -216,13 +206,11 @@ impl ObjectRegistry {
         true
     }
 
-    /// Resolve a loaded package's visible name to its package object identity.
     #[cfg(test)]
     pub fn package_id(&self, name: &ObjectName) -> Option<&ObjectId> {
         self.package_id_at(name, pos_max!())
     }
 
-    /// Resolve a package loaded at `position`.
     #[cfg(test)]
     pub fn package_id_at(&self, name: &ObjectName, position: Position) -> Option<&ObjectId> {
         let package = self.catalog.packages_by_name.get(name)?;
@@ -235,27 +223,20 @@ impl ObjectRegistry {
             .map(|registration| &registration.package)
     }
 
-    /// Borrow the visible name of a catalogued package object.
     pub fn package_name(&self, package: &ObjectId) -> Option<&str> {
         self.object(package).map(|record| record.name.name())
     }
 
-    /// Packages loaded by a fresh Macaulay2 session.
     #[cfg(test)]
     pub fn default_loaded(&self) -> &[String] {
         &self.catalog.default_loaded
     }
 
-    /// Iterate over loaded records with the most recently loaded package first.
-    pub(crate) fn records_by_precedence(&self) -> impl Iterator<Item = &Record> {
+    pub fn records_by_precedence(&self) -> impl Iterator<Item = &Record> {
         self.records_by_precedence_at(pos_max!())
     }
 
-    /// Iterate over records visible at `position`, latest package first.
-    pub(crate) fn records_by_precedence_at(
-        &self,
-        position: Position,
-    ) -> impl Iterator<Item = &Record> {
+    pub fn records_by_precedence_at(&self, position: Position) -> impl Iterator<Item = &Record> {
         let mut seen = HashSet::new();
         self.packages
             .iter()
@@ -267,25 +248,22 @@ impl ObjectRegistry {
             .filter_map(|object| self.catalog.index.object(object))
     }
 
-    /// Borrow reverse option facts computed once from the complete corpus.
     pub fn option_facts(&self) -> &OptionFacts {
         &self.catalog.option_facts
     }
 
-    pub(crate) fn package_objects(&self, package: &ObjectId) -> Option<&PackageObjects> {
+    pub fn package_objects(&self, package: &ObjectId) -> Option<&PackageObjects> {
         self.catalog.packages.get(package)
     }
 
-    pub(crate) fn catalog_package_id(&self, name: &ObjectName) -> Option<&ObjectId> {
+    pub fn catalog_package_id(&self, name: &ObjectName) -> Option<&ObjectId> {
         self.catalog.packages_by_name.get(name)
     }
 
-    /// Borrow every catalogued record for package-addressed static metadata.
-    pub(crate) fn catalog_records(&self) -> &[Record] {
+    pub fn catalog_records(&self) -> &[Record] {
         self.catalog.index.records()
     }
 
-    /// Borrow the registry state visible at one source position.
     pub fn at(&self, position: Position) -> ObjectRegistryView<'_> {
         ObjectRegistryView {
             registry: self,
@@ -302,25 +280,19 @@ impl PackageRegistration {
 }
 
 impl ObjectRegistryView<'_> {
-    /// Iterate records visible here with the latest package inclusion first.
-    pub(crate) fn records_by_precedence(&self) -> impl Iterator<Item = &Record> {
+    pub fn records_by_precedence(&self) -> impl Iterator<Item = &Record> {
         self.registry.records_by_precedence_at(self.position)
     }
 
-    /// Borrow the source-visible package name for an internal package identity.
-    pub(crate) fn package_name(&self, package: &ObjectId) -> Option<&str> {
+    pub fn package_name(&self, package: &ObjectId) -> Option<&str> {
         self.registry.package_name(package)
     }
 
-    /// Borrow corpus-wide option relationships; visibility is applied by the
-    /// caller through this view's name resolution.
-    pub(crate) fn option_facts(&self) -> &OptionFacts {
+    pub fn option_facts(&self) -> &OptionFacts {
         self.registry.option_facts()
     }
 
-    /// Whether `name` resolves through a package inclusion later than a source
-    /// definition at `source_position`.
-    pub(crate) fn shadows_source(&self, name: &ObjectName, source_position: Position) -> bool {
+    pub fn shadows_source(&self, name: &ObjectName, source_position: Position) -> bool {
         self.registry
             .registration_for_name_at(name, self.position)
             .and_then(|(_, effective_from)| effective_from)
@@ -337,12 +309,10 @@ impl ObjectRegistryView<'_> {
 pub struct ObjectId(ObjectName);
 
 impl ObjectId {
-    /// Construct an identity from a canonical symbol spelling.
     pub fn new(name: impl Into<String>) -> Self {
         Self(ObjectName(name.into()))
     }
 
-    /// Return the canonical symbol spelling.
     pub fn name(&self) -> &str {
         self.0.name()
     }
@@ -356,18 +326,24 @@ impl Borrow<ObjectName> for ObjectId {
 
 /// Identity of an object known to be a Macaulay2 type.
 ///
-/// Construction stays inside the registry so arbitrary objects cannot be used
-/// as type-order elements.
+/// Indexed identities require registry validation; source identities require a
+/// validated parent and the reserved source namespace.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeId(ObjectId);
 
 impl TypeId {
-    /// Construct a type identity after the registry has classified the object.
-    pub fn from_object(object: ObjectId) -> Self {
+    fn from_validated_object(object: ObjectId) -> Self {
         Self(object)
     }
 
-    /// Return this type's identity in the complete object population.
+    pub fn from_source_type(object: ObjectId, _parent: &TypeId) -> Self {
+        assert!(
+            object.name().starts_with("$Source$"),
+            "source type identities must use the reserved source namespace"
+        );
+        Self(object)
+    }
+
     pub fn object(&self) -> &ObjectId {
         &self.0
     }
@@ -376,15 +352,13 @@ impl TypeId {
 /// Direct parent edge of one registered Macaulay2 type.
 #[derive(Debug, Clone)]
 pub struct TypeData {
-    pub parent: TypeId,
+    pub parent: Option<TypeId>,
 }
 
 /// Direct parent access required to navigate the type partial order.
 pub trait TypeStore {
-    /// Return the mandatory parent of `type_id`.
     fn parent_type_id(&self, type_id: &TypeId) -> Option<TypeId>;
 
-    /// Whether `child` is below `parent` in this type store.
     fn is_subtype_id(&self, child: &TypeId, parent: &TypeId) -> bool {
         let mut current = child.clone();
         let mut visited = HashSet::new();
@@ -408,31 +382,25 @@ pub trait TypeStore {
 
 /// Identity and record lookup shared by every semantic object source.
 pub trait ObjectKnowledge: TypeStore {
-    /// Borrow the object with `object_id`.
     fn object(&self, object_id: &ObjectId) -> Option<&Record>;
 
-    /// Resolve a canonical name or alias to its object identity.
     fn resolve_object(&self, name: &ObjectName) -> Option<ObjectId>;
 
-    /// Resolve a canonical name or alias to its object record.
     fn get_record(&self, name: &ObjectName) -> Option<&Record> {
         let object = self.resolve_object(name)?;
         self.object(&object)
     }
 
-    /// Resolve a nominal type reference to its validated type identity.
     fn resolve_type_id(&self, name: &ObjectName) -> Option<TypeId> {
         let object = self.resolve_object(name)?;
         self.type_id(&object)
     }
 
-    /// Refine a general object identity after verifying that it is a type.
     fn type_id(&self, object: &ObjectId) -> Option<TypeId> {
         self.object(object)?.type_info()?;
-        Some(TypeId::from_object(object.clone()))
+        Some(TypeId::from_validated_object(object.clone()))
     }
 
-    /// Borrow the display name of a validated type identity.
     fn type_name(&self, type_id: &TypeId) -> Option<&ObjectName> {
         let record = self.object(type_id.object())?;
         record.type_info()?;
@@ -441,24 +409,19 @@ pub trait ObjectKnowledge: TypeStore {
 }
 
 impl ObjectRegistry {
-    /// Borrow the record named by `name`, resolving aliases through the canonical
-    /// names of loaded packages.
     pub fn get_record(&self, name: &ObjectName) -> Option<&Record> {
         let object = self.object_id(name)?;
         self.object(&object)
     }
 
-    /// Borrow one canonical object by its opaque identity.
     pub fn object(&self, object_id: &ObjectId) -> Option<&Record> {
         self.catalog.index.object(object_id)
     }
 
-    /// Resolve a canonical name or alias in loaded-package order.
     pub fn object_id(&self, name: &ObjectName) -> Option<ObjectId> {
         self.object_id_at(name, pos_max!())
     }
 
-    /// Resolve a name or alias using registrations effective at `position`.
     pub fn object_id_at(&self, name: &ObjectName, position: Position) -> Option<ObjectId> {
         self.registration_for_name_at(name, position)
             .map(|(object, _)| object)
@@ -482,6 +445,13 @@ impl ObjectRegistry {
                 .cloned()?;
             Some((object, registration.effective_from))
         })
+    }
+}
+
+impl BuiltinIndex {
+    pub fn type_id(&self, object: &ObjectId) -> Option<TypeId> {
+        self.object(object)?.type_info()?;
+        Some(TypeId::from_validated_object(object.clone()))
     }
 }
 
@@ -509,7 +479,7 @@ impl TypeStore for ObjectRegistry {
     fn parent_type_id(&self, type_id: &TypeId) -> Option<TypeId> {
         self.object(type_id.object())?
             .type_info()
-            .map(|data| data.parent.clone())
+            .and_then(|data| data.parent.clone())
     }
 }
 
@@ -517,7 +487,7 @@ impl TypeStore for ObjectRegistryView<'_> {
     fn parent_type_id(&self, type_id: &TypeId) -> Option<TypeId> {
         self.object(type_id.object())?
             .type_info()
-            .map(|data| data.parent.clone())
+            .and_then(|data| data.parent.clone())
     }
 }
 
@@ -634,5 +604,33 @@ mod tests {
         let registry = ObjectRegistry::load(corpus());
         let scoped = registry.with_source_imports("needsPackage \"NoSuchPkg\"");
         assert!(scoped.get_record(&ObjectName::new("ZZ")).is_some());
+    }
+
+    #[test]
+    fn partial_corpus_registers_qualified_placeholder_packages() {
+        let corpus = concat!(
+            r#"{"kind":"meta","default_loaded":["Core"]}"#,
+            "\n",
+            r#"{"kind":"function","name":"f","package":"$Core$Core","methods":[{"domain":["$Foo$T"]}]}"#,
+        );
+        let registry = ObjectRegistry::load(corpus);
+        let imported = registry.with_source_imports("needsPackage \"Foo\"");
+
+        assert!(imported.package_id(&ObjectName::new("Foo")).is_some());
+        assert!(imported.get_record(&ObjectName::new("T")).is_some());
+    }
+
+    #[test]
+    fn unresolved_bare_placeholders_are_not_exported_from_core() {
+        let corpus = concat!(
+            r#"{"kind":"meta","default_loaded":["Core"]}"#,
+            "\n",
+            r#"{"kind":"function","name":"f","package":"$Core$Core","methods":[{"domain":["MissingType"]}]}"#,
+        );
+        let registry = ObjectRegistry::load(corpus);
+
+        assert!(registry
+            .get_record(&ObjectName::new("MissingType"))
+            .is_none());
     }
 }

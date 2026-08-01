@@ -8,7 +8,7 @@ use crate::capabilities::formatting::{ControlFlowLayout, FormattingConfiguration
 use crate::diagnostic_registry::{DiagnosticKind, DiagnosticPolicy};
 
 #[derive(Debug)]
-pub(crate) struct SettingsStore<T> {
+pub struct SettingsStore<T> {
     current: RwLock<T>,
 }
 
@@ -21,7 +21,7 @@ impl<T: Default> Default for SettingsStore<T> {
 }
 
 impl<T: Clone> SettingsStore<T> {
-    pub(crate) fn snapshot(&self) -> T {
+    pub fn snapshot(&self) -> T {
         self.current
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -30,7 +30,7 @@ impl<T: Clone> SettingsStore<T> {
 }
 
 impl<T> SettingsStore<T> {
-    pub(crate) fn replace(&self, value: T) -> T {
+    pub fn replace(&self, value: T) -> T {
         std::mem::replace(
             &mut self
                 .current
@@ -43,14 +43,14 @@ impl<T> SettingsStore<T> {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub(crate) struct ServerSettings {
+pub struct ServerSettings {
     diagnostics: DiagnosticSettings,
     formatting: FormattingSettings,
     inlay_hints: InlayHintSettings,
 }
 
 impl ServerSettings {
-    pub(crate) fn from_value(value: &Value) -> serde_json::Result<Self> {
+    pub fn from_value(value: &Value) -> serde_json::Result<Self> {
         let settings = value
             .get("m2-ls")
             .or_else(|| value.get("macaulay2"))
@@ -58,26 +58,26 @@ impl ServerSettings {
         serde_json::from_value(settings.clone())
     }
 
-    pub(crate) fn diagnostics(&self) -> &DiagnosticSettings {
+    pub fn diagnostics(&self) -> &DiagnosticSettings {
         &self.diagnostics
     }
 
-    pub(crate) fn formatting(&self) -> &FormattingSettings {
+    pub fn formatting(&self) -> &FormattingSettings {
         &self.formatting
     }
 
-    pub(crate) fn inlay_hints(&self) -> &InlayHintSettings {
+    pub fn inlay_hints(&self) -> &InlayHintSettings {
         &self.inlay_hints
     }
 
-    pub(crate) fn expression_type_hints(&self) -> bool {
+    pub fn expression_type_hints(&self) -> bool {
         self.inlay_hints.expression_types
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub(crate) struct DiagnosticSettings {
+pub struct DiagnosticSettings {
     enabled: bool,
     #[serde(deserialize_with = "deserialize_diagnostic_set")]
     disabled: HashSet<DiagnosticKind>,
@@ -100,7 +100,7 @@ impl DiagnosticPolicy for DiagnosticSettings {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub(crate) struct FormattingSettings {
+pub struct FormattingSettings {
     indent_width: Option<u32>,
     use_tabs: Option<bool>,
     soft_line_width: Option<u32>,
@@ -180,7 +180,7 @@ impl FormattingConfiguration for FormattingSettings {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub(crate) struct InlayHintSettings {
+pub struct InlayHintSettings {
     expression_types: bool,
 }
 

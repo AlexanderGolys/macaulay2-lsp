@@ -11,25 +11,25 @@ use tower_lsp::lsp_types::{Position, Range as TextRange, TypeHierarchyItem, Url}
 
 use crate::builtin_index::Record;
 use crate::document::DocumentSnapshot;
-use crate::object_registry::{ObjectName, TypeId};
+use crate::object_registry::ObjectName;
 use crate::package_index::SourceResolver;
 use crate::record_lsp::record_symbol_kind;
 use crate::record_lsp::{LspKnowledge, PartitionedTypeKnowledge};
 use crate::source::SourceNavigation;
 
-pub(crate) const TYPE_HIERARCHY_METHOD: &str = "textDocument/prepareTypeHierarchy";
+pub const TYPE_HIERARCHY_METHOD: &str = "textDocument/prepareTypeHierarchy";
 
 /// The static-metadata side of type hierarchy: resolve a record by name,
 /// walk its parent/subtype edges, and materialize `TypeHierarchyItem`s. Born
 /// out of the `Backend` handlers — kept here so `main.rs` only wires LSP
 /// requests to thin shims, matching the other capability modules.
-pub(crate) struct TypeHierarchyContext<'a, K: ?Sized> {
+pub struct TypeHierarchyContext<'a, K: ?Sized> {
     knowledge: &'a K,
     source_resolver: &'a SourceResolver,
 }
 
 impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
-    pub(crate) fn new(knowledge: &'a K, source_resolver: &'a SourceResolver) -> Self {
+    pub fn new(knowledge: &'a K, source_resolver: &'a SourceResolver) -> Self {
         Self {
             knowledge,
             source_resolver,
@@ -40,7 +40,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
     /// symbol names a top-level type/class record in scope. The caller owns
     /// the document guard lookup and constructs the scoped knowledge view;
     /// everything past the snapshot lives here.
-    pub(crate) fn prepare(
+    pub fn prepare(
         &self,
         document: &DocumentSnapshot,
         scoped: &(impl LspKnowledge + ?Sized),
@@ -66,14 +66,14 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
     /// can resolve it (preferring the originating package, falling back to Core).
     /// A record with no resolvable parent yields an empty vec (rather than
     /// `None`, which the LSP treats as "no supertypes response at all").
-    pub(crate) fn supertypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
+    pub fn supertypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
         let package = Self::package_of(item);
         let (_, record) = self.record(package, &item.name)?;
 
         // Empty parent (no parent, self-parent, or unresolved edge) → empty
         // vec, not `None`.
         let resolved = (|| {
-            let parent = &record.type_info()?.parent;
+            let parent = record.type_info()?.parent.as_ref()?;
             if parent.object() == &record.id {
                 return None;
             }
@@ -85,11 +85,11 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
 
     /// Every resolved subtype item of the originating item's record (skipping
     /// self-edges and unresolved names).
-    pub(crate) fn subtypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
+    pub fn subtypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
         let package = Self::package_of(item);
         let (_, record) = self.record(package, &item.name)?;
 
-        let type_id = TypeId::from_object(record.id.clone());
+        let type_id = self.knowledge.type_id(&record.id)?;
         Some(
             self.knowledge
                 .direct_subtypes(&type_id)
@@ -143,9 +143,11 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
         let detail = record
             .type_info()
             .and_then(|type_info| {
-                (type_info.parent.object() != &record.id)
-                    .then(|| self.knowledge.get_type_by_id(&type_info.parent))
-                    .flatten()
+                type_info
+                    .parent
+                    .as_ref()
+                    .filter(|parent| parent.object() != &record.id)
+                    .and_then(|parent| self.knowledge.get_type_by_id(parent))
             })
             .map(|(_, parent)| format!("Parent: {}", parent.name));
 
@@ -166,12 +168,12 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
 }
 
 #[derive(Debug)]
-pub(crate) struct TypeHierarchyCapabilityService<S> {
+pub struct TypeHierarchyCapabilityService<S> {
     inner: S,
 }
 
 impl<S> TypeHierarchyCapabilityService<S> {
-    pub(crate) fn new(inner: S) -> Self {
+    pub fn new(inner: S) -> Self {
         Self { inner }
     }
 }
@@ -210,7 +212,7 @@ where
 /// Whether the client's `initialize` params advertise dynamic registration for
 /// type hierarchy. When false (or absent), the server must declare the
 /// capability statically in its `InitializeResult` instead.
-pub(crate) fn request_type_hierarchy_dynamic_registration(params: Option<&Value>) -> bool {
+pub fn request_type_hierarchy_dynamic_registration(params: Option<&Value>) -> bool {
     params
         .and_then(|params| params.get("capabilities"))
         .and_then(|capabilities| capabilities.get("textDocument"))
@@ -223,7 +225,7 @@ pub(crate) fn request_type_hierarchy_dynamic_registration(params: Option<&Value>
 /// Inject `typeHierarchyProvider: true` into a successful `initialize` response.
 /// Used when the client does not support dynamic registration, so the capability
 /// is advertised statically (tower-lsp has no typed field for it).
-pub(crate) fn advertise_type_hierarchy_capability(response: Response) -> Response {
+pub fn advertise_type_hierarchy_capability(response: Response) -> Response {
     if !response.is_ok() {
         return response;
     }

@@ -35,7 +35,7 @@ impl<T: WorkspaceSymbolKnowledge + ?Sized> WorkspaceSymbolKnowledge for Arc<T> {
     }
 }
 
-pub(crate) trait WorkspaceDefinitionKnowledge {
+pub trait WorkspaceDefinitionKnowledge {
     fn lookup(&self, name: &str, exclude: &Url) -> Vec<Location>;
     fn is_defined(&self, name: &str) -> bool;
     fn semantic_token_type(&self, name: &str, exclude: &Url) -> Option<M2SemanticTokenType>;
@@ -59,7 +59,7 @@ impl<T: WorkspaceDefinitionKnowledge + ?Sized> WorkspaceDefinitionKnowledge for 
 /// on-disk changes. Open documents are indexed from their live text; unopened
 /// files from disk.
 #[derive(Debug, Default)]
-pub(crate) struct WorkspaceIndex {
+pub struct WorkspaceIndex {
     definitions_by_name: DashMap<ObjectName, Vec<DefLocation>>,
     names_by_file: DashMap<Url, Vec<ObjectName>>,
     symbols_by_file: DashMap<Url, Vec<WorkspaceSourceSymbol>>,
@@ -67,7 +67,7 @@ pub(crate) struct WorkspaceIndex {
 }
 
 impl WorkspaceIndex {
-    pub(crate) fn set_roots(&self, roots: Vec<PathBuf>) {
+    pub fn set_roots(&self, roots: Vec<PathBuf>) {
         *self.roots.write().expect("workspace roots lock poisoned") = roots;
     }
 
@@ -80,7 +80,7 @@ impl WorkspaceIndex {
 
     /// Walk every root and index all `.m2` files found. Intended to run off the
     /// request path (e.g. `spawn_blocking`) since it touches the filesystem.
-    pub(crate) fn scan(&self, knowledge_provider: &ObjectRegistry) {
+    pub fn scan(&self, knowledge_provider: &ObjectRegistry) {
         for root in self.roots() {
             let mut files = Vec::new();
             collect_m2_files(&root, &mut files);
@@ -100,7 +100,7 @@ impl WorkspaceIndex {
     }
 
     /// Replace the definitions recorded for `uri` with those parsed from `text`.
-    pub(crate) fn index_file(&self, uri: &Url, text: &str, knowledge_provider: &ObjectRegistry) {
+    pub fn index_file(&self, uri: &Url, text: &str, knowledge_provider: &ObjectRegistry) {
         self.remove_file(uri);
         let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), knowledge_provider)
         else {
@@ -130,7 +130,7 @@ impl WorkspaceIndex {
         self.names_by_file.insert(uri.clone(), names);
     }
 
-    pub(crate) fn remove_file(&self, uri: &Url) {
+    pub fn remove_file(&self, uri: &Url) {
         self.symbols_by_file.remove(uri);
         let Some((_, names)) = self.names_by_file.remove(uri) else {
             return;
@@ -150,7 +150,7 @@ impl WorkspaceIndex {
 
     /// Every `.m2` file under the project roots, as URIs. Walks the filesystem,
     /// so callers should keep it off the hot path.
-    pub(crate) fn workspace_file_uris(&self) -> Vec<Url> {
+    pub fn workspace_file_uris(&self) -> Vec<Url> {
         let mut uris = Vec::new();
         for root in self.roots() {
             let mut files = Vec::new();

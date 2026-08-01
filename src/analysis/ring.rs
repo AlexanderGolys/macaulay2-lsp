@@ -5,7 +5,7 @@ use super::*;
 
 /// Runtime binding shape produced for a ring generator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum RingGeneratorKind {
+pub enum RingGeneratorKind {
     Direct,
     IndexedTable,
 }
@@ -20,17 +20,17 @@ struct RingGeneratorBinding<'tree> {
 
 /// Compact reference retained for later ring-generator rebinding.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct RingGenerator {
+pub struct RingGenerator {
     name: ObjectName,
     kind: RingGeneratorKind,
 }
 
 /// Hardcoded static semantics that supplement indexed ring dispatch facts.
-pub(super) struct RingSemantics;
+pub struct RingSemantics;
 
 impl RingSemantics {
     /// Return the instance parent introduced by a source-defined ring value.
-    pub(super) fn value_parent(
+    pub fn value_parent(
         type_name: Option<&ObjectName>,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<ObjectName> {
@@ -41,11 +41,12 @@ impl RingSemantics {
 }
 
 impl Analysis {
-    pub(super) fn collect_ring_generator_bindings(
+    pub fn collect_ring_generator_bindings(
         &mut self,
         ring_name: &str,
         expression: M2Node,
         rebind_node: M2Node,
+        scope_idx: usize,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
@@ -56,7 +57,7 @@ impl Analysis {
                 let head = node.child_by_field_name("left")?;
                 let variables = RingGeneratorBinding::constructor_variables(node)?;
                 TypeChecker::new(self)
-                    .type_of(head, source, 0, knowledge)
+                    .type_of(head, source, scope_idx, knowledge)
                     .principal()
                     .is_some_and(|head_type| knowledge.has_type_role(head_type, TypeRole::Ring))
                     .then_some(variables)
@@ -366,7 +367,7 @@ impl<'tree> RingGeneratorBinding<'tree> {
 
 impl TypeChecker<'_> {
     /// Infer the ring-specific indexed-variable and quotient operator cases.
-    pub(super) fn ring_operator_type(
+    pub fn ring_operator_type(
         &self,
         query: OperatorTypeQuery<'_>,
         left_name: &ObjectName,
@@ -435,7 +436,7 @@ impl TypeChecker<'_> {
             self.visible_source_binding_from_scope(name, scope_idx, position, knowledge)
         else {
             let name = ObjectName::new(name);
-            self.resolve_type_id(&name, knowledge)?;
+            self.resolve_type_id_at(&name, position, knowledge)?;
             return Some(name);
         };
         if !visited.insert(binding.binding_id) {
@@ -470,7 +471,7 @@ impl TypeChecker<'_> {
         (binding.scope_idx == 0
             && self.expression_introduces_ring_identity(value, source, value_scope_idx, knowledge))
         .then(|| binding.name.clone())
-        .filter(|name| self.resolve_type_id(name, knowledge).is_some())
+        .filter(|_| binding.state.source_type.is_some())
     }
 
     fn expression_introduces_ring_identity(
@@ -503,7 +504,7 @@ impl TypeChecker<'_> {
     /// constructs `R[x]` before applying `/ I`. Preserve the parser's grouping,
     /// but lower that one type-directed application chain through the same
     /// dispatch table used for ordinary operators.
-    pub(super) fn ring_application_with_trailing_operator_type(
+    pub fn ring_application_with_trailing_operator_type(
         &self,
         application_operator: &Operator,
         head: &InferredType,
@@ -530,6 +531,7 @@ impl TypeChecker<'_> {
             application_operator,
             &[head.clone(), variables_type],
             &[],
+            source.position_for_node(argument),
         );
         let ring_name = ring_type.principal()?;
         if !knowledge.has_type_role(ring_name, TypeRole::Ring) {
@@ -540,8 +542,12 @@ impl TypeChecker<'_> {
         let result = knowledge.resolve_call_return_type_with_options(
             &ObjectName::new(operator),
             &[
-                self.dispatch_object_id(&ring_type, knowledge),
-                self.dispatch_object_id(&trailing_type, knowledge),
+                self.dispatch_object_id(&ring_type, source.position_for_node(argument), knowledge),
+                self.dispatch_object_id(
+                    &trailing_type,
+                    source.position_for_node(argument),
+                    knowledge,
+                ),
             ],
             &[],
         )?;
