@@ -24,6 +24,7 @@ pub(crate) fn inlay_hints_response(
 ) -> Vec<InlayHint> {
     let binding_hints = binding_type_hints(document, &range, knowledge);
     let mut hints = binding_hints.clone();
+    hints.extend(lambda_return_type_hints(document, &range, knowledge));
 
     if expression_types {
         hints.extend(expression_type_hints(
@@ -53,6 +54,47 @@ pub(crate) fn inlay_hints_response(
     });
 
     hints
+}
+
+fn lambda_return_type_hints(
+    document: &DocumentSnapshot,
+    range: &TextRange,
+    knowledge: &ObjectRegistry,
+) -> Vec<InlayHint> {
+    let analysis = document.analysis();
+    document
+        .root_node()
+        .descendants()
+        .filter_map(|node| match node.kind {
+            NodeKind::ReturnStatement => {
+                let value = node.named_children().next()?;
+                let view = knowledge.at(document.position_for_node(value));
+                analysis.control_transfer_target(node, document, &view)?;
+                Some(value)
+            }
+            NodeKind::LambdaExpression => lambda_final_value(node),
+            _ => None,
+        })
+        .filter(|value| !is_self_describing_value(*value))
+        .filter_map(|value| {
+            let value_range = document.range_for_node(value);
+            if !position_in_range(value_range.end, *range) {
+                return None;
+            }
+            let view = knowledge.at(value_range.start);
+            let type_name =
+                inlay_type_label(analysis.infer_expression_type_label(value, document, &view)?);
+            (type_name != "Thing").then(|| type_hint(value_range.end, &type_name))
+        })
+        .collect()
+}
+
+fn lambda_final_value(lambda: M2Node<'_>) -> Option<M2Node<'_>> {
+    let mut value = lambda.child_by_field_name("body")?;
+    while value.kind == NodeKind::ParenthesizedExpression {
+        value = value.final_value_child()?;
+    }
+    (value.kind != NodeKind::ReturnStatement).then_some(value)
 }
 
 fn label_text(label: &InlayHintLabel) -> &str {
@@ -412,6 +454,7 @@ fn is_self_describing_value(node: M2Node<'_>) -> bool {
     let node = parenthesized_value(node);
     node.kind.is_literal()
         || node.kind.is_nothing_value()
+        || (node.kind == NodeKind::Symbol && matches!(node.text(), "true" | "false" | "null"))
         || node.kind == NodeKind::LambdaExpression
         || node.kind == NodeKind::NewStatement
         || (node.kind.is_collection_expression()
@@ -463,10 +506,20 @@ mod tests {
         assert_eq!(labels(&computed), vec!["ZZ".to_string()]);
         assert_eq!(computed[0].position, Position::new(0, 1));
 
-        let self_describing =
-            "x = 1\nx = (2)\nx = [1]\nf = x -> x\ny = new MutableList from {1, 2}\n";
-        assert!(hints(self_describing, false).is_empty());
-        assert!(hints(self_describing, true).is_empty());
+        let self_describing = concat!(
+            "x = 1\n",
+            "x = (2)\n",
+            "x = [1]\n",
+            "f = x -> x\n",
+            "y = new MutableList from {1, 2}\n",
+            "truth = true\n",
+            "falsity = false\n",
+            "nothing = null\n",
+        );
+        let calm = hints(self_describing, false);
+        assert!(calm.is_empty(), "got {calm:?}");
+        let verbose = hints(self_describing, true);
+        assert!(verbose.is_empty(), "got {:?}", labels(&verbose));
     }
 
     #[test]

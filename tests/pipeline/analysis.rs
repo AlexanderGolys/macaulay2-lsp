@@ -963,6 +963,43 @@ async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
 }
 
 #[tokio::test]
+async fn lambda_return_values_receive_nontrivial_type_hints() {
+    let source = concat!(
+        "direct = x -> toList x\n",
+        "scoped = x -> (ignored := x; toList x)\n",
+        "explicit = x -> (return toList x;)\n",
+        "literal = x -> 1\n",
+        "constructed = x -> new MutableList from {}\n",
+        "explicitLiteral = x -> (return 1;)\n",
+        "explicitConstructed = x -> (return new MutableList from {};)\n",
+        "boolean = x -> true\n",
+        "nothing = x -> null\n",
+        "explicitBoolean = x -> (return false;)\n",
+        "explicitNothing = x -> (return null;)\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    session.set_expression_type_hints(false).await;
+    let type_hints = inlay_hints(&mut session)
+        .await
+        .into_iter()
+        .filter(|hint| hint["kind"] == 1)
+        .map(|hint| {
+            (
+                hint["position"]["line"].as_u64().expect("hint line"),
+                hint["label"].as_str().expect("hint label").to_string(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        type_hints,
+        [(0, "List".into()), (1, "List".into()), (2, "List".into())]
+    );
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn trivial_parallel_assignments_hint_each_target_occurrence() {
     let mut session = DocumentSession::open("(x, x) := (1, 3)\n").await;
     session.set_expression_type_hints(false).await;
@@ -1247,6 +1284,18 @@ async fn algebraic_runtime_types_and_generator_rebinding_reach_hover() {
     let hints = inlay_labels_by_line(&mut session).await;
     assert!(hints.contains(&(3, "RingElement".to_string())));
     assert!(hints.contains(&(4, "Ideal".to_string())));
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn numeric_literal_promotion_preserves_the_ring_element_type() {
+    let mut session =
+        DocumentSession::open("S = QQ[x]\na := 1_S\nb := 2_(S)\nq := 3_QQ\na\nb\nq\n").await;
+
+    for (line, expected) in [(4, "S"), (5, "S"), (6, "QQ")] {
+        assert_eq!(hover_type_at(&mut session, line, 0).await, expected);
+    }
 
     session.shutdown().await;
 }

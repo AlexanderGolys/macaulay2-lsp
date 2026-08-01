@@ -373,6 +373,21 @@ impl TypeChecker<'_> {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
+        if query.operator == "_"
+            && matches!(
+                query.left.kind,
+                NodeKind::IntegerLiteral | NodeKind::FloatLiteral
+            )
+        {
+            let ring = parenthesized_value(query.right?)?;
+            let ring_type = self.type_of(ring, source, query.scope_idx, knowledge);
+            if knowledge.has_type_role(ring_type.principal()?, TypeRole::Ring) {
+                let element_type = ObjectName::new(symbol_node_text(ring)?);
+                self.resolve_type_id(&element_type, knowledge)?;
+                return Some(InferredType::from_id(element_type));
+            }
+        }
+
         if query.operator == "_" && left_name.as_ref() == "IndexedVariableTable" {
             if let Some(element_type) = self
                 .get_binding_from_scope(
