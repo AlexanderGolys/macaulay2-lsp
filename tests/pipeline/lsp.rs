@@ -2,11 +2,59 @@
 
 use std::env;
 
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::support::{document_position, position, response_array, LspProcess, TestWorkspace};
 
 const SOURCE: &str = include_str!("../fixtures/capability_spectrum.m2");
+
+async fn code_actions_at(
+    server: &mut LspProcess,
+    uri: &str,
+    needle: &str,
+    diagnostics: &[Value],
+) -> Value {
+    let position = position(SOURCE, needle, 0);
+    server
+        .request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": {"uri": uri},
+                "range": {
+                    "start": position.clone(),
+                    "end": position
+                },
+                "context": {
+                    "diagnostics": diagnostics
+                }
+            }),
+        )
+        .await
+}
+
+fn action_replacement<'actions>(
+    actions: &'actions Value,
+    title: &str,
+    uri: &str,
+) -> Option<&'actions str> {
+    actions
+        .as_array()?
+        .iter()
+        .find(|action| action["title"] == title)?["edit"]["changes"]
+        .get(uri)?
+        .as_array()?
+        .first()?["newText"]
+        .as_str()
+}
+
+fn action_titles(actions: &Value) -> Vec<&str> {
+    actions
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|action| action["title"].as_str())
+        .collect()
+}
 
 #[tokio::test]
 async fn workspace_symbols_include_reassignments_and_exclude_function_body_bindings() {
@@ -155,7 +203,7 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
         .wait_for_notification("textDocument/publishDiagnostics")
         .await;
     assert_eq!(diagnostics["params"]["uri"], workspace.uri);
-    assert!(diagnostics["params"]["diagnostics"].is_array());
+    let document_diagnostics = response_array(&diagnostics["params"]["diagnostics"]).to_vec();
     server
         .notify(
             "textDocument/didOpen",
@@ -177,7 +225,7 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
     let hover = server
         .request(
             "textDocument/hover",
-            document_position(&workspace.uri, position(SOURCE, "toJSON", 0)),
+            document_position(&workspace.uri, position(SOURCE, "toJSON", 2)),
         )
         .await;
     assert!(
@@ -186,6 +234,34 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
             .is_some_and(|markdown| markdown.contains("Package: `JSON`")),
         "imported package hover should survive the entire server pipeline: {hover}"
     );
+    for occurrence in [1, 5] {
+        let source_hover = server
+            .request(
+                "textDocument/hover",
+                document_position(&workspace.uri, position(SOURCE, "toJSON", occurrence)),
+            )
+            .await;
+        assert!(
+            source_hover["contents"]["value"]
+                .as_str()
+                .is_some_and(|markdown| markdown.contains("User-defined")),
+            "source definitions should own toJSON before the import and after the later redefinition: {source_hover}"
+        );
+    }
+    for (occurrence, expected_type) in [(1, "String"), (3, "ZZ")] {
+        let reassigned_hover = server
+            .request(
+                "textDocument/hover",
+                document_position(&workspace.uri, position(SOURCE, "reassigned", occurrence)),
+            )
+            .await;
+        assert!(
+            reassigned_hover["contents"]["value"]
+                .as_str()
+                .is_some_and(|markdown| markdown.contains(&format!("Type: `{expected_type}`"))),
+            "reassignment types should be source ordered: {reassigned_hover}"
+        );
+    }
     let unimported_hover = server
         .request(
             "textDocument/hover",
@@ -203,8 +279,8 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
             document_position(
                 &workspace.uri,
                 json!({
-                    "line": position(SOURCE, "toJ", 1)["line"],
-                    "character": position(SOURCE, "toJ", 1)["character"]
+                    "line": position(SOURCE, "toJ\n", 0)["line"],
+                    "character": position(SOURCE, "toJ\n", 0)["character"]
                         .as_u64()
                         .expect("the fixture position should be numeric")
                         + 3
@@ -225,11 +301,11 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
             document_position(
                 &workspace.uri,
                 json!({
-                    "line": position(SOURCE, "result", 1)["line"],
-                    "character": position(SOURCE, "result", 1)["character"]
+                    "line": position(SOURCE, "toJSON(result)", 0)["line"],
+                    "character": position(SOURCE, "toJSON(result)", 0)["character"]
                         .as_u64()
                         .expect("the fixture position should be numeric")
-                        + 2
+                        + 9
                 }),
             ),
         )
@@ -265,27 +341,142 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
         "document symbols should include analyzed bindings: {document_symbols}"
     );
 
-    let code_actions = server
-        .request(
-            "textDocument/codeAction",
-            json!({
-                "textDocument": {"uri": workspace.uri},
-                "range": {
-                    "start": position(SOURCE, "if result", 0),
-                    "end": position(SOURCE, "if result", 0)
-                },
-                "context": {
-                    "diagnostics": []
-                }
-            }),
+    let ordered_actions = code_actions_at(
+        &mut server,
+        &workspace.uri,
+        "orderedLeft",
+        &document_diagnostics,
+    )
+    .await;
+    assert_eq!(
+        action_titles(&ordered_actions),
+        ["Simplify unnecessary null branch", "Simplify if condition"]
+    );
+
+    for (needle, title, replacement) in [
+        (
+            "flatC",
+            "Flatten nested if into else-if chain",
+            "if flatA then flatOne else if flatB then flatTwo else if flatC then flatThree else flatFour",
+        ),
+        (
+            "innerCondition",
+            "Flatten nested if into else-if chain",
+            "if not outerCondition then outerElse else if innerCondition then innerThen else innerElse",
+        ),
+        (
+            "readyElse",
+            "Simplify unnecessary null branch",
+            "if readyElse then valueElse",
+        ),
+        (
+            "attrStrings",
+            "Simplify unnecessary null branch",
+            "if member(\"Flexible\", attrStrings) then null",
+        ),
+        (
+            "readySimple",
+            "Simplify unnecessary null branch",
+            "if not readySimple then valueSimple",
+        ),
+        (
+            "binaryLeft",
+            "Simplify unnecessary null branch",
+            "if binaryLeft >= binaryRight then binaryValue",
+        ),
+        (
+            "equalLeft",
+            "Simplify unnecessary null branch",
+            "if equalLeft != equalRight then equalValue",
+        ),
+        (
+            "strictLeft",
+            "Simplify unnecessary null branch",
+            "if strictLeft =!= strictRight then strictValue",
+        ),
+        (
+            "negatedReady",
+            "Simplify unnecessary null branch",
+            "if negatedReady then negatedValue",
+        ),
+        (
+            "a\\nb\\tc",
+            "Convert to raw string",
+            "///a\nb\tc\"///",
+        ),
+        ("tryEcho", "Simplify try", "try tryEcho"),
+        (
+            "tryResult",
+            "Simplify try",
+            "try tryValue then tryResult",
+        ),
+        ("bareTryValue", "Simplify try", "try bareTryValue"),
+        (
+            "simpleLeft",
+            "Simplify if condition",
+            "if simpleLeft != simpleRight then simpleValue",
+        ),
+        (
+            "unequalLeft",
+            "Simplify if condition",
+            "if unequalLeft == unequalRight then unequalThen else unequalElse",
+        ),
+        (
+            "lessLeft",
+            "Simplify if condition",
+            "if lessLeft >= lessRight then lessValue",
+        ),
+        (
+            "doubleNotValue",
+            "Simplify if condition",
+            "if doubleNotValue then doubleNotResult",
+        ),
+    ] {
+        let actions = code_actions_at(
+            &mut server,
+            &workspace.uri,
+            needle,
+            &document_diagnostics,
         )
         .await;
-    assert!(
-        response_array(&code_actions)
-            .iter()
-            .any(|action| action["title"] == "Simplify unnecessary null branch"),
-        "the conditional-null refactor should be available: {code_actions}"
+        assert_eq!(
+            action_replacement(&actions, title, &workspace.uri),
+            Some(replacement),
+            "unexpected {title:?} edit at {needle:?}: {actions}"
+        );
+    }
+
+    let ambiguous_actions = code_actions_at(
+        &mut server,
+        &workspace.uri,
+        "memberValue.3",
+        &document_diagnostics,
+    )
+    .await;
+    assert_eq!(
+        action_replacement(
+            &ambiguous_actions,
+            "Rewrite as member access",
+            &workspace.uri
+        ),
+        Some("memberValue#3")
     );
+
+    for (needle, absent_title) in [
+        ("existingB", "Flatten nested if into else-if chain"),
+        ("a\\nb\"", "Convert to raw string"),
+        ("a\\/\\/\\/b", "Convert to raw string"),
+        ("\\101\\102\\103", "Convert to raw string"),
+        ("exceptValue", "Simplify try"),
+        ("simpleCondition", "Simplify if condition"),
+    ] {
+        let actions =
+            code_actions_at(&mut server, &workspace.uri, needle, &document_diagnostics).await;
+        assert!(
+            !action_titles(&actions).contains(&absent_title),
+            "{absent_title:?} must not be offered at {needle:?}: {actions}"
+        );
+    }
 
     let inlay_hints = server
         .request(
@@ -347,6 +538,18 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
         prepare_rename["start"],
         position(SOURCE, "localValue", 2),
         "prepare rename should identify the requested symbol"
+    );
+
+    let boundary_operand = position(SOURCE, "boundaryParameter", 1);
+    let boundary_prepare_rename = server
+        .request(
+            "textDocument/prepareRename",
+            document_position(&workspace.uri, boundary_operand.clone()),
+        )
+        .await;
+    assert_eq!(
+        boundary_prepare_rename["start"], boundary_operand,
+        "a symbol beginning at a zero-width application boundary should remain addressable"
     );
 
     let rename = server
@@ -517,6 +720,20 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
         "changing negotiated inlay-hint settings should request a client refresh"
     );
 
+    let edit_probe = position(SOURCE, "editProbe", 0);
+    let edit_probe_line = edit_probe["line"]
+        .as_u64()
+        .expect("the edit-probe line should be numeric");
+    let edit_probe_character = edit_probe["character"]
+        .as_u64()
+        .expect("the edit-probe character should be numeric");
+    let local_value = position(SOURCE, "localValue=1", 0);
+    let local_value_line = local_value["line"]
+        .as_u64()
+        .expect("the local-value line should be numeric");
+    let local_value_character = local_value["character"]
+        .as_u64()
+        .expect("the local-value character should be numeric");
     server
         .notify(
             "textDocument/didChange",
@@ -525,16 +742,47 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
                     "uri": workspace.uri,
                     "version": 2
                 },
-                "contentChanges": [{
-                    "range": {
-                        "start": {"line": 2, "character": 11},
-                        "end": {"line": 2, "character": 12}
+                "contentChanges": [
+                    {
+                        "range": {
+                            "start": {"line": edit_probe_line, "character": edit_probe_character + 4},
+                            "end": {"line": edit_probe_line, "character": edit_probe_character + 5}
+                        },
+                        "text": "p"
                     },
-                    "text": "2"
-                }]
+                    {
+                        "range": {
+                            "start": {"line": edit_probe_line, "character": edit_probe_character + 8},
+                            "end": {"line": edit_probe_line, "character": edit_probe_character + 9}
+                        },
+                        "text": "E"
+                    },
+                    {
+                        "range": {
+                            "start": {"line": local_value_line, "character": local_value_character + 11},
+                            "end": {"line": local_value_line, "character": local_value_character + 12}
+                        },
+                        "text": "2"
+                    }
+                ]
             }),
         )
         .await;
+    server
+        .wait_for_notification("textDocument/publishDiagnostics")
+        .await;
+    let changed_symbols = server
+        .request(
+            "textDocument/documentSymbol",
+            json!({"textDocument": {"uri": workspace.uri}}),
+        )
+        .await;
+    assert!(
+        response_array(&changed_symbols)
+            .iter()
+            .any(|symbol| symbol["name"] == "editprobE"),
+        "multiple incremental changes must be applied in request order: {changed_symbols}"
+    );
     let changed_hover = server
         .request(
             "textDocument/hover",
@@ -548,6 +796,76 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
         "incremental document updates should rebuild analysis: {changed_hover}"
     );
 
+    let import_line = position(SOURCE, "needsPackage \"JSON\"", 0)["line"]
+        .as_u64()
+        .expect("the package-import line should be numeric");
+    server
+        .notify(
+            "textDocument/didChange",
+            json!({
+                "textDocument": {
+                    "uri": workspace.uri,
+                    "version": 3
+                },
+                "contentChanges": [{
+                    "range": {
+                        "start": {"line": import_line, "character": 0},
+                        "end": {"line": import_line + 1, "character": 0}
+                    },
+                    "text": ""
+                }]
+            }),
+        )
+        .await;
+    server
+        .wait_for_notification("textDocument/publishDiagnostics")
+        .await;
+    let source_without_json = SOURCE.replacen("needsPackage \"JSON\"\n", "", 1);
+    let formerly_imported_hover = server
+        .request(
+            "textDocument/hover",
+            document_position(&workspace.uri, position(&source_without_json, "toJSON", 2)),
+        )
+        .await;
+    assert!(
+        formerly_imported_hover["contents"]["value"]
+            .as_str()
+            .is_some_and(|markdown| markdown.contains("User-defined")),
+        "removing an import must rederive source-ordered object visibility: {formerly_imported_hover}"
+    );
+
+    let replacement_source = "replacementValue := 2\nreplacementValue\n";
+    server
+        .notify(
+            "textDocument/didChange",
+            json!({
+                "textDocument": {
+                    "uri": workspace.uri,
+                    "version": 4
+                },
+                "contentChanges": [{"text": replacement_source}]
+            }),
+        )
+        .await;
+    server
+        .wait_for_notification("textDocument/publishDiagnostics")
+        .await;
+    let replacement_hover = server
+        .request(
+            "textDocument/hover",
+            document_position(
+                &workspace.uri,
+                position(replacement_source, "replacementValue", 1),
+            ),
+        )
+        .await;
+    assert!(
+        replacement_hover["contents"]["value"]
+            .as_str()
+            .is_some_and(|markdown| markdown.contains("Type: `ZZ`")),
+        "a full-content change must replace and reanalyze the document: {replacement_hover}"
+    );
+
     server
         .notify(
             "textDocument/didClose",
@@ -557,7 +875,10 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
     let closed_hover = server
         .request(
             "textDocument/hover",
-            document_position(&workspace.uri, position(SOURCE, "localValue", 1)),
+            document_position(
+                &workspace.uri,
+                position(replacement_source, "replacementValue", 1),
+            ),
         )
         .await;
     assert!(closed_hover.is_null());

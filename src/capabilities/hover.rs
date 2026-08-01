@@ -253,7 +253,7 @@ mod tests {
     use crate::object_registry::ObjectRegistry;
     use crate::source::DocumentSource;
     use crate::test_support::analyze;
-    use tower_lsp::lsp_types::{HoverContents, Position, Range as TextRange, SymbolKind};
+    use tower_lsp::lsp_types::{HoverContents, Range as TextRange, SymbolKind};
 
     #[test]
     fn local_hover_includes_known_static_type() {
@@ -283,10 +283,10 @@ mod tests {
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let analysis = analyze(parser.parse(text).expect("fixture should parse"));
         let symbol = analysis
-            .get_binding_at("p", Position::new(1, 0))
+            .get_binding_at("p", pos!(1, 0))
             .expect("method symbol should be visible");
         let method = analysis
-            .function_at("p", Position::new(1, 0))
+            .function_at("p", pos!(1, 0))
             .expect("method should be registered");
 
         let hover = local_symbol_hover("p", &symbol, &analysis, Some(method), None);
@@ -306,7 +306,7 @@ mod tests {
         let root = tree.root(text);
         let analysis = analyze(root);
         let source = DocumentSource::new(text.to_string());
-        let position = Position::new(1, 0);
+        let position = pos!(1, 0);
         let node = root
             .descendant_for_point_range(
                 tree_sitter::Point::new(1, 0),
@@ -377,7 +377,7 @@ mod tests {
             .expect("fixture should parse");
         let index = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let scoped = index.with_source_imports(text);
-        let hover = hover_response(&document, Position::new(1, 0), &scoped)
+        let hover = hover_response(&document, pos!(1, 0), &scoped)
             .expect("hover over an imported package object");
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("imported-package hover should use markdown");
@@ -399,7 +399,7 @@ mod tests {
         let text = "-- use `x`\nx := 1\n";
         let document = DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
             .expect("fixture should parse");
-        let hover = hover_response(&document, Position::new(0, 8), &ObjectRegistry::default())
+        let hover = hover_response(&document, pos!(0, 8), &ObjectRegistry::default())
             .expect("local documentation reference should have a hover");
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("local hover should use markdown");
@@ -407,10 +407,7 @@ mod tests {
 
         assert!(markup.value.starts_with("**x**"));
         assert!(markup.value.contains("User-defined binding"));
-        assert_eq!(
-            hover.range,
-            Some(TextRange::new(Position::new(0, 8), Position::new(0, 9)))
-        );
+        assert_eq!(hover.range, Some(TextRange::new(pos!(0, 8), pos!(0, 9))));
     }
 
     #[test]
@@ -420,7 +417,7 @@ mod tests {
             .expect("fixture should parse");
         let index = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let scoped = index.with_source_imports(text);
-        let hover = hover_response(&document, Position::new(0, 8), &scoped)
+        let hover = hover_response(&document, pos!(0, 8), &scoped)
             .expect("indexed documentation reference should have a hover");
         let HoverContents::Markup(markup) = hover.contents else {
             panic!("indexed hover should use markdown");
@@ -431,10 +428,7 @@ mod tests {
             "got: {}",
             markup.value
         );
-        assert_eq!(
-            hover.range,
-            Some(TextRange::new(Position::new(0, 8), Position::new(0, 13)))
-        );
+        assert_eq!(hover.range, Some(TextRange::new(pos!(0, 8), pos!(0, 13))));
     }
 
     #[test]

@@ -1213,7 +1213,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
         assert!(
             document
                 .analysis()
-                .get_binding_at("y", Position::new(1, 0))
+                .get_binding_at("y", pos!(1, 0))
                 .is_some(),
             "source after a macro invocation should remain visible to analysis"
         );

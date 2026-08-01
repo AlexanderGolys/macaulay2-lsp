@@ -166,17 +166,11 @@ mod tests {
         assert_eq!(
             references(text),
             vec![
-                (
-                    "x".to_string(),
-                    TextRange::new(Position::new(0, 14), Position::new(0, 15)),
-                ),
-                (
-                    "x".to_string(),
-                    TextRange::new(Position::new(1, 12), Position::new(1, 13)),
-                ),
+                ("x".to_string(), TextRange::new(pos!(0, 14), pos!(0, 15)),),
+                ("x".to_string(), TextRange::new(pos!(1, 12), pos!(1, 13)),),
                 (
                     "ideal".to_string(),
-                    TextRange::new(Position::new(1, 20), Position::new(1, 25)),
+                    TextRange::new(pos!(1, 20), pos!(1, 25)),
                 ),
             ]
         );
@@ -189,7 +183,7 @@ mod tests {
             references(text),
             vec![(
                 "ideal".to_string(),
-                TextRange::new(Position::new(0, 11), Position::new(0, 16)),
+                TextRange::new(pos!(0, 11), pos!(0, 16)),
             )]
         );
     }

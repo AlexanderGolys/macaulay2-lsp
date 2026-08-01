@@ -139,7 +139,7 @@ impl<'a, K: PartitionedTypeKnowledge + ?Sized> TypeHierarchyContext<'a, K> {
             .unwrap_or_else(|| Url::parse("macaulay2:/builtins").expect("valid builtin URI"));
         let range = occurrence_range
             .or_else(|| location.as_ref().map(|location| location.range))
-            .unwrap_or_else(|| TextRange::new(Position::new(0, 0), Position::new(0, 0)));
+            .unwrap_or_else(|| TextRange::new(pos!(), pos!()));
         let detail = record
             .type_info()
             .and_then(|type_info| {
@@ -265,7 +265,7 @@ mod tests {
         let uri = Url::parse("file:///type-hierarchy-test.m2").expect("valid test URI");
 
         let items = context
-            .prepare(&document, &scoped, &uri, Position::new(0, 0))
+            .prepare(&document, &scoped, &uri, pos!())
             .expect("ZZ should be a known type");
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "ZZ");

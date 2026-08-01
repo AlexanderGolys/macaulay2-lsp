@@ -284,8 +284,7 @@ mod tests {
     fn local_method_signatures_are_reported() {
         // Cursor inside the argument list of a call to a local method function.
         let text = "f = method()\nf(ZZ, String) := (n, s) -> n\nf(1, \"a\")\n";
-        let response =
-            help(text, Position::new(2, 2)).expect("signature help in the argument list");
+        let response = help(text, pos!(2, 2)).expect("signature help in the argument list");
         assert!(
             response
                 .signatures
@@ -304,10 +303,10 @@ mod tests {
     fn active_parameter_tracks_the_cursor() {
         let text = "f = method()\nf(ZZ, String) := (n, s) -> n\nf(1, \"a\")\n";
         // Cursor on the first argument `1`.
-        let first = help(text, Position::new(2, 2)).expect("signature help");
+        let first = help(text, pos!(2, 2)).expect("signature help");
         assert_eq!(first.active_parameter, Some(0));
         // Cursor on the second argument `\"a\"` (after the comma).
-        let second = help(text, Position::new(2, 5)).expect("signature help");
+        let second = help(text, pos!(2, 5)).expect("signature help");
         assert_eq!(second.active_parameter, Some(1));
     }
 
@@ -315,14 +314,14 @@ mod tests {
     fn cursor_on_the_callable_gives_no_signature_help() {
         // The cursor is on `f`, not inside its argument list.
         let text = "f = method()\nf(ZZ, String) := (n, s) -> n\nf(1, \"a\")\n";
-        assert!(help(text, Position::new(2, 0)).is_none());
+        assert!(help(text, pos!(2, 0)).is_none());
     }
 
     #[test]
     fn builtin_callable_signatures_are_reported() {
         // `concatenate` is a Core function; its signatures resolve from the index.
         let text = "concatenate(\"a\", \"b\")\n";
-        let response = help(text, Position::new(0, 12)).expect("signature help for a builtin");
+        let response = help(text, pos!(0, 12)).expect("signature help for a builtin");
         assert!(!response.signatures.is_empty());
         // The label is `concatenate(Domain…)` — the callable name must not be
         // repeated as its own first parameter.
@@ -347,8 +346,7 @@ mod tests {
     #[test]
     fn imported_callable_signatures_use_the_owning_partition() {
         let text = "needsPackage \"JSON\"\ntoJSON(x)\n";
-        let response =
-            help(text, Position::new(1, 7)).expect("signature help for an imported callable");
+        let response = help(text, pos!(1, 7)).expect("signature help for an imported callable");
 
         assert!(response
             .signatures

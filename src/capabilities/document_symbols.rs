@@ -225,7 +225,7 @@ mod tests {
     use crate::document::DocumentSnapshot;
     use crate::node_metadata::{M2Node, M2Parser, NodeKind};
     use crate::object_registry::ObjectRegistry;
-    use tower_lsp::lsp_types::{Position, Range as TextRange};
+    use tower_lsp::lsp_types::Range as TextRange;
 
     fn document(text: &str, builtins: &ObjectRegistry) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), builtins).expect("fixture should parse")
@@ -242,7 +242,7 @@ mod tests {
         assert_eq!(symbols[0].name, "f");
         assert_eq!(
             symbols[0].selection_range,
-            TextRange::new(Position::new(0, 6), Position::new(0, 7))
+            TextRange::new(pos!(0, 6), pos!(0, 7))
         );
     }
 
@@ -386,12 +386,12 @@ mod tests {
         );
         assert_eq!(
             args_symbols[0].selection_range.start,
-            Position::new(1, 0),
+            pos!(1, 0),
             "the first args symbol should point at its initial assignment"
         );
         assert_eq!(
             args_symbols[1].selection_range.start,
-            Position::new(2, 0),
+            pos!(2, 0),
             "the second args symbol should point at its reassignment"
         );
     }

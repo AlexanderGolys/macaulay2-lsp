@@ -379,32 +379,24 @@ mod tests {
 
     fn highlighted_words(text: &str, line: u32, character: u32) -> Vec<String> {
         let document = document(text);
-        document_highlights(
-            &document,
-            Position::new(line, character),
-            &ObjectRegistry::default(),
-        )
-        .unwrap_or_default()
-        .into_iter()
-        .map(|highlight| {
-            let range = highlight.range;
-            let line_text = text.lines().nth(range.start.line as usize).unwrap_or("");
-            line_text[range.start.character as usize..range.end.character as usize].to_string()
-        })
-        .collect()
+        document_highlights(&document, pos!(line, character), &ObjectRegistry::default())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|highlight| {
+                let range = highlight.range;
+                let line_text = text.lines().nth(range.start.line as usize).unwrap_or("");
+                line_text[range.start.character as usize..range.end.character as usize].to_string()
+            })
+            .collect()
     }
 
     fn highlight_kinds(text: &str, line: u32, character: u32) -> Vec<DocumentHighlightKind> {
         let document = document(text);
-        document_highlights(
-            &document,
-            Position::new(line, character),
-            &ObjectRegistry::default(),
-        )
-        .unwrap_or_default()
-        .into_iter()
-        .map(|highlight| highlight.kind.expect("symbol highlights carry a kind"))
-        .collect()
+        document_highlights(&document, pos!(line, character), &ObjectRegistry::default())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|highlight| highlight.kind.expect("symbol highlights carry a kind"))
+            .collect()
     }
 
     #[test]
@@ -447,7 +439,7 @@ mod tests {
             let text = format!("{literal}\n{literal}\n");
             let document = document(&text);
             assert!(
-                document_highlights(&document, Position::new(0, 0), &builtins).is_none(),
+                document_highlights(&document, pos!(), &builtins).is_none(),
                 "{literal} should not produce document highlights"
             );
         }
@@ -484,7 +476,7 @@ mod tests {
         let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let text = "ideal I\n-- call `ideal` again\nideal J\nif true then ideal K\n";
         let source_document = document(text);
-        let words = document_highlights(&source_document, Position::new(0, 1), &builtins)
+        let words = document_highlights(&source_document, pos!(0, 1), &builtins)
             .expect("ordinary builtin should resolve")
             .into_iter()
             .map(|highlight| {
@@ -498,7 +490,7 @@ mod tests {
 
         let keyword_document = document("local x\nlocal y\n");
         assert!(
-            document_highlights(&keyword_document, Position::new(0, 1), &builtins).is_none(),
+            document_highlights(&keyword_document, pos!(0, 1), &builtins).is_none(),
             "keyword-class builtin records must not trigger symbol highlighting"
         );
     }
@@ -508,7 +500,7 @@ mod tests {
         let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
         let text = "ideal I\nf := ideal -> (ideal + 1)\nideal J\n";
         let document = document(text);
-        let highlights = document_highlights(&document, Position::new(0, 1), &builtins)
+        let highlights = document_highlights(&document, pos!(0, 1), &builtins)
             .expect("builtin occurrence should resolve");
 
         assert_eq!(
@@ -516,7 +508,7 @@ mod tests {
                 .into_iter()
                 .map(|highlight| highlight.range.start)
                 .collect::<Vec<_>>(),
-            vec![Position::new(0, 0), Position::new(2, 0)]
+            vec![pos!(), pos!(2, 0)]
         );
     }
 
@@ -524,20 +516,15 @@ mod tests {
     fn highlights_repeated_unbound_names_without_an_index_record() {
         let text = "futureName x\n-- see `futureName`\nfutureName y\n";
         let document = document(text);
-        let highlights =
-            document_highlights(&document, Position::new(0, 1), &ObjectRegistry::default())
-                .expect("an unresolved non-keyword name is still highlightable");
+        let highlights = document_highlights(&document, pos!(0, 1), &ObjectRegistry::default())
+            .expect("an unresolved non-keyword name is still highlightable");
 
         assert_eq!(
             highlights
                 .into_iter()
                 .map(|highlight| highlight.range.start)
                 .collect::<Vec<_>>(),
-            vec![
-                Position::new(0, 0),
-                Position::new(1, 8),
-                Position::new(2, 0),
-            ]
+            vec![pos!(), pos!(1, 8), pos!(2, 0),]
         );
     }
 
@@ -605,7 +592,7 @@ mod tests {
         let document =
             DocumentSnapshot::from_text(text.to_string(), &builtins).expect("fixture should parse");
         let cursor = text.find("break").expect("fixture should contain break") as u32;
-        let words = document_highlights(&document, Position::new(0, cursor), &builtins)
+        let words = document_highlights(&document, pos!(0, cursor), &builtins)
             .expect("break should resolve to the apply callback")
             .into_iter()
             .map(|highlight| {

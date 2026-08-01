@@ -81,9 +81,9 @@ pub trait SourceNavigation {
         let byte_index = floor_char_boundary(&source.text, byte_index);
         let (line_index, line) = source.line_index.line_for_byte(byte_index);
         let byte_index = byte_index.min(line.end);
-        Position::new(
+        pos!(
             line_index as u32,
-            utf16_len(&source.text[line.start..byte_index]),
+            utf16_len(&source.text[line.start..byte_index])
         )
     }
 
@@ -274,15 +274,9 @@ mod tests {
         let source = DocumentSource::new("x\n😀 ideal\r\n".to_string());
         let ideal_start = source.text().find("ideal").expect("fixture contains ideal");
 
-        assert_eq!(source.position_for_byte(ideal_start), Position::new(1, 3));
-        assert_eq!(
-            source.byte_for_position(Position::new(1, 3)),
-            Some(ideal_start)
-        );
-        assert_eq!(
-            source.full_range(),
-            TextRange::new(Position::new(0, 0), Position::new(2, 0))
-        );
+        assert_eq!(source.position_for_byte(ideal_start), pos!(1, 3));
+        assert_eq!(source.byte_for_position(pos!(1, 3)), Some(ideal_start));
+        assert_eq!(source.full_range(), TextRange::new(pos!(), pos!(2, 0)));
     }
 
     #[test]
@@ -293,9 +287,9 @@ mod tests {
         assert_eq!(
             source.visible_ranges(&span),
             vec![
-                TextRange::new(Position::new(0, 1), Position::new(0, 2)),
-                TextRange::new(Position::new(1, 0), Position::new(1, 2)),
-                TextRange::new(Position::new(2, 0), Position::new(2, 1)),
+                TextRange::new(pos!(0, 1), pos!(0, 2)),
+                TextRange::new(pos!(1, 0), pos!(1, 2)),
+                TextRange::new(pos!(2, 0), pos!(2, 1)),
             ]
         );
     }

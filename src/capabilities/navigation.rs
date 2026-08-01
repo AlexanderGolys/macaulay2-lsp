@@ -480,30 +480,27 @@ mod tests {
     #[test]
     fn completion_merges_locals_keywords_and_builtins() {
         // Local bindings appear for a matching prefix.
-        let locals = completion_labels("myvar = 1\nmyfun = x -> x\nmy\n", Position::new(2, 2));
+        let locals = completion_labels("myvar = 1\nmyfun = x -> x\nmy\n", pos!(2, 2));
         assert!(locals.contains(&"myvar".to_string()), "got {locals:?}");
         assert!(locals.contains(&"myfun".to_string()), "got {locals:?}");
 
         // Keywords appear for a matching prefix.
-        let keywords = completion_labels("wh\n", Position::new(0, 2));
+        let keywords = completion_labels("wh\n", pos!(0, 2));
         assert!(keywords.contains(&"while".to_string()), "got {keywords:?}");
         assert!(keywords.contains(&"when".to_string()), "got {keywords:?}");
 
         // Builtin index names still appear.
-        let builtins = completion_labels("ZZ\n", Position::new(0, 2));
+        let builtins = completion_labels("ZZ\n", pos!(0, 2));
         assert!(builtins.contains(&"ZZ".to_string()), "got {builtins:?}");
     }
 
     #[test]
     fn symbol_prefix_uses_lsp_utf16_columns() {
         let first = crate::source::DocumentSource::new("éideal".to_string());
-        assert_eq!(
-            symbol_prefix_at(&first, Position::new(0, 3)).as_deref(),
-            Some("éid")
-        );
+        assert_eq!(symbol_prefix_at(&first, pos!(0, 3)).as_deref(), Some("éid"));
         let second = crate::source::DocumentSource::new("😀 ideal".to_string());
         assert_eq!(
-            symbol_prefix_at(&second, Position::new(0, 7)).as_deref(),
+            symbol_prefix_at(&second, pos!(0, 7)).as_deref(),
             Some("idea")
         );
     }
@@ -513,22 +510,22 @@ mod tests {
         let text = "f := x -> (y := x + x; y)\nf 1";
         let document = document(text);
 
-        let with_declaration = collect_reference_ranges(&document, Position::new(0, 16), true);
-        let without_declaration = collect_reference_ranges(&document, Position::new(0, 16), false);
+        let with_declaration = collect_reference_ranges(&document, pos!(0, 16), true);
+        let without_declaration = collect_reference_ranges(&document, pos!(0, 16), false);
 
         assert_eq!(
             with_declaration,
             vec![
-                TextRange::new(Position::new(0, 5), Position::new(0, 6)),
-                TextRange::new(Position::new(0, 16), Position::new(0, 17)),
-                TextRange::new(Position::new(0, 20), Position::new(0, 21)),
+                TextRange::new(pos!(0, 5), pos!(0, 6)),
+                TextRange::new(pos!(0, 16), pos!(0, 17)),
+                TextRange::new(pos!(0, 20), pos!(0, 21)),
             ]
         );
         assert_eq!(
             without_declaration,
             vec![
-                TextRange::new(Position::new(0, 16), Position::new(0, 17)),
-                TextRange::new(Position::new(0, 20), Position::new(0, 21)),
+                TextRange::new(pos!(0, 16), pos!(0, 17)),
+                TextRange::new(pos!(0, 20), pos!(0, 21)),
             ]
         );
     }
@@ -542,14 +539,14 @@ mod tests {
         let document = document(text);
 
         // Resolve from the declaration of `h` (line 1).
-        let ranges = collect_reference_ranges(&document, Position::new(1, 0), true);
+        let ranges = collect_reference_ranges(&document, pos!(1, 0), true);
 
         assert!(
-            ranges.contains(&TextRange::new(Position::new(0, 10), Position::new(0, 11))),
+            ranges.contains(&TextRange::new(pos!(0, 10), pos!(0, 11))),
             "forward reference to `h` in g's body must be collected, got {ranges:?}"
         );
         assert!(
-            ranges.contains(&TextRange::new(Position::new(1, 0), Position::new(1, 1))),
+            ranges.contains(&TextRange::new(pos!(1, 0), pos!(1, 1))),
             "the declaration of `h` must be collected, got {ranges:?}"
         );
     }
@@ -558,20 +555,20 @@ mod tests {
     fn backtick_documentation_mentions_are_scope_aware_references() {
         let text = "x := 1\n-- use `x`\nx\n";
         let document = document(text);
-        let ranges = collect_reference_ranges(&document, Position::new(1, 8), true);
+        let ranges = collect_reference_ranges(&document, pos!(1, 8), true);
 
         assert_eq!(
             ranges,
             vec![
-                TextRange::new(Position::new(0, 0), Position::new(0, 1)),
-                TextRange::new(Position::new(1, 8), Position::new(1, 9)),
-                TextRange::new(Position::new(2, 0), Position::new(2, 1)),
+                TextRange::new(pos!(), pos!(0, 1)),
+                TextRange::new(pos!(1, 8), pos!(1, 9)),
+                TextRange::new(pos!(2, 0), pos!(2, 1)),
             ]
         );
         assert!(matches!(
             reference_target(
                 &document,
-                Position::new(1, 8),
+                pos!(1, 8),
                 &WorkspaceIndex::default()
             ),
             Some(ReferenceTarget::Global(name)) if name == "x"
@@ -582,20 +579,20 @@ mod tests {
     fn backtick_documentation_mentions_resolve_later_bindings() {
         let text = "-- use `x`\nx := 1\nx\n";
         let document = document(text);
-        let ranges = collect_reference_ranges(&document, Position::new(0, 8), true);
+        let ranges = collect_reference_ranges(&document, pos!(0, 8), true);
 
         assert_eq!(
             ranges,
             vec![
-                TextRange::new(Position::new(0, 8), Position::new(0, 9)),
-                TextRange::new(Position::new(1, 0), Position::new(1, 1)),
-                TextRange::new(Position::new(2, 0), Position::new(2, 1)),
+                TextRange::new(pos!(0, 8), pos!(0, 9)),
+                TextRange::new(pos!(1, 0), pos!(1, 1)),
+                TextRange::new(pos!(2, 0), pos!(2, 1)),
             ]
         );
         assert!(matches!(
             reference_target(
                 &document,
-                Position::new(0, 8),
+                pos!(0, 8),
                 &WorkspaceIndex::default()
             ),
             Some(ReferenceTarget::Global(name)) if name == "x"
@@ -615,7 +612,7 @@ mod tests {
             goto_definition_response(
                 &document,
                 &uri,
-                Position::new(0, 8),
+                pos!(0, 8),
                 &scoped,
                 &SourceResolver::new(Vec::new()),
                 &WorkspaceIndex::default(),
@@ -630,7 +627,7 @@ mod tests {
         let text = "f := x -> (\n-- return `x`\nx + x)\n";
         let document = document(text);
         let uri = Url::parse("file:///t.m2").expect("uri");
-        let edits = rename_edits(&document, &uri, Position::new(0, 5), "value")
+        let edits = rename_edits(&document, &uri, pos!(0, 5), "value")
             .expect("parameter should be renameable")
             .changes
             .expect("simple changes")[&uri]
@@ -641,10 +638,10 @@ mod tests {
         assert_eq!(
             edits,
             vec![
-                TextRange::new(Position::new(0, 5), Position::new(0, 6)),
-                TextRange::new(Position::new(1, 11), Position::new(1, 12)),
-                TextRange::new(Position::new(2, 0), Position::new(2, 1)),
-                TextRange::new(Position::new(2, 4), Position::new(2, 5)),
+                TextRange::new(pos!(0, 5), pos!(0, 6)),
+                TextRange::new(pos!(1, 11), pos!(1, 12)),
+                TextRange::new(pos!(2, 0), pos!(2, 1)),
+                TextRange::new(pos!(2, 4), pos!(2, 5)),
             ]
         );
     }
@@ -654,14 +651,14 @@ mod tests {
         let text = "f := x -> (\"😀\"; x + x)";
         let document = document(text);
 
-        let ranges = collect_reference_ranges(&document, Position::new(0, 17), true);
+        let ranges = collect_reference_ranges(&document, pos!(0, 17), true);
 
         assert_eq!(
             ranges,
             vec![
-                TextRange::new(Position::new(0, 5), Position::new(0, 6)),
-                TextRange::new(Position::new(0, 17), Position::new(0, 18)),
-                TextRange::new(Position::new(0, 21), Position::new(0, 22)),
+                TextRange::new(pos!(0, 5), pos!(0, 6)),
+                TextRange::new(pos!(0, 17), pos!(0, 18)),
+                TextRange::new(pos!(0, 21), pos!(0, 22)),
             ]
         );
     }
@@ -673,7 +670,7 @@ mod tests {
         let uri = Url::parse("file:///test.m2").expect("uri");
 
         // Cursor on a use of `x`; rename to `z`.
-        let edit = rename_edits(&document, &uri, Position::new(0, 16), "z")
+        let edit = rename_edits(&document, &uri, pos!(0, 16), "z")
             .expect("local symbol should be renameable");
         let edits = &edit.changes.expect("simple changes")[&uri];
 
@@ -681,9 +678,9 @@ mod tests {
         assert_eq!(
             edits.iter().map(|e| e.range).collect::<Vec<_>>(),
             vec![
-                TextRange::new(Position::new(0, 5), Position::new(0, 6)),
-                TextRange::new(Position::new(0, 16), Position::new(0, 17)),
-                TextRange::new(Position::new(0, 20), Position::new(0, 21)),
+                TextRange::new(pos!(0, 5), pos!(0, 6)),
+                TextRange::new(pos!(0, 16), pos!(0, 17)),
+                TextRange::new(pos!(0, 20), pos!(0, 21)),
             ]
         );
         assert!(edits.iter().all(|e| e.new_text == "z"));
@@ -694,10 +691,10 @@ mod tests {
         let text = "f := x -> (x + x)";
         let document = document(text);
         // On the parameter `x`.
-        assert!(prepare_rename_range(&document, Position::new(0, 5)).is_some());
+        assert!(prepare_rename_range(&document, pos!(0, 5)).is_some());
         // Empty new name is refused.
         let uri = Url::parse("file:///t.m2").expect("uri");
-        assert!(rename_edits(&document, &uri, Position::new(0, 5), "  ").is_none());
+        assert!(rename_edits(&document, &uri, pos!(0, 5), "  ").is_none());
     }
 
     #[test]
@@ -707,7 +704,7 @@ mod tests {
         let text = "f := M -> (symbol M; M + 1)";
         let document = document(text);
         let uri = Url::parse("file:///t.m2").expect("uri");
-        let edits = rename_edits(&document, &uri, Position::new(0, 5), "N")
+        let edits = rename_edits(&document, &uri, pos!(0, 5), "N")
             .expect("user symbol should be renameable")
             .changes
             .expect("simple changes")[&uri]
@@ -723,13 +720,13 @@ mod tests {
         let uri = Url::parse("file:///t.m2").expect("uri");
         // `Algorithm` is a global reserved option key, not a user definition.
         let opt = document("g := gens gb(I, Algorithm => Homogeneous)");
-        assert!(rename_edits(&opt, &uri, Position::new(0, 16), "Z").is_none());
-        assert!(prepare_rename_range(&opt, Position::new(0, 16)).is_none());
+        assert!(rename_edits(&opt, &uri, pos!(0, 16), "Z").is_none());
+        assert!(prepare_rename_range(&opt, pos!(0, 16)).is_none());
         // Keywords and punctuation that the grammar resolves into symbols.
         let kw = document("z = a and b");
-        assert!(rename_edits(&kw, &uri, Position::new(0, 6), "Z").is_none());
+        assert!(rename_edits(&kw, &uri, pos!(0, 6), "Z").is_none());
         let brace = document("x = {1, 2}");
-        assert!(rename_edits(&brace, &uri, Position::new(0, 4), "Z").is_none());
+        assert!(rename_edits(&brace, &uri, pos!(0, 4), "Z").is_none());
     }
 
     #[test]
@@ -758,18 +755,18 @@ mod tests {
         // Lambda parameter -> local (references stay in-file).
         let local = document("f := x -> (x + x)");
         assert!(matches!(
-            reference_target(&local, Position::new(0, 5), &index),
+            reference_target(&local, pos!(0, 5), &index),
             Some(ReferenceTarget::Local)
         ));
         // Top-level binding -> global.
         let global = document("y = 5\nz = y");
         assert!(matches!(
-            reference_target(&global, Position::new(0, 0), &index),
+            reference_target(&global, pos!(), &index),
             Some(ReferenceTarget::Global(name)) if name == "y"
         ));
         let external = document("shared");
         assert!(matches!(
-            reference_target(&external, Position::new(0, 0), &KnownGlobal),
+            reference_target(&external, pos!(), &KnownGlobal),
             Some(ReferenceTarget::Global(name)) if name == "shared"
         ));
     }
@@ -783,9 +780,9 @@ mod tests {
         assert_eq!(
             ranges,
             vec![
-                TextRange::new(Position::new(0, 0), Position::new(0, 1)),
-                TextRange::new(Position::new(2, 4), Position::new(2, 5)),
-                TextRange::new(Position::new(2, 8), Position::new(2, 9)),
+                TextRange::new(pos!(), pos!(0, 1)),
+                TextRange::new(pos!(2, 4), pos!(2, 5)),
+                TextRange::new(pos!(2, 8), pos!(2, 9)),
             ]
         );
     }

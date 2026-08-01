@@ -373,17 +373,25 @@ impl TypeChecker<'_> {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
+        let promoted_value = parenthesized_value(query.left)?;
         if query.operator == "_"
             && matches!(
-                query.left.kind,
+                promoted_value.kind,
                 NodeKind::IntegerLiteral | NodeKind::FloatLiteral
             )
         {
             let ring = parenthesized_value(query.right?)?;
             let ring_type = self.type_of(ring, source, query.scope_idx, knowledge);
             if knowledge.has_type_role(ring_type.principal()?, TypeRole::Ring) {
-                let element_type = ObjectName::new(symbol_node_text(ring)?);
-                self.resolve_type_id(&element_type, knowledge)?;
+                let element_type = self
+                    .resolved_ring_element_type(
+                        ring,
+                        source,
+                        query.scope_idx,
+                        knowledge,
+                        &mut HashSet::new(),
+                    )
+                    .unwrap_or_else(|| ObjectName::new("RingElement"));
                 return Some(InferredType::from_id(element_type));
             }
         }
@@ -410,6 +418,84 @@ impl TypeChecker<'_> {
         }
 
         None
+    }
+
+    fn resolved_ring_element_type(
+        &self,
+        ring: M2Node<'_>,
+        source: &(impl SourceNavigation + ?Sized),
+        scope_idx: usize,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+        visited: &mut HashSet<BindingId>,
+    ) -> Option<ObjectName> {
+        let ring = parenthesized_value(ring)?;
+        let name = symbol_node_text(ring)?;
+        let position = source.position_for_node(ring);
+        let Some(binding) =
+            self.visible_source_binding_from_scope(name, scope_idx, position, knowledge)
+        else {
+            let name = ObjectName::new(name);
+            self.resolve_type_id(&name, knowledge)?;
+            return Some(name);
+        };
+        if !visited.insert(binding.binding_id) {
+            return None;
+        }
+
+        let value_range = binding.state.value_range?;
+        let mut root = ring;
+        while let Some(parent) = root.parent() {
+            root = parent;
+        }
+        let value = root.descendant_for_point_range(
+            source.point_for_position(value_range.start)?,
+            source.point_for_position(value_range.end)?,
+        )?;
+        if source.range_for_node(value) != value_range {
+            return None;
+        }
+        let value_scope_idx = self
+            .find_scope_at(source.position_for_node(value))
+            .unwrap_or(binding.state.scope_idx);
+        if symbol_node_text(parenthesized_value(value)?).is_some() {
+            return self.resolved_ring_element_type(
+                value,
+                source,
+                value_scope_idx,
+                knowledge,
+                visited,
+            );
+        }
+
+        (binding.scope_idx == 0
+            && self.expression_introduces_ring_identity(value, source, value_scope_idx, knowledge))
+        .then(|| binding.name.clone())
+        .filter(|name| self.resolve_type_id(name, knowledge).is_some())
+    }
+
+    fn expression_introduces_ring_identity(
+        &self,
+        expression: M2Node<'_>,
+        source: &(impl SourceNavigation + ?Sized),
+        scope_idx: usize,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> bool {
+        let Some(expression) = parenthesized_value(expression) else {
+            return false;
+        };
+        if expression.kind == NodeKind::NewStatement {
+            return true;
+        }
+        let introduces_identity =
+            expression.is_space_application() || expression.binary_operator() == Some("/");
+        let operand = introduces_identity
+            .then(|| expression.child_by_field_name("left"))
+            .flatten();
+        operand.is_some_and(|operand| {
+            self.type_of(operand, source, scope_idx, knowledge)
+                .principal()
+                .is_some_and(|type_name| knowledge.has_type_role(type_name, TypeRole::Ring))
+        })
     }
 
     /// Square-bracket ring construction binds specially in Macaulay2 source:

@@ -1,148 +1,62 @@
-//! The single registry of every diagnostic the server emits.
-//!
-//! Each diagnostic is one [`DiagnosticKind`] carrying its stable `E..`
-//! code, its slug name, and its severity. Detection logic lives where the
-//! context is (it varies: some checks need the type registry, others only a
-//! node), but every emission funnels through [`DiagnosticKind::at`] so the code
-//! and severity are assigned in exactly one place. Code actions recover the
-//! diagnostic they fix by [`diagnostic_has_kind`] — a code match, not the
-//! former brittle message-string comparison.
+//! The diagnostics emitted by the server.
 
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range as TextRange};
 
-/// Every diagnostic the server can publish. Each variant is forced through the
-/// exhaustive `match`es below (code, name, severity), so a new diagnostic
-/// cannot be half-registered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DiagnosticKind {
-    SyntaxError,
-    MissingNode,
-    AmbiguousFloatMemberAccess,
-    MultipleAssignmentTargets,
-    ColonEqualPartAssignment,
-    ParallelAssignmentArity,
-    OptionKeyConvention,
-    UnusedBinding,
-    InstallNoEffect,
-    OperatorNotFlexible,
-    InstallArity,
-    InstallNeedsColonEquals,
-    ProtectAssignedSymbol,
-    ProtectComputedSymbol,
-    MissingOutputCell,
-    InvalidControlTransfer,
-    ParallelAssignmentType,
-    WhileConditionType,
-    IfConditionType,
-    InstallCodomainMissing,
-    InstallCodomainMismatch,
+struct DiagnosticRegistration {
+    code: &'static str,
+    name: &'static str,
+    severity: DiagnosticSeverity,
+}
+
+macro_rules! register_diagnostics {
+    ($($kind:ident => ($code:literal, $name:literal, $severity:ident)),+ $(,)?) => {
+        /// A diagnostic the server can publish.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum DiagnosticKind {
+            $($kind),+
+        }
+
+        impl DiagnosticKind {
+            pub const ALL: &'static [Self] = &[$(Self::$kind),+];
+
+            fn registration(self) -> DiagnosticRegistration {
+                match self {
+                    $(Self::$kind => DiagnosticRegistration {
+                        code: $code,
+                        name: $name,
+                        severity: DiagnosticSeverity::$severity,
+                    }),+
+                }
+            }
+        }
+    };
+}
+
+register_diagnostics! {
+    SyntaxError => ("E00", "syntax-error", ERROR),
+    MissingNode => ("E01", "missing-node", ERROR),
+    AmbiguousFloatMemberAccess => ("E02", "ambiguous-float-member-access", WARNING),
+    MultipleAssignmentTargets => ("E03", "multiple-assignment-targets", ERROR),
+    ColonEqualPartAssignment => ("E04", "colon-equal-part-assignment", ERROR),
+    ParallelAssignmentArity => ("E05", "parallel-assignment-arity", ERROR),
+    OptionKeyConvention => ("E06", "option-key-convention", HINT),
+    UnusedBinding => ("E07", "unused-binding", WARNING),
+    InstallNoEffect => ("E08", "install-no-effect", WARNING),
+    OperatorNotFlexible => ("E09", "operator-not-flexible", ERROR),
+    InstallArity => ("E10", "install-arity", ERROR),
+    InstallNeedsColonEquals => ("E11", "install-needs-colon-equals", ERROR),
+    ProtectAssignedSymbol => ("E12", "protect-assigned-symbol", HINT),
+    ProtectComputedSymbol => ("E13", "protect-computed-symbol", WARNING),
+    MissingOutputCell => ("E14", "missing-output-cell", WARNING),
+    InvalidControlTransfer => ("E15", "invalid-control-transfer", ERROR),
+    ParallelAssignmentType => ("E16", "parallel-assignment-type", ERROR),
+    WhileConditionType => ("E17", "while-condition-type", ERROR),
+    IfConditionType => ("E18", "if-condition-type", ERROR),
+    InstallCodomainMissing => ("E19", "install-codomain-missing", HINT),
+    InstallCodomainMismatch => ("E20", "install-codomain-mismatch", WARNING),
 }
 
 impl DiagnosticKind {
-    pub const ALL: [Self; 21] = [
-        Self::SyntaxError,
-        Self::MissingNode,
-        Self::AmbiguousFloatMemberAccess,
-        Self::MultipleAssignmentTargets,
-        Self::ColonEqualPartAssignment,
-        Self::ParallelAssignmentArity,
-        Self::OptionKeyConvention,
-        Self::UnusedBinding,
-        Self::InstallNoEffect,
-        Self::OperatorNotFlexible,
-        Self::InstallArity,
-        Self::InstallNeedsColonEquals,
-        Self::ProtectAssignedSymbol,
-        Self::ProtectComputedSymbol,
-        Self::MissingOutputCell,
-        Self::InvalidControlTransfer,
-        Self::ParallelAssignmentType,
-        Self::WhileConditionType,
-        Self::IfConditionType,
-        Self::InstallCodomainMissing,
-        Self::InstallCodomainMismatch,
-    ];
-
-    /// The stable `E..` code surfaced to the editor (rustc-style).
-    pub fn code(self) -> &'static str {
-        match self {
-            Self::SyntaxError => "E00",
-            Self::MissingNode => "E01",
-            Self::AmbiguousFloatMemberAccess => "E02",
-            Self::MultipleAssignmentTargets => "E03",
-            Self::ColonEqualPartAssignment => "E04",
-            Self::ParallelAssignmentArity => "E05",
-            Self::OptionKeyConvention => "E06",
-            Self::UnusedBinding => "E07",
-            Self::InstallNoEffect => "E08",
-            Self::OperatorNotFlexible => "E09",
-            Self::InstallArity => "E10",
-            Self::InstallNeedsColonEquals => "E11",
-            Self::ProtectAssignedSymbol => "E12",
-            Self::ProtectComputedSymbol => "E13",
-            Self::MissingOutputCell => "E14",
-            Self::InvalidControlTransfer => "E15",
-            Self::ParallelAssignmentType => "E16",
-            Self::WhileConditionType => "E17",
-            Self::IfConditionType => "E18",
-            Self::InstallCodomainMissing => "E19",
-            Self::InstallCodomainMismatch => "E20",
-        }
-    }
-
-    /// The human-readable rule name, published as the diagnostic `source` so the
-    /// editor shows which rule fired alongside the `E..` code.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::SyntaxError => "syntax-error",
-            Self::MissingNode => "missing-node",
-            Self::AmbiguousFloatMemberAccess => "ambiguous-float-member-access",
-            Self::MultipleAssignmentTargets => "multiple-assignment-targets",
-            Self::ColonEqualPartAssignment => "colon-equal-part-assignment",
-            Self::ParallelAssignmentArity => "parallel-assignment-arity",
-            Self::OptionKeyConvention => "option-key-convention",
-            Self::UnusedBinding => "unused-binding",
-            Self::InstallNoEffect => "install-no-effect",
-            Self::OperatorNotFlexible => "operator-not-flexible",
-            Self::InstallArity => "install-arity",
-            Self::InstallNeedsColonEquals => "install-needs-colon-equals",
-            Self::ProtectAssignedSymbol => "protect-assigned-symbol",
-            Self::ProtectComputedSymbol => "protect-computed-symbol",
-            Self::MissingOutputCell => "missing-output-cell",
-            Self::InvalidControlTransfer => "invalid-control-transfer",
-            Self::ParallelAssignmentType => "parallel-assignment-type",
-            Self::WhileConditionType => "while-condition-type",
-            Self::IfConditionType => "if-condition-type",
-            Self::InstallCodomainMissing => "install-codomain-missing",
-            Self::InstallCodomainMismatch => "install-codomain-mismatch",
-        }
-    }
-
-    pub fn severity(self) -> DiagnosticSeverity {
-        match self {
-            Self::SyntaxError
-            | Self::MissingNode
-            | Self::MultipleAssignmentTargets
-            | Self::ColonEqualPartAssignment
-            | Self::ParallelAssignmentArity
-            | Self::OperatorNotFlexible
-            | Self::InstallArity
-            | Self::InstallNeedsColonEquals
-            | Self::InvalidControlTransfer
-            | Self::ParallelAssignmentType
-            | Self::WhileConditionType
-            | Self::IfConditionType => DiagnosticSeverity::ERROR,
-            Self::AmbiguousFloatMemberAccess
-            | Self::UnusedBinding
-            | Self::InstallNoEffect
-            | Self::InstallCodomainMismatch => DiagnosticSeverity::WARNING,
-            Self::ProtectComputedSymbol | Self::MissingOutputCell => DiagnosticSeverity::WARNING,
-            Self::OptionKeyConvention
-            | Self::ProtectAssignedSymbol
-            | Self::InstallCodomainMissing => DiagnosticSeverity::HINT,
-        }
-    }
-
     pub fn at(self, range: TextRange, message: impl Into<String>) -> M2Diagnostic {
         M2Diagnostic {
             kind: self,
@@ -152,9 +66,10 @@ impl DiagnosticKind {
     }
 
     pub fn from_selector(selector: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|diagnostic| selector == diagnostic.code() || selector == diagnostic.name())
+        Self::ALL.iter().copied().find(|diagnostic| {
+            let registration = diagnostic.registration();
+            selector == registration.code || selector == registration.name
+        })
     }
 
     pub fn from_lsp(diagnostic: &Diagnostic) -> Option<Self> {
@@ -162,8 +77,9 @@ impl DiagnosticKind {
             return None;
         };
         Self::ALL
-            .into_iter()
-            .find(|diagnostic| code == diagnostic.code())
+            .iter()
+            .copied()
+            .find(|diagnostic| code == diagnostic.registration().code)
     }
 }
 
@@ -177,11 +93,12 @@ pub struct M2Diagnostic {
 
 impl M2Diagnostic {
     pub fn to_lsp(&self) -> Diagnostic {
+        let registration = self.kind.registration();
         Diagnostic {
             range: self.range,
-            severity: Some(self.kind.severity()),
-            code: Some(NumberOrString::String(self.kind.code().to_string())),
-            source: Some(self.kind.name().to_string()),
+            severity: Some(registration.severity),
+            code: Some(NumberOrString::String(registration.code.to_string())),
+            source: Some(registration.name.to_string()),
             message: self.message.clone(),
             ..Default::default()
         }
@@ -208,20 +125,18 @@ mod tests {
 
     #[test]
     fn codes_are_contiguous_from_e00_and_names_are_unique() {
-        // Every variant must appear here; the exhaustive `match`es guarantee a
-        // new one is given a code/name/severity, and this list keeps the `E..`
-        // codes contiguous and the names unique.
         let mut names = HashSet::new();
         for (index, diagnostic) in DiagnosticKind::ALL.iter().enumerate() {
+            let registration = diagnostic.registration();
             assert_eq!(
-                diagnostic.code(),
+                registration.code,
                 format!("E{index:02}"),
                 "diagnostic codes must be contiguous E00.. in listing order"
             );
             assert!(
-                names.insert(diagnostic.name()),
+                names.insert(registration.name),
                 "duplicate diagnostic name `{}`",
-                diagnostic.name()
+                registration.name
             );
         }
     }

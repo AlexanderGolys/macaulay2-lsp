@@ -968,6 +968,8 @@ async fn lambda_return_values_receive_nontrivial_type_hints() {
         "direct = x -> toList x\n",
         "scoped = x -> (ignored := x; toList x)\n",
         "explicit = x -> (return toList x;)\n",
+        "commented = x -> (return -- explanation\n",
+        "    toList x;)\n",
         "literal = x -> 1\n",
         "constructed = x -> new MutableList from {}\n",
         "explicitLiteral = x -> (return 1;)\n",
@@ -993,7 +995,12 @@ async fn lambda_return_values_receive_nontrivial_type_hints() {
 
     assert_eq!(
         type_hints,
-        [(0, "List".into()), (1, "List".into()), (2, "List".into())]
+        [
+            (0, "List".into()),
+            (1, "List".into()),
+            (2, "List".into()),
+            (4, "List".into()),
+        ]
     );
 
     session.shutdown().await;
@@ -1290,10 +1297,12 @@ async fn algebraic_runtime_types_and_generator_rebinding_reach_hover() {
 
 #[tokio::test]
 async fn numeric_literal_promotion_preserves_the_ring_element_type() {
-    let mut session =
-        DocumentSession::open("S = QQ[x]\na := 1_S\nb := 2_(S)\nq := 3_QQ\na\nb\nq\n").await;
+    let mut session = DocumentSession::open(
+        "S = QQ[x]\nR = S\na := 1_R\nb := (2)_R\nc := (2.5)_(R)\nq := 3_QQ\na\nb\nc\nq\n",
+    )
+    .await;
 
-    for (line, expected) in [(4, "S"), (5, "S"), (6, "QQ")] {
+    for (line, expected) in [(6, "S"), (7, "S"), (8, "S"), (9, "QQ")] {
         assert_eq!(hover_type_at(&mut session, line, 0).await, expected);
     }
 

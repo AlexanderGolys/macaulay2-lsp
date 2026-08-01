@@ -279,8 +279,8 @@ mod tests {
         .unwrap();
 
         assert!(DiagnosticKind::ALL
-            .into_iter()
-            .all(|diagnostic| !settings.diagnostics().allows(diagnostic)));
+            .iter()
+            .all(|diagnostic| !settings.diagnostics().allows(*diagnostic)));
     }
 
     #[test]

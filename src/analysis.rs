@@ -741,12 +741,6 @@ impl Analysis {
         self.registry.installations.get(id.0)
     }
 
-    /// Borrow every characterized method installation in source order.
-    #[cfg(test)]
-    pub fn installations(&self) -> &[MethodInstallation] {
-        &self.registry.installations
-    }
-
     pub fn assignment_facts(&self) -> &[AssignmentFact] {
         &self.registry.assignment_facts
     }

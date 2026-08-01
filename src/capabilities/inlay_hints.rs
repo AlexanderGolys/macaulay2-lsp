@@ -67,7 +67,9 @@ fn lambda_return_type_hints(
         .descendants()
         .filter_map(|node| match node.kind {
             NodeKind::ReturnStatement => {
-                let value = node.named_children().next()?;
+                let value = node
+                    .named_children()
+                    .find(|child| child.kind.is_value_expression())?;
                 let view = knowledge.at(document.position_for_node(value));
                 analysis.control_transfer_target(node, document, &view)?;
                 Some(value)
@@ -483,13 +485,12 @@ fn position_in_range(position: Position, range: TextRange) -> bool {
 mod tests {
     use super::*;
     use crate::object_registry::ObjectRegistry;
-    use tower_lsp::lsp_types::Position;
 
     fn hints(text: &str, expression_types: bool) -> Vec<InlayHint> {
         let registry = ObjectRegistry::default();
         let document =
             DocumentSnapshot::from_text(text.to_string(), &registry).expect("fixture should parse");
-        let range = TextRange::new(Position::new(0, 0), Position::new(u32::MAX, 0));
+        let range = TextRange::new(pos!(), pos!(u32::MAX, 0));
         inlay_hints_response(&document, range, expression_types, &registry)
     }
 
@@ -504,7 +505,7 @@ mod tests {
     fn calm_default_shows_informative_computed_assignment_types() {
         let computed = hints("x = if condition then 1 else 2\n", false);
         assert_eq!(labels(&computed), vec!["ZZ".to_string()]);
-        assert_eq!(computed[0].position, Position::new(0, 1));
+        assert_eq!(computed[0].position, pos!(0, 1));
 
         let self_describing = concat!(
             "x = 1\n",
