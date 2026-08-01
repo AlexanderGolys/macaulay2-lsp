@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
+use crate::analysis::ambiguous_float_member_access_rewrite;
 use crate::analysis::MethodCodomainEdit;
-use crate::capabilities::diagnostics::ambiguous_float_member_access_rewrite;
 use crate::diagnostic_registry::{diagnostic_has_kind, DiagnosticKind};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};

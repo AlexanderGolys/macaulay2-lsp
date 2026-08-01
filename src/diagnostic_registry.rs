@@ -1,4 +1,4 @@
-//! The diagnostics emitted by the server.
+//! Diagnostic identities and metadata shared by analysis and LSP capabilities.
 
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range as TextRange};
 

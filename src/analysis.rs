@@ -5,6 +5,8 @@ mod diagnostics;
 mod ring;
 mod typechecker;
 
+pub use diagnostics::ambiguous_float_member_access_rewrite;
+
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::num::NonZeroUsize;
@@ -846,10 +848,7 @@ impl Analysis {
         // before running diagnostics that consume those facts.
         analysis.build_scopes(root, source, 0, 0, knowledge);
         analysis.registry.pending_source_semantic_roles.clear();
-        analysis.collect_installation_diagnostics(root, source, knowledge);
-        analysis.collect_install_form_diagnostics(root, source, knowledge);
         analysis.collect_diagnostics(root, source, knowledge);
-        analysis.collect_unused_binding_diagnostics(root, source);
         analysis
     }
 

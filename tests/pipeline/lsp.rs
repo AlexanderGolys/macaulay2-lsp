@@ -453,6 +453,14 @@ async fn example_document_exercises_the_capability_spectrum_over_stdio() {
         &document_diagnostics,
     )
     .await;
+    let ambiguous_diagnostic = document_diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "E02")
+        .expect("the ambiguous member expression should produce E02");
+    assert_eq!(
+        ambiguous_diagnostic["message"],
+        "This is parsed as application to a float literal; use `memberValue#3` for member access"
+    );
     assert_eq!(
         action_replacement(
             &ambiguous_actions,
