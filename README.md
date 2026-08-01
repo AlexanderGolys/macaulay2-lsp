@@ -2,8 +2,6 @@
 
 [![crates.io](https://img.shields.io/crates/v/m2-ls.svg)](https://crates.io/crates/m2-ls)
 [![GitHub release](https://img.shields.io/github/v/release/AlexanderGolys/m2-ls?sort=semver)](https://github.com/AlexanderGolys/m2-ls/releases/latest)
-[![crate downloads](https://img.shields.io/crates/d/m2-ls.svg)](https://crates.io/crates/m2-ls)
-[![license](https://img.shields.io/crates/l/m2-ls.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://www.rust-lang.org/)
 
 A Rust language server for [Macaulay2](https://macaulay2.com/), built on
