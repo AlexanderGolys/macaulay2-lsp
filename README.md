@@ -4,7 +4,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/AlexanderGolys/m2-ls?sort=semver)](https://github.com/AlexanderGolys/m2-ls/releases/latest)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://www.rust-lang.org/)
 
-A Rust language server for [Macaulay2](https://macaulay2.com/), built on
+A language server for [Macaulay2](https://macaulay2.com/), built on
 Tree-sitter syntax analysis plus a generated database of Macaulay2 builtin
 metadata (types, methods, options, documentation).
 
