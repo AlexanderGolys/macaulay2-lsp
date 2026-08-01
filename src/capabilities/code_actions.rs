@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
+use crate::analysis::MethodCodomainEdit;
 use crate::capabilities::diagnostics::ambiguous_float_member_access_rewrite;
 use crate::diagnostic_registry::{diagnostic_has_kind, DiagnosticKind};
 use crate::document::DocumentSnapshot;
@@ -21,6 +22,7 @@ struct CodeActionContext<'tree, 'request> {
 }
 
 enum CodeActionRule {
+    MethodCodomain,
     AmbiguousFloatMemberAccess,
     ConvertToRawString,
     ConditionalNull,
@@ -30,6 +32,7 @@ enum CodeActionRule {
 }
 
 const ACTION_RULES: &[CodeActionRule] = &[
+    CodeActionRule::MethodCodomain,
     CodeActionRule::AmbiguousFloatMemberAccess,
     CodeActionRule::ConvertToRawString,
     CodeActionRule::ConditionalNull,
@@ -41,6 +44,7 @@ const ACTION_RULES: &[CodeActionRule] = &[
 impl CodeActionRule {
     fn action(&self, context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
         match self {
+            Self::MethodCodomain => method_codomain_action(context),
             Self::AmbiguousFloatMemberAccess => ambiguous_float_member_access_action(context),
             Self::ConvertToRawString => convert_to_raw_string_action(context),
             Self::ConditionalNull => conditional_null_action(context),
@@ -49,6 +53,62 @@ impl CodeActionRule {
             Self::FlattenElseIf => flatten_else_if_action(context),
         }
     }
+}
+
+fn method_codomain_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let diagnostic = context
+        .diagnostics
+        .iter()
+        .find(|diagnostic| {
+            matches!(
+                DiagnosticKind::from_lsp(diagnostic),
+                Some(
+                    DiagnosticKind::InstallCodomainMissing
+                        | DiagnosticKind::InstallCodomainMismatch
+                )
+            ) && position_in_range(context.position, diagnostic.range)
+        })?
+        .clone();
+    let mut current = Some(context.cursor);
+    while let Some(node) = current {
+        if node.is_assignment() {
+            let knowledge = context
+                .document
+                .object_registry()
+                .at(context.document.position_for_node(node));
+            if let Some(deduction) = context.document.analysis().method_codomain_deduction(
+                node,
+                context.document,
+                &knowledge,
+            ) {
+                if deduction.diagnostic_range == diagnostic.range {
+                    let (title, edit_range, new_text) = match deduction.edit {
+                        MethodCodomainEdit::Replace(range) => (
+                            "Correct codomain annotation",
+                            range,
+                            deduction.codomain.to_string(),
+                        ),
+                        MethodCodomainEdit::Add(range) => (
+                            "Add codomain annotation",
+                            range,
+                            format!("{} => ", deduction.codomain),
+                        ),
+                    };
+                    return Some(
+                        CodeActionSpec {
+                            title,
+                            kind: CodeActionKind::QUICKFIX,
+                            is_preferred: Some(true),
+                            diagnostics: Some(vec![diagnostic]),
+                        }
+                        .build(context.uri, edit_range, new_text),
+                    );
+                }
+            }
+        }
+        current = node.parent();
+    }
+    None
 }
 
 /// The code actions offered at `position`: every action from the registry

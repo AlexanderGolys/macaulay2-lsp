@@ -438,6 +438,104 @@ async fn installation_and_syntax_diagnostics_run_through_the_server_pipeline() {
 }
 
 #[tokio::test]
+async fn method_codomain_diagnostics_offer_annotation_quick_fixes() {
+    let mut session = DocumentSession::open("f ZZ := x -> [x]\n").await;
+    let missing = session
+        .diagnostics()
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "E19")
+        .expect("a directly deduced missing codomain should produce a hint")
+        .clone();
+    assert_eq!(missing["severity"], 4);
+    assert!(missing["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("`Array`")));
+
+    let uri = session.uri().to_string();
+    let actions = session
+        .request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": {"uri": uri},
+                "range": missing["range"],
+                "context": {"diagnostics": [missing]}
+            }),
+        )
+        .await;
+    let add = response_array(&actions)
+        .iter()
+        .find(|action| action["title"] == "Add codomain annotation")
+        .expect("the missing-codomain hint should carry a quick fix");
+    assert_eq!(add["kind"], "quickfix");
+    assert_eq!(add["edit"]["changes"][&uri][0]["newText"], "Array => ");
+    assert_eq!(
+        add["edit"]["changes"][&uri][0]["range"],
+        json!({
+            "start": {"line": 0, "character": 8},
+            "end": {"line": 0, "character": 8}
+        })
+    );
+
+    session.replace("f ZZ := List => x -> [x]\n").await;
+    let mismatch = session
+        .diagnostics()
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "E20")
+        .expect("an incompatible explicit codomain should produce a warning")
+        .clone();
+    assert_eq!(mismatch["severity"], 2);
+
+    let actions = session
+        .request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": {"uri": uri},
+                "range": mismatch["range"],
+                "context": {"diagnostics": [mismatch]}
+            }),
+        )
+        .await;
+    let correct = response_array(&actions)
+        .iter()
+        .find(|action| action["title"] == "Correct codomain annotation")
+        .expect("the mismatched codomain warning should carry a quick fix");
+    assert_eq!(correct["edit"]["changes"][&uri][0]["newText"], "Array");
+    assert_eq!(
+        correct["edit"]["changes"][&uri][0]["range"],
+        json!({
+            "start": {"line": 0, "character": 8},
+            "end": {"line": 0, "character": 12}
+        })
+    );
+
+    for source in [
+        "f ZZ := Array => x -> [x]\n",
+        "f ZZ := VisibleList => x -> [x]\n",
+        "f ZZ := x -> x\n",
+    ] {
+        session.replace(source).await;
+        assert!(
+            !session.diagnostic_codes().contains(&"E20"),
+            "a correct or compatible codomain must not warn: {:?}",
+            session.diagnostics()
+        );
+    }
+    assert!(session.diagnostic_codes().contains(&"E19"));
+    assert!(session
+        .diagnostics()
+        .iter()
+        .any(|diagnostic| diagnostic["code"] == "E19"
+            && diagnostic["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("`ZZ`"))));
+
+    session.replace("f ZZ := x -> mystery x\n").await;
+    assert!(!session.diagnostic_codes().contains(&"E19"));
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn control_transfers_require_their_runtime_body() {
     let mut session = DocumentSession::open("f := x -> return x\n").await;
 

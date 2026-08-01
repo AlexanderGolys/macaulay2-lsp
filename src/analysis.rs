@@ -150,6 +150,19 @@ pub struct MethodInstallation {
     pub rhs_lambda_dispatch: Option<Dispatch>,
 }
 
+/// A lambda-body codomain that can safely drive an annotation quick fix.
+pub struct MethodCodomainDeduction {
+    pub codomain: ObjectName,
+    pub diagnostic_range: TextRange,
+    pub edit: MethodCodomainEdit,
+}
+
+/// The source edit needed to make a method codomain annotation precise.
+pub enum MethodCodomainEdit {
+    Add(TextRange),
+    Replace(TextRange),
+}
+
 /// The outline-relevant semantic shape of one characterized assignment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssignmentFactKind {
@@ -839,7 +852,7 @@ impl Analysis {
         // before running diagnostics that consume those facts.
         analysis.build_scopes(root, source, 0, 0, knowledge);
         analysis.registry.pending_source_semantic_roles.clear();
-        analysis.collect_installation_diagnostics(knowledge);
+        analysis.collect_installation_diagnostics(root, source, knowledge);
         analysis.collect_install_form_diagnostics(root, source, knowledge);
         analysis.collect_diagnostics(root, source, knowledge);
         analysis.collect_unused_binding_diagnostics(root, source);
@@ -1177,9 +1190,7 @@ impl Analysis {
         let span = source.range_for_node(node);
         let right = node.child_by_field_name("right");
         let rhs_lambda = right.and_then(assigned_lambda);
-        let codomain_node = right
-            .filter(|right| right.is_option_assignment())
-            .and_then(|right| right.child_by_field_name("left"));
+        let codomain_node = right.and_then(method_codomain_annotation);
         let codomain = codomain_node
             .and_then(symbol_node_text)
             .map(ObjectName::new);
@@ -1647,6 +1658,52 @@ impl Analysis {
             .cloned()
     }
 
+    pub fn method_codomain_deduction(
+        &self,
+        assignment: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Option<MethodCodomainDeduction> {
+        self.installation_for(assignment, source)?;
+        let right = assignment.child_by_field_name("right")?;
+        let lambda = assigned_lambda(right)?;
+        let body = lambda.child_by_field_name("body")?;
+        let lambda_operator = lambda.child_by_field_name("operator")?;
+        let codomain = self.infer_expression_static_type(body, source, knowledge)?;
+        if codomain == TypeRole::Thing.object_name() {
+            return None;
+        }
+
+        let annotation = method_codomain_annotation(right);
+        if annotation.is_some_and(|annotation| {
+            TypeChecker::new(self).is_subtype(
+                &codomain,
+                &ObjectName::new(annotation.text()),
+                knowledge,
+            )
+        }) {
+            return None;
+        }
+
+        let edit = annotation.map_or_else(
+            || {
+                MethodCodomainEdit::Add({
+                    let start = source.position_for_node(lambda);
+                    TextRange::new(start, start)
+                })
+            },
+            |annotation| MethodCodomainEdit::Replace(source.range_for_node(annotation)),
+        );
+        Some(MethodCodomainDeduction {
+            codomain,
+            diagnostic_range: annotation.map_or_else(
+                || source.range_for_node(lambda_operator),
+                |node| source.range_for_node(node),
+            ),
+            edit,
+        })
+    }
+
     /// Infer a display label for one expression without retaining the result in
     /// the analysis snapshot.
     pub fn infer_expression_type_label(
@@ -1898,6 +1955,12 @@ fn assigned_lambda(node: M2Node<'_>) -> Option<M2Node<'_>> {
         .then(|| node.child_by_field_name("right"))
         .flatten()
         .and_then(assigned_lambda)
+}
+
+fn method_codomain_annotation(node: M2Node<'_>) -> Option<M2Node<'_>> {
+    node.is_option_assignment()
+        .then(|| node.child_by_field_name("left"))
+        .flatten()
 }
 
 fn single_symbol_assignment_target<'tree>(node: M2Node<'tree>) -> Option<&'tree str> {

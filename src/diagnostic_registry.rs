@@ -34,10 +34,12 @@ pub enum DiagnosticKind {
     ParallelAssignmentType,
     WhileConditionType,
     IfConditionType,
+    InstallCodomainMissing,
+    InstallCodomainMismatch,
 }
 
 impl DiagnosticKind {
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 21] = [
         Self::SyntaxError,
         Self::MissingNode,
         Self::AmbiguousFloatMemberAccess,
@@ -57,6 +59,8 @@ impl DiagnosticKind {
         Self::ParallelAssignmentType,
         Self::WhileConditionType,
         Self::IfConditionType,
+        Self::InstallCodomainMissing,
+        Self::InstallCodomainMismatch,
     ];
 
     /// The stable `E..` code surfaced to the editor (rustc-style).
@@ -81,6 +85,8 @@ impl DiagnosticKind {
             Self::ParallelAssignmentType => "E16",
             Self::WhileConditionType => "E17",
             Self::IfConditionType => "E18",
+            Self::InstallCodomainMissing => "E19",
+            Self::InstallCodomainMismatch => "E20",
         }
     }
 
@@ -107,6 +113,8 @@ impl DiagnosticKind {
             Self::ParallelAssignmentType => "parallel-assignment-type",
             Self::WhileConditionType => "while-condition-type",
             Self::IfConditionType => "if-condition-type",
+            Self::InstallCodomainMissing => "install-codomain-missing",
+            Self::InstallCodomainMismatch => "install-codomain-mismatch",
         }
     }
 
@@ -124,11 +132,14 @@ impl DiagnosticKind {
             | Self::ParallelAssignmentType
             | Self::WhileConditionType
             | Self::IfConditionType => DiagnosticSeverity::ERROR,
-            Self::AmbiguousFloatMemberAccess | Self::UnusedBinding | Self::InstallNoEffect => {
-                DiagnosticSeverity::WARNING
-            }
+            Self::AmbiguousFloatMemberAccess
+            | Self::UnusedBinding
+            | Self::InstallNoEffect
+            | Self::InstallCodomainMismatch => DiagnosticSeverity::WARNING,
             Self::ProtectComputedSymbol | Self::MissingOutputCell => DiagnosticSeverity::WARNING,
-            Self::OptionKeyConvention | Self::ProtectAssignedSymbol => DiagnosticSeverity::HINT,
+            Self::OptionKeyConvention
+            | Self::ProtectAssignedSymbol
+            | Self::InstallCodomainMissing => DiagnosticSeverity::HINT,
         }
     }
 

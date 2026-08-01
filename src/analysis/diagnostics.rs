@@ -3,6 +3,8 @@ use super::*;
 impl Analysis {
     pub(super) fn collect_installation_diagnostics(
         &mut self,
+        root: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
         knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
     ) {
         if !knowledge_provider.at_position(pos!()).is_available() {
@@ -13,7 +15,49 @@ impl Analysis {
             let knowledge = knowledge_provider.at_position(installation.span.start);
             self.installation_diagnostics(installation, &knowledge, &mut diagnostics);
         }
+        self.scan_installation_codomain_diagnostics(
+            root,
+            source,
+            knowledge_provider,
+            &mut diagnostics,
+        );
         self.diagnostics.extend(diagnostics);
+    }
+
+    fn scan_installation_codomain_diagnostics(
+        &self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+        knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
+        out: &mut Vec<M2Diagnostic>,
+    ) {
+        if node.is_assignment() {
+            let knowledge = knowledge_provider.at_position(source.position_for_node(node));
+            if let Some(deduction) = self.method_codomain_deduction(node, source, &knowledge) {
+                let (kind, message) = match deduction.edit {
+                    MethodCodomainEdit::Replace(_) => (
+                        DiagnosticKind::InstallCodomainMismatch,
+                        format!(
+                            "This method's lambda returns `{}`, which is incompatible with the \
+                             annotated codomain. Change the annotation to `{}`.",
+                            deduction.codomain, deduction.codomain
+                        ),
+                    ),
+                    MethodCodomainEdit::Add(_) => (
+                        DiagnosticKind::InstallCodomainMissing,
+                        format!(
+                            "This method's lambda has the deducible codomain `{}`. Add the \
+                             codomain annotation.",
+                            deduction.codomain
+                        ),
+                    ),
+                };
+                out.push(kind.at(deduction.diagnostic_range, message));
+            }
+        }
+        for child in node.children() {
+            self.scan_installation_codomain_diagnostics(child, source, knowledge_provider, out);
+        }
     }
 
     pub(super) fn collect_install_form_diagnostics(
