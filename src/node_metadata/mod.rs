@@ -5,7 +5,7 @@ mod node;
 mod parser;
 
 pub use kind::{NodeKind, NodeKindMetadata};
-pub use node::M2Node;
+pub use node::{BinaryExpressionNode, LambdaExpressionNode, M2Node};
 pub use parser::{M2Parser, M2Tree};
 
 #[cfg(test)]

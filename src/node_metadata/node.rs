@@ -1,24 +1,98 @@
 //! Typed access to Tree-sitter nodes and traversals.
 
-use std::{iter, ops::Deref};
+use std::{iter, marker::PhantomData};
 
 use tree_sitter::{Node, Point};
 
 use super::{NodeKind, NodeKindMetadata};
 
+trait NodeClass {
+    fn accepts(kind: NodeKind) -> bool;
+}
+
 #[derive(Debug, Clone, Copy)]
-pub struct M2Node<'tree> {
+pub struct AnyNodeClass;
+
+impl NodeClass for AnyNodeClass {
+    fn accepts(_kind: NodeKind) -> bool {
+        true
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SyntaxNode<'tree, Class = AnyNodeClass> {
     node: Node<'tree>,
     source: &'tree str,
     pub kind: NodeKind,
+    class: PhantomData<Class>,
 }
 
-impl<'tree> M2Node<'tree> {
+pub type M2Node<'tree> = SyntaxNode<'tree>;
+
+macro_rules! node_classes {
+    ($($node:ident => $class:ident accepts $accepts:expr;)*) => {
+        $(
+            #[derive(Debug, Clone, Copy)]
+            pub struct $class;
+
+            impl NodeClass for $class {
+                fn accepts(kind: NodeKind) -> bool {
+                    ($accepts)(kind)
+                }
+            }
+
+            pub type $node<'tree> = SyntaxNode<'tree, $class>;
+
+            impl<'tree> From<$node<'tree>> for M2Node<'tree> {
+                fn from(node: $node<'tree>) -> Self {
+                    node.erase()
+                }
+            }
+
+            impl<'tree> TryFrom<M2Node<'tree>> for $node<'tree> {
+                type Error = M2Node<'tree>;
+
+                fn try_from(node: M2Node<'tree>) -> Result<Self, Self::Error> {
+                    node.cast().ok_or(node)
+                }
+            }
+        )*
+    };
+}
+
+node_classes! {
+    BinaryExpressionNode => BinaryExpressionClass accepts
+        |kind| kind == NodeKind::BinaryExpression;
+    LambdaExpressionNode => LambdaExpressionClass accepts
+        |kind| kind == NodeKind::LambdaExpression;
+}
+
+impl<'tree> SyntaxNode<'tree> {
     pub fn new(node: Node<'tree>, source: &'tree str) -> Self {
         Self {
             kind: NodeKind::from_str(node.kind()),
             node,
             source,
+            class: PhantomData,
+        }
+    }
+}
+
+impl<'tree, Class> SyntaxNode<'tree, Class> {
+    fn cast<Target: NodeClass>(self) -> Option<SyntaxNode<'tree, Target>> {
+        Target::accepts(self.kind).then(|| self.reclassify())
+    }
+
+    fn erase(self) -> M2Node<'tree> {
+        self.reclassify()
+    }
+
+    fn reclassify<Target>(self) -> SyntaxNode<'tree, Target> {
+        SyntaxNode {
+            node: self.node,
+            source: self.source,
+            kind: self.kind,
+            class: PhantomData,
         }
     }
 
@@ -117,16 +191,15 @@ impl<'tree> M2Node<'tree> {
     pub fn is_then_or_else_keyword(&self) -> bool {
         !self.node.is_named() && matches!(self.raw_kind(), "then" | "else")
     }
+}
 
+impl<'tree> SyntaxNode<'tree> {
     /// The operator token's source text of a binary expression (`:=`, `=>`, ...),
     /// or `None` if this is not a binary expression. Comparing this *parsed* text
     /// against operator spellings is reading code, not node-type names, so it is
     /// safe and rename-stable.
     pub fn binary_operator(&self) -> Option<&'tree str> {
-        if self.kind != NodeKind::BinaryExpression {
-            return None;
-        }
-        self.child_by_field_name("operator").map(|op| op.text())
+        self.cast::<BinaryExpressionClass>()?.binary_operator()
     }
 
     /// The parsed operator and following operand of an infix expression.
@@ -135,26 +208,68 @@ impl<'tree> M2Node<'tree> {
     /// `body`. Keeping that grammar distinction here lets consumers handle both
     /// uniformly.
     pub fn infix_operator_and_right_operand(&self) -> Option<(M2Node<'tree>, M2Node<'tree>)> {
-        let operand = match self.kind {
-            NodeKind::BinaryExpression => self.child_by_field_name("right"),
-            NodeKind::LambdaExpression => self.child_by_field_name("body"),
-            _ => None,
-        }?;
-        Some((self.child_by_field_name("operator")?, operand))
+        if let Some(binary) = self.cast::<BinaryExpressionClass>() {
+            return binary.infix_operator_and_right_operand();
+        }
+        self.cast::<LambdaExpressionClass>()?
+            .infix_operator_and_right_operand()
     }
 
     /// An assignment expression (`=`, `:=`, `<-`).
     pub fn is_assignment(&self) -> bool {
-        matches!(self.binary_operator(), Some("=" | ":=" | "<-"))
+        self.cast::<BinaryExpressionClass>()
+            .is_some_and(|binary| binary.is_assignment())
     }
 
     /// An option assignment (`key => value`).
     pub fn is_option_assignment(&self) -> bool {
-        self.binary_operator() == Some("=>")
+        self.cast::<BinaryExpressionClass>()
+            .is_some_and(|binary| binary.is_option_assignment())
     }
 
     pub fn property_key(&self) -> Option<Self> {
-        let right = self.child_by_field_name("right")?;
+        self.cast::<BinaryExpressionClass>()?.property_key()
+    }
+
+    /// An implicit application `f x` / `f(x)`: a binary expression whose operator
+    /// is the inserted `SPACE` token.
+    pub fn is_space_application(&self) -> bool {
+        self.cast::<BinaryExpressionClass>()
+            .is_some_and(|binary| binary.is_space_application())
+    }
+}
+
+impl<'tree> BinaryExpressionNode<'tree> {
+    pub fn left(&self) -> Option<M2Node<'tree>> {
+        self.child_by_field_name("left")
+    }
+
+    pub fn operator(&self) -> Option<M2Node<'tree>> {
+        self.child_by_field_name("operator")
+    }
+
+    pub fn right(&self) -> Option<M2Node<'tree>> {
+        self.child_by_field_name("right")
+    }
+
+    pub fn binary_operator(&self) -> Option<&'tree str> {
+        self.operator().map(|operator| operator.text())
+    }
+
+    pub fn infix_operator_and_right_operand(&self) -> Option<(M2Node<'tree>, M2Node<'tree>)> {
+        Some((self.operator()?, self.right()?))
+    }
+
+    pub fn is_assignment(&self) -> bool {
+        matches!(self.binary_operator(), Some("=" | ":=" | "<-"))
+    }
+
+    pub fn is_option_assignment(&self) -> bool {
+        self.binary_operator() == Some("=>")
+    }
+
+    pub fn property_key(&self) -> Option<M2Node<'tree>> {
+        let right = self.right()?;
         match self.binary_operator()? {
             "#" | "#?" if right.kind == NodeKind::StringLiteral => Some(right),
             "." | ".?" if right.kind.is_symbol_like() => Some(right),
@@ -162,15 +277,31 @@ impl<'tree> M2Node<'tree> {
         }
     }
 
-    /// An implicit application `f x` / `f(x)`: a binary expression whose operator
-    /// is the inserted `SPACE` token.
     pub fn is_space_application(&self) -> bool {
-        self.kind == NodeKind::BinaryExpression
-            && self
-                .child_by_field_name("operator")
-                .is_some_and(|op| op.is_implicit_application())
+        self.operator()
+            .is_some_and(|operator| operator.is_implicit_application())
+    }
+}
+
+impl<'tree> LambdaExpressionNode<'tree> {
+    pub fn parameters(&self) -> Option<M2Node<'tree>> {
+        self.child_by_field_name("parameters")
     }
 
+    pub fn operator(&self) -> Option<M2Node<'tree>> {
+        self.child_by_field_name("operator")
+    }
+
+    pub fn body(&self) -> Option<M2Node<'tree>> {
+        self.child_by_field_name("body")
+    }
+
+    pub fn infix_operator_and_right_operand(&self) -> Option<(M2Node<'tree>, M2Node<'tree>)> {
+        Some((self.operator()?, self.body()?))
+    }
+}
+
+impl<'tree, Class> SyntaxNode<'tree, Class> {
     /// Whether this node is the `operator` field of its own parent.
     pub fn is_operator(&self) -> bool {
         self.parent()
@@ -338,12 +469,33 @@ impl<'tree> M2Node<'tree> {
     pub fn end_byte(&self) -> usize {
         self.node.end_byte()
     }
-}
 
-impl<'tree> Deref for M2Node<'tree> {
-    type Target = Node<'tree>;
+    pub fn id(&self) -> usize {
+        self.node.id()
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.node
+    pub fn start_position(&self) -> Point {
+        self.node.start_position()
+    }
+
+    pub fn end_position(&self) -> Point {
+        self.node.end_position()
+    }
+
+    pub fn child_count(&self) -> usize {
+        self.node.child_count()
+    }
+
+    pub fn is_error(&self) -> bool {
+        self.node.is_error()
+    }
+
+    pub fn is_missing(&self) -> bool {
+        self.node.is_missing()
+    }
+
+    #[cfg(test)]
+    pub fn has_error(&self) -> bool {
+        self.node.has_error()
     }
 }

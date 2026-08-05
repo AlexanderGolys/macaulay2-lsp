@@ -1,6 +1,390 @@
 //! Diagnostic detection over completed document analysis.
 
 use super::*;
+use crate::diagnostic_declarations;
+
+macro_rules! run_check_for_phase {
+    (node, node, $kind:ident, $check_context:ident, $check:expr, $context:ident) => {{
+        $context.kind = DiagnosticKind::$kind;
+        let $check_context = &mut *$context;
+        $check;
+    }};
+    (installation, installation, $kind:ident, $check_context:ident, $check:expr, $context:ident) => {{
+        $context.kind = DiagnosticKind::$kind;
+        let $check_context = &mut *$context;
+        $check;
+    }};
+    (codomain, codomain, $kind:ident, $check_context:ident, $check:expr, $context:ident) => {{
+        $context.kind = DiagnosticKind::$kind;
+        let $check_context = &mut *$context;
+        $check;
+    }};
+    (document, document, $kind:ident, $check_context:ident, $check:expr, $context:ident) => {{
+        $context.kind = DiagnosticKind::$kind;
+        let $check_context = &mut *$context;
+        $check;
+    }};
+    ($expected:ident, $actual:ident, $kind:ident, $check_context:ident, $check:expr, $context:ident) => {};
+}
+
+macro_rules! node_diagnostic_checks {
+    (diagnostics { $($kind:ident {
+        code: $code:literal, name: $name:literal, severity: $severity:ident,
+        legacy: [$($legacy:literal),* $(,)?],
+        check: $phase:ident => |$check_context:ident| $check:expr, action: $action:tt,
+    }),+ $(,)? } standalone_actions { $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)? }) => {
+        |context: &mut NodeDiagnosticContext<'_, '_, '_, _, _>| {
+            $(run_check_for_phase!(node, $phase, $kind, $check_context, $check, context);)+
+        }
+    };
+}
+
+macro_rules! installation_diagnostic_checks {
+    (diagnostics { $($kind:ident {
+        code: $code:literal, name: $name:literal, severity: $severity:ident,
+        legacy: [$($legacy:literal),* $(,)?],
+        check: $phase:ident => |$check_context:ident| $check:expr, action: $action:tt,
+    }),+ $(,)? } standalone_actions { $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)? }) => {
+        |context: &mut InstallationDiagnosticContext<'_, '_, _>| {
+            $(run_check_for_phase!(installation, $phase, $kind, $check_context, $check, context);)+
+        }
+    };
+}
+
+macro_rules! codomain_diagnostic_checks {
+    (diagnostics { $($kind:ident {
+        code: $code:literal, name: $name:literal, severity: $severity:ident,
+        legacy: [$($legacy:literal),* $(,)?],
+        check: $phase:ident => |$check_context:ident| $check:expr, action: $action:tt,
+    }),+ $(,)? } standalone_actions { $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)? }) => {
+        |context: &mut CodomainDiagnosticContext<'_, '_, '_, _, _>| {
+            $(run_check_for_phase!(codomain, $phase, $kind, $check_context, $check, context);)+
+        }
+    };
+}
+
+macro_rules! document_diagnostic_checks {
+    (diagnostics { $($kind:ident {
+        code: $code:literal, name: $name:literal, severity: $severity:ident,
+        legacy: [$($legacy:literal),* $(,)?],
+        check: $phase:ident => |$check_context:ident| $check:expr, action: $action:tt,
+    }),+ $(,)? } standalone_actions { $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)? }) => {
+        |context: &mut DocumentDiagnosticContext<'_, '_, '_, _>| {
+            $(run_check_for_phase!(document, $phase, $kind, $check_context, $check, context);)+
+        }
+    };
+}
+
+struct NodeDiagnosticContext<'analysis, 'tree, 'source, Source: ?Sized, Knowledge: ?Sized> {
+    analysis: &'analysis mut Analysis,
+    kind: DiagnosticKind,
+    node: M2Node<'tree>,
+    source: &'source Source,
+    knowledge: &'source Knowledge,
+}
+
+struct InstallationDiagnosticContext<'analysis, 'source, Knowledge: ?Sized> {
+    analysis: &'analysis Analysis,
+    kind: DiagnosticKind,
+    installation: &'analysis MethodInstallation,
+    knowledge: &'source Knowledge,
+    diagnostics: &'analysis mut Vec<M2Diagnostic>,
+}
+
+struct CodomainDiagnosticContext<'analysis, 'tree, 'source, Source: ?Sized, Knowledge: ?Sized> {
+    analysis: &'analysis Analysis,
+    kind: DiagnosticKind,
+    node: M2Node<'tree>,
+    source: &'source Source,
+    knowledge: &'source Knowledge,
+    diagnostics: &'analysis mut Vec<M2Diagnostic>,
+}
+
+struct DocumentDiagnosticContext<'analysis, 'tree, 'source, Source: ?Sized> {
+    analysis: &'analysis mut Analysis,
+    kind: DiagnosticKind,
+    root: M2Node<'tree>,
+    source: &'source Source,
+}
+
+impl<Source: SourceNavigation + ?Sized, Knowledge: TypeKnowledge + ?Sized>
+    NodeDiagnosticContext<'_, '_, '_, Source, Knowledge>
+{
+    fn syntax_error(&mut self) {
+        if self.node.is_error() {
+            self.analysis.diagnostics.push(self.kind.at(
+                self.source.remainder_of_line_range(self.node.start_byte()),
+                "Syntax error",
+            ));
+        }
+    }
+
+    fn missing_node(&mut self) {
+        if self.node.is_missing() {
+            self.analysis.diagnostics.push(self.kind.at(
+                self.source.range_for_node(self.node),
+                format!("Missing: {}", self.node.syntax_label()),
+            ));
+        }
+    }
+
+    fn ambiguous_float_member_access(&mut self) {
+        let Some(replacement) = ambiguous_float_member_access_rewrite(self.node) else {
+            return;
+        };
+        self.analysis.diagnostics.push(self.kind.at(
+            self.source.range_for_node(self.node),
+            format!(
+                "This is parsed as application to a float literal; use `{replacement}` for member access"
+            ),
+        ));
+    }
+
+    fn multiple_assignment_targets(&mut self) {
+        if !self.node.is_assignment() {
+            return;
+        }
+        let Some(left) = self.node.child_by_field_name("left") else {
+            return;
+        };
+        let Some(operator) = self.node.child_by_field_name("operator") else {
+            return;
+        };
+        let operator = operator.text();
+        if matches!(operator, "=" | ":=")
+            && self
+                .analysis
+                .installation_for(self.node, self.source)
+                .is_none()
+            && !multiple_assignment_targets_are_symbols(left)
+        {
+            self.analysis.diagnostics.push(self.kind.at(
+                self.source.range_for_node(left),
+                format!("{operator} multiple assignment targets must be symbols"),
+            ));
+        }
+    }
+
+    fn colon_equal_part_assignment(&mut self) {
+        if self.node.binary_operator() != Some(":=") {
+            return;
+        }
+        let Some(left) = self.node.child_by_field_name("left") else {
+            return;
+        };
+        if left.binary_operator() == Some("#") {
+            self.analysis.diagnostics.push(self.kind.at(
+                self.source.range_for_node(left),
+                "`:=` cannot assign to parts; use `=` for part assignment",
+            ));
+        }
+    }
+
+    fn parallel_assignment_arity(&mut self) {
+        self.parallel_assignment();
+    }
+
+    fn option_key_convention(&mut self) {
+        self.analysis
+            .diagnose_option_key_convention(self.kind, self.node, self.source);
+    }
+
+    fn install_needs_colon_equals(&mut self) {
+        let position = self.source.position_for_node(self.node);
+        let Some(name) =
+            self.analysis
+                .illegal_equals_install_head(self.node, position, self.knowledge)
+        else {
+            return;
+        };
+        self.analysis.diagnostics.push(self.kind.at(
+            self.source.range_for_node(self.node),
+            format!(
+                "Installing a method on `{name}` must use `:=`, not `=`: M2 rejects this \
+                 (\"no method for storing values of function {name}\"). Use `:=`."
+            ),
+        ));
+    }
+
+    fn protect_assigned_symbol(&mut self) {
+        self.analysis
+            .diagnose_protect_argument(self.kind, self.node, self.source, self.knowledge);
+    }
+
+    fn protect_computed_symbol(&mut self) {
+        self.analysis
+            .diagnose_protect_argument(self.kind, self.node, self.source, self.knowledge);
+    }
+
+    fn missing_output_cell(&mut self) {
+        self.analysis
+            .diagnose_output_reference(self.kind, self.node, self.source, self.knowledge);
+    }
+
+    fn invalid_control_transfer(&mut self) {
+        self.analysis
+            .diagnose_control_transfer(self.kind, self.node, self.source, self.knowledge);
+    }
+
+    fn parallel_assignment_type(&mut self) {
+        self.parallel_assignment();
+    }
+
+    fn condition_type(&mut self) {
+        self.analysis
+            .diagnose_condition_type(self.kind, self.node, self.source, self.knowledge);
+    }
+
+    fn parallel_assignment(&mut self) {
+        if !self.node.is_assignment()
+            || !matches!(self.node.binary_operator(), Some("=") | Some(":="))
+            || self
+                .analysis
+                .installation_for(self.node, self.source)
+                .is_some()
+        {
+            return;
+        }
+        let (Some(left), Some(right)) = (
+            self.node.child_by_field_name("left"),
+            self.node.child_by_field_name("right"),
+        ) else {
+            return;
+        };
+        self.analysis.validate_parallel_assignment(
+            self.kind,
+            left,
+            right,
+            self.source,
+            self.knowledge,
+        );
+    }
+}
+
+impl<Knowledge: TypeKnowledge + ?Sized> InstallationDiagnosticContext<'_, '_, Knowledge> {
+    fn install_no_effect(&mut self) {
+        let method = &self.installation.method;
+        if let MethodHead::Operator(operator) = &method.head {
+            if operator.form == OperatorForm::Binary
+                && operator.token.name() == "??"
+                && self.installation.expected_rhs_arity() == method.domain.len()
+            {
+                self.diagnostics.push(self.kind.at(
+                    self.installation.span,
+                    "Installing a binary `??` method has no effect: M2 records the method, but `x ?? y` never dispatches to it. Install the prefix form `?? X := x -> ...` to customize how `X` behaves on the left of `??`.",
+                ));
+                return;
+            }
+        }
+        let MethodHead::Function(name) = &method.head else {
+            return;
+        };
+        if self.analysis.callable_head_kind(
+            name.name(),
+            self.installation.span.start,
+            self.knowledge,
+        ) != CallableHeadKind::PlainFunction
+        {
+            return;
+        }
+        self.diagnostics.push(self.kind.at(
+            self.installation.span,
+            format!(
+                "Installing a method on `{name}` has no effect: `{name}` is not a method \
+                 function. Define it with `{name} = method()` to make method installations take effect."
+            ),
+        ));
+    }
+
+    fn operator_not_flexible(&mut self) {
+        let MethodHead::Operator(operator) = &self.installation.method.head else {
+            return;
+        };
+        if self
+            .analysis
+            .operator_form_is_flexible(operator, self.knowledge)
+            != Some(false)
+        {
+            return;
+        }
+        self.diagnostics.push(self.kind.at(
+            self.installation.span,
+            format!(
+                "Cannot install a method on the {} operator `{}`: it is not flexible, so M2 rejects the assignment.",
+                operator.form, operator.token
+            ),
+        ));
+    }
+
+    fn install_arity(&mut self) {
+        let Some(Dispatch::Fixed(actual)) = self.installation.rhs_lambda_dispatch else {
+            return;
+        };
+        let expected = self.installation.expected_rhs_arity();
+        if actual == expected {
+            return;
+        }
+        self.diagnostics.push(self.kind.at(
+            self.installation.span,
+            format!(
+                "This method's function takes {actual} argument(s) but the installation expects \
+                 {expected}. Match the domain arity or use a variadic `x -> …`."
+            ),
+        ));
+    }
+}
+
+impl<Source: SourceNavigation + ?Sized, Knowledge: TypeKnowledge + ?Sized>
+    CodomainDiagnosticContext<'_, '_, '_, Source, Knowledge>
+{
+    fn missing_codomain(&mut self) {
+        let Some(deduction) =
+            self.analysis
+                .method_codomain_deduction(self.node, self.source, self.knowledge)
+        else {
+            return;
+        };
+        if !matches!(deduction.edit, MethodCodomainEdit::Add(_)) {
+            return;
+        }
+        self.diagnostics.push(self.kind.at(
+            deduction.diagnostic_range,
+            format!(
+                "This method's lambda has the deducible codomain `{}`. Add the codomain annotation.",
+                deduction.codomain
+            ),
+        ));
+    }
+
+    fn codomain_mismatch(&mut self) {
+        let Some(deduction) =
+            self.analysis
+                .method_codomain_deduction(self.node, self.source, self.knowledge)
+        else {
+            return;
+        };
+        if !matches!(deduction.edit, MethodCodomainEdit::Replace) {
+            return;
+        }
+        let Some(annotated) = deduction.annotated_codomain else {
+            return;
+        };
+        self.diagnostics.push(self.kind.at(
+            deduction.diagnostic_range,
+            format!(
+                "This method's inferred result type `{}` is incompatible with its annotated codomain `{annotated}`.",
+                deduction.codomain
+            ),
+        ));
+    }
+}
+
+impl<Source: SourceNavigation + ?Sized> DocumentDiagnosticContext<'_, '_, '_, Source> {
+    fn unused_bindings(&mut self) {
+        self.analysis
+            .diagnose_unused_bindings(self.kind, self.root, self.source);
+    }
+}
 
 impl Analysis {
     pub fn collect_diagnostics(
@@ -10,9 +394,14 @@ impl Analysis {
         knowledge: &(impl PositionedTypeKnowledge + ?Sized),
     ) {
         self.diagnose_installations(root, source, knowledge);
-        self.diagnose_install_forms(root, source, knowledge);
         self.scan_diagnostics(root, source, knowledge);
-        self.diagnose_unused_bindings(root, source);
+        let mut context = DocumentDiagnosticContext {
+            analysis: self,
+            kind: DiagnosticKind::SyntaxError,
+            root,
+            source,
+        };
+        diagnostic_declarations!(document_diagnostic_checks)(&mut context);
     }
 
     fn diagnose_installations(
@@ -27,7 +416,14 @@ impl Analysis {
         let mut diagnostics = Vec::new();
         for installation in &self.registry.installations {
             let knowledge = knowledge_provider.at_position(installation.span.start);
-            self.installation_diagnostics(installation, &knowledge, &mut diagnostics);
+            let mut context = InstallationDiagnosticContext {
+                analysis: self,
+                kind: DiagnosticKind::SyntaxError,
+                installation,
+                knowledge: &knowledge,
+                diagnostics: &mut diagnostics,
+            };
+            diagnostic_declarations!(installation_diagnostic_checks)(&mut context);
         }
         self.scan_installation_codomain_diagnostics(
             root,
@@ -47,65 +443,18 @@ impl Analysis {
     ) {
         if node.is_assignment() {
             let knowledge = knowledge_provider.at_position(source.position_for_node(node));
-            if let Some(deduction) = self.method_codomain_deduction(node, source, &knowledge) {
-                let (kind, message) = match deduction.edit {
-                    MethodCodomainEdit::Replace(_) => (
-                        DiagnosticKind::InstallCodomainMismatch,
-                        format!(
-                            "This method's lambda returns `{}`, which is incompatible with the \
-                             annotated codomain. Change the annotation to `{}`.",
-                            deduction.codomain, deduction.codomain
-                        ),
-                    ),
-                    MethodCodomainEdit::Add(_) => (
-                        DiagnosticKind::InstallCodomainMissing,
-                        format!(
-                            "This method's lambda has the deducible codomain `{}`. Add the \
-                             codomain annotation.",
-                            deduction.codomain
-                        ),
-                    ),
-                };
-                out.push(kind.at(deduction.diagnostic_range, message));
-            }
+            let mut context = CodomainDiagnosticContext {
+                analysis: self,
+                kind: DiagnosticKind::SyntaxError,
+                node,
+                source,
+                knowledge: &knowledge,
+                diagnostics: out,
+            };
+            diagnostic_declarations!(codomain_diagnostic_checks)(&mut context);
         }
         for child in node.children() {
             self.scan_installation_codomain_diagnostics(child, source, knowledge_provider, out);
-        }
-    }
-
-    fn diagnose_install_forms(
-        &mut self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        knowledge: &(impl PositionedTypeKnowledge + ?Sized),
-    ) {
-        let mut diagnostics = Vec::new();
-        self.scan_install_form(node, source, knowledge, &mut diagnostics);
-        self.diagnostics.extend(diagnostics);
-    }
-
-    fn scan_install_form(
-        &self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
-        out: &mut Vec<M2Diagnostic>,
-    ) {
-        let knowledge = knowledge_provider.at_position(source.position_for_node(node));
-        if let Some(name) =
-            self.illegal_equals_install_head(node, source.position_for_node(node), &knowledge)
-        {
-            out.push(DiagnosticKind::InstallNeedsColonEquals.at(
-                source.range_for_node(node),
-                format!(
-                    "Installing a method on `{name}` must use `:=`, not `=`: M2 rejects this \
-                     (\"no method for storing values of function {name}\"). Use `:=`."
-                ),
-            ));
-        }
-        for child in node.children() {
-            self.scan_install_form(child, source, knowledge_provider, out);
         }
     }
 
@@ -131,56 +480,6 @@ impl Analysis {
             .then(|| name.name().to_string())
     }
 
-    fn installation_diagnostics(
-        &self,
-        installation: &MethodInstallation,
-        knowledge: &(impl TypeKnowledge + ?Sized),
-        out: &mut Vec<M2Diagnostic>,
-    ) {
-        match &installation.method.head {
-            MethodHead::Function(name) => {
-                if self.callable_head_kind(name.name(), installation.span.start, knowledge)
-                    == CallableHeadKind::PlainFunction
-                {
-                    out.push(DiagnosticKind::InstallNoEffect.at(
-                        installation.span,
-                        format!(
-                            "Installing a method on `{name}` has no effect: `{name}` is not a \
-                             method function. Define it with `{name} = method()` to make method \
-                             installations take effect."
-                        ),
-                    ));
-                }
-            }
-            MethodHead::Operator(operator) => {
-                let form = operator.form;
-                if self.operator_form_is_flexible(operator, knowledge) == Some(false) {
-                    out.push(DiagnosticKind::OperatorNotFlexible.at(
-                        installation.span,
-                        format!(
-                            "Cannot install a method on the {form} operator `{}`: it is not \
-                             flexible, so M2 rejects the assignment.",
-                            operator.token
-                        ),
-                    ));
-                }
-            }
-        }
-
-        if let Some(Dispatch::Fixed(actual)) = installation.rhs_lambda_dispatch {
-            let expected = installation.expected_rhs_arity();
-            if actual != expected {
-                out.push(DiagnosticKind::InstallArity.at(
-                    installation.span,
-                    format!(
-                        "This method's function takes {actual} argument(s) but the installation \
-                         expects {expected}. Match the domain arity or use a variadic `x -> …`."
-                    ),
-                ));
-            }
-        }
-    }
-
     fn operator_form_is_flexible(
         &self,
         operator: &Operator,
@@ -201,34 +500,14 @@ impl Analysis {
         knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
     ) {
         let knowledge = knowledge_provider.at_position(source.position_for_node(node));
-        if node.is_error() {
-            self.diagnostics.push(DiagnosticKind::SyntaxError.at(
-                source.remainder_of_line_range(node.start_byte()),
-                "Syntax error",
-            ));
-        } else if node.is_missing() {
-            self.diagnostics.push(DiagnosticKind::MissingNode.at(
-                source.range_for_node(node),
-                format!("Missing: {}", node.syntax_label()),
-            ));
-        } else if let Some(replacement) = ambiguous_float_member_access_rewrite(node) {
-            self.diagnostics
-                .push(DiagnosticKind::AmbiguousFloatMemberAccess.at(
-                    source.range_for_node(node),
-                    format!(
-                        "This is parsed as application to a float literal; use `{replacement}` \
-                         for member access"
-                    ),
-                ));
-        } else if node.is_assignment() {
-            self.validate_assignment_form(node, source, &knowledge);
-        }
-
-        self.diagnose_option_key_convention(node, source);
-        self.diagnose_control_transfer(node, source, &knowledge);
-        self.diagnose_output_reference(node, source, &knowledge);
-        self.diagnose_protect_argument(node, source, &knowledge);
-        self.diagnose_condition_type(node, source, &knowledge);
+        let mut context = NodeDiagnosticContext {
+            analysis: self,
+            kind: DiagnosticKind::SyntaxError,
+            node,
+            source,
+            knowledge: &knowledge,
+        };
+        diagnostic_declarations!(node_diagnostic_checks)(&mut context);
 
         for child in node.children() {
             self.scan_diagnostics(child, source, knowledge_provider);
@@ -237,31 +516,26 @@ impl Analysis {
 
     fn diagnose_condition_type(
         &mut self,
+        kind: DiagnosticKind,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        let (kind, construct, condition) = match node.kind {
-            NodeKind::IfStatement => (
-                DiagnosticKind::IfConditionType,
-                "if",
-                node.child_by_field_name("condition"),
-            ),
-            NodeKind::WhileStatement => (
-                DiagnosticKind::WhileConditionType,
-                "while",
-                node.named_child(0),
-            ),
+        let (construct, condition) = match node.kind {
+            NodeKind::IfStatement => ("if", node.child_by_field_name("condition")),
+            NodeKind::WhileStatement => ("while", node.named_child(0)),
             _ => return,
         };
         let Some(condition) = condition else {
             return;
         };
-        let Some(actual) = self.infer_expression_static_type(condition, source, knowledge) else {
-            return;
-        };
-        if actual == TypeRole::Thing.object_name()
-            || knowledge.is_subtype(&actual, &TypeRole::Boolean.object_name())
+        let position = source.position_for_node(condition);
+        let scope_idx = self.find_scope_at(position).unwrap_or(0);
+        let checker = TypeChecker::new(self);
+        let actual = checker.type_of(condition, source, scope_idx, knowledge);
+        if actual.possibility_by(&TypeRole::Boolean.object_name(), |candidate, bound| {
+            checker.subtype_evidence(candidate, bound, position, knowledge)
+        }) != SubtypeEvidence::Disproven
         {
             return;
         }
@@ -269,13 +543,14 @@ impl Analysis {
             source.range_for_node(condition),
             format!(
                 "{construct} condition must have type `Boolean`, but this expression has type `{}`",
-                actual.name()
+                actual.label().unwrap_or_else(|| "unknown".to_string())
             ),
         ));
     }
 
     fn diagnose_control_transfer(
         &mut self,
+        kind: DiagnosticKind,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
@@ -311,13 +586,13 @@ impl Analysis {
             _ => return,
         };
         let keyword = node.child(0).unwrap_or(node);
-        self.diagnostics.push(
-            DiagnosticKind::InvalidControlTransfer.at(source.range_for_node(keyword), message),
-        );
+        self.diagnostics
+            .push(kind.at(source.range_for_node(keyword), message));
     }
 
     fn diagnose_output_reference(
         &mut self,
+        kind: DiagnosticKind,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
@@ -341,7 +616,7 @@ impl Analysis {
             return;
         }
 
-        self.diagnostics.push(DiagnosticKind::MissingOutputCell.at(
+        self.diagnostics.push(kind.at(
             source.range_for_node(node),
             format!(
                 "`{}` does not reference an available output cell; it evaluates as an unassigned `Symbol`",
@@ -352,6 +627,7 @@ impl Analysis {
 
     fn diagnose_protect_argument(
         &mut self,
+        kind: DiagnosticKind,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
@@ -377,41 +653,42 @@ impl Analysis {
 
         match argument.kind {
             NodeKind::QuoteExpression => {}
-            NodeKind::Symbol => {
+            NodeKind::Symbol if kind == DiagnosticKind::ProtectAssignedSymbol => {
                 let name = argument.text();
                 let position = source.position_for_node(argument);
                 let has_source_binding = self.binding_id_at(name, position).is_some();
                 let has_builtin_binding = knowledge.get_record(&ObjectName::new(name)).is_some();
                 if has_source_binding || has_builtin_binding {
-                    self.diagnostics
-                        .push(DiagnosticKind::ProtectAssignedSymbol.at(
-                            source.range_for_node(argument),
-                            format!(
-                                "`protect {name}` evaluates the current value of `{name}`; \
+                    self.diagnostics.push(kind.at(
+                        source.range_for_node(argument),
+                        format!(
+                            "`protect {name}` evaluates the current value of `{name}`; \
                              use `protect symbol {name}` to protect the symbol itself"
-                            ),
-                        ));
+                        ),
+                    ));
                 }
             }
-            _ => {
+            NodeKind::Symbol => {}
+            _ if kind == DiagnosticKind::ProtectComputedSymbol => {
                 let inferred = self.infer_expression_static_type(argument, source, knowledge);
                 if inferred
                     .as_ref()
                     .is_none_or(|type_id| type_id.name() == "Symbol")
                 {
-                    self.diagnostics
-                        .push(DiagnosticKind::ProtectComputedSymbol.at(
-                            source.range_for_node(argument),
-                            "`protect` evaluates this expression to choose a Symbol at runtime; \
+                    self.diagnostics.push(kind.at(
+                        source.range_for_node(argument),
+                        "`protect` evaluates this expression to choose a Symbol at runtime; \
                          the protected symbol is not statically apparent",
-                        ));
+                    ));
                 }
             }
+            _ => {}
         }
     }
 
     fn diagnose_option_key_convention(
         &mut self,
+        kind: DiagnosticKind,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
     ) {
@@ -432,56 +709,15 @@ impl Analysis {
         if !starts_lowercase || !is_function_option_context(node) {
             return;
         }
-        self.diagnostics
-            .push(DiagnosticKind::OptionKeyConvention.at(
-                source.range_for_node(key),
-                format!("Option key `{key_text}` should be capitalized by Macaulay2 convention"),
-            ));
-    }
-
-    fn validate_assignment_form(
-        &mut self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        knowledge: &(impl TypeKnowledge + ?Sized),
-    ) {
-        let Some(left) = node.child_by_field_name("left") else {
-            return;
-        };
-        let Some(operator) = node.child_by_field_name("operator") else {
-            return;
-        };
-        let operator = operator.text();
-        let is_method_installation = self.installation_for(node, source).is_some();
-
-        if matches!(operator, "=" | ":=")
-            && !is_method_installation
-            && !multiple_assignment_targets_are_symbols(left)
-        {
-            self.diagnostics
-                .push(DiagnosticKind::MultipleAssignmentTargets.at(
-                    source.range_for_node(left),
-                    format!("{operator} multiple assignment targets must be symbols"),
-                ));
-        }
-
-        if operator == ":=" && left.binary_operator() == Some("#") {
-            self.diagnostics
-                .push(DiagnosticKind::ColonEqualPartAssignment.at(
-                    source.range_for_node(left),
-                    "`:=` cannot assign to parts; use `=` for part assignment",
-                ));
-        }
-
-        if matches!(operator, "=" | ":=") && !is_method_installation {
-            if let Some(right) = node.child_by_field_name("right") {
-                self.validate_parallel_assignment(left, right, source, knowledge);
-            }
-        }
+        self.diagnostics.push(kind.at(
+            source.range_for_node(key),
+            format!("Option key `{key_text}` should be capitalized by Macaulay2 convention"),
+        ));
     }
 
     fn validate_parallel_assignment(
         &mut self,
+        kind: DiagnosticKind,
         left: M2Node,
         right: M2Node,
         source: &(impl SourceNavigation + ?Sized),
@@ -493,6 +729,9 @@ impl Analysis {
 
         let target_nodes = left.collection_elements().collect::<Vec<_>>();
         if !right.kind.is_collection_expression() {
+            if kind != DiagnosticKind::ParallelAssignmentType {
+                return;
+            }
             if target_nodes.len() < 2 || !knowledge.is_available() {
                 return;
             }
@@ -524,38 +763,40 @@ impl Analysis {
             {
                 return;
             }
-            self.diagnostics
-                .push(DiagnosticKind::ParallelAssignmentType.at(
-                    source.range_for_node(right),
-                    format!(
-                        "parallel assignment binds {} targets, but the right-hand side has incompatible type `{}`",
-                        target_nodes.len(),
-                        right_type.name()
-                    ),
-                ));
-            return;
-        }
-
-        let value_nodes = right.collection_elements().collect::<Vec<_>>();
-        if target_nodes.len() != value_nodes.len() {
-            self.diagnostics.push(DiagnosticKind::ParallelAssignmentArity.at(
-                source.range_for_node(left),
+            self.diagnostics.push(kind.at(
+                source.range_for_node(right),
                 format!(
-                    "parallel assignment binds {} targets but the right-hand side lists {}; their lengths must match",
+                    "parallel assignment binds {} targets, but the right-hand side has incompatible type `{}`",
                     target_nodes.len(),
-                    value_nodes.len()
+                    right_type.name()
                 ),
             ));
             return;
         }
 
+        let value_nodes = right.collection_elements().collect::<Vec<_>>();
+        if target_nodes.len() != value_nodes.len() {
+            if kind == DiagnosticKind::ParallelAssignmentArity {
+                self.diagnostics.push(kind.at(
+                    source.range_for_node(left),
+                    format!(
+                        "parallel assignment binds {} targets but the right-hand side lists {}; their lengths must match",
+                        target_nodes.len(),
+                        value_nodes.len()
+                    ),
+                ));
+            }
+            return;
+        }
+
         for (target, value) in target_nodes.iter().zip(value_nodes.iter()) {
-            self.validate_parallel_assignment(*target, *value, source, knowledge);
+            self.validate_parallel_assignment(kind, *target, *value, source, knowledge);
         }
     }
 
     fn diagnose_unused_bindings(
         &mut self,
+        kind: DiagnosticKind,
         root: M2Node,
         source: &(impl SourceNavigation + ?Sized),
     ) {
@@ -590,10 +831,7 @@ impl Analysis {
                 } else {
                     "variable"
                 };
-                Some(
-                    DiagnosticKind::UnusedBinding
-                        .at(binding.range, format!("Unused {noun} {name}")),
-                )
+                Some(kind.at(binding.range, format!("Unused {noun} {name}")))
             })
             .collect::<Vec<_>>();
         self.diagnostics.extend(diagnostics);

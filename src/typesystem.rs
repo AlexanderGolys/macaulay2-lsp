@@ -23,6 +23,14 @@ pub enum TypeRole {
     VisibleList,
 }
 
+/// Evidence available for one nominal subtype question.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubtypeEvidence {
+    Proven,
+    Disproven,
+    Unknown,
+}
+
 impl TypeRole {
     pub fn object_name(self) -> ObjectName {
         ObjectName::new(match self {
@@ -63,17 +71,30 @@ pub trait TypeKnowledge: ObjectKnowledge {
         false
     }
 
-    /// Resolve two nominal references and compare their validated type IDs.
-    fn is_subtype(&self, child: &ObjectName, parent: &ObjectName) -> bool {
-        self.resolve_type_id(child)
+    fn subtype_evidence(&self, child: &ObjectName, parent: &ObjectName) -> SubtypeEvidence {
+        let Some((child, parent)) = self
+            .resolve_type_id(child)
             .zip(self.resolve_type_id(parent))
-            .is_some_and(|(child, parent)| self.is_subtype_id(&child, &parent))
+        else {
+            return SubtypeEvidence::Unknown;
+        };
+        if self.is_subtype_id(&child, &parent) {
+            SubtypeEvidence::Proven
+        } else {
+            SubtypeEvidence::Disproven
+        }
+    }
+
+    fn is_subtype(&self, child: &ObjectName, parent: &ObjectName) -> bool {
+        self.subtype_evidence(child, parent) == SubtypeEvidence::Proven
     }
 
     fn has_type_role(&self, candidate: &ObjectName, role: TypeRole) -> bool {
-        self.resolve_type_id(candidate)
-            .zip(self.resolve_type_id(&role.object_name()))
-            .is_some_and(|(candidate, role)| self.is_subtype_id(&candidate, &role))
+        self.type_role_evidence(candidate, role) == SubtypeEvidence::Proven
+    }
+
+    fn type_role_evidence(&self, candidate: &ObjectName, role: TypeRole) -> SubtypeEvidence {
+        self.subtype_evidence(candidate, &role.object_name())
     }
 
     fn type_role_id(&self, role: TypeRole) -> Option<TypeId> {
@@ -258,6 +279,22 @@ impl InferredType {
                 .collect::<Vec<_>>()
                 .join(" | ")
         })
+    }
+
+    pub fn possibility_by(
+        &self,
+        candidate: &ObjectName,
+        evidence: impl Fn(&ObjectName, &ObjectName) -> SubtypeEvidence,
+    ) -> SubtypeEvidence {
+        let mut result = SubtypeEvidence::Disproven;
+        for generator in &self.minimal_generators {
+            match evidence(candidate, generator) {
+                SubtypeEvidence::Proven => return SubtypeEvidence::Proven,
+                SubtypeEvidence::Unknown => result = SubtypeEvidence::Unknown,
+                SubtypeEvidence::Disproven => {}
+            }
+        }
+        result
     }
 
     /// Union two inferred type values using the registry's type partial order.

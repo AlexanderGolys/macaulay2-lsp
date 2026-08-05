@@ -239,8 +239,43 @@ async fn control_flow_conditions_require_booleans_without_function_coloring() {
         token_at(&tokens, source, "callable", 1).0,
         session.semantic_token_type("variable")
     );
-    assert_eq!(diagnostic_lines(&session, "E17"), vec![0, 6]);
-    assert_eq!(diagnostic_lines(&session, "E18"), vec![7, 10, 12]);
+    assert_eq!(diagnostic_lines(&session, "T02"), vec![0, 6, 7, 10, 12]);
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn comparison_conditions_default_to_boolean_unless_a_codomain_is_recorded() {
+    let source = concat!(
+        "if left == right then 1\n",
+        "if left === right then 1\n",
+        "if left != right then 1\n",
+        "if left =!= right then 1\n",
+        "if left < right then 1\n",
+        "if left <= right then 1\n",
+        "if left > right then 1\n",
+        "if left >= right then 1\n",
+        "ZZ == ZZ := Function => (left, right) -> (value -> value)\n",
+        "if 1 == 2 then 1\n",
+    );
+    let session = DocumentSession::open(source).await;
+
+    assert_eq!(diagnostic_lines(&session, "T02"), vec![9]);
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn unknown_condition_types_remain_possible_booleans() {
+    let source = concat!(
+        "predicate = method()\n",
+        "if predicate() then 1\n",
+        "callable = value -> value\n",
+        "if callable then 1\n",
+    );
+    let session = DocumentSession::open(source).await;
+
+    assert_eq!(diagnostic_lines(&session, "T02"), vec![3]);
 
     session.shutdown().await;
 }
@@ -340,7 +375,7 @@ async fn output_references_follow_prior_cell_types_without_semantic_tokens() {
     let mut session = DocumentSession::open(source).await;
 
     assert!(
-        !session.diagnostic_codes().contains(&"E14"),
+        !session.diagnostic_codes().contains(&"E07"),
         "valid output references should not produce missing-cell warnings: {:?}",
         session.diagnostics()
     );
@@ -372,7 +407,7 @@ async fn output_references_follow_prior_cell_types_without_semantic_tokens() {
             .any(|(line, character, _, _)| *line == 1 && *character == 4),
         "a resolved user binding named like an output reference must retain its semantic token"
     );
-    assert!(!session.diagnostic_codes().contains(&"E14"));
+    assert!(!session.diagnostic_codes().contains(&"E07"));
 
     session
         .replace("x = oo\ny = o0\nz = o9\nw = oooo\nsymbol oo\n")
@@ -380,11 +415,11 @@ async fn output_references_follow_prior_cell_types_without_semantic_tokens() {
     for line in 0..=3 {
         assert_eq!(hover_type_at(&mut session, line, 0).await, "Symbol");
     }
-    assert_eq!(diagnostic_lines(&session, "E14"), vec![0, 1, 2]);
+    assert_eq!(diagnostic_lines(&session, "E07"), vec![0, 1, 2]);
     for diagnostic in session
         .diagnostics()
         .iter()
-        .filter(|diagnostic| diagnostic["code"] == "E14")
+        .filter(|diagnostic| diagnostic["code"] == "E07")
     {
         assert_eq!(diagnostic["severity"], 2);
         assert!(diagnostic["message"]
@@ -394,7 +429,7 @@ async fn output_references_follow_prior_cell_types_without_semantic_tokens() {
 
     session.replace("1\nw = oooo\nsymbol o9\n").await;
     assert_eq!(hover_type_at(&mut session, 1, 0).await, "Symbol");
-    assert_eq!(diagnostic_lines(&session, "E14"), vec![1]);
+    assert_eq!(diagnostic_lines(&session, "E07"), vec![1]);
 
     session.shutdown().await;
 }
@@ -402,37 +437,50 @@ async fn output_references_follow_prior_cell_types_without_semantic_tokens() {
 #[tokio::test]
 async fn installation_and_syntax_diagnostics_run_through_the_server_pipeline() {
     let mut session = DocumentSession::open("ZZ > ZZ := (a, b) -> a\n").await;
-    assert!(session.diagnostic_codes().contains(&"E09"));
+    assert!(session.diagnostic_codes().contains(&"E02"));
 
     for (source, code, expected) in [
-        ("ZZ * ZZ := (a, b) -> a\n", "E09", false),
-        ("ZZ * ZZ := (a) -> a\n", "E10", true),
-        ("ZZ * ZZ := a -> a\n", "E10", false),
-        ("ZZ * ZZ = (a, b, c) -> c\n", "E10", false),
-        ("ZZ * ZZ = (a, b) -> a\n", "E10", true),
-        ("f = x -> x\nf ZZ := y -> y\n", "E08", true),
-        ("f = method()\nf ZZ := y -> y\n", "E08", false),
-        ("f = first {ideal}\nf ZZ := y -> y\n", "E08", false),
-        ("f = method()\nf ZZ = x -> x\n", "E11", true),
-        ("f = x -> x\nf ZZ = y -> y\n", "E11", true),
-        ("f = 1\nf ZZ = y -> y\n", "E11", false),
-        ("f = method()\nf ZZ := x -> x\n", "E11", false),
-        ("ZZ * ZZ = (a, b, c) -> c\n", "E11", false),
-        ("if x then y\n    else z", "E00", true),
+        ("ZZ * ZZ := (a, b) -> a\n", "E02", false),
+        ("ZZ * ZZ := (a) -> a\n", "E03", true),
+        ("ZZ * ZZ := a -> a\n", "E03", false),
+        ("ZZ * ZZ = (a, b, c) -> c\n", "E03", false),
+        ("ZZ * ZZ = (a, b) -> a\n", "E03", true),
+        ("f = x -> x\nf ZZ := y -> y\n", "E01", true),
+        ("f = method()\nf ZZ := y -> y\n", "E01", false),
+        ("f = first {ideal}\nf ZZ := y -> y\n", "E01", false),
+        ("X ?? Y := (x, y) -> x\n", "E01", true),
+        ("?? X := x -> x\n", "E01", false),
+        ("f = method()\nf ZZ = x -> x\n", "E04", true),
+        ("f = x -> x\nf ZZ = y -> y\n", "E04", true),
+        ("f = 1\nf ZZ = y -> y\n", "E04", false),
+        ("f = method()\nf ZZ := x -> x\n", "E04", false),
+        ("ZZ * ZZ = (a, b, c) -> c\n", "E04", false),
+        ("if x then y\n    else z", "X01", true),
         (
             "apply(-3..3, i -> try 1/i then 1 / i except err do err)",
-            "E00",
+            "X01",
             false,
         ),
-        ("if x then y else z", "E00", false),
-        ("if x then y", "E00", false),
-        ("gb(I, strategy => 4)\n", "E06", true),
-        ("hashTable {a => 1, b => 2}\n", "E06", false),
-        ("x.3\n", "E02", true),
-        ("x .3\n", "E02", false),
+        ("if x then y else z", "X01", false),
+        ("if x then y", "X01", false),
+        ("gb(I, strategy => 4)\n", "S01", true),
+        ("hashTable {a => 1, b => 2}\n", "S01", false),
+        ("x.3\n", "X03", true),
+        ("x .3\n", "X03", false),
     ] {
         replace_and_assert_diagnostic(&mut session, source, code, expected).await;
     }
+
+    session.replace("X ?? Y := (x, y) -> x\n").await;
+    let diagnostic = session
+        .diagnostics()
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "E01")
+        .expect("binary null-coalescing installation should be diagnosed");
+    assert_eq!(diagnostic["severity"], 2);
+    assert!(diagnostic["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("never dispatches")));
 
     session.shutdown().await;
 }
@@ -447,8 +495,8 @@ async fn lexical_types_and_operator_methods_respect_scope_and_source_order() {
     );
     let session = DocumentSession::open(source).await;
 
-    assert_eq!(diagnostic_lines(&session, "E10"), Vec::<u64>::new());
-    assert_eq!(diagnostic_lines(&session, "E18"), vec![2]);
+    assert_eq!(diagnostic_lines(&session, "E03"), Vec::<u64>::new());
+    assert_eq!(diagnostic_lines(&session, "T02"), vec![2]);
 
     session.shutdown().await;
 }
@@ -505,7 +553,7 @@ async fn method_codomain_diagnostics_offer_annotation_quick_fixes() {
     let missing = session
         .diagnostics()
         .iter()
-        .find(|diagnostic| diagnostic["code"] == "E19")
+        .find(|diagnostic| diagnostic["code"] == "T03")
         .expect("a directly deduced missing codomain should produce a hint")
         .clone();
     assert_eq!(missing["severity"], 4);
@@ -549,7 +597,7 @@ async fn method_codomain_diagnostics_offer_annotation_quick_fixes() {
     let mismatch = session
         .diagnostics()
         .iter()
-        .find(|diagnostic| diagnostic["code"] == "E20")
+        .find(|diagnostic| diagnostic["code"] == "T04")
         .expect("an incompatible explicit codomain should produce a warning")
         .clone();
     assert_eq!(mismatch["severity"], 2);
@@ -564,18 +612,7 @@ async fn method_codomain_diagnostics_offer_annotation_quick_fixes() {
             }),
         )
         .await;
-    let correct = response_array(&actions)
-        .iter()
-        .find(|action| action["title"] == "Correct codomain annotation")
-        .expect("the mismatched codomain warning should carry a quick fix");
-    assert_eq!(correct["edit"]["changes"][&uri][0]["newText"], "Array");
-    assert_eq!(
-        correct["edit"]["changes"][&uri][0]["range"],
-        json!({
-            "start": {"line": 0, "character": 8},
-            "end": {"line": 0, "character": 12}
-        })
-    );
+    assert!(actions.is_null());
 
     for source in [
         "f ZZ := Array => x -> [x]\n",
@@ -584,22 +621,80 @@ async fn method_codomain_diagnostics_offer_annotation_quick_fixes() {
     ] {
         session.replace(source).await;
         assert!(
-            !session.diagnostic_codes().contains(&"E20"),
+            !session.diagnostic_codes().contains(&"T04"),
             "a correct or compatible codomain must not warn: {:?}",
             session.diagnostics()
         );
     }
-    assert!(session.diagnostic_codes().contains(&"E19"));
+    assert!(session.diagnostic_codes().contains(&"T03"));
     assert!(session
         .diagnostics()
         .iter()
-        .any(|diagnostic| diagnostic["code"] == "E19"
+        .any(|diagnostic| diagnostic["code"] == "T03"
             && diagnostic["message"]
                 .as_str()
                 .is_some_and(|message| message.contains("`ZZ`"))));
 
     session.replace("f ZZ := x -> mystery x\n").await;
-    assert!(!session.diagnostic_codes().contains(&"E19"));
+    assert!(!session.diagnostic_codes().contains(&"T03"));
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn declarative_diagnostics_expose_their_coupled_quick_fixes() {
+    let cases = [
+        ("x#0 := 1\n", "X05", "Use `=` for part assignment", "="),
+        (
+            "f = method()\nf ZZ = x -> x\n",
+            "E04",
+            "Use `:=` for method installation",
+            ":=",
+        ),
+        (
+            "x = 1\nprotect x\n",
+            "E05",
+            "Protect the symbol itself",
+            "symbol ",
+        ),
+        (
+            "gb(I, strategy => 4)\n",
+            "S01",
+            "Capitalize option key",
+            "Strategy",
+        ),
+    ];
+    let mut session = DocumentSession::open(cases[0].0).await;
+
+    for (source, code, title, replacement) in cases {
+        session.replace(source).await;
+        let diagnostic = session
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic["code"] == code)
+            .unwrap_or_else(|| panic!("expected {code} for `{source}`"))
+            .clone();
+        let uri = session.uri().to_string();
+        let response = session
+            .request(
+                "textDocument/codeAction",
+                json!({
+                    "textDocument": {"uri": uri.clone()},
+                    "range": diagnostic["range"],
+                    "context": {"diagnostics": [diagnostic]}
+                }),
+            )
+            .await;
+        assert!(
+            !response.is_null(),
+            "expected `{title}` action for `{source}`"
+        );
+        let action = response_array(&response)
+            .iter()
+            .find(|action| action["title"] == title)
+            .unwrap_or_else(|| panic!("expected `{title}` action for `{source}`"));
+        assert_eq!(action["edit"]["changes"][&uri][0]["newText"], replacement);
+    }
 
     session.shutdown().await;
 }
@@ -633,9 +728,9 @@ async fn control_transfers_require_their_runtime_body() {
         ("apply(i -> break i, {1})\n", true),
         ("f := apply -> apply({1}, i -> break i)\n", true),
     ] {
-        replace_and_assert_diagnostic(&mut session, source, "E15", expected).await;
+        replace_and_assert_diagnostic(&mut session, source, "E08", expected).await;
         assert!(
-            !session.diagnostic_codes().contains(&"E00"),
+            !session.diagnostic_codes().contains(&"X01"),
             "control-transfer fixture should parse:\n{source}\nall diagnostics: {:?}",
             session.diagnostics()
         );
@@ -645,7 +740,7 @@ async fn control_transfers_require_their_runtime_body() {
     let diagnostic = session
         .diagnostics()
         .iter()
-        .find(|diagnostic| diagnostic["code"] == "E15")
+        .find(|diagnostic| diagnostic["code"] == "E08")
         .expect("value-bearing continue in scan should be rejected");
     assert_eq!(diagnostic["severity"], 1);
     assert!(diagnostic["message"]
@@ -667,7 +762,7 @@ async fn assignment_and_protection_diagnostics_preserve_source_sensitive_analysi
         "[e, f] = (a, b)\n",
     );
     let mut session = DocumentSession::open(source).await;
-    assert_eq!(diagnostic_lines(&session, "E05"), vec![0, 1, 4, 5]);
+    assert_eq!(diagnostic_lines(&session, "X06"), vec![0, 1, 4, 5]);
 
     session
         .replace("(x, (y, z, z), w) = (1, [2, \"3\"], 3)\n")
@@ -675,7 +770,7 @@ async fn assignment_and_protection_diagnostics_preserve_source_sensitive_analysi
     let diagnostic = session
         .diagnostics()
         .iter()
-        .find(|diagnostic| diagnostic["code"] == "E05")
+        .find(|diagnostic| diagnostic["code"] == "X06")
         .expect("nested assignment shape mismatch should be diagnosed");
     assert_eq!(
         diagnostic["range"],
@@ -688,54 +783,54 @@ async fn assignment_and_protection_diagnostics_preserve_source_sensitive_analysi
     session
         .replace("[x, y] = [ignored; 2, 3]\n[x, y, z] = [, 1,]\n[x, y] = [, 1,]\n")
         .await;
-    assert_eq!(diagnostic_lines(&session, "E05"), vec![2]);
+    assert_eq!(diagnostic_lines(&session, "X06"), vec![2]);
 
     session
         .replace(
             "(x, y) = 1\n[x, y] := \"aa\"\nz = \"a\"; {x, x} = z\n[a, b] = true\n[x] = \"a\"\nf = z -> ((x, y) := z)\n(x, y) := unknownValue\nvalues = {1, 2}; [x, y] = values\nvalues = (1, 2); [x, y] = values\n[a, [b, c]] = [1, 2]\n",
         )
         .await;
-    assert_eq!(diagnostic_lines(&session, "E16"), vec![0, 1, 2, 3, 9]);
+    assert_eq!(diagnostic_lines(&session, "T01"), vec![0, 1, 2, 3, 9]);
 
     session
         .replace(
             "x#i := e\n(x+1,y) = (1,2)\n(x+1,y) := (1,2)\n(f()) <- (1)\nsource(String,Number) := peek\np(ZZ, ZZ) := (i, j) -> {i, j}\n",
         )
         .await;
-    assert_eq!(diagnostic_lines(&session, "E04"), vec![0]);
-    assert_eq!(diagnostic_lines(&session, "E03"), vec![1, 2]);
+    assert_eq!(diagnostic_lines(&session, "X05"), vec![0]);
+    assert_eq!(diagnostic_lines(&session, "X04"), vec![1, 2]);
 
     session
         .replace(
             "assigned = target\nprotect assigned\nprotect unassigned\nprotect later\nlater = target\n",
         )
         .await;
-    assert_eq!(diagnostic_lines(&session, "E12"), vec![1]);
+    assert_eq!(diagnostic_lines(&session, "E05"), vec![1]);
 
     session
         .replace(
             "x = y\nprotect symbol x\nprotect (if c then symbol x else symbol y)\nprotect (if c then 1 else symbol y)\nprotect (1 + 2)\n",
         )
         .await;
-    assert_eq!(diagnostic_lines(&session, "E13"), vec![2, 3]);
+    assert_eq!(diagnostic_lines(&session, "E06"), vec![2, 3]);
 
     session.replace("f = x -> protect x\n").await;
-    assert_eq!(diagnostic_lines(&session, "E12"), vec![0]);
+    assert_eq!(diagnostic_lines(&session, "E05"), vec![0]);
 
     session
         .replace("protect ZZ\nx = y\nprotect = f\nprotect x\n")
         .await;
-    assert_eq!(diagnostic_lines(&session, "E12"), vec![0]);
+    assert_eq!(diagnostic_lines(&session, "E05"), vec![0]);
 
     session.replace("f := x -> x\nx = 1\n").await;
-    assert!(!session.diagnostic_codes().contains(&"E07"));
+    assert!(!session.diagnostic_codes().contains(&"S02"));
 
     session
         .replace(
             "if condition then (\n  conditionalExport = true;\n  branchLocal := 1;\n);\nif conditionalExport == true then null\n",
         )
         .await;
-    assert_eq!(diagnostic_lines(&session, "E07"), vec![2]);
+    assert_eq!(diagnostic_lines(&session, "S02"), vec![2]);
 
     session.shutdown().await;
 }
@@ -757,7 +852,7 @@ async fn callback_equal_assignments_are_not_unused_variables() {
     );
     let mut session = DocumentSession::open(source).await;
     assert!(
-        !session.diagnostic_codes().contains(&"E07"),
+        !session.diagnostic_codes().contains(&"S02"),
         "escaping callback assignments must not be reported as unused: {:?}",
         session.diagnostics()
     );
@@ -766,7 +861,7 @@ async fn callback_equal_assignments_are_not_unused_variables() {
     let diagnostic = session
         .diagnostics()
         .iter()
-        .find(|diagnostic| diagnostic["code"] == "E07")
+        .find(|diagnostic| diagnostic["code"] == "S02")
         .expect("an unused lambda-local variable should still be reported");
     assert_eq!(diagnostic["message"], "Unused variable unused");
 
@@ -1161,7 +1256,7 @@ async fn indexed_callable_aliases_preserve_identity_for_local_installations() {
     let source = "f = ideal\ng = f\nf ZZ := x -> x\ny = g 1\n";
     let mut session = DocumentSession::open(source).await;
 
-    assert!(!session.diagnostic_codes().contains(&"E08"));
+    assert!(!session.diagnostic_codes().contains(&"E01"));
     assert_eq!(hover_type_at(&mut session, 3, 0).await, "Thing");
 
     let signature_help = session

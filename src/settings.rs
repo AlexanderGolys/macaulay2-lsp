@@ -221,7 +221,7 @@ mod tests {
         let settings = ServerSettings::from_value(&serde_json::json!({
             "m2-ls": {
                 "diagnostics": {
-                    "disabled": ["unused-binding", "E06"]
+                    "disabled": ["unused-binding", "S01"]
                 },
                 "formatting": {
                     "indentWidth": 2,

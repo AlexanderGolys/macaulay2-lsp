@@ -16,13 +16,13 @@ use tower_lsp::lsp_types::{Position, Range as TextRange, SymbolKind};
 use crate::builtin_index::CallableKind;
 use crate::diagnostic_registry::{DiagnosticKind, M2Diagnostic};
 use crate::meta::{BindingRole, Meta, Metadata};
-use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::node_metadata::{LambdaExpressionNode, M2Node, NodeKind, NodeKindMetadata};
 use crate::object_registry::ObjectName;
 use crate::object_registry::{ObjectId, OperatorForm, TypeData, TypeId};
 use crate::semantic_token::{syntax_semantic_token_type, SourceSemanticRole, SourceSemanticToken};
 use crate::source::SourceNavigation;
 use crate::typesystem::{
-    InferredType, LiteralOption, PositionedTypeKnowledge, TypeKnowledge, TypeRole,
+    InferredType, LiteralOption, PositionedTypeKnowledge, SubtypeEvidence, TypeKnowledge, TypeRole,
 };
 use crate::util::position_in_range;
 use typechecker::TypeChecker;
@@ -127,8 +127,8 @@ pub enum Dispatch {
 /// The [`Dispatch`] shape of a lambda from its parameter node: a bare `Symbol`
 /// parameter is variadic; a `Sequence` is fixed-arity with one slot per named
 /// element.
-fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
-    let parameters = lambda.child_by_field_name("parameters")?;
+fn function_dispatch(lambda: LambdaExpressionNode) -> Option<Dispatch> {
+    let parameters = lambda.parameters()?;
     Some(match parameters.kind {
         NodeKind::ParenthesizedExpression => Dispatch::Fixed(1),
         kind if kind.is_collection_expression() => {
@@ -155,6 +155,7 @@ pub struct MethodInstallation {
 /// A lambda-body codomain that can safely drive an annotation quick fix.
 pub struct MethodCodomainDeduction {
     pub codomain: ObjectName,
+    pub annotated_codomain: Option<ObjectName>,
     pub diagnostic_range: TextRange,
     pub edit: MethodCodomainEdit,
 }
@@ -162,7 +163,7 @@ pub struct MethodCodomainDeduction {
 /// The source edit needed to make a method codomain annotation precise.
 pub enum MethodCodomainEdit {
     Add(TextRange),
-    Replace(TextRange),
+    Replace,
 }
 
 /// The outline-relevant semantic shape of one characterized assignment.
@@ -871,7 +872,9 @@ impl Analysis {
                 next_scope_idx = self.push_scope(node, source, Some(current_scope_idx), true);
                 next_assignment_scope_idx = next_scope_idx;
 
-                if let Some(params_node) = node.child_by_field_name("parameters") {
+                let lambda = LambdaExpressionNode::try_from(node)
+                    .expect("lambda-expression branch has a lambda node");
+                if let Some(params_node) = lambda.parameters() {
                     let parameter_types = method_installation_parameter_types_for_function(node);
                     self.collect_parameters(
                         params_node,
@@ -1674,35 +1677,38 @@ impl Analysis {
         let left = assignment.child_by_field_name("left")?;
         let right = assignment.child_by_field_name("right")?;
         let lambda = assigned_lambda(right)?;
-        let body = lambda.child_by_field_name("body")?;
+        let body = lambda.body()?;
         let codomain = self.infer_expression_static_type(body, source, knowledge)?;
         if codomain == TypeRole::Thing.object_name() {
             return None;
         }
 
         let annotation = method_codomain_annotation(right);
-        if annotation.is_some_and(|annotation| {
-            TypeChecker::new(self).is_subtype(
+        let annotated_codomain = annotation.map(|annotation| ObjectName::new(annotation.text()));
+        if let Some(annotation) = annotation {
+            match TypeChecker::new(self).subtype_evidence(
                 &codomain,
-                &ObjectName::new(annotation.text()),
+                annotated_codomain.as_ref()?,
                 source.position_for_node(annotation),
                 knowledge,
-            )
-        }) {
-            return None;
+            ) {
+                SubtypeEvidence::Proven | SubtypeEvidence::Unknown => return None,
+                SubtypeEvidence::Disproven => {}
+            }
         }
 
         let edit = annotation.map_or_else(
             || {
                 MethodCodomainEdit::Add({
-                    let start = source.position_for_node(lambda);
+                    let start = source.position_for_node(lambda.into());
                     TextRange::new(start, start)
                 })
             },
-            |annotation| MethodCodomainEdit::Replace(source.range_for_node(annotation)),
+            |_| MethodCodomainEdit::Replace,
         );
         Some(MethodCodomainDeduction {
             codomain,
+            annotated_codomain,
             diagnostic_range: annotation.map_or_else(
                 || source.range_for_node(left),
                 |node| source.range_for_node(node),
@@ -1809,11 +1815,13 @@ impl Analysis {
                 kind: LocalFunctionKind::Method,
             })
         } else if value.kind == NodeKind::LambdaExpression {
+            let lambda = LambdaExpressionNode::try_from(value)
+                .expect("lambda-expression branch has a lambda node");
             Some(FunctionInfo {
                 typical_value: None,
                 installations: Vec::new(),
-                dispatch: function_dispatch(value),
-                parameter_names: fixed_parameter_names(value),
+                dispatch: function_dispatch(lambda),
+                parameter_names: fixed_parameter_names(lambda),
                 kind: LocalFunctionKind::Plain,
             })
         } else {
@@ -1940,12 +1948,12 @@ fn collect_parameter_nodes<'tree>(node: M2Node<'tree>, parameters: &mut Vec<M2No
     }
 }
 
-fn fixed_parameter_names(lambda: M2Node<'_>) -> Option<Vec<ObjectName>> {
+fn fixed_parameter_names(lambda: LambdaExpressionNode<'_>) -> Option<Vec<ObjectName>> {
     if !matches!(function_dispatch(lambda), Some(Dispatch::Fixed(_))) {
         return None;
     }
     let mut parameters = Vec::new();
-    collect_parameter_nodes(lambda.child_by_field_name("parameters")?, &mut parameters);
+    collect_parameter_nodes(lambda.parameters()?, &mut parameters);
     Some(
         parameters
             .into_iter()
@@ -1954,10 +1962,10 @@ fn fixed_parameter_names(lambda: M2Node<'_>) -> Option<Vec<ObjectName>> {
     )
 }
 
-fn assigned_lambda(node: M2Node<'_>) -> Option<M2Node<'_>> {
+fn assigned_lambda(node: M2Node<'_>) -> Option<LambdaExpressionNode<'_>> {
     let node = parenthesized_value(node)?;
-    if node.kind == NodeKind::LambdaExpression {
-        return Some(node);
+    if let Ok(lambda) = node.try_into() {
+        return Some(lambda);
     }
     (node.binary_operator() == Some("=>"))
         .then(|| node.child_by_field_name("right"))

@@ -7,6 +7,7 @@ use tower_lsp::lsp_types::*;
 
 use crate::analysis::ambiguous_float_member_access_rewrite;
 use crate::analysis::MethodCodomainEdit;
+use crate::diagnostic_declarations;
 use crate::diagnostic_registry::{diagnostic_has_kind, DiagnosticKind};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
@@ -21,54 +22,51 @@ struct CodeActionContext<'tree, 'request> {
     diagnostics: &'request [Diagnostic],
 }
 
-enum CodeActionRule {
-    MethodCodomain,
-    AmbiguousFloatMemberAccess,
-    ConvertToRawString,
-    ConditionalNull,
-    SimplifyTry,
-    SimplifyIfCondition,
-    FlattenElseIf,
-}
-
-const ACTION_RULES: &[CodeActionRule] = &[
-    CodeActionRule::MethodCodomain,
-    CodeActionRule::AmbiguousFloatMemberAccess,
-    CodeActionRule::ConvertToRawString,
-    CodeActionRule::ConditionalNull,
-    CodeActionRule::SimplifyTry,
-    CodeActionRule::SimplifyIfCondition,
-    CodeActionRule::FlattenElseIf,
-];
-
-impl CodeActionRule {
-    fn action(&self, context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-        match self {
-            Self::MethodCodomain => method_codomain_action(context),
-            Self::AmbiguousFloatMemberAccess => ambiguous_float_member_access_action(context),
-            Self::ConvertToRawString => convert_to_raw_string_action(context),
-            Self::ConditionalNull => conditional_null_action(context),
-            Self::SimplifyTry => simplify_try_action(context),
-            Self::SimplifyIfCondition => simplify_if_condition_action(context),
-            Self::FlattenElseIf => flatten_else_if_action(context),
+macro_rules! push_declared_action {
+    (none, $context:ident, $actions:ident) => {};
+    ((|$action_context:ident| $action:expr), $context:ident, $actions:ident) => {
+        let $action_context = $context;
+        if let Some(action) = $action {
+            $actions.push(CodeActionOrCommand::CodeAction(action));
         }
-    }
+    };
 }
 
-fn method_codomain_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-    let diagnostic = context
+macro_rules! declared_code_actions {
+    (diagnostics { $($kind:ident {
+        code: $code:literal, name: $name:literal, severity: $severity:ident,
+        legacy: [$($legacy:literal),* $(,)?],
+        check: $phase:ident => |$check_context:ident| $check:expr, action: $action:tt,
+    }),+ $(,)? } standalone_actions {
+        $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)?
+    }) => {
+        |context: &CodeActionContext<'_, '_>| {
+            let mut actions = CodeActionResponse::new();
+            $(push_declared_action!($action, context, actions);)+
+            $(
+                let $action_context = context;
+                if let Some(action) = $standalone_action {
+                    actions.push(CodeActionOrCommand::CodeAction(action));
+                }
+            )*
+            actions
+        }
+    };
+}
+
+fn diagnostic_at(context: &CodeActionContext<'_, '_>, kind: DiagnosticKind) -> Option<Diagnostic> {
+    context
         .diagnostics
         .iter()
         .find(|diagnostic| {
-            matches!(
-                DiagnosticKind::from_lsp(diagnostic),
-                Some(
-                    DiagnosticKind::InstallCodomainMissing
-                        | DiagnosticKind::InstallCodomainMismatch
-                )
-            ) && position_in_range(context.position, diagnostic.range)
-        })?
-        .clone();
+            diagnostic_has_kind(diagnostic, kind)
+                && position_in_range(context.position, diagnostic.range)
+        })
+        .cloned()
+}
+
+fn method_codomain_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let diagnostic = diagnostic_at(context, DiagnosticKind::InstallCodomainMissing)?;
     let mut current = Some(context.cursor);
     while let Some(node) = current {
         if node.is_assignment() {
@@ -82,29 +80,136 @@ fn method_codomain_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAct
                 &knowledge,
             ) {
                 if deduction.diagnostic_range == diagnostic.range {
-                    let (title, edit_range, new_text) = match deduction.edit {
-                        MethodCodomainEdit::Replace(range) => (
-                            "Correct codomain annotation",
-                            range,
-                            deduction.codomain.to_string(),
-                        ),
-                        MethodCodomainEdit::Add(range) => (
-                            "Add codomain annotation",
-                            range,
-                            format!("{} => ", deduction.codomain),
-                        ),
+                    let MethodCodomainEdit::Add(edit_range) = deduction.edit else {
+                        return None;
                     };
                     return Some(
                         CodeActionSpec {
-                            title,
+                            title: "Add codomain annotation",
                             kind: CodeActionKind::QUICKFIX,
                             is_preferred: Some(true),
                             diagnostics: Some(vec![diagnostic]),
                         }
-                        .build(context.uri, edit_range, new_text),
+                        .build(
+                            context.uri,
+                            edit_range,
+                            format!("{} => ", deduction.codomain),
+                        ),
                     );
                 }
             }
+        }
+        current = node.parent();
+    }
+    None
+}
+
+fn colon_equal_part_assignment_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    assignment_operator_action(
+        context,
+        DiagnosticKind::ColonEqualPartAssignment,
+        ":=",
+        "=",
+        "Use `=` for part assignment",
+    )
+}
+
+fn install_needs_colon_equals_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    assignment_operator_action(
+        context,
+        DiagnosticKind::InstallNeedsColonEquals,
+        "=",
+        ":=",
+        "Use `:=` for method installation",
+    )
+}
+
+fn assignment_operator_action(
+    context: &CodeActionContext<'_, '_>,
+    kind: DiagnosticKind,
+    current_operator: &str,
+    replacement: &str,
+    title: &'static str,
+) -> Option<CodeAction> {
+    let diagnostic = diagnostic_at(context, kind)?;
+    let mut current = Some(context.cursor);
+    while let Some(node) = current {
+        if node.binary_operator() == Some(current_operator) {
+            let operator = node.child_by_field_name("operator")?;
+            return Some(
+                CodeActionSpec {
+                    title,
+                    kind: CodeActionKind::QUICKFIX,
+                    is_preferred: Some(true),
+                    diagnostics: Some(vec![diagnostic]),
+                }
+                .build(
+                    context.uri,
+                    context.document.range_for_node(operator),
+                    replacement.to_string(),
+                ),
+            );
+        }
+        current = node.parent();
+    }
+    None
+}
+
+fn option_key_convention_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let diagnostic = diagnostic_at(context, DiagnosticKind::OptionKeyConvention)?;
+    let key = enclosing_node_with_range(context, NodeKind::Symbol, diagnostic.range)?;
+    let mut replacement = key.text().to_string();
+    replacement.get_mut(..1)?.make_ascii_uppercase();
+    Some(
+        CodeActionSpec {
+            title: "Capitalize option key",
+            kind: CodeActionKind::QUICKFIX,
+            is_preferred: Some(true),
+            diagnostics: Some(vec![diagnostic]),
+        }
+        .build(
+            context.uri,
+            context.document.range_for_node(key),
+            replacement,
+        ),
+    )
+}
+
+fn protect_assigned_symbol_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let diagnostic = diagnostic_at(context, DiagnosticKind::ProtectAssignedSymbol)?;
+    let symbol = enclosing_node_with_range(context, NodeKind::Symbol, diagnostic.range)?;
+    let start = context.document.position_for_node(symbol);
+    Some(
+        CodeActionSpec {
+            title: "Protect the symbol itself",
+            kind: CodeActionKind::QUICKFIX,
+            is_preferred: Some(true),
+            diagnostics: Some(vec![diagnostic]),
+        }
+        .build(
+            context.uri,
+            TextRange::new(start, start),
+            "symbol ".to_string(),
+        ),
+    )
+}
+
+fn enclosing_node_with_range<'tree>(
+    context: &CodeActionContext<'tree, '_>,
+    kind: NodeKind,
+    range: TextRange,
+) -> Option<M2Node<'tree>> {
+    if kind == NodeKind::Symbol {
+        if let Some(symbol) = context.document.symbol_node_at_position(range.start) {
+            if context.document.range_for_node(symbol) == range {
+                return Some(symbol);
+            }
+        }
+    }
+    let mut current = Some(context.cursor);
+    while let Some(node) = current {
+        if node.kind == kind && context.document.range_for_node(node) == range {
+            return Some(node);
         }
         current = node.parent();
     }
@@ -129,19 +234,8 @@ pub fn available_code_actions(
         cursor,
         diagnostics,
     };
-    let actions = actions_from_rules(ACTION_RULES, &context);
+    let actions = diagnostic_declarations!(declared_code_actions)(&context);
     (!actions.is_empty()).then_some(actions)
-}
-
-fn actions_from_rules(
-    rules: &[CodeActionRule],
-    context: &CodeActionContext<'_, '_>,
-) -> CodeActionResponse {
-    rules
-        .iter()
-        .filter_map(|rule| rule.action(context))
-        .map(CodeActionOrCommand::CodeAction)
-        .collect()
 }
 
 /// The shared shape of every action this module emits: a title, a kind, and
@@ -204,14 +298,7 @@ fn convert_to_raw_string_action(context: &CodeActionContext<'_, '_>) -> Option<C
 /// Quickfix for the ambiguous-float diagnostic (`x.3` parses as `x SPACE .3`):
 /// rewrite to the member access the user almost certainly meant (`x#3`).
 fn ambiguous_float_member_access_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-    let diagnostic = context
-        .diagnostics
-        .iter()
-        .find(|diagnostic| {
-            diagnostic_has_kind(diagnostic, DiagnosticKind::AmbiguousFloatMemberAccess)
-                && position_in_range(context.position, diagnostic.range)
-        })?
-        .clone();
+    let diagnostic = diagnostic_at(context, DiagnosticKind::AmbiguousFloatMemberAccess)?;
     let expression = context
         .document
         .enclosing_node_of_kind(context.cursor, NodeKind::BinaryExpression)?;

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use super::*;
+use crate::node_metadata::BinaryExpressionNode;
 use crate::object_registry::TypeStore;
 
 /// Partial-order view combining source and external type edges without copying.
@@ -186,9 +187,13 @@ impl TypeChecker<'_> {
             },
             // `x => y` builds an `Option` object, whatever the operand types.
             _ if node.is_option_assignment() => InferredType::of("Option"),
-            NodeKind::BinaryExpression => {
-                self.binary_expression_type(node, source, scope_idx, knowledge)
-            }
+            NodeKind::BinaryExpression => self.binary_expression_type(
+                node.try_into()
+                    .expect("binary-expression branch has a binary node"),
+                source,
+                scope_idx,
+                knowledge,
+            ),
             NodeKind::PrefixExpression | NodeKind::PostfixExpression => {
                 self.unary_operator_type(node, source, scope_idx, knowledge)
             }
@@ -360,18 +365,18 @@ impl TypeChecker<'_> {
     /// through the M2 type table.
     fn binary_expression_type(
         &self,
-        node: M2Node,
+        node: BinaryExpressionNode,
         source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         if node.is_space_application() {
-            return self.application_type(node, source, scope_idx, knowledge);
+            return self.application_type(node.into(), source, scope_idx, knowledge);
         }
 
         let operator = node.binary_operator();
-        let left = node.child_by_field_name("left");
-        let right = node.child_by_field_name("right");
+        let left = node.left();
+        let right = node.right();
 
         if let Some(operator) = operator {
             if let Some(result) =
@@ -382,19 +387,20 @@ impl TypeChecker<'_> {
         }
 
         let (Some(left), Some(right), Some(operator)) =
-            (left, right, Operator::from_expression(node))
+            (left, right, Operator::from_expression(node.into()))
         else {
             return InferredType::unknown();
         };
         let left_type = self.type_of(left, source, scope_idx, knowledge);
         let right_type = self.type_of(right, source, scope_idx, knowledge);
-        self.dispatch_codomain(
-            knowledge,
-            &operator,
-            &[left_type, right_type],
-            &[],
-            source.position_for_node(node),
-        )
+        let position = source.position_for_node(node.into());
+        let arguments = [left_type, right_type];
+        if is_comparison_operator(operator.token.name()) {
+            return self
+                .resolved_dispatch_codomain(knowledge, &operator, &arguments, &[], position)
+                .unwrap_or_else(|| InferredType::from_id(TypeRole::Boolean.object_name()));
+        }
+        self.dispatch_codomain(knowledge, &operator, &arguments, &[], position)
     }
 
     /// The function-dependent operators, whose result depends on the specific
@@ -588,11 +594,30 @@ impl TypeChecker<'_> {
         options: &[LiteralOption],
         position: Position,
     ) -> InferredType {
+        if let Some(return_type) =
+            self.resolved_dispatch_codomain(knowledge, operator, args, options, position)
+        {
+            return return_type;
+        }
+        if knowledge.get_record(&operator.token).is_some() {
+            return InferredType::of("Thing");
+        }
+        InferredType::unknown()
+    }
+
+    fn resolved_dispatch_codomain(
+        &self,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+        operator: &Operator,
+        args: &[InferredType],
+        options: &[LiteralOption],
+        position: Position,
+    ) -> Option<InferredType> {
         if let Some(function) = self.registry.operator_functions.get(operator) {
             if let Some(return_type) =
                 self.resolve_local_call_return_type(function, args, position, knowledge)
             {
-                return InferredType::from_id(return_type);
+                return Some(InferredType::from_id(return_type));
             }
         }
         if let Some(return_type) = knowledge.resolve_call_return_type_with_options(
@@ -603,12 +628,9 @@ impl TypeChecker<'_> {
                 .collect::<Vec<_>>(),
             options,
         ) {
-            return self.inferred_external_type(return_type, knowledge);
+            return Some(self.inferred_external_type(return_type, knowledge));
         }
-        if knowledge.get_record(&operator.token).is_some() {
-            return InferredType::of("Thing");
-        }
-        InferredType::unknown()
+        None
     }
 
     pub fn infer_call_facts(
@@ -819,13 +841,31 @@ impl TypeChecker<'_> {
         position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> bool {
+        self.subtype_evidence(actual, expected, position, knowledge) == SubtypeEvidence::Proven
+    }
+
+    pub fn subtype_evidence(
+        &self,
+        actual: &ObjectName,
+        expected: &ObjectName,
+        position: Position,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> SubtypeEvidence {
         let order = SourceTypeOrder {
             source: &self.registry.source_types,
             external: knowledge,
         };
-        self.resolve_type_id_at(actual, position, knowledge)
+        let Some((actual, expected)) = self
+            .resolve_type_id_at(actual, position, knowledge)
             .zip(self.resolve_type_id_at(expected, position, knowledge))
-            .is_some_and(|(actual, expected)| order.is_subtype_id(&actual, &expected))
+        else {
+            return SubtypeEvidence::Unknown;
+        };
+        if order.is_subtype_id(&actual, &expected) {
+            SubtypeEvidence::Proven
+        } else {
+            SubtypeEvidence::Disproven
+        }
     }
 
     fn resolve_source_type_id(&self, name: &ObjectName, position: Position) -> Option<TypeId> {
@@ -844,4 +884,11 @@ impl TypeChecker<'_> {
         self.resolve_source_type_id(name, position)
             .or_else(|| knowledge.resolve_type_id(name))
     }
+}
+
+fn is_comparison_operator(operator: &str) -> bool {
+    matches!(
+        operator,
+        "==" | "===" | "!=" | "=!=" | "<" | "<=" | ">" | ">="
+    )
 }

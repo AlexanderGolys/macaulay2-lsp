@@ -3,6 +3,39 @@
 use super::*;
 
 #[cfg(test)]
+mod typed_nodes_tests {
+    use super::*;
+
+    #[test]
+    fn checked_node_classes_expose_only_their_structural_fields() {
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser
+            .parse("f = x -> x + 1\n")
+            .expect("fixture should parse");
+
+        let addition = root
+            .descendants()
+            .find(|node| node.binary_operator() == Some("+"))
+            .expect("addition should be present");
+        let binary = BinaryExpressionNode::try_from(addition)
+            .expect("a binary expression should accept the binary node class");
+        assert_eq!(binary.left().map(|node| node.text()), Some("x"));
+        assert_eq!(binary.right().map(|node| node.text()), Some("1"));
+        assert_eq!(M2Node::from(binary).id(), addition.id());
+
+        let lambda = root
+            .descendants()
+            .find(|node| node.kind == NodeKind::LambdaExpression)
+            .expect("lambda should be present");
+        let lambda = LambdaExpressionNode::try_from(lambda)
+            .expect("a lambda expression should accept the lambda node class");
+        assert_eq!(lambda.parameters().map(|node| node.text()), Some("x"));
+        assert_eq!(lambda.body().map(|node| node.text()), Some("x + 1"));
+        assert!(BinaryExpressionNode::try_from(M2Node::from(lambda)).is_err());
+    }
+}
+
+#[cfg(test)]
 mod cst_compliance_gate {
     //! Build gate enforcing the repo rule that the rest of the crate must reach
     //! the syntax tree only through `M2Node` / `NodeKind` — never the raw
