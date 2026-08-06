@@ -58,7 +58,7 @@ impl Analysis {
                 let variables = RingGeneratorBinding::constructor_variables(node)?;
                 TypeChecker::new(self)
                     .type_of(head, source, scope_idx, knowledge)
-                    .principal()
+                    .single()
                     .is_some_and(|head_type| knowledge.has_type_role(head_type, TypeRole::Ring))
                     .then_some(variables)
             })
@@ -160,22 +160,42 @@ impl Analysis {
             .filter(|binding_id| {
                 self.binding_anchor(*binding_id)
                     .is_some_and(|binding| binding.scope_idx == 0)
-            });
-        let registration = SymbolRegistration {
-            presentation_kind: SymbolKind::VARIABLE,
+            })
+            .or_else(|| self.future_assignment_binding(name, 0, position));
+        let fact = BindingFact {
+            target: node,
+            value: None,
             role: BindingRole::Ordinary,
-            type_name: Some(type_name),
+            effect: BindingEffect::Assign,
+            scope: 0,
+            potential_export: true,
+        };
+        let enrichment = BindingEnrichment {
+            presentation_kind: SymbolKind::VARIABLE,
+            inferred_type: Some(InferredType::exact_from_id(type_name)),
             object_id: None,
             indexed_element_type,
             parent_type: None,
-            scope_idx: 0,
-            potential_export: true,
         };
-        if let Some(binding_id) = binding_id {
-            self.add_binding_state(binding_id, node, None, registration, source);
+        let (binding_id, state_index) = if let Some(binding_id) = binding_id {
+            let Some(mut state_index) = self.add_binding_state(binding_id, fact, source) else {
+                return;
+            };
+            if let Some(binding) = self.registry.bindings.get_mut(binding_id.0 as usize) {
+                let range = source.range_for_node(node);
+                if range.start < binding.range.start {
+                    binding.range = range;
+                    let state = binding.states.remove(state_index);
+                    binding.states.insert(0, state);
+                    state_index = 0;
+                }
+            }
+            self.reindex_binding_states(binding_id);
+            (binding_id, state_index)
         } else {
-            self.add_symbol(name, node, None, registration, source);
-        }
+            (self.add_binding(name, fact, source), 0)
+        };
+        self.enrich_binding_state(binding_id, state_index, enrichment);
     }
 }
 
@@ -385,7 +405,7 @@ impl TypeChecker<'_> {
         {
             let ring = parenthesized_value(query.right?)?;
             let ring_type = self.type_of(ring, source, query.scope_idx, knowledge);
-            if knowledge.has_type_role(ring_type.principal()?, TypeRole::Ring) {
+            if knowledge.has_type_role(ring_type.single()?, TypeRole::Ring) {
                 let element_type = self
                     .resolved_ring_element_type(
                         ring,
@@ -395,7 +415,7 @@ impl TypeChecker<'_> {
                         &mut HashSet::new(),
                     )
                     .unwrap_or_else(|| ObjectName::new("RingElement"));
-                return Some(InferredType::from_id(element_type));
+                return Some(InferredType::exact_from_id(element_type));
             }
         }
 
@@ -408,15 +428,15 @@ impl TypeChecker<'_> {
                 )
                 .and_then(|binding| binding.state.indexed_element_type.as_ref())
             {
-                return Some(InferredType::of(element_type.name()));
+                return Some(InferredType::exact(element_type.name()));
             }
-            return Some(InferredType::of("RingElement"));
+            return Some(InferredType::upward("RingElement"));
         }
 
         if query.operator == "/" && knowledge.has_type_role(left_name, TypeRole::Ring) {
             let right_type = self.type_of(query.right?, source, query.scope_idx, knowledge);
-            if right_type.principal()?.as_ref() == "ZZ" {
-                return Some(InferredType::of("QuotientRing"));
+            if right_type.single()?.as_ref() == "ZZ" {
+                return Some(InferredType::exact("QuotientRing"));
             }
         }
 
@@ -446,10 +466,7 @@ impl TypeChecker<'_> {
         }
 
         let value_range = binding.state.value_range?;
-        let mut root = ring;
-        while let Some(parent) = root.parent() {
-            root = parent;
-        }
+        let root = ring.root();
         let value = root.descendant_for_point_range(
             source.point_for_position(value_range.start)?,
             source.point_for_position(value_range.end)?,
@@ -496,7 +513,7 @@ impl TypeChecker<'_> {
             .flatten();
         operand.is_some_and(|operand| {
             self.type_of(operand, source, scope_idx, knowledge)
-                .principal()
+                .single()
                 .is_some_and(|type_name| knowledge.has_type_role(type_name, TypeRole::Ring))
         })
     }
@@ -515,7 +532,7 @@ impl TypeChecker<'_> {
         scope_idx: usize,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
-        let head_name = head.principal()?;
+        let head_name = head.single()?;
         if !knowledge.has_type_role(head_name, TypeRole::Ring) {
             return None;
         }
@@ -535,7 +552,7 @@ impl TypeChecker<'_> {
             &[],
             source.position_for_node(argument),
         );
-        let ring_name = ring_type.principal()?;
+        let ring_name = ring_type.single()?;
         if !knowledge.has_type_role(ring_name, TypeRole::Ring) {
             return None;
         }

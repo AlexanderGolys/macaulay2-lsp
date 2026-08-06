@@ -11,19 +11,19 @@ pub enum BindingRole {
     Parameter,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Meta<'a> {
+#[derive(Debug, Clone, Default)]
+pub struct Meta {
     pub symbol_kind: Option<SymbolKind>,
     pub binding_role: Option<BindingRole>,
-    pub type_name: Option<&'a str>,
+    pub type_label: Option<String>,
 }
 
 pub trait Metadata {
-    fn meta(&self) -> Meta<'_>;
+    fn meta(&self) -> Meta;
 }
 
-impl Metadata for Meta<'_> {
-    fn meta(&self) -> Meta<'_> {
-        *self
+impl Metadata for Meta {
+    fn meta(&self) -> Meta {
+        self.clone()
     }
 }

@@ -3,7 +3,7 @@
 use crate::builtin_index::OptionFacts;
 use crate::builtin_index::Record;
 use crate::meta::{BindingRole, Metadata};
-use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::node_metadata::{M2Node, NodeKind};
 use crate::object_registry::{ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView};
 use crate::source::DocumentSpan;
 use crate::typesystem::{TypeKnowledge, TypeRole};
@@ -234,7 +234,8 @@ pub fn local_symbol_semantic_token(
     }
 
     if let Some(token) = meta
-        .type_name
+        .type_label
+        .as_deref()
         .and_then(|type_name| local_symbol_static_type_token(symbol, type_name, knowledge))
     {
         return token;

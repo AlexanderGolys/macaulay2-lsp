@@ -14,7 +14,7 @@ use crate::diagnostic_registry::{diagnostic_has_kind, DiagnosticKind};
 use crate::document::DocumentSnapshot;
 use crate::node_metadata::{M2Node, NodeKind};
 use crate::source::SourceNavigation;
-use crate::util::position_in_range;
+use crate::util::TextRangeExt;
 
 struct CodeActionContext<'tree, 'request> {
     document: &'tree DocumentSnapshot,
@@ -62,7 +62,7 @@ fn diagnostic_at(context: &CodeActionContext<'_, '_>, kind: DiagnosticKind) -> O
         .iter()
         .find(|diagnostic| {
             diagnostic_has_kind(diagnostic, kind)
-                && position_in_range(context.position, diagnostic.range)
+                && diagnostic.range.contains_position(context.position)
         })
         .cloned()
 }
@@ -321,9 +321,7 @@ impl CodeActionSpec {
 /// Refactor: rewrite a heavily-escaped string literal as a raw `///…///` string
 /// when the value survives verbatim (no unsupported escapes, no `///` inside).
 fn convert_to_raw_string_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-    let string_node = context
-        .document
-        .enclosing_node_of_kind(context.cursor, NodeKind::StringLiteral)?;
+    let string_node = context.cursor.enclosing(NodeKind::StringLiteral)?;
     let replacement = raw_string_replacement(string_node)?;
 
     Some(
@@ -345,9 +343,7 @@ fn convert_to_raw_string_action(context: &CodeActionContext<'_, '_>) -> Option<C
 /// rewrite to the member access the user almost certainly meant (`x#3`).
 fn ambiguous_float_member_access_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
     let diagnostic = diagnostic_at(context, DiagnosticKind::AmbiguousFloatMemberAccess)?;
-    let expression = context
-        .document
-        .enclosing_node_of_kind(context.cursor, NodeKind::BinaryExpression)?;
+    let expression = context.cursor.enclosing(NodeKind::BinaryExpression)?;
     let replacement = ambiguous_float_member_access_rewrite(expression)?;
 
     Some(
@@ -368,9 +364,7 @@ fn ambiguous_float_member_access_action(context: &CodeActionContext<'_, '_>) -> 
 /// Refactor: drop a redundant `else null` (or `then null`, negating the
 /// condition) from an `if` statement.
 fn conditional_null_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-    let if_node = context
-        .document
-        .enclosing_node_of_kind(context.cursor, NodeKind::IfStatement)?;
+    let if_node = context.cursor.enclosing(NodeKind::IfStatement)?;
     let replacement = refactor_if_null_branch(if_node)?;
 
     Some(
@@ -391,9 +385,7 @@ fn conditional_null_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAc
 /// Refactor: simplify a `try` statement — drop a redundant `then` echo or a
 /// redundant `else null`.
 fn simplify_try_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-    let try_node = context
-        .document
-        .enclosing_node_of_kind(context.cursor, NodeKind::TryStatement)?;
+    let try_node = context.cursor.enclosing(NodeKind::TryStatement)?;
     let replacement = refactor_try_statement(try_node)?;
 
     Some(
@@ -414,9 +406,7 @@ fn simplify_try_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction
 /// Refactor: push a leading `not` through a parenthesized comparison
 /// (`if not (a == b) then x` → `if a != b then x`).
 fn simplify_if_condition_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-    let if_node = context
-        .document
-        .enclosing_node_of_kind(context.cursor, NodeKind::IfStatement)?;
+    let if_node = context.cursor.enclosing(NodeKind::IfStatement)?;
     let condition = if_node.child_by_field_name("condition")?;
     let simplified = simplify_condition(condition)?;
 

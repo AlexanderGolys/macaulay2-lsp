@@ -7,7 +7,7 @@ use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
 use crate::document::{DocumentSnapshot, TargetSymbol};
-use crate::node_metadata::{NodeKind, NodeKindMetadata};
+use crate::node_metadata::NodeKind;
 use crate::object_registry::ObjectName;
 use crate::package_index::SourceResolver;
 use crate::record_lsp::LspKnowledge;
@@ -166,9 +166,7 @@ pub fn goto_definition_response(
     let node = document.node_at_position_minimal(position)?;
     let documentation_reference = document.documentation_reference_at(position);
 
-    if let Some(string_node) =
-        document.enclosing_node_matching(node, |kind| kind.is_string_literal())
-    {
+    if let Some(string_node) = node.enclosing_matching(|kind| kind.is_string_literal()) {
         if let Some(package_name) = crate::package_index::package_source_string(string_node) {
             if let Some(path) = source_resolver.resolve_package_file(package_name) {
                 if let Ok(uri) = Url::from_file_path(path) {

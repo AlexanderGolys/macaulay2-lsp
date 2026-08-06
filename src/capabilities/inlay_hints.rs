@@ -6,10 +6,11 @@ use tower_lsp::lsp_types::{
 };
 
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
-use crate::object_registry::{ObjectName, ObjectRegistry};
+use crate::node_metadata::{M2Node, NodeKind};
+use crate::object_registry::ObjectRegistry;
 use crate::source::SourceNavigation;
-use crate::util::position_in_range;
+use crate::typesystem::InferredType;
+use crate::util::TextRangeExt;
 
 pub fn inlay_hint_provider_capability() -> Option<OneOf<bool, InlayHintServerCapabilities>> {
     Some(OneOf::Left(true))
@@ -94,7 +95,7 @@ fn lambda_return_type_hints(
         .filter(|value| all_known_types || !is_self_describing_value(*value))
         .filter_map(|value| {
             let value_range = document.range_for_node(value);
-            if !position_in_range(value_range.end, *range) {
+            if !range.contains_position(value_range.end) {
                 return None;
             }
             let view = knowledge.at(value_range.start);
@@ -185,13 +186,9 @@ fn binding_type_hints(
             let assigned = assigned_values
                 .iter()
                 .find(|value| value.target_range == state.span);
-            let type_name = assigned.map(|value| value.type_name.clone()).or_else(|| {
-                state
-                    .type_name
-                    .as_ref()
-                    .map(ObjectName::name)
-                    .map(ToString::to_string)
-            });
+            let type_name = assigned
+                .map(|value| value.type_name.clone())
+                .or_else(|| state.inferred_type.as_ref().and_then(InferredType::label));
             let Some(type_name) = type_name else {
                 previous_type = None;
                 continue;
@@ -215,7 +212,7 @@ fn binding_type_hints(
                 continue;
             }
             let position = state.span.end;
-            if position_in_range(position, *range) {
+            if range.contains_position(position) {
                 hints.push(type_hint(position, &type_name));
             }
         }
@@ -362,7 +359,7 @@ fn parameter_name_hints(
                 .zip(arguments)
                 .filter_map(|(name, argument)| {
                     let position = document.range_for_node(argument).start;
-                    if name.name() == "_" || !position_in_range(position, *range) {
+                    if name.name() == "_" || !range.contains_position(position) {
                         return None;
                     }
                     Some(parameter_hint(position, name.name()))

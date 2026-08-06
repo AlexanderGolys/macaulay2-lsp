@@ -7,7 +7,7 @@ use tower_lsp::lsp_types::{Location, Position, Range as TextRange, Url};
 
 #[cfg(test)]
 use crate::node_metadata::M2Parser;
-use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::node_metadata::{M2Node, NodeKind};
 use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
 
@@ -180,10 +180,7 @@ fn binary_expression_left_symbol(node: M2Node<'_>) -> Option<&str> {
 mod import_trigger_tests {
     use std::{env, fs};
 
-    use super::{
-        collect_imported_packages, package_source_string, M2Parser, NodeKindMetadata,
-        SourceResolver,
-    };
+    use super::{collect_imported_packages, package_source_string, M2Parser, SourceResolver};
 
     fn imported_names(text: &str) -> Vec<String> {
         collect_imported_packages(text)

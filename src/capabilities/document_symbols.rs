@@ -34,9 +34,9 @@ pub fn collect_document_symbols(document: &DocumentSnapshot) -> Vec<DocumentSymb
             name: binding.name.name().to_string(),
             detail: binding
                 .state
-                .type_name
+                .inferred_type
                 .as_ref()
-                .map(|type_id| type_id.name().to_string()),
+                .and_then(crate::typesystem::InferredType::label),
             kind: binding.state.presentation_kind,
             range: binding.state.definition_range,
             selection_range: binding.state.span,
@@ -398,14 +398,8 @@ mod tests {
     #[test]
     fn document_symbols_cover_static_top_level_extractor_bindings() {
         fn has_function_ancestor(node: M2Node) -> bool {
-            let mut node = node;
-            while let Some(parent) = node.parent() {
-                if parent.kind == NodeKind::LambdaExpression {
-                    return true;
-                }
-                node = parent;
-            }
-            false
+            node.ancestors()
+                .any(|parent| parent.kind == NodeKind::LambdaExpression)
         }
 
         fn collect_static_top_level_bindings(node: M2Node, names: &mut Vec<String>) {

@@ -5,7 +5,7 @@ use tower_lsp::lsp_types::*;
 use crate::analysis::{Analysis, FunctionInfo, Method, MethodInstallation};
 use crate::document::DocumentSnapshot;
 use crate::meta::{BindingRole, Metadata};
-use crate::node_metadata::{M2Node, NodeKindMetadata};
+use crate::node_metadata::M2Node;
 use crate::object_registry::ObjectName;
 use crate::record_lsp::record_hover_with_package_and_usage;
 use crate::record_lsp::{LspKnowledge, SignatureUsage};
@@ -99,7 +99,8 @@ fn local_symbol_hover(
         })
         .unwrap_or_default();
     let type_line = meta
-        .type_name
+        .type_label
+        .as_deref()
         .map(|type_name| format!("\nType: `{type_name}`"))
         .unwrap_or_default();
     let label = match meta.symbol_kind {
@@ -262,7 +263,7 @@ mod tests {
         let symbol = Meta {
             symbol_kind: Some(SymbolKind::VARIABLE),
             binding_role: Some(BindingRole::Ordinary),
-            type_name: Some("Package"),
+            type_label: Some("Package".to_string()),
         };
 
         let hover = local_symbol_hover("Doc", &symbol, &analysis, None, None);

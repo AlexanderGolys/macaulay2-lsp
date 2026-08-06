@@ -7,9 +7,9 @@
 
 use tower_lsp::lsp_types::{Position, Range as TextRange};
 
-use crate::node_metadata::{M2Node, M2Parser, NodeKind, NodeKindMetadata};
+use crate::node_metadata::{M2Node, M2Parser, NodeKind};
 use crate::source::{ByteRange, DocumentSpan, SourceNavigation};
-use crate::util::position_in_range;
+use crate::util::TextRangeExt;
 
 /// One backtick-delimited source snippet parsed for embedded references.
 #[derive(Debug)]
@@ -44,7 +44,7 @@ impl DocumentationReference {
     }
 
     pub fn contains(&self, position: Position) -> bool {
-        position_in_range(position, self.span.range())
+        self.span.range().contains_position(position)
     }
 }
 

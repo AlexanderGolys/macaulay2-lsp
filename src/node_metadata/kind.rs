@@ -103,29 +103,12 @@ impl NodeKind {
     }
 }
 
-/// Semantic categories shared by syntax kinds.
-///
-/// The grammar-name mapping remains closed and centralized in
-/// [`NodeKind::from_str`]. Analysis depends on these capabilities rather than
-/// matching the concrete enum variants again.
-pub trait NodeKindMetadata {
-    fn is_symbol_like(&self) -> bool;
-    fn is_literal(&self) -> bool;
-    fn is_string_literal(&self) -> bool;
-    fn is_collection_expression(&self) -> bool;
-    fn is_sequence(&self) -> bool;
-    fn is_nothing_value(&self) -> bool;
-    fn is_comment(&self) -> bool;
-    fn is_control_transfer(&self) -> bool;
-    fn is_value_expression(&self) -> bool;
-}
-
-impl NodeKindMetadata for NodeKind {
-    fn is_symbol_like(&self) -> bool {
+impl NodeKind {
+    pub fn is_symbol_like(&self) -> bool {
         matches!(*self, Self::Symbol | Self::QuotedKeyword)
     }
 
-    fn is_literal(&self) -> bool {
+    pub fn is_literal(&self) -> bool {
         matches!(
             *self,
             Self::IntegerLiteral
@@ -135,7 +118,7 @@ impl NodeKindMetadata for NodeKind {
         )
     }
 
-    fn is_string_literal(&self) -> bool {
+    pub fn is_string_literal(&self) -> bool {
         matches!(*self, Self::StringLiteral | Self::RawStringLiteral)
     }
 
@@ -145,33 +128,98 @@ impl NodeKindMetadata for NodeKind {
     /// `=`/`:=`) and as fixed-length right-hand sides whose arity can be checked
     /// against the targets. A parenthesized single expression `(a)` is not one
     /// of these -- the grammar collapses it to the bare expression.
-    fn is_collection_expression(&self) -> bool {
+    pub fn is_collection_expression(&self) -> bool {
         matches!(
             *self,
             Self::Sequence | Self::List | Self::Array | Self::AngleBarList
         )
     }
 
-    fn is_sequence(&self) -> bool {
+    pub fn is_parameter_container(&self) -> bool {
+        matches!(
+            *self,
+            Self::Sequence | Self::List | Self::ParenthesizedExpression
+        )
+    }
+
+    pub fn is_sequence(&self) -> bool {
         matches!(*self, Self::Sequence | Self::NakedSequence)
     }
 
-    fn is_nothing_value(&self) -> bool {
+    pub fn is_nothing_value(&self) -> bool {
         matches!(*self, Self::Muted | Self::EmptyComponent)
     }
 
-    fn is_comment(&self) -> bool {
+    pub fn is_comment(&self) -> bool {
         matches!(*self, Self::LineComment | Self::BlockComment)
     }
 
-    fn is_control_transfer(&self) -> bool {
+    pub fn is_control_transfer(&self) -> bool {
         matches!(
             *self,
             Self::ReturnStatement | Self::BreakStatement | Self::ContinueStatement
         )
     }
 
-    fn is_value_expression(&self) -> bool {
+    pub fn is_try_clause(&self) -> bool {
+        matches!(
+            *self,
+            Self::ThenClause
+                | Self::ElseClause
+                | Self::ExceptClause
+                | Self::DoClause
+                | Self::WhenClause
+        )
+    }
+
+    pub fn is_loop_clause(&self) -> bool {
+        matches!(
+            *self,
+            Self::FromClause
+                | Self::ToClause
+                | Self::InClause
+                | Self::WhenClause
+                | Self::ListClause
+                | Self::DoClause
+        )
+    }
+
+    pub fn is_keyword_statement(&self) -> bool {
+        matches!(
+            *self,
+            Self::IfStatement
+                | Self::ForStatement
+                | Self::WhileStatement
+                | Self::NewStatement
+                | Self::TryStatement
+        )
+    }
+
+    pub fn is_keyword_clause(&self) -> bool {
+        matches!(
+            *self,
+            Self::FromClause
+                | Self::ToClause
+                | Self::OfClause
+                | Self::InClause
+                | Self::WhenClause
+                | Self::ListClause
+                | Self::DoClause
+                | Self::ThenClause
+                | Self::ElseClause
+                | Self::ExceptClause
+        )
+    }
+
+    pub fn closing_delimiter_width(&self) -> usize {
+        if *self == Self::AngleBarList {
+            2
+        } else {
+            1
+        }
+    }
+
+    pub fn is_value_expression(&self) -> bool {
         self.is_literal()
             || self.is_collection_expression()
             || self.is_control_transfer()

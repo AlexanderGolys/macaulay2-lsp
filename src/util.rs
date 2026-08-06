@@ -20,18 +20,33 @@ macro_rules! pos_max {
     };
 }
 
-/// Whether `position` lies in `range` (start-inclusive, end-exclusive).
-pub fn position_in_range(position: Position, range: TextRange) -> bool {
-    if position.line < range.start.line || position.line > range.end.line {
-        return false;
+pub trait TextRangeExt {
+    fn contains_position(&self, position: Position) -> bool;
+    fn is_inside(&self, outer: TextRange) -> bool;
+}
+
+impl TextRangeExt for TextRange {
+    fn contains_position(&self, position: Position) -> bool {
+        if position.line < self.start.line || position.line > self.end.line {
+            return false;
+        }
+        if position.line == self.start.line && position.character < self.start.character {
+            return false;
+        }
+        if position.line == self.end.line && position.character >= self.end.character {
+            return false;
+        }
+        true
     }
-    if position.line == range.start.line && position.character < range.start.character {
-        return false;
+
+    fn is_inside(&self, outer: TextRange) -> bool {
+        let starts_inside = self.start.line > outer.start.line
+            || (self.start.line == outer.start.line
+                && self.start.character >= outer.start.character);
+        let ends_inside = self.end.line < outer.end.line
+            || (self.end.line == outer.end.line && self.end.character <= outer.end.character);
+        starts_inside && ends_inside && *self != outer
     }
-    if position.line == range.end.line && position.character >= range.end.character {
-        return false;
-    }
-    true
 }
 
 #[cfg(test)]

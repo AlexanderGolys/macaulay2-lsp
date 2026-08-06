@@ -4,7 +4,11 @@ use std::iter;
 
 use tree_sitter::{Node, Point};
 
-use super::{NodeKind, NodeKindMetadata};
+use super::NodeKind;
+
+/// Snapshot-local identity of one Tree-sitter syntax node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SyntaxNodeId(usize);
 
 #[derive(Debug, Clone, Copy)]
 pub struct M2Node<'tree> {
@@ -14,7 +18,7 @@ pub struct M2Node<'tree> {
 }
 
 impl<'tree> M2Node<'tree> {
-    pub fn new(node: Node<'tree>, source: &'tree str) -> Self {
+    pub(super) fn new(node: Node<'tree>, source: &'tree str) -> Self {
         Self {
             kind: NodeKind::from_str(node.kind()),
             node,
@@ -35,10 +39,6 @@ impl<'tree> M2Node<'tree> {
     /// stays correct across grammar renames.
     pub fn syntax_label(&self) -> &'tree str {
         self.raw_kind()
-    }
-
-    pub fn is(self, kind: NodeKind) -> bool {
-        self.kind == kind
     }
 
     pub fn is_comma(&self) -> bool {
@@ -165,7 +165,7 @@ impl<'tree> M2Node<'tree> {
     pub fn is_operator(&self) -> bool {
         self.parent()
             .and_then(|parent| parent.child_by_field_name("operator"))
-            .is_some_and(|operator| operator.id() == self.node.id())
+            .is_some_and(|operator| operator.id() == self.id())
     }
 
     /// Whether `other`'s byte span lies within this node's span.
@@ -203,6 +203,24 @@ impl<'tree> M2Node<'tree> {
     pub fn parent(&self) -> Option<M2Node<'tree>> {
         let source = self.source;
         self.node.parent().map(|node| M2Node::new(node, source))
+    }
+
+    pub fn ancestors(self) -> impl Iterator<Item = M2Node<'tree>> {
+        iter::successors(self.parent(), |node| node.parent())
+    }
+
+    pub fn enclosing(self, kind: NodeKind) -> Option<M2Node<'tree>> {
+        self.enclosing_matching(|candidate| candidate == kind)
+    }
+
+    pub fn enclosing_matching(self, predicate: impl Fn(NodeKind) -> bool) -> Option<M2Node<'tree>> {
+        iter::once(self)
+            .chain(self.ancestors())
+            .find(|node| predicate(node.kind))
+    }
+
+    pub fn root(self) -> M2Node<'tree> {
+        self.ancestors().last().unwrap_or(self)
     }
 
     pub fn children(&self) -> impl Iterator<Item = M2Node<'tree>> + '_ {
@@ -333,8 +351,8 @@ impl<'tree> M2Node<'tree> {
         self.node.end_byte()
     }
 
-    pub fn id(&self) -> usize {
-        self.node.id()
+    pub fn id(&self) -> SyntaxNodeId {
+        SyntaxNodeId(self.node.id())
     }
 
     pub fn start_position(&self) -> Point {

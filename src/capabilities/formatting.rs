@@ -5,7 +5,7 @@ use tower_lsp::lsp_types::{
     OneOf, TextEdit,
 };
 
-use crate::node_metadata::{M2Node, M2Parser, NodeKind, NodeKindMetadata};
+use crate::node_metadata::{M2Node, M2Parser, NodeKind};
 use crate::source::SourceNavigation;
 
 pub trait FormattingConfiguration {
@@ -834,7 +834,7 @@ fn collect_bracket_groups(root: M2Node<'_>, line_count: usize) -> Vec<BracketGro
                     close_row: close_position.row,
                     closing_delimiter_column: close_position
                         .column
-                        .saturating_sub(closer_width(node.kind)),
+                        .saturating_sub(node.kind.closing_delimiter_width()),
                 });
             }
         }
@@ -871,16 +871,6 @@ fn collect_unclosed_error_brackets(
                 closing_delimiter_column: usize::MAX,
             });
         }
-    }
-}
-
-/// The byte width of a bracket node's closing delimiter: `|>` is two, all others
-/// (`)`, `}`, `]`) are one.
-fn closer_width(kind: NodeKind) -> usize {
-    if kind == NodeKind::AngleBarList {
-        2
-    } else {
-        1
     }
 }
 
@@ -1088,7 +1078,7 @@ fn is_clause_keyword_leaf(node: M2Node<'_>) -> bool {
     if node.is_then_or_else_keyword() {
         return true;
     }
-    node.is(NodeKind::Symbol) && matches!(node.text(), "else" | "then")
+    node.kind == NodeKind::Symbol && matches!(node.text(), "else" | "then")
 }
 
 /// The nearest enclosing conditional owner of a clause keyword.
@@ -1421,7 +1411,7 @@ fn is_spaced_line_final_operator(operator: &str, compact_factor_operators: bool)
 }
 
 fn is_parenthesized_call(node: M2Node<'_>) -> bool {
-    if !node.is(NodeKind::BinaryExpression) {
+    if node.kind != NodeKind::BinaryExpression {
         return false;
     }
 
@@ -1448,7 +1438,7 @@ fn is_method_installation_call_head(node: M2Node<'_>) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
-    if !parent.is(NodeKind::BinaryExpression) {
+    if parent.kind != NodeKind::BinaryExpression {
         return false;
     }
     let Some(operator) = parent.child_by_field_name("operator") else {

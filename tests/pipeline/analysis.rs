@@ -1121,6 +1121,22 @@ async fn inferred_binding_types_flow_to_hover_across_language_constructs() {
             "f = method(TypicalValue => List)\nf ZZ := Ring => x -> x\ny := f 1\ny\n",
             vec![(3, 0, "Ring")],
         ),
+        (
+            "f = method()\nf ZZ := String => x -> \"\"\nf RR := Boolean => x -> true\nargument := if condition then 1 else 2.0\nresult := f argument\nresult\n",
+            vec![(5, 0, "String | Boolean")],
+        ),
+        (
+            "argument := if condition then 1 else 2.0\nresult := argument + argument\nresult\n",
+            vec![(2, 0, "ZZ | RR")],
+        ),
+        (
+            "x = 1\nx = x + 1\nx\n",
+            vec![(2, 0, "ZZ")],
+        ),
+        (
+            "a := new CCi\nb := a + a\nb\n",
+            vec![(2, 0, "CCi")],
+        ),
         ("y := unindexedName\ny\n", vec![(1, 0, "Symbol")]),
         (
             "l := {1,2}\na := [1,2]\nb := <|1,2|>\ne := ()\nf := (1)\ng := (1,2)\nl\na\nb\ne\nf\ng\n",
@@ -1260,6 +1276,50 @@ async fn callable_aliases_reinstall_methods_and_reassignments_remain_source_orde
         .await;
     assert_eq!(after_reassignment["range"]["start"]["line"], 2);
 
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn ring_generator_reassignments_preserve_binding_identity() {
+    let mut session = DocumentSession::open("R = QQ[x]\nx = 1\nx\n").await;
+    let references = session
+        .request(
+            "textDocument/references",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": {"line": 2, "character": 0},
+                "context": {"includeDeclaration": true}
+            }),
+        )
+        .await;
+    let lines = response_array(&references)
+        .iter()
+        .map(|location| {
+            location["range"]["start"]["line"]
+                .as_u64()
+                .expect("reference line")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(lines, vec![0, 1, 2]);
+
+    let highlights = session
+        .request(
+            "textDocument/documentHighlight",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": {"line": 2, "character": 0}
+            }),
+        )
+        .await;
+    let lines = response_array(&highlights)
+        .iter()
+        .map(|highlight| {
+            highlight["range"]["start"]["line"]
+                .as_u64()
+                .expect("highlight line")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(lines, vec![0, 1, 2]);
     session.shutdown().await;
 }
 

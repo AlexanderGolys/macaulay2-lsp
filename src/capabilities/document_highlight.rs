@@ -2,7 +2,7 @@
 
 use crate::capabilities::navigation::{reference_ranges_resolved, unbound_reference_ranges};
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
+use crate::node_metadata::{M2Node, NodeKind};
 use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
 use crate::typesystem::TypeKnowledge;
@@ -312,13 +312,8 @@ fn highlights_for_nodes(
         .collect()
 }
 
-fn enclosing_control_transfer(mut node: M2Node<'_>) -> Option<M2Node<'_>> {
-    loop {
-        if node.kind.is_control_transfer() {
-            return Some(node);
-        }
-        node = node.parent()?;
-    }
+fn enclosing_control_transfer(node: M2Node<'_>) -> Option<M2Node<'_>> {
+    node.enclosing_matching(|kind| kind.is_control_transfer())
 }
 
 /// Highlight the keyword sequence of the compound statement under the cursor:
@@ -348,43 +343,8 @@ fn keyword_sequence_highlights(
     )
 }
 
-/// The compound statements whose leading keyword opens a keyword sequence.
-/// Excludes single-keyword statements (`break`, `return`, `step`, …).
-fn is_keyword_statement(kind: NodeKind) -> bool {
-    matches!(
-        kind,
-        NodeKind::IfStatement
-            | NodeKind::ForStatement
-            | NodeKind::WhileStatement
-            | NodeKind::NewStatement
-            | NodeKind::TryStatement
-    )
-}
-
-/// The clause nodes whose leading keyword belongs to a statement's sequence.
-fn is_keyword_clause(kind: NodeKind) -> bool {
-    matches!(
-        kind,
-        NodeKind::FromClause
-            | NodeKind::ToClause
-            | NodeKind::OfClause
-            | NodeKind::InClause
-            | NodeKind::WhenClause
-            | NodeKind::ListClause
-            | NodeKind::DoClause
-            | NodeKind::ThenClause
-            | NodeKind::ElseClause
-            | NodeKind::ExceptClause
-    )
-}
-
-fn enclosing_keyword_statement(mut node: M2Node<'_>) -> Option<M2Node<'_>> {
-    loop {
-        if is_keyword_statement(node.kind) {
-            return Some(node);
-        }
-        node = node.parent()?;
-    }
+fn enclosing_keyword_statement(node: M2Node<'_>) -> Option<M2Node<'_>> {
+    node.enclosing_matching(|kind| kind.is_keyword_statement())
 }
 
 /// Collect the keyword tokens of a compound statement: its own leading keyword
@@ -392,7 +352,7 @@ fn enclosing_keyword_statement(mut node: M2Node<'_>) -> Option<M2Node<'_>> {
 /// not descended into — they own their own sequence.
 fn statement_keyword_tokens(statement: M2Node<'_>) -> Vec<M2Node<'_>> {
     let mut keywords = Vec::new();
-    if is_keyword_statement(statement.kind) {
+    if statement.kind.is_keyword_statement() {
         let Some(kw) = statement.child(0) else {
             return Vec::new();
         };
@@ -401,13 +361,13 @@ fn statement_keyword_tokens(statement: M2Node<'_>) -> Vec<M2Node<'_>> {
             let Some(kw_child) = child.child(0) else {
                 continue;
             };
-            if is_keyword_clause(child.kind) {
+            if child.kind.is_keyword_clause() {
                 keywords.push(kw_child);
             };
         }
         return keywords;
     }
-    if is_keyword_clause(statement.kind) {
+    if statement.kind.is_keyword_clause() {
         let Some(st) = enclosing_keyword_statement(statement) else {
             return Vec::new();
         };
