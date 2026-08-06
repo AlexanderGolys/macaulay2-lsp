@@ -9,6 +9,7 @@ pub enum NodeKind {
     IntegerLiteral,
     FloatLiteral,
     StringLiteral,
+    RawStringLiteral,
     Array,
     Sequence,
     NakedSequence,
@@ -16,7 +17,7 @@ pub enum NodeKind {
     List,
     AngleBarList,
     Muted,
-    Null,
+    EmptyComponent,
     BinaryExpression,
     PrefixExpression,
     PostfixExpression,
@@ -59,6 +60,7 @@ impl NodeKind {
             "integer_literal" => Self::IntegerLiteral,
             "float_literal" => Self::FloatLiteral,
             "string_literal" => Self::StringLiteral,
+            "raw_string_literal" => Self::RawStringLiteral,
             "array" => Self::Array,
             "sequence" => Self::Sequence,
             "naked_sequence" => Self::NakedSequence,
@@ -66,7 +68,7 @@ impl NodeKind {
             "list" => Self::List,
             "angle_bar_list" => Self::AngleBarList,
             "muted" => Self::Muted,
-            "null" => Self::Null,
+            "empty_component" => Self::EmptyComponent,
             "binary_expression" => Self::BinaryExpression,
             "prefix_expression" => Self::PrefixExpression,
             "postfix_expression" => Self::PostfixExpression,
@@ -109,6 +111,7 @@ impl NodeKind {
 pub trait NodeKindMetadata {
     fn is_symbol_like(&self) -> bool;
     fn is_literal(&self) -> bool;
+    fn is_string_literal(&self) -> bool;
     fn is_collection_expression(&self) -> bool;
     fn is_sequence(&self) -> bool;
     fn is_nothing_value(&self) -> bool;
@@ -125,8 +128,15 @@ impl NodeKindMetadata for NodeKind {
     fn is_literal(&self) -> bool {
         matches!(
             *self,
-            Self::IntegerLiteral | Self::FloatLiteral | Self::StringLiteral
+            Self::IntegerLiteral
+                | Self::FloatLiteral
+                | Self::StringLiteral
+                | Self::RawStringLiteral
         )
+    }
+
+    fn is_string_literal(&self) -> bool {
+        matches!(*self, Self::StringLiteral | Self::RawStringLiteral)
     }
 
     /// M2's delimited collection forms: `(a,b)`, `{a,b}`, `[a,b]`, `<|a,b|>`.
@@ -147,7 +157,7 @@ impl NodeKindMetadata for NodeKind {
     }
 
     fn is_nothing_value(&self) -> bool {
-        matches!(*self, Self::Muted | Self::Null)
+        matches!(*self, Self::Muted | Self::EmptyComponent)
     }
 
     fn is_comment(&self) -> bool {

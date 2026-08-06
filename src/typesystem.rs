@@ -223,6 +223,12 @@ pub struct InferredType {
 }
 
 impl InferredType {
+    pub fn diverges() -> Self {
+        Self {
+            minimal_generators: Vec::new(),
+        }
+    }
+
     /// Construct one principal up-set.
     fn principal_upset(generator: ObjectName) -> Self {
         Self {

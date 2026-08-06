@@ -5,6 +5,7 @@ use serde::{de::Error as _, Deserialize, Deserializer};
 use serde_json::Value;
 
 use crate::capabilities::formatting::{ControlFlowLayout, FormattingConfiguration};
+use crate::capabilities::inlay_hints::InlayHintOptions;
 use crate::diagnostic_registry::{DiagnosticKind, DiagnosticPolicy};
 
 #[derive(Debug)]
@@ -70,8 +71,11 @@ impl ServerSettings {
         &self.inlay_hints
     }
 
-    pub fn expression_type_hints(&self) -> bool {
-        self.inlay_hints.expression_types
+    pub fn inlay_hint_options(&self) -> InlayHintOptions {
+        InlayHintOptions {
+            expression_types: self.inlay_hints.expression_types,
+            all_known_types: self.inlay_hints.all_known_types,
+        }
     }
 }
 
@@ -182,6 +186,7 @@ impl FormattingConfiguration for FormattingSettings {
 #[serde(default, rename_all = "camelCase")]
 pub struct InlayHintSettings {
     expression_types: bool,
+    all_known_types: bool,
 }
 
 fn deserialize_diagnostic_set<'de, D>(deserializer: D) -> Result<HashSet<DiagnosticKind>, D::Error>
@@ -213,7 +218,7 @@ mod tests {
         );
         assert!(!settings.formatting().compact_factor_operators());
         assert!(settings.formatting().break_after_semicolon());
-        assert!(!settings.expression_type_hints());
+        assert_eq!(settings.inlay_hint_options(), InlayHintOptions::default());
     }
 
     #[test]
@@ -232,7 +237,8 @@ mod tests {
                     "breakAfterSemicolon": false
                 },
                 "inlayHints": {
-                    "expressionTypes": true
+                    "expressionTypes": true,
+                    "allKnownTypes": true
                 }
             }
         }))
@@ -252,7 +258,13 @@ mod tests {
         );
         assert!(settings.formatting().compact_factor_operators());
         assert!(!settings.formatting().break_after_semicolon());
-        assert!(settings.expression_type_hints());
+        assert_eq!(
+            settings.inlay_hint_options(),
+            InlayHintOptions {
+                expression_types: true,
+                all_known_types: true,
+            }
+        );
     }
 
     #[test]

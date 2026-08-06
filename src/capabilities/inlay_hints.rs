@@ -15,22 +15,34 @@ pub fn inlay_hint_provider_capability() -> Option<OneOf<bool, InlayHintServerCap
     Some(OneOf::Left(true))
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct InlayHintOptions {
+    pub expression_types: bool,
+    pub all_known_types: bool,
+}
+
 /// The inlay type hints for `range`: one per typed binding by default, plus
 /// per-expression hints when `expression_types` is opted in.
 pub fn inlay_hints_response(
     document: &DocumentSnapshot,
     range: TextRange,
-    expression_types: bool,
+    options: InlayHintOptions,
     knowledge: &ObjectRegistry,
 ) -> Vec<InlayHint> {
-    let binding_hints = binding_type_hints(document, &range, knowledge);
+    let binding_hints = binding_type_hints(document, &range, options.all_known_types, knowledge);
     let mut hints = binding_hints.clone();
-    hints.extend(lambda_return_type_hints(document, &range, knowledge));
+    hints.extend(lambda_return_type_hints(
+        document,
+        &range,
+        options.all_known_types,
+        knowledge,
+    ));
 
-    if expression_types {
+    if options.expression_types || options.all_known_types {
         hints.extend(expression_type_hints(
             document,
             &range,
+            options.all_known_types,
             knowledge,
             &binding_hints,
         ));
@@ -60,6 +72,7 @@ pub fn inlay_hints_response(
 fn lambda_return_type_hints(
     document: &DocumentSnapshot,
     range: &TextRange,
+    all_known_types: bool,
     knowledge: &ObjectRegistry,
 ) -> Vec<InlayHint> {
     let analysis = document.analysis();
@@ -78,7 +91,7 @@ fn lambda_return_type_hints(
             NodeKind::LambdaExpression => lambda_final_value(node),
             _ => None,
         })
-        .filter(|value| !is_self_describing_value(*value))
+        .filter(|value| all_known_types || !is_self_describing_value(*value))
         .filter_map(|value| {
             let value_range = document.range_for_node(value);
             if !position_in_range(value_range.end, *range) {
@@ -159,6 +172,7 @@ struct TypeHintIdentity {
 fn binding_type_hints(
     document: &DocumentSnapshot,
     range: &TextRange,
+    all_known_types: bool,
     knowledge: &ObjectRegistry,
 ) -> Vec<InlayHint> {
     let assigned_values = assigned_values(document, knowledge);
@@ -184,7 +198,7 @@ fn binding_type_hints(
             };
             let changed = previous_type.as_ref() != Some(&type_name);
             previous_type = Some(type_name.clone());
-            if (!changed && assigned.is_none_or(|value| !value.destructured))
+            if (!all_known_types && !changed && assigned.is_none_or(|value| !value.destructured))
                 || type_name == "Thing"
             {
                 continue;
@@ -192,10 +206,12 @@ fn binding_type_hints(
             let value_range = assigned
                 .map(|value| value.value_range)
                 .or(state.value_range);
-            if value_range.is_some_and(|value_range| {
-                self_describing_values.contains(&value_range)
-                    && assigned.is_none_or(|value| !value.destructured)
-            }) {
+            if !all_known_types
+                && value_range.is_some_and(|value_range| {
+                    self_describing_values.contains(&value_range)
+                        && assigned.is_none_or(|value| !value.destructured)
+                })
+            {
                 continue;
             }
             let position = state.span.end;
@@ -211,6 +227,7 @@ fn binding_type_hints(
 fn expression_type_hints(
     document: &DocumentSnapshot,
     range: &TextRange,
+    all_known_types: bool,
     knowledge: &ObjectRegistry,
     binding_hints: &[InlayHint],
 ) -> Vec<InlayHint> {
@@ -232,10 +249,11 @@ fn expression_type_hints(
         .filter_map(|node| {
             let expression_range = document.range_for_node(node);
             if !range_contains(*range, expression_range)
-                || assignment_parts.suppresses(expression_range)
-                || self_describing_values
-                    .iter()
-                    .any(|value_range| range_contains(*value_range, expression_range))
+                || (!all_known_types
+                    && (assignment_parts.suppresses(expression_range)
+                        || self_describing_values
+                            .iter()
+                            .any(|value_range| range_contains(*value_range, expression_range))))
             {
                 return None;
             }
@@ -460,7 +478,7 @@ fn is_self_describing_value(node: M2Node<'_>) -> bool {
         || (node.kind == NodeKind::Symbol && matches!(node.text(), "true" | "false" | "null"))
         || node.kind == NodeKind::LambdaExpression
         || node.kind == NodeKind::NewStatement
-        || (node.kind.is_collection_expression()
+        || ((node.kind.is_collection_expression() || node.kind.is_sequence())
             && node.collection_elements().all(is_self_describing_value))
 }
 
@@ -488,7 +506,15 @@ mod tests {
         let document =
             DocumentSnapshot::from_text(text.to_string(), &registry).expect("fixture should parse");
         let range = TextRange::new(pos!(), pos!(u32::MAX, 0));
-        inlay_hints_response(&document, range, expression_types, &registry)
+        inlay_hints_response(
+            &document,
+            range,
+            InlayHintOptions {
+                expression_types,
+                all_known_types: false,
+            },
+            &registry,
+        )
     }
 
     fn labels(hints: &[InlayHint]) -> Vec<String> {

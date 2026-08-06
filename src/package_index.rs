@@ -7,7 +7,7 @@ use tower_lsp::lsp_types::{Location, Position, Range as TextRange, Url};
 
 #[cfg(test)]
 use crate::node_metadata::M2Parser;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
 
@@ -147,7 +147,7 @@ pub fn collect_imported_packages_in_tree(
 ) -> Vec<PackageImport> {
     let mut packages = Vec::new();
     for node in root.descendants() {
-        if node.kind == NodeKind::StringLiteral {
+        if node.kind.is_string_literal() {
             if let Some((package_name, application)) = package_import(node) {
                 packages.push(PackageImport {
                     package: ObjectName::new(package_name),
@@ -181,7 +181,8 @@ mod import_trigger_tests {
     use std::{env, fs};
 
     use super::{
-        collect_imported_packages, package_source_string, M2Parser, NodeKind, SourceResolver,
+        collect_imported_packages, package_source_string, M2Parser, NodeKindMetadata,
+        SourceResolver,
     };
 
     fn imported_names(text: &str) -> Vec<String> {
@@ -225,7 +226,7 @@ mod import_trigger_tests {
     }
 
     #[test]
-    fn import_argument_selection_skips_muted_parts_but_not_null_slots() {
+    fn import_argument_selection_skips_muted_parts_but_not_empty_slots() {
         let pkgs = imported_names(
             "loadPackage(ignored;\"AfterMuted\")\nloadPackage(,\"AfterNull\")\nloadPackage(\"Muted\";)\n",
         );
@@ -240,7 +241,7 @@ mod import_trigger_tests {
         let root = parser.parse(text).expect("fixture should parse");
         let packages = root
             .descendants()
-            .filter(|node| node.kind == NodeKind::StringLiteral)
+            .filter(|node| node.kind.is_string_literal())
             .filter_map(package_source_string)
             .collect::<Vec<_>>();
 

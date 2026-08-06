@@ -1111,6 +1111,8 @@ async fn formatting_preserves_collection_and_assignment_control_flow_layout() {
         "if x === null then (\n",
         "    2\n",
         ") else 3.1\n",
+        "f = x -> (\n",
+        "    x + 1)\n",
     );
     let workspace = TestWorkspace::new(source);
     let mut server = LspProcess::spawn().await;
@@ -1158,6 +1160,9 @@ async fn formatting_preserves_collection_and_assignment_control_flow_layout() {
             "if x === null then (\n",
             "    2\n",
             ") else 3.1\n",
+            "f = x -> (\n",
+            "    x + 1\n",
+            ")\n",
         )
     );
 

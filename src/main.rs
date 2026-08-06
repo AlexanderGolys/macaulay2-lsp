@@ -534,9 +534,9 @@ impl LanguageServer for Backend {
 
     async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
         let uri = &params.text_document.uri;
-        let expression_types = self.settings.snapshot().expression_type_hints();
+        let options = self.settings.snapshot().inlay_hint_options();
         Ok(self.with_scoped_document(uri, |document, knowledge| {
-            inlay_hints_response(document, params.range, expression_types, knowledge)
+            inlay_hints_response(document, params.range, options, knowledge)
         }))
     }
 

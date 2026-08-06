@@ -70,8 +70,7 @@ pub fn collect_documentation(
 }
 
 fn is_documentation_container(node: M2Node<'_>) -> bool {
-    node.kind.is_comment()
-        || (node.kind == NodeKind::StringLiteral && node.text().starts_with("///"))
+    node.kind.is_comment() || node.kind == NodeKind::RawStringLiteral
 }
 
 fn collect_backtick_snippets(
@@ -119,17 +118,13 @@ fn collect_backtick_snippets(
         let Some(root) = parser.parse(candidate) else {
             continue;
         };
-        references.extend(
-            root.descendants()
-                .filter(|symbol| symbol.kind.is_symbol_like())
-                .map(|symbol| {
-                    let symbol_start = start_byte + symbol.start_byte();
-                    let symbol_end = start_byte + symbol.end_byte();
-                    DocumentationReference {
-                        span: source.span_for_bytes(symbol_start..symbol_end),
-                    }
-                }),
-        );
+        references.extend(root.symbols().map(|symbol| {
+            let symbol_start = start_byte + symbol.start_byte();
+            let symbol_end = start_byte + symbol.end_byte();
+            DocumentationReference {
+                span: source.span_for_bytes(symbol_start..symbol_end),
+            }
+        }));
         snippets.push(DocumentationSnippet {
             bytes: start_byte..end_byte,
         });

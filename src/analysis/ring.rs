@@ -235,7 +235,9 @@ impl<'tree> RingGeneratorBinding<'tree> {
     fn base_name(node: M2Node<'tree>) -> Option<String> {
         match node.kind {
             NodeKind::Symbol => Some(node.text().to_string()),
-            NodeKind::StringLiteral => node.string_literal_inner_text().map(ToString::to_string),
+            kind if kind.is_string_literal() => {
+                node.string_literal_inner_text().map(ToString::to_string)
+            }
             _ => None,
         }
     }

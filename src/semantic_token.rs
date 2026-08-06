@@ -48,6 +48,7 @@ pub enum M2SemanticTokenType {
     Comment = 12,
     Method = 13,
     Modifier = 14,
+    Annotation = 16,
 }
 
 impl M2SemanticTokenType {
@@ -138,6 +139,7 @@ impl M2SemanticToken {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceSemanticRole {
     MethodType,
+    MethodAnnotation,
     OptionKey,
     OptionValue(ObjectName),
     PropertyKey,
@@ -257,7 +259,7 @@ pub fn syntax_semantic_token_type(node: M2Node<'_>) -> Option<M2SemanticTokenTyp
 
     match node.kind {
         NodeKind::IntegerLiteral | NodeKind::FloatLiteral => Some(M2SemanticTokenType::Number),
-        NodeKind::StringLiteral => Some(M2SemanticTokenType::String),
+        NodeKind::StringLiteral | NodeKind::RawStringLiteral => Some(M2SemanticTokenType::String),
         kind if kind.is_comment() => Some(M2SemanticTokenType::Comment),
         _ if node.is_modifier_token() => Some(M2SemanticTokenType::Modifier),
         _ if node.is_keyword_token() => Some(M2SemanticTokenType::Keyword),
@@ -273,6 +275,9 @@ fn source_role_semantic_token(
 ) -> Option<M2SemanticToken> {
     let token = match role {
         SourceSemanticRole::MethodType => M2SemanticToken::new(M2SemanticTokenType::Type),
+        SourceSemanticRole::MethodAnnotation => {
+            M2SemanticToken::new(M2SemanticTokenType::Annotation)
+        }
         SourceSemanticRole::OptionKey => {
             let token_type = if is_unquoted_symbol && knowledge.is_protected_symbol(source_text) {
                 M2SemanticTokenType::EnumMember

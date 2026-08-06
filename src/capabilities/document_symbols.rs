@@ -164,7 +164,7 @@ fn build_document_symbol_tree(
     analysis: &crate::analysis::Analysis,
     declarations: Vec<Declaration>,
 ) -> Vec<DocumentSymbol> {
-    let mut container_scopes = vec![false; analysis.registry.scopes.len()];
+    let mut container_scopes = vec![false; analysis.scope_count()];
     container_scopes[0] = true;
     for declaration in &declarations {
         if let Some(scope_idx) = declaration.child_scope_idx {
@@ -172,9 +172,8 @@ fn build_document_symbol_tree(
         }
     }
 
-    let mut by_scope: Vec<Vec<Declaration>> = (0..analysis.registry.scopes.len())
-        .map(|_| Vec::new())
-        .collect();
+    let mut by_scope: Vec<Vec<Declaration>> =
+        (0..analysis.scope_count()).map(|_| Vec::new()).collect();
     for declaration in declarations {
         let scope_idx = nearest_container_scope(analysis, &container_scopes, declaration.scope_idx);
         by_scope[scope_idx].push(declaration);
@@ -192,7 +191,7 @@ fn nearest_container_scope(
         if container_scopes[scope_idx] {
             return scope_idx;
         }
-        let Some(parent_idx) = analysis.registry.scopes[scope_idx].parent_idx else {
+        let Some(parent_idx) = analysis.parent_scope(scope_idx) else {
             return 0;
         };
         scope_idx = parent_idx;

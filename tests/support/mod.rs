@@ -476,6 +476,26 @@ impl DocumentSession {
             .await;
     }
 
+    pub(crate) async fn set_all_known_type_hints(&mut self, enabled: bool) {
+        self.server
+            .notify(
+                "workspace/didChangeConfiguration",
+                json!({
+                    "settings": {
+                        "m2-ls": {
+                            "inlayHints": {
+                                "allKnownTypes": enabled
+                            }
+                        }
+                    }
+                }),
+            )
+            .await;
+        self.server
+            .wait_for_server_request("workspace/inlayHint/refresh")
+            .await;
+    }
+
     pub(crate) async fn request_at(
         &mut self,
         method: &str,

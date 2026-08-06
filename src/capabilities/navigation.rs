@@ -114,7 +114,15 @@ pub fn references_response(
     position: Position,
     include_declaration: bool,
 ) -> Vec<Location> {
-    collect_reference_ranges(document, position, include_declaration)
+    let ranges = if document.target_symbol_at(position).is_some() {
+        collect_reference_ranges(document, position, include_declaration)
+    } else {
+        document
+            .symbol_occurrence_at(position)
+            .map(|(name, _)| unbound_reference_ranges(document, name))
+            .unwrap_or_default()
+    };
+    ranges
         .into_iter()
         .map(|range| Location {
             uri: uri.clone(),
@@ -158,7 +166,9 @@ pub fn goto_definition_response(
     let node = document.node_at_position_minimal(position)?;
     let documentation_reference = document.documentation_reference_at(position);
 
-    if let Some(string_node) = document.enclosing_node_of_kind(node, NodeKind::StringLiteral) {
+    if let Some(string_node) =
+        document.enclosing_node_matching(node, |kind| kind.is_string_literal())
+    {
         if let Some(package_name) = crate::package_index::package_source_string(string_node) {
             if let Some(path) = source_resolver.resolve_package_file(package_name) {
                 if let Ok(uri) = Url::from_file_path(path) {
@@ -228,22 +238,17 @@ pub fn reference_ranges_resolved(
     document: &DocumentSnapshot,
     include_declaration: bool,
 ) -> Vec<TextRange> {
-    let root_node = document.root_node();
     let target_name = target.name;
     let target_range = target.symbol.range;
 
     let mut references = Vec::new();
-    for node in root_node.descendants() {
-        if node.kind.is_symbol_like() {
-            let node_text = node.text();
-            if node_text == target_name {
-                let range = document.range_for_node(node);
-                if let Some(symbol) = document.source_symbol_at(node_text, range.start) {
-                    if symbol.range == target_range
-                        && (include_declaration || range != target_range)
-                    {
-                        references.push(range);
-                    }
+    for node in document.root_node().symbols() {
+        let node_text = node.text();
+        if node_text == target_name {
+            let range = document.range_for_node(node);
+            if let Some(symbol) = document.source_symbol_at(node_text, range.start) {
+                if symbol.range == target_range && (include_declaration || range != target_range) {
+                    references.push(range);
                 }
             }
         }
@@ -337,10 +342,9 @@ pub fn reference_target(
 /// gather a workspace-global symbol's references file by file.
 pub fn global_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<TextRange> {
     let analysis = document.analysis();
-    let root_node = document.root_node();
     let mut references = Vec::new();
-    for node in root_node.descendants() {
-        if node.kind.is_symbol_like() && node.text() == name {
+    for node in document.root_node().symbols() {
+        if node.text() == name {
             let position = document.position_for_node(node);
             // A use is global unless a local binding shadows the name here.
             let shadowed = analysis
@@ -375,8 +379,8 @@ pub fn unbound_reference_ranges(document: &DocumentSnapshot, name: &str) -> Vec<
     let analysis = document.analysis();
     let mut references = document
         .root_node()
-        .descendants()
-        .filter(|node| node.kind.is_symbol_like() && node.text() == name)
+        .symbols()
+        .filter(|node| node.text() == name)
         .filter_map(|node| {
             let range = document.range_for_node(node);
             analysis

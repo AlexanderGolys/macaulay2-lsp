@@ -264,14 +264,14 @@ mod tests {
     }
 
     #[test]
-    fn argument_slots_keep_nulls_and_skip_muted_expressions() {
+    fn argument_slots_keep_empty_components_and_skip_muted_expressions() {
         assert_eq!(
             argument_kinds("f(,x,,)\n"),
             vec![
-                NodeKind::Null,
+                NodeKind::EmptyComponent,
                 NodeKind::Symbol,
-                NodeKind::Null,
-                NodeKind::Null
+                NodeKind::EmptyComponent,
+                NodeKind::EmptyComponent
             ]
         );
         assert_eq!(

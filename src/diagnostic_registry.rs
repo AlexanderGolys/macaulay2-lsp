@@ -42,6 +42,16 @@ macro_rules! diagnostic_declarations {
                 check: node => |context| context.option_key_convention(),
                 action: (|context| option_key_convention_action(context)),
             },
+            RedundantControlParentheses {
+                code: "S03", name: "redundant-control-parentheses", severity: HINT, legacy: [],
+                check: node => |context| context.redundant_control_parentheses(),
+                action: (|context| redundant_control_parentheses_action(context)),
+            },
+            PreferCoalescence {
+                code: "S04", name: "prefer-coalescence", severity: HINT, legacy: [],
+                check: node => |context| context.prefer_coalescence(),
+                action: (|context| coalescence_action(context)),
+            },
             UnusedBinding {
                 code: "S02", name: "unused-binding", severity: WARNING, legacy: ["E07"],
                 check: document => |context| context.unused_bindings(), action: none,

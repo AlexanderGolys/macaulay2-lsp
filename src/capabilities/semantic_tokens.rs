@@ -727,7 +727,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
     }
 
     #[test]
-    fn namespace_argument_selection_skips_muted_parts_but_not_null_slots() {
+    fn namespace_argument_selection_skips_muted_parts_but_not_empty_slots() {
         let text = concat!(
             "loadPackage(ignored;\"AfterMuted\")\n",
             "loadPackage(,\"AfterNull\")\n",
@@ -1303,8 +1303,8 @@ p(ZZ) := Array => x -> [x]
 
         assert_eq!(
             token_type_at(&tokens, 1, 9),
-            Some(M2SemanticTokenType::Type as u32),
-            "the explicit Array codomain is a type role, not an option field"
+            Some(M2SemanticTokenType::Annotation as u32),
+            "the explicit Array codomain is an annotation, not an option field"
         );
     }
 }

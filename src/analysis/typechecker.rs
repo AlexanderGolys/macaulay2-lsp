@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use super::*;
-use crate::node_metadata::BinaryExpressionNode;
 use crate::object_registry::TypeStore;
 
 /// Partial-order view combining source and external type edges without copying.
@@ -172,7 +171,9 @@ impl TypeChecker<'_> {
                 Some(inner) => self.type_of(inner, source, scope_idx, knowledge),
                 None => InferredType::of("Nothing"),
             },
-            NodeKind::StringLiteral => InferredType::from_id(TypeRole::String.object_name()),
+            NodeKind::StringLiteral | NodeKind::RawStringLiteral => {
+                InferredType::from_id(TypeRole::String.object_name())
+            }
             NodeKind::IntegerLiteral => InferredType::of("ZZ"),
             NodeKind::FloatLiteral => InferredType::of("RR"),
             // A quote expression (`symbol +`, `local x`, `global y`,
@@ -187,13 +188,9 @@ impl TypeChecker<'_> {
             },
             // `x => y` builds an `Option` object, whatever the operand types.
             _ if node.is_option_assignment() => InferredType::of("Option"),
-            NodeKind::BinaryExpression => self.binary_expression_type(
-                node.try_into()
-                    .expect("binary-expression branch has a binary node"),
-                source,
-                scope_idx,
-                knowledge,
-            ),
+            NodeKind::BinaryExpression => {
+                self.binary_expression_type(node, source, scope_idx, knowledge)
+            }
             NodeKind::PrefixExpression | NodeKind::PostfixExpression => {
                 self.unary_operator_type(node, source, scope_idx, knowledge)
             }
@@ -365,18 +362,18 @@ impl TypeChecker<'_> {
     /// through the M2 type table.
     fn binary_expression_type(
         &self,
-        node: BinaryExpressionNode,
+        node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         if node.is_space_application() {
-            return self.application_type(node.into(), source, scope_idx, knowledge);
+            return self.application_type(node, source, scope_idx, knowledge);
         }
 
         let operator = node.binary_operator();
-        let left = node.left();
-        let right = node.right();
+        let left = node.child_by_field_name("left");
+        let right = node.child_by_field_name("right");
 
         if let Some(operator) = operator {
             if let Some(result) =
@@ -387,13 +384,13 @@ impl TypeChecker<'_> {
         }
 
         let (Some(left), Some(right), Some(operator)) =
-            (left, right, Operator::from_expression(node.into()))
+            (left, right, Operator::from_expression(node))
         else {
             return InferredType::unknown();
         };
         let left_type = self.type_of(left, source, scope_idx, knowledge);
         let right_type = self.type_of(right, source, scope_idx, knowledge);
-        let position = source.position_for_node(node.into());
+        let position = source.position_for_node(node);
         let arguments = [left_type, right_type];
         if is_comparison_operator(operator.token.name()) {
             return self
@@ -490,6 +487,14 @@ impl TypeChecker<'_> {
                         knowledge,
                     )
                     .map_or_else(|| InferredType::of("Thing"), InferredType::from_id);
+            }
+            if callable == "error"
+                && self
+                    .visible_source_binding_from_scope(callable, scope_idx, position, knowledge)
+                    .is_none()
+                && knowledge.get_record(&ObjectName::new(callable)).is_some()
+            {
+                return InferredType::diverges();
             }
         }
 

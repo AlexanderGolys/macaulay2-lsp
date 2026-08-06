@@ -107,6 +107,7 @@ vim.lsp.config('m2_ls', {
       },
       inlayHints = {
         expressionTypes = false,
+        allKnownTypes = false,
       },
     },
   },
@@ -149,6 +150,7 @@ optional, so a configuration may specify only the values it wants to change.
 | `formatting.compactFactorOperators` | boolean | `false` | Uses compact products such as `2*x`; `false` produces `2 * x`. |
 | `formatting.breakAfterSemicolon` | boolean | `true` | Places the next statement on a new line; `false` keeps it inline with one space. |
 | `inlayHints.expressionTypes` | boolean | `false` | Adds inferred subexpression types to the binding, lambda-return, and parameter hints already produced by the server. |
+| `inlayHints.allKnownTypes` | boolean | `false` | Shows every statically known type, including self-describing literals and literal sequences; this also enables expression type hints. |
 
 Diagnostic names and stable codes are listed in `src/diagnostic_registry.rs`.
 Invalid diagnostic selectors reject the settings update and leave the previous

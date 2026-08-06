@@ -146,13 +146,53 @@ pub fn format_document_text_with_options(text: &str, options: &FormatOptions) ->
     let formatted = normalize_whitespace(text, options);
     let formatted = format_control_flow(&formatted, options, newline);
     let formatted = reindent_from_tree(&formatted, options, newline);
-    let mut formatted = wrap_long_lines(&formatted, options, newline);
+    let formatted = wrap_long_lines(&formatted, options, newline);
+    let formatted = separate_line_end_bracket_closers(&formatted, newline);
+    let mut formatted = reindent_from_tree(&formatted, options, newline);
 
     if text.ends_with('\n') {
         formatted.push_str(newline);
     }
 
     formatted
+}
+
+fn separate_line_end_bracket_closers(text: &str, newline: &'static str) -> String {
+    let Some(mut parser) = M2Parser::new() else {
+        return text.to_string();
+    };
+    let Some(root) = parser.parse(text) else {
+        return text.to_string();
+    };
+    let mut edits = Vec::new();
+    for node in root.descendants().filter(|node| {
+        node.kind.is_collection_expression() || node.kind == NodeKind::ParenthesizedExpression
+    }) {
+        let children = node.children().collect::<Vec<_>>();
+        let (Some(opener), Some(closer)) = (children.first(), children.last()) else {
+            continue;
+        };
+        if !opener.is_opening_delimiter()
+            || !closer.is_closing_delimiter()
+            || opener.start_position().row >= closer.start_position().row
+            || !text[opener.end_byte()..]
+                .split(['\n', '\r'])
+                .next()
+                .is_some_and(|suffix| suffix.bytes().all(|byte| matches!(byte, b' ' | b'\t')))
+        {
+            continue;
+        }
+        let Some(start_byte) = same_line_horizontal_whitespace_start(text, closer.start_byte())
+        else {
+            continue;
+        };
+        edits.push(FormatEdit {
+            start_byte,
+            end_byte: closer.start_byte(),
+            replacement: newline,
+        });
+    }
+    apply_format_edits(text, edits)
 }
 
 /// The line terminator the document already uses, so re-indentation preserves it
@@ -852,7 +892,7 @@ fn collect_literal_rows(root: M2Node<'_>, line_count: usize) -> (Vec<bool>, Vec<
     let mut literal_starts = vec![false; line_count];
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
-        if node.is(NodeKind::StringLiteral) {
+        if node.kind.is_string_literal() {
             let start_row = node.start_position().row;
             let end_row = node.end_position().row;
             if start_row < end_row {
@@ -970,7 +1010,17 @@ fn is_right_operand_first_token(
 ) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
-        if let Some((operator, right)) = parent.infix_operator_and_right_operand() {
+        let right_field = match parent.kind {
+            NodeKind::BinaryExpression => Some("right"),
+            NodeKind::LambdaExpression => Some("body"),
+            _ => None,
+        };
+        if let Some((operator, right)) = right_field.and_then(|right_field| {
+            Some((
+                parent.child_by_field_name("operator")?,
+                parent.child_by_field_name(right_field)?,
+            ))
+        }) {
             let assignment_conditional =
                 parent.is_assignment() && right.kind == NodeKind::IfStatement;
             if right.start_byte() == node.start_byte()
@@ -1442,6 +1492,7 @@ fn is_adjacent_factor(node: M2Node<'_>) -> bool {
             | NodeKind::IntegerLiteral
             | NodeKind::FloatLiteral
             | NodeKind::StringLiteral
+            | NodeKind::RawStringLiteral
             | NodeKind::Sequence
             | NodeKind::ParenthesizedExpression
             | NodeKind::List

@@ -41,6 +41,9 @@ pub fn document_highlights(
     if let Some(highlights) = control_transfer_highlights(document, position, builtins) {
         return Some(highlights);
     }
+    if let Some(highlights) = control_owner_highlights(document, position, builtins) {
+        return Some(highlights);
+    }
     keyword_sequence_highlights(document, position)
 }
 
@@ -236,6 +239,49 @@ fn control_transfer_highlights(
             .into_iter()
             .collect(),
     };
+    extend_control_transfer_nodes(&mut nodes, owner, document, knowledge);
+
+    Some(highlights_for_nodes(nodes, document))
+}
+
+fn control_owner_highlights(
+    document: &DocumentSnapshot,
+    position: Position,
+    knowledge: &(impl TypeKnowledge + ?Sized),
+) -> Option<Vec<DocumentHighlight>> {
+    let cursor = document.node_at_position_minimal(position)?;
+    let mut current = cursor;
+    loop {
+        if current.kind == NodeKind::LambdaExpression {
+            let operator = current.child_by_field_name("operator")?;
+            if operator.contains(cursor) {
+                let mut nodes = vec![operator];
+                extend_control_transfer_nodes(&mut nodes, current, document, knowledge);
+                return Some(highlights_for_nodes(nodes, document));
+            }
+            return None;
+        }
+        if matches!(
+            current.kind,
+            NodeKind::ForStatement | NodeKind::WhileStatement
+        ) {
+            let mut nodes = statement_keyword_tokens(current);
+            if nodes.iter().any(|keyword| keyword.contains(cursor)) {
+                extend_control_transfer_nodes(&mut nodes, current, document, knowledge);
+                return Some(highlights_for_nodes(nodes, document));
+            }
+            return None;
+        }
+        current = current.parent()?;
+    }
+}
+
+fn extend_control_transfer_nodes<'tree>(
+    nodes: &mut Vec<M2Node<'tree>>,
+    owner: M2Node<'tree>,
+    document: &DocumentSnapshot,
+    knowledge: &(impl TypeKnowledge + ?Sized),
+) {
     nodes.extend(
         owner
             .descendants()
@@ -248,18 +294,22 @@ fn control_transfer_highlights(
             })
             .filter_map(|statement| statement.child(0)),
     );
+}
+
+fn highlights_for_nodes(
+    mut nodes: Vec<M2Node<'_>>,
+    document: &DocumentSnapshot,
+) -> Vec<DocumentHighlight> {
     nodes.sort_by_key(|node| (node.start_byte(), node.end_byte()));
     nodes.dedup_by_key(|node| node.id());
 
-    Some(
-        nodes
-            .into_iter()
-            .map(|node| DocumentHighlight {
-                range: document.range_for_node(node),
-                kind: Some(DocumentHighlightKind::TEXT),
-            })
-            .collect(),
-    )
+    nodes
+        .into_iter()
+        .map(|node| DocumentHighlight {
+            range: document.range_for_node(node),
+            kind: Some(DocumentHighlightKind::TEXT),
+        })
+        .collect()
 }
 
 fn enclosing_control_transfer(mut node: M2Node<'_>) -> Option<M2Node<'_>> {

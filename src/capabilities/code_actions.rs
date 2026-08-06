@@ -5,8 +5,10 @@ use std::collections::HashMap;
 use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::ambiguous_float_member_access_rewrite;
-use crate::analysis::MethodCodomainEdit;
+use crate::analysis::{
+    ambiguous_float_member_access_rewrite, coalescence_rewrite,
+    redundant_control_parentheses_inner, MethodCodomainEdit,
+};
 use crate::diagnostic_declarations;
 use crate::diagnostic_registry::{diagnostic_has_kind, DiagnosticKind};
 use crate::document::DocumentSnapshot;
@@ -173,6 +175,50 @@ fn option_key_convention_action(context: &CodeActionContext<'_, '_>) -> Option<C
             replacement,
         ),
     )
+}
+
+fn redundant_control_parentheses_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let diagnostic = diagnostic_at(context, DiagnosticKind::RedundantControlParentheses)?;
+    let parentheses =
+        enclosing_node_with_range(context, NodeKind::ParenthesizedExpression, diagnostic.range)?;
+    let inner = redundant_control_parentheses_inner(parentheses)?;
+    let range = diagnostic.range;
+    Some(
+        CodeActionSpec {
+            title: "Remove redundant parentheses",
+            kind: CodeActionKind::QUICKFIX,
+            is_preferred: Some(true),
+            diagnostics: Some(vec![diagnostic]),
+        }
+        .build(context.uri, range, inner.text().to_string()),
+    )
+}
+
+fn coalescence_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let diagnostic = diagnostic_at(context, DiagnosticKind::PreferCoalescence)?;
+    let mut current = Some(context.cursor);
+    while let Some(node) = current {
+        if context.document.range_for_node(node) == diagnostic.range {
+            let replacement = coalescence_rewrite(node)?;
+            let range = diagnostic.range;
+            let title = if node.is_assignment() {
+                "Use `??=` coalescing assignment"
+            } else {
+                "Use `??` coalescence"
+            };
+            return Some(
+                CodeActionSpec {
+                    title,
+                    kind: CodeActionKind::QUICKFIX,
+                    is_preferred: Some(true),
+                    diagnostics: Some(vec![diagnostic]),
+                }
+                .build(context.uri, range, replacement),
+            );
+        }
+        current = node.parent();
+    }
+    None
 }
 
 fn protect_assigned_symbol_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {

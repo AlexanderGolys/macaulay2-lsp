@@ -3,39 +3,6 @@
 use super::*;
 
 #[cfg(test)]
-mod typed_nodes_tests {
-    use super::*;
-
-    #[test]
-    fn checked_node_classes_expose_only_their_structural_fields() {
-        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
-        let root = parser
-            .parse("f = x -> x + 1\n")
-            .expect("fixture should parse");
-
-        let addition = root
-            .descendants()
-            .find(|node| node.binary_operator() == Some("+"))
-            .expect("addition should be present");
-        let binary = BinaryExpressionNode::try_from(addition)
-            .expect("a binary expression should accept the binary node class");
-        assert_eq!(binary.left().map(|node| node.text()), Some("x"));
-        assert_eq!(binary.right().map(|node| node.text()), Some("1"));
-        assert_eq!(M2Node::from(binary).id(), addition.id());
-
-        let lambda = root
-            .descendants()
-            .find(|node| node.kind == NodeKind::LambdaExpression)
-            .expect("lambda should be present");
-        let lambda = LambdaExpressionNode::try_from(lambda)
-            .expect("a lambda expression should accept the lambda node class");
-        assert_eq!(lambda.parameters().map(|node| node.text()), Some("x"));
-        assert_eq!(lambda.body().map(|node| node.text()), Some("x + 1"));
-        assert!(BinaryExpressionNode::try_from(M2Node::from(lambda)).is_err());
-    }
-}
-
-#[cfg(test)]
 mod cst_compliance_gate {
     //! Build gate enforcing the repo rule that the rest of the crate must reach
     //! the syntax tree only through `M2Node` / `NodeKind` — never the raw
@@ -199,7 +166,7 @@ mod descendants_tests {
     }
 
     #[test]
-    fn grammar_v4_exposes_muted_null_and_naked_sequence_shapes() {
+    fn grammar_v5_exposes_muted_empty_components_and_naked_sequences() {
         let text = "local if\nstep 1\nfinish\n(x;)\n(,a,,)\na,b\n";
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let root = parser.parse(text).expect("fixture should parse");
@@ -249,10 +216,10 @@ mod descendants_tests {
         assert_eq!(
             elements
                 .iter()
-                .filter(|element| element.kind == NodeKind::Null)
+                .filter(|element| element.kind == NodeKind::EmptyComponent)
                 .count(),
             3,
-            "empty comma slots are explicit null nodes"
+            "empty comma slots are explicit empty-component nodes"
         );
 
         let naked = root

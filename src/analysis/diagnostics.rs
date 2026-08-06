@@ -189,6 +189,29 @@ impl<Source: SourceNavigation + ?Sized, Knowledge: TypeKnowledge + ?Sized>
             .diagnose_option_key_convention(self.kind, self.node, self.source);
     }
 
+    fn redundant_control_parentheses(&mut self) {
+        let Some(inner) = redundant_control_parentheses_inner(self.node) else {
+            return;
+        };
+        self.analysis.diagnostics.push(self.kind.at(
+            self.source.range_for_node(self.node),
+            format!(
+                "Parentheses around this control expression are redundant; use `{}`",
+                inner.text()
+            ),
+        ));
+    }
+
+    fn prefer_coalescence(&mut self) {
+        let Some(replacement) = coalescence_rewrite(self.node) else {
+            return;
+        };
+        self.analysis.diagnostics.push(self.kind.at(
+            self.source.range_for_node(self.node),
+            format!("This conditional can be simplified to `{replacement}`"),
+        ));
+    }
+
     fn install_needs_colon_equals(&mut self) {
         let position = self.source.position_for_node(self.node);
         let Some(name) =
@@ -801,16 +824,14 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
     ) {
         let mut used_bindings = HashSet::new();
-        for node in root.descendants() {
-            if node.kind.is_symbol_like() {
-                let name = node.text();
-                let position = source.position_for_node(node);
-                if let Some(binding_id) = self.binding_id_at(name, position) {
-                    if let Some(binding) = self.get_binding_at(name, position) {
-                        let node_range = source.range_for_node(node);
-                        if node_range != binding.range {
-                            used_bindings.insert(binding_id);
-                        }
+        for node in root.symbols() {
+            let name = node.text();
+            let position = source.position_for_node(node);
+            if let Some(binding_id) = self.binding_id_at(name, position) {
+                if let Some(binding) = self.get_binding_at(name, position) {
+                    let node_range = source.range_for_node(node);
+                    if node_range != binding.range {
+                        used_bindings.insert(binding_id);
                     }
                 }
             }
@@ -848,6 +869,85 @@ fn is_function_option_context(option: M2Node<'_>) -> bool {
         }
     }
     false
+}
+
+pub fn redundant_control_parentheses_inner(node: M2Node<'_>) -> Option<M2Node<'_>> {
+    if node.kind != NodeKind::ParenthesizedExpression {
+        return None;
+    }
+    let parent = node.parent()?;
+    let is_control_expression = match parent.kind {
+        NodeKind::IfStatement => parent
+            .child_by_field_name("condition")
+            .is_some_and(|condition| condition.id() == node.id()),
+        NodeKind::WhileStatement | NodeKind::TryStatement => parent
+            .named_child(0)
+            .is_some_and(|condition| condition.id() == node.id()),
+        NodeKind::FromClause | NodeKind::ToClause | NodeKind::InClause | NodeKind::WhenClause => {
+            parent
+                .named_child(0)
+                .is_some_and(|value| value.id() == node.id())
+        }
+        _ => false,
+    };
+    is_control_expression
+        .then(|| parenthesized_value(node))
+        .flatten()
+}
+
+pub fn coalescence_rewrite(node: M2Node<'_>) -> Option<String> {
+    if node.binary_operator() == Some("=") {
+        let target = node.child_by_field_name("left")?;
+        let conditional = node.child_by_field_name("right")?;
+        if target.kind != NodeKind::Symbol || conditional.kind != NodeKind::IfStatement {
+            return None;
+        }
+        let (subject, fallback) = coalescence_parts(conditional)?;
+        return (target.text() == subject.text())
+            .then(|| format!("{} ??= {}", target.text(), fallback.text()));
+    }
+    if node.kind != NodeKind::IfStatement {
+        return None;
+    }
+    if node
+        .parent()
+        .is_some_and(|parent| coalescence_rewrite(parent).is_some())
+    {
+        return None;
+    }
+    let (subject, fallback) = coalescence_parts(node)?;
+    Some(format!("{} ?? {}", subject.text(), fallback.text()))
+}
+
+fn coalescence_parts(if_statement: M2Node<'_>) -> Option<(M2Node<'_>, M2Node<'_>)> {
+    let condition = if_statement.child_by_field_name("condition")?;
+    let operator = condition.binary_operator()?;
+    let left = condition.child_by_field_name("left")?;
+    let right = condition.child_by_field_name("right")?;
+    let (subject, null_when_true) = match (is_null_value(left), is_null_value(right), operator) {
+        (true, false, "===") => (right, true),
+        (false, true, "===") => (left, true),
+        (true, false, "=!=") => (right, false),
+        (false, true, "=!=") => (left, false),
+        _ => return None,
+    };
+    if subject.kind != NodeKind::Symbol {
+        return None;
+    }
+    let then_value = clause_value(clause_of(if_statement, NodeKind::ThenClause)?)?;
+    let else_value = clause_value(clause_of(if_statement, NodeKind::ElseClause)?)?;
+    let (fallback, repeated_subject) = if null_when_true {
+        (then_value, else_value)
+    } else {
+        (else_value, then_value)
+    };
+    let repeated_subject = parenthesized_value(repeated_subject)?;
+    (repeated_subject.kind == NodeKind::Symbol && repeated_subject.text() == subject.text())
+        .then_some((subject, fallback))
+}
+
+fn is_null_value(node: M2Node<'_>) -> bool {
+    node.kind == NodeKind::Symbol && node.text() == "null"
 }
 
 fn multiple_assignment_targets_are_symbols(node: M2Node) -> bool {

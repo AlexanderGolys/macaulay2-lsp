@@ -1,98 +1,24 @@
 //! Typed access to Tree-sitter nodes and traversals.
 
-use std::{iter, marker::PhantomData};
+use std::iter;
 
 use tree_sitter::{Node, Point};
 
 use super::{NodeKind, NodeKindMetadata};
 
-trait NodeClass {
-    fn accepts(kind: NodeKind) -> bool;
-}
-
 #[derive(Debug, Clone, Copy)]
-pub struct AnyNodeClass;
-
-impl NodeClass for AnyNodeClass {
-    fn accepts(_kind: NodeKind) -> bool {
-        true
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct SyntaxNode<'tree, Class = AnyNodeClass> {
+pub struct M2Node<'tree> {
     node: Node<'tree>,
     source: &'tree str,
     pub kind: NodeKind,
-    class: PhantomData<Class>,
 }
 
-pub type M2Node<'tree> = SyntaxNode<'tree>;
-
-macro_rules! node_classes {
-    ($($node:ident => $class:ident accepts $accepts:expr;)*) => {
-        $(
-            #[derive(Debug, Clone, Copy)]
-            pub struct $class;
-
-            impl NodeClass for $class {
-                fn accepts(kind: NodeKind) -> bool {
-                    ($accepts)(kind)
-                }
-            }
-
-            pub type $node<'tree> = SyntaxNode<'tree, $class>;
-
-            impl<'tree> From<$node<'tree>> for M2Node<'tree> {
-                fn from(node: $node<'tree>) -> Self {
-                    node.erase()
-                }
-            }
-
-            impl<'tree> TryFrom<M2Node<'tree>> for $node<'tree> {
-                type Error = M2Node<'tree>;
-
-                fn try_from(node: M2Node<'tree>) -> Result<Self, Self::Error> {
-                    node.cast().ok_or(node)
-                }
-            }
-        )*
-    };
-}
-
-node_classes! {
-    BinaryExpressionNode => BinaryExpressionClass accepts
-        |kind| kind == NodeKind::BinaryExpression;
-    LambdaExpressionNode => LambdaExpressionClass accepts
-        |kind| kind == NodeKind::LambdaExpression;
-}
-
-impl<'tree> SyntaxNode<'tree> {
+impl<'tree> M2Node<'tree> {
     pub fn new(node: Node<'tree>, source: &'tree str) -> Self {
         Self {
             kind: NodeKind::from_str(node.kind()),
             node,
             source,
-            class: PhantomData,
-        }
-    }
-}
-
-impl<'tree, Class> SyntaxNode<'tree, Class> {
-    fn cast<Target: NodeClass>(self) -> Option<SyntaxNode<'tree, Target>> {
-        Target::accepts(self.kind).then(|| self.reclassify())
-    }
-
-    fn erase(self) -> M2Node<'tree> {
-        self.reclassify()
-    }
-
-    fn reclassify<Target>(self) -> SyntaxNode<'tree, Target> {
-        SyntaxNode {
-            node: self.node,
-            source: self.source,
-            kind: self.kind,
-            class: PhantomData,
         }
     }
 
@@ -193,115 +119,48 @@ impl<'tree, Class> SyntaxNode<'tree, Class> {
     }
 }
 
-impl<'tree> SyntaxNode<'tree> {
+impl<'tree> M2Node<'tree> {
     /// The operator token's source text of a binary expression (`:=`, `=>`, ...),
     /// or `None` if this is not a binary expression. Comparing this *parsed* text
     /// against operator spellings is reading code, not node-type names, so it is
     /// safe and rename-stable.
     pub fn binary_operator(&self) -> Option<&'tree str> {
-        self.cast::<BinaryExpressionClass>()?.binary_operator()
-    }
-
-    /// The parsed operator and following operand of an infix expression.
-    ///
-    /// Binary expressions name that operand `right`; lambda expressions name it
-    /// `body`. Keeping that grammar distinction here lets consumers handle both
-    /// uniformly.
-    pub fn infix_operator_and_right_operand(&self) -> Option<(M2Node<'tree>, M2Node<'tree>)> {
-        if let Some(binary) = self.cast::<BinaryExpressionClass>() {
-            return binary.infix_operator_and_right_operand();
-        }
-        self.cast::<LambdaExpressionClass>()?
-            .infix_operator_and_right_operand()
+        (self.kind == NodeKind::BinaryExpression)
+            .then(|| self.child_by_field_name("operator"))
+            .flatten()
+            .map(|operator| operator.text())
     }
 
     /// An assignment expression (`=`, `:=`, `<-`).
     pub fn is_assignment(&self) -> bool {
-        self.cast::<BinaryExpressionClass>()
-            .is_some_and(|binary| binary.is_assignment())
+        matches!(self.binary_operator(), Some("=" | ":=" | "<-"))
     }
 
     /// An option assignment (`key => value`).
     pub fn is_option_assignment(&self) -> bool {
-        self.cast::<BinaryExpressionClass>()
-            .is_some_and(|binary| binary.is_option_assignment())
-    }
-
-    pub fn property_key(&self) -> Option<Self> {
-        self.cast::<BinaryExpressionClass>()?.property_key()
-    }
-
-    /// An implicit application `f x` / `f(x)`: a binary expression whose operator
-    /// is the inserted `SPACE` token.
-    pub fn is_space_application(&self) -> bool {
-        self.cast::<BinaryExpressionClass>()
-            .is_some_and(|binary| binary.is_space_application())
-    }
-}
-
-impl<'tree> BinaryExpressionNode<'tree> {
-    pub fn left(&self) -> Option<M2Node<'tree>> {
-        self.child_by_field_name("left")
-    }
-
-    pub fn operator(&self) -> Option<M2Node<'tree>> {
-        self.child_by_field_name("operator")
-    }
-
-    pub fn right(&self) -> Option<M2Node<'tree>> {
-        self.child_by_field_name("right")
-    }
-
-    pub fn binary_operator(&self) -> Option<&'tree str> {
-        self.operator().map(|operator| operator.text())
-    }
-
-    pub fn infix_operator_and_right_operand(&self) -> Option<(M2Node<'tree>, M2Node<'tree>)> {
-        Some((self.operator()?, self.right()?))
-    }
-
-    pub fn is_assignment(&self) -> bool {
-        matches!(self.binary_operator(), Some("=" | ":=" | "<-"))
-    }
-
-    pub fn is_option_assignment(&self) -> bool {
         self.binary_operator() == Some("=>")
     }
 
-    pub fn property_key(&self) -> Option<M2Node<'tree>> {
-        let right = self.right()?;
+    pub fn property_key(&self) -> Option<Self> {
+        let right = self.child_by_field_name("right")?;
         match self.binary_operator()? {
-            "#" | "#?" if right.kind == NodeKind::StringLiteral => Some(right),
+            "#" | "#?" if right.kind.is_string_literal() => Some(right),
             "." | ".?" if right.kind.is_symbol_like() => Some(right),
             _ => None,
         }
     }
 
+    /// An implicit application `f x` / `f(x)`: a binary expression whose operator
+    /// is the inserted `SPACE` token.
     pub fn is_space_application(&self) -> bool {
-        self.operator()
+        (self.kind == NodeKind::BinaryExpression)
+            .then(|| self.child_by_field_name("operator"))
+            .flatten()
             .is_some_and(|operator| operator.is_implicit_application())
     }
 }
 
-impl<'tree> LambdaExpressionNode<'tree> {
-    pub fn parameters(&self) -> Option<M2Node<'tree>> {
-        self.child_by_field_name("parameters")
-    }
-
-    pub fn operator(&self) -> Option<M2Node<'tree>> {
-        self.child_by_field_name("operator")
-    }
-
-    pub fn body(&self) -> Option<M2Node<'tree>> {
-        self.child_by_field_name("body")
-    }
-
-    pub fn infix_operator_and_right_operand(&self) -> Option<(M2Node<'tree>, M2Node<'tree>)> {
-        Some((self.operator()?, self.body()?))
-    }
-}
-
-impl<'tree, Class> SyntaxNode<'tree, Class> {
+impl<'tree> M2Node<'tree> {
     /// Whether this node is the `operator` field of its own parent.
     pub fn is_operator(&self) -> bool {
         self.parent()
@@ -321,7 +180,7 @@ impl<'tree, Class> SyntaxNode<'tree, Class> {
     /// nesting are the parser's concern, not ours. Returns `None` for a non-string
     /// node or a literal missing a delimiter (e.g. an unterminated string).
     pub fn string_literal_inner_text(&self) -> Option<&'tree str> {
-        if self.kind != NodeKind::StringLiteral {
+        if !self.kind.is_string_literal() {
             return None;
         }
         let child_count = self.node.child_count();
@@ -388,7 +247,7 @@ impl<'tree, Class> SyntaxNode<'tree, Class> {
 
     /// The semantic element slots of a comma-delimited collection.
     ///
-    /// Grammar 4 exposes zero-width `null` nodes for empty comma slots, so they
+    /// Grammar 5 exposes zero-width `empty_component` nodes for empty comma slots, so they
     /// remain in this iterator and count toward arity. Expressions terminated
     /// by `;` are wrapped in `muted` and do not contribute a value; comments are
     /// syntax extras rather than elements, so both are skipped here.
@@ -460,6 +319,10 @@ impl<'tree, Class> SyntaxNode<'tree, Class> {
             }
             Some(node)
         })
+    }
+
+    pub fn symbols(&self) -> impl Iterator<Item = M2Node<'tree>> + '_ {
+        self.descendants().filter(|node| node.kind.is_symbol_like())
     }
 
     pub fn start_byte(&self) -> usize {

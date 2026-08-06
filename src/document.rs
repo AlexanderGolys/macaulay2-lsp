@@ -224,11 +224,19 @@ impl DocumentSnapshot {
 
     pub fn enclosing_node_of_kind<'a>(
         &self,
-        mut node: M2Node<'a>,
+        node: M2Node<'a>,
         kind: NodeKind,
     ) -> Option<M2Node<'a>> {
+        self.enclosing_node_matching(node, |candidate| candidate == kind)
+    }
+
+    pub fn enclosing_node_matching<'a>(
+        &self,
+        mut node: M2Node<'a>,
+        predicate: impl Fn(NodeKind) -> bool,
+    ) -> Option<M2Node<'a>> {
         loop {
-            if node.kind == kind {
+            if predicate(node.kind) {
                 return Some(node);
             }
             node = node.parent()?;

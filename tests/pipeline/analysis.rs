@@ -198,6 +198,207 @@ async fn unassigned_symbols_are_enum_members_until_their_binding() {
 }
 
 #[tokio::test]
+async fn loop_parameters_are_scoped_bindings_across_lsp_capabilities() {
+    let source = concat!(
+        "for loopVar in outer do (for loopVar in inner do use loopVar; use loopVar)\n",
+        "use loopVar\n",
+        "unknownName 1\n",
+        "unknownName 2\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    let tokens = semantic_tokens(&mut session).await;
+    let parameter = session.semantic_token_type("parameter");
+
+    for occurrence in 0..=3 {
+        assert_eq!(
+            token_at(&tokens, source, "loopVar", occurrence).0,
+            parameter,
+            "loop declaration and uses should be parameter tokens"
+        );
+    }
+    assert_ne!(
+        token_at(&tokens, source, "loopVar", 4).0,
+        parameter,
+        "the same spelling after the loop is outside its binding"
+    );
+
+    let inner_references = session
+        .request(
+            "textDocument/references",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": position(source, "loopVar", 2),
+                "context": {"includeDeclaration": true}
+            }),
+        )
+        .await;
+    assert_eq!(
+        response_array(&inner_references).len(),
+        2,
+        "{inner_references}"
+    );
+
+    let outer_references = session
+        .request(
+            "textDocument/references",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": position(source, "loopVar", 3),
+                "context": {"includeDeclaration": true}
+            }),
+        )
+        .await;
+    assert_eq!(
+        response_array(&outer_references).len(),
+        2,
+        "{outer_references}"
+    );
+
+    let highlights = session
+        .request(
+            "textDocument/documentHighlight",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": position(source, "loopVar", 2)
+            }),
+        )
+        .await;
+    assert_eq!(response_array(&highlights).len(), 2, "{highlights}");
+
+    let unassigned_references = session
+        .request(
+            "textDocument/references",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": position(source, "unknownName", 0),
+                "context": {"includeDeclaration": true}
+            }),
+        )
+        .await;
+    assert_eq!(
+        response_array(&unassigned_references).len(),
+        2,
+        "{unassigned_references}"
+    );
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn control_markers_and_prefixed_symbols_are_symmetric_over_lsp() {
+    let source = concat!(
+        "value = 1\n",
+        "#value\n",
+        "value\n",
+        "f := x -> if x then return x else return 0\n",
+        "for item to 3 do if item then break else continue\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+
+    let prefixed_references = session
+        .request(
+            "textDocument/references",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": position(source, "value", 1),
+                "context": {"includeDeclaration": true}
+            }),
+        )
+        .await;
+    assert_eq!(
+        response_array(&prefixed_references).len(),
+        3,
+        "{prefixed_references}"
+    );
+
+    let arrow_highlights = session
+        .request(
+            "textDocument/documentHighlight",
+            json!({
+                "textDocument": {"uri": session.uri()},
+                "position": position(source, "->", 0)
+            }),
+        )
+        .await;
+    assert_eq!(
+        response_array(&arrow_highlights).len(),
+        3,
+        "{arrow_highlights}"
+    );
+
+    for keyword in ["for", "to 3", "do if"] {
+        let loop_highlights = session
+            .request(
+                "textDocument/documentHighlight",
+                json!({
+                    "textDocument": {"uri": session.uri()},
+                    "position": position(source, keyword, 0)
+                }),
+            )
+            .await;
+        assert_eq!(
+            response_array(&loop_highlights).len(),
+            5,
+            "cursor on {keyword:?}: {loop_highlights}"
+        );
+    }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn diverging_error_branches_do_not_widen_inferred_types() {
+    let source = concat!(
+        "value := if condition then error \"bad\" else 1\n",
+        "value\n",
+        "f := x -> if condition then error \"bad\" else 2\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+
+    assert_eq!(hover_type_at(&mut session, 1, 0).await, "ZZ");
+    let labels = inlay_labels(&mut session).await;
+    assert!(
+        labels.iter().filter(|label| label.as_str() == "ZZ").count() >= 2,
+        "the assignment and lambda result should both remain ZZ: {labels:?}"
+    );
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn method_codomains_are_annotations_and_all_known_types_are_configurable() {
+    let source = concat!(
+        "p = method(TypicalValue => List)\n",
+        "p(ZZ) := Array => x -> [x]\n",
+        "literalSequence = (1, \"a\", {2, 3})\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    let tokens = semantic_tokens(&mut session).await;
+    assert_eq!(
+        token_at(&tokens, source, "Array", 0).0,
+        session.semantic_token_type("decorator")
+    );
+
+    session.set_expression_type_hints(false).await;
+    let calm = inlay_labels_by_line(&mut session).await;
+    assert!(
+        calm.iter().all(|(line, _)| *line != 2),
+        "literal sequences should be trivial by default: {calm:?}"
+    );
+
+    session.set_all_known_type_hints(true).await;
+    let complete = inlay_labels_by_line(&mut session).await;
+    assert!(
+        complete
+            .iter()
+            .any(|(line, label)| *line == 2 && label == "Sequence"),
+        "allKnownTypes should expose the literal sequence type: {complete:?}"
+    );
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn control_flow_conditions_require_booleans_without_function_coloring() {
     let source = concat!(
         "while i do 2;\n",
@@ -323,7 +524,7 @@ async fn registered_source_roles_drive_semantic_tokens_through_the_server() {
 
     for (needle, expected_role, description) in [
         ("ZZ", "type", "method domain"),
-        ("Array", "type", "method codomain"),
+        ("Array", "decorator", "method codomain annotation"),
         ("Strategy", "enumMember", "option key"),
         ("name", "property", "quoted member key"),
         ("\"key\"", "property", "lookup key"),
@@ -662,6 +863,24 @@ async fn declarative_diagnostics_expose_their_coupled_quick_fixes() {
             "S01",
             "Capitalize option key",
             "Strategy",
+        ),
+        (
+            "if (condition) then x else y\n",
+            "S03",
+            "Remove redundant parentheses",
+            "condition",
+        ),
+        (
+            "value = if value === null then fallback else value\n",
+            "S04",
+            "Use `??=` coalescing assignment",
+            "value ??= fallback",
+        ),
+        (
+            "if candidate =!= null then candidate else fallback\n",
+            "S04",
+            "Use `??` coalescence",
+            "candidate ?? fallback",
         ),
     ];
     let mut session = DocumentSession::open(cases[0].0).await;

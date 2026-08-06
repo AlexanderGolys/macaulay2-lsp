@@ -2,13 +2,15 @@
 //! diagnostics for one document snapshot.
 
 mod diagnostics;
+mod lexical;
 mod ring;
 mod typechecker;
 
-pub use diagnostics::ambiguous_float_member_access_rewrite;
+pub use diagnostics::{
+    ambiguous_float_member_access_rewrite, coalescence_rewrite, redundant_control_parentheses_inner,
+};
 
-use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 use std::ops::Deref;
 use tower_lsp::lsp_types::{Position, Range as TextRange, SymbolKind};
@@ -16,7 +18,7 @@ use tower_lsp::lsp_types::{Position, Range as TextRange, SymbolKind};
 use crate::builtin_index::CallableKind;
 use crate::diagnostic_registry::{DiagnosticKind, M2Diagnostic};
 use crate::meta::{BindingRole, Meta, Metadata};
-use crate::node_metadata::{LambdaExpressionNode, M2Node, NodeKind, NodeKindMetadata};
+use crate::node_metadata::{M2Node, NodeKind, NodeKindMetadata};
 use crate::object_registry::ObjectName;
 use crate::object_registry::{ObjectId, OperatorForm, TypeData, TypeId};
 use crate::semantic_token::{syntax_semantic_token_type, SourceSemanticRole, SourceSemanticToken};
@@ -24,7 +26,7 @@ use crate::source::SourceNavigation;
 use crate::typesystem::{
     InferredType, LiteralOption, PositionedTypeKnowledge, SubtypeEvidence, TypeKnowledge, TypeRole,
 };
-use crate::util::position_in_range;
+use lexical::{control_flow_scope, is_try_clause, nested_symbols, ScopeTree};
 use typechecker::TypeChecker;
 
 /// Identity of one scoped symbol binding within an immutable analysis snapshot.
@@ -127,8 +129,10 @@ pub enum Dispatch {
 /// The [`Dispatch`] shape of a lambda from its parameter node: a bare `Symbol`
 /// parameter is variadic; a `Sequence` is fixed-arity with one slot per named
 /// element.
-fn function_dispatch(lambda: LambdaExpressionNode) -> Option<Dispatch> {
-    let parameters = lambda.parameters()?;
+fn function_dispatch(lambda: M2Node) -> Option<Dispatch> {
+    let parameters = (lambda.kind == NodeKind::LambdaExpression)
+        .then(|| lambda.child_by_field_name("parameters"))
+        .flatten()?;
     Some(match parameters.kind {
         NodeKind::ParenthesizedExpression => Dispatch::Fixed(1),
         kind if kind.is_collection_expression() => {
@@ -183,21 +187,6 @@ pub struct AssignmentFact {
     pub value_span: Option<TextRange>,
     pub scope_idx: usize,
     pub kind: AssignmentFactKind,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct SourceRangeKey(TextRange);
-
-impl Ord for SourceRangeKey {
-    fn cmp(&self, other: &Self) -> Ordering {
-        (self.0.start, self.0.end).cmp(&(other.0.start, other.0.end))
-    }
-}
-
-impl PartialOrd for SourceRangeKey {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
 }
 
 impl MethodInstallation {
@@ -298,14 +287,6 @@ impl Metadata for BindingView<'_> {
     }
 }
 
-/// One lexical scope and its relationship to the enclosing scope.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScopeInfo {
-    pub range: TextRange,
-    pub parent_idx: Option<usize>,
-    pub assignments_may_escape: bool,
-}
-
 /// Typed source-declared type edges and their source-symbol identities.
 #[derive(Debug, Default)]
 struct SourceTypeFacts {
@@ -314,17 +295,16 @@ struct SourceTypeFacts {
 
 /// Canonical per-snapshot store of symbols, bindings, scopes, and their indexes.
 #[derive(Debug, Default)]
-pub struct SemanticRegistry {
-    pub scopes: Vec<ScopeInfo>,
-    pub bindings: Vec<BindingInfo>,
-    pub bindings_by_name: HashMap<ObjectName, Vec<BindingId>>,
+struct SemanticRegistry {
+    scopes: ScopeTree,
+    bindings: Vec<BindingInfo>,
+    bindings_by_name: HashMap<ObjectName, Vec<BindingId>>,
     callable_objects: Vec<FunctionInfo>,
     indexed_callable_objects: HashMap<ObjectId, CallableObjectId>,
     operator_functions: HashMap<Operator, FunctionInfo>,
     installations: Vec<MethodInstallation>,
     assignment_facts: Vec<AssignmentFact>,
-    scopes_by_range: BTreeMap<SourceRangeKey, usize>,
-    pending_source_semantic_roles: BTreeMap<SourceRangeKey, SourceSemanticRole>,
+    pending_source_semantic_roles: Vec<(TextRange, SourceSemanticRole)>,
     source_semantic_tokens: Vec<SourceSemanticToken>,
     source_types: SourceTypeFacts,
     ring_generators: HashMap<ObjectName, Vec<ring::RingGenerator>>,
@@ -408,25 +388,6 @@ struct SymbolRegistration {
     potential_export: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum ControlFlowScope {
-    Branch,
-    LoopClause,
-}
-
-impl ControlFlowScope {
-    fn assignment_scope(self, nested_scope: usize, inherited_scope: usize) -> usize {
-        match self {
-            Self::Branch => nested_scope,
-            Self::LoopClause => inherited_scope,
-        }
-    }
-
-    fn assignments_may_escape(self) -> bool {
-        matches!(self, Self::Branch)
-    }
-}
-
 /// The parsed loop or function body receiving a control transfer.
 #[derive(Clone, Copy)]
 pub enum ControlTransferTarget<'tree> {
@@ -467,7 +428,7 @@ impl<'tree> ControlTransferTarget<'tree> {
 #[derive(Debug)]
 pub struct Analysis {
     pub diagnostics: Vec<M2Diagnostic>,
-    pub registry: SemanticRegistry,
+    registry: SemanticRegistry,
 }
 
 impl Analysis {
@@ -634,7 +595,7 @@ impl Analysis {
             if binding_id.is_some() {
                 return binding_id;
             }
-            curr = self.registry.scopes[idx].parent_idx;
+            curr = self.registry.scopes.parent(idx);
         }
         None
     }
@@ -669,7 +630,7 @@ impl Analysis {
             if let Some(state) = state {
                 return Some(BindingView { binding, state });
             }
-            curr = self.registry.scopes[idx].parent_idx;
+            curr = self.registry.scopes.parent(idx);
         }
         self.binding_anchor(binding_id)
     }
@@ -749,10 +710,15 @@ impl Analysis {
     }
 
     pub fn scope_with_range(&self, range: TextRange) -> Option<usize> {
-        self.registry
-            .scopes_by_range
-            .get(&SourceRangeKey(range))
-            .copied()
+        self.registry.scopes.with_range(range)
+    }
+
+    pub fn scope_count(&self) -> usize {
+        self.registry.scopes.len()
+    }
+
+    pub fn parent_scope(&self, scope_idx: usize) -> Option<usize> {
+        self.registry.scopes.parent(scope_idx)
     }
 
     pub fn source_semantic_tokens(&self) -> &[SourceSemanticToken] {
@@ -796,33 +762,13 @@ impl Analysis {
                     ));
                 }
             }
-            current = self.registry.scopes[idx].parent_idx;
+            current = self.registry.scopes.parent(idx);
         }
         out
     }
 
     fn find_scope_at(&self, pos: Position) -> Option<usize> {
-        let mut best_idx = None;
-        let mut best_range: Option<TextRange> = None;
-
-        for (idx, scope) in self.registry.scopes.iter().enumerate() {
-            if position_in_range(pos, scope.range) {
-                match best_range {
-                    None => {
-                        best_idx = Some(idx);
-                        best_range = Some(scope.range);
-                    }
-                    Some(r) => {
-                        // We want the smallest (most nested) scope
-                        if is_range_smaller(scope.range, r) {
-                            best_idx = Some(idx);
-                            best_range = Some(scope.range);
-                        }
-                    }
-                }
-            }
-        }
-        best_idx
+        self.registry.scopes.at(pos)
     }
 
     pub fn new_with_knowledge(
@@ -833,27 +779,17 @@ impl Analysis {
         let mut analysis = Analysis {
             diagnostics: Vec::new(),
             registry: SemanticRegistry {
-                scopes: vec![ScopeInfo {
-                    range: TextRange::new(pos!(), pos_max!()),
-                    parent_idx: None,
-                    assignments_may_escape: false,
-                }],
+                scopes: ScopeTree::collect(root, source),
                 ..Default::default()
             },
         };
-        analysis
-            .registry
-            .scopes_by_range
-            .insert(SourceRangeKey(TextRange::new(pos!(), pos_max!())), 0);
-        // Analysis-first: derive bindings, scopes, and method installations
-        // before running diagnostics that consume those facts.
-        analysis.build_scopes(root, source, 0, 0, knowledge);
+        analysis.analyze_semantics(root, source, 0, 0, knowledge);
         analysis.registry.pending_source_semantic_roles.clear();
         analysis.collect_diagnostics(root, source, knowledge);
         analysis
     }
 
-    fn build_scopes(
+    fn analyze_semantics(
         &mut self,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
@@ -869,19 +805,23 @@ impl Analysis {
 
         match node.kind {
             NodeKind::LambdaExpression => {
-                next_scope_idx = self.push_scope(node, source, Some(current_scope_idx), true);
+                next_scope_idx = self.registry.scopes.owned_by(node, source);
                 next_assignment_scope_idx = next_scope_idx;
 
-                let lambda = LambdaExpressionNode::try_from(node)
-                    .expect("lambda-expression branch has a lambda node");
-                if let Some(params_node) = lambda.parameters() {
+                if let Some(params_node) = node.child_by_field_name("parameters") {
                     let parameter_types = method_installation_parameter_types_for_function(node);
-                    self.collect_parameters(
+                    self.register_parameters(
                         params_node,
                         source,
                         next_scope_idx,
                         parameter_types.as_deref(),
                     );
+                }
+            }
+            NodeKind::ForStatement => {
+                next_scope_idx = self.registry.scopes.owned_by(node, source);
+                if let Some(variable) = node.child_by_field_name("variable") {
+                    self.register_parameters(variable, source, next_scope_idx, None);
                 }
             }
             _ if node.is_assignment() => {
@@ -946,7 +886,7 @@ impl Analysis {
                     });
 
                     match op_text {
-                        ":=" => self.collect_definitions(
+                        ":=" => self.register_definitions(
                             left,
                             right,
                             source,
@@ -966,7 +906,7 @@ impl Analysis {
                         // creates a global when none exists anywhere up the chain.
                         // The write becomes a new state of that binding rather than
                         // a second lexical definition.
-                        "=" => self.collect_definitions(
+                        "=" => self.register_definitions(
                             left,
                             right,
                             source,
@@ -980,8 +920,10 @@ impl Analysis {
                                 parent_type,
                                 scope_idx: assignment_scope_idx,
                                 potential_export: assignment_scope_idx == 0
-                                    || self.registry.scopes[assignment_scope_idx]
-                                        .assignments_may_escape,
+                                    || self
+                                        .registry
+                                        .scopes
+                                        .assignments_may_escape(assignment_scope_idx),
                             },
                         ),
                         _ => {}
@@ -1013,19 +955,14 @@ impl Analysis {
             let (child_scope_idx, child_assignment_scope_idx) =
                 match control_flow_scope(node, child) {
                     Some(scope_kind) => {
-                        let scope_idx = self.push_scope(
-                            child,
-                            source,
-                            Some(next_scope_idx),
-                            scope_kind.assignments_may_escape(),
-                        );
+                        let scope_idx = self.registry.scopes.owned_by(child, source);
                         let assignment_scope_idx =
                             scope_kind.assignment_scope(scope_idx, next_assignment_scope_idx);
                         (scope_idx, assignment_scope_idx)
                     }
                     None => (next_scope_idx, next_assignment_scope_idx),
                 };
-            self.build_scopes(
+            self.analyze_semantics(
                 child,
                 source,
                 child_scope_idx,
@@ -1066,7 +1003,7 @@ impl Analysis {
             );
         }
 
-        if node.kind == NodeKind::StringLiteral && indexed_string_names_package(node, knowledge) {
+        if node.kind.is_string_literal() && indexed_string_names_package(node, knowledge) {
             self.register_source_semantic_role(
                 source.range_for_node(node),
                 SourceSemanticRole::NamespaceArgument,
@@ -1075,10 +1012,31 @@ impl Analysis {
     }
 
     fn register_source_semantic_role(&mut self, range: TextRange, role: SourceSemanticRole) {
-        self.registry
+        if self
+            .registry
             .pending_source_semantic_roles
-            .entry(SourceRangeKey(range))
-            .or_insert(role);
+            .iter()
+            .all(|(registered, _)| *registered != range)
+        {
+            self.registry
+                .pending_source_semantic_roles
+                .push((range, role));
+        }
+    }
+
+    fn set_source_semantic_role(&mut self, range: TextRange, role: SourceSemanticRole) {
+        if let Some((_, registered)) = self
+            .registry
+            .pending_source_semantic_roles
+            .iter_mut()
+            .find(|(registered, _)| *registered == range)
+        {
+            *registered = role;
+        } else {
+            self.registry
+                .pending_source_semantic_roles
+                .push((range, role));
+        }
     }
 
     fn record_source_semantic_token(
@@ -1106,8 +1064,9 @@ impl Analysis {
         let source_role = self
             .registry
             .pending_source_semantic_roles
-            .get(&SourceRangeKey(span.range()))
-            .cloned();
+            .iter()
+            .find(|(range, _)| *range == span.range())
+            .map(|(_, role)| role.clone());
         self.registry
             .source_semantic_tokens
             .push(SourceSemanticToken {
@@ -1181,7 +1140,7 @@ impl Analysis {
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) -> Option<(MethodInstallation, Vec<TextRange>)> {
+    ) -> Option<(MethodInstallation, Vec<(TextRange, SourceSemanticRole)>)> {
         let operator = node.binary_operator()?;
         let left = node.child_by_field_name("left")?;
         let position = source.position_for_node(left);
@@ -1203,6 +1162,12 @@ impl Analysis {
             .and_then(symbol_node_text)
             .map(ObjectName::new);
         let codomain_span = codomain_node.map(|node| source.range_for_node(node));
+        let method_semantic_spans = domain_spans
+            .iter()
+            .copied()
+            .map(|range| (range, SourceSemanticRole::MethodType))
+            .chain(codomain_span.map(|range| (range, SourceSemanticRole::MethodAnnotation)))
+            .collect::<Vec<_>>();
         // The RHS function shape, read once here so the arity diagnostic need not
         // re-walk the tree. Only a plain lambda RHS carries a checkable arity.
         let rhs_lambda_dispatch = rhs_lambda.and_then(function_dispatch);
@@ -1218,7 +1183,7 @@ impl Analysis {
                     expected_rhs_arity: operand_arity,
                     rhs_lambda_dispatch,
                 },
-                domain_spans.into_iter().chain(codomain_span).collect(),
+                method_semantic_spans.clone(),
             )),
             // `=` installs only the assignment form of a BINARY operator (incl.
             // SPACE), and only when every operand is a type; otherwise the same
@@ -1243,7 +1208,7 @@ impl Analysis {
                             expected_rhs_arity: operand_arity + 1,
                             rhs_lambda_dispatch,
                         },
-                        domain_spans.into_iter().chain(codomain_span).collect(),
+                        method_semantic_spans,
                     ))
                 }
                 _ => None,
@@ -1402,15 +1367,19 @@ impl Analysis {
             })
     }
 
-    fn collect_parameters(
+    fn register_parameters(
         &mut self,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         parameter_types: Option<&[ObjectName]>,
     ) {
-        let mut parameter_nodes = Vec::new();
-        collect_parameter_nodes(node, &mut parameter_nodes);
+        let parameter_nodes = nested_symbols(node, |kind| {
+            matches!(
+                kind,
+                NodeKind::Sequence | NodeKind::List | NodeKind::ParenthesizedExpression
+            )
+        });
         let typed_parameters = parameter_types.filter(|types| types.len() == parameter_nodes.len());
         for (idx, parameter_node) in parameter_nodes.into_iter().enumerate() {
             let name = parameter_node.text();
@@ -1434,7 +1403,7 @@ impl Analysis {
         }
     }
 
-    fn collect_definitions(
+    fn register_definitions(
         &mut self,
         node: M2Node,
         value_node: Option<M2Node>,
@@ -1442,56 +1411,52 @@ impl Analysis {
         definition_scope: DefinitionScope,
         registration: SymbolRegistration,
     ) {
-        match node.kind {
-            NodeKind::Symbol => {
-                let name = node.text();
-                match definition_scope {
-                    DefinitionScope::Local => {
-                        self.add_symbol(name, node, value_node, registration, source)
-                    }
-                    DefinitionScope::Global => {
-                        let position = source.position_for_node(node);
-                        let binding_id = self
-                            .binding_id_from_scope(name, registration.scope_idx, position)
-                            .filter(|binding_id| {
-                                self.binding_anchor(*binding_id).is_some_and(|binding| {
-                                    binding.scope_idx == registration.scope_idx
-                                })
-                            });
-                        if let Some(binding_id) = binding_id {
-                            self.add_binding_state(
-                                binding_id,
-                                node,
-                                value_node,
-                                registration,
-                                source,
-                            );
-                        } else {
-                            self.add_symbol(name, node, value_node, registration, source);
-                        }
-                    }
+        let structured_target = node.kind != NodeKind::Symbol;
+        for definition in nested_symbols(node, NodeKindMetadata::is_collection_expression) {
+            let registration = if structured_target {
+                SymbolRegistration {
+                    type_name: None,
+                    object_id: None,
+                    ..registration.clone()
+                }
+            } else {
+                registration.clone()
+            };
+            self.register_definition(
+                definition,
+                value_node,
+                source,
+                definition_scope,
+                registration,
+            );
+        }
+    }
+
+    fn register_definition(
+        &mut self,
+        node: M2Node,
+        value_node: Option<M2Node>,
+        source: &(impl SourceNavigation + ?Sized),
+        definition_scope: DefinitionScope,
+        registration: SymbolRegistration,
+    ) {
+        let name = node.text();
+        match definition_scope {
+            DefinitionScope::Local => self.add_symbol(name, node, value_node, registration, source),
+            DefinitionScope::Global => {
+                let position = source.position_for_node(node);
+                let binding_id = self
+                    .binding_id_from_scope(name, registration.scope_idx, position)
+                    .filter(|binding_id| {
+                        self.binding_anchor(*binding_id)
+                            .is_some_and(|binding| binding.scope_idx == registration.scope_idx)
+                    });
+                if let Some(binding_id) = binding_id {
+                    self.add_binding_state(binding_id, node, value_node, registration, source);
+                } else {
+                    self.add_symbol(name, node, value_node, registration, source);
                 }
             }
-            _ if node.kind.is_collection_expression() => {
-                // Recurse on every element so nested destructuring targets such
-                // as `[x, [y, z]]` register their inner symbols too; non-symbol,
-                // non-collection elements fall through to the `_` arm and are
-                // ignored.
-                for child in node.collection_elements() {
-                    self.collect_definitions(
-                        child,
-                        value_node,
-                        source,
-                        definition_scope,
-                        SymbolRegistration {
-                            type_name: None,
-                            object_id: None,
-                            ..registration.clone()
-                        },
-                    );
-                }
-            }
-            _ => {}
         }
     }
 
@@ -1677,7 +1642,7 @@ impl Analysis {
         let left = assignment.child_by_field_name("left")?;
         let right = assignment.child_by_field_name("right")?;
         let lambda = assigned_lambda(right)?;
-        let body = lambda.body()?;
+        let body = lambda.child_by_field_name("body")?;
         let codomain = self.infer_expression_static_type(body, source, knowledge)?;
         if codomain == TypeRole::Thing.object_name() {
             return None;
@@ -1700,7 +1665,7 @@ impl Analysis {
         let edit = annotation.map_or_else(
             || {
                 MethodCodomainEdit::Add({
-                    let start = source.position_for_node(lambda.into());
+                    let start = source.position_for_node(lambda);
                     TextRange::new(start, start)
                 })
             },
@@ -1815,13 +1780,11 @@ impl Analysis {
                 kind: LocalFunctionKind::Method,
             })
         } else if value.kind == NodeKind::LambdaExpression {
-            let lambda = LambdaExpressionNode::try_from(value)
-                .expect("lambda-expression branch has a lambda node");
             Some(FunctionInfo {
                 typical_value: None,
                 installations: Vec::new(),
-                dispatch: function_dispatch(lambda),
-                parameter_names: fixed_parameter_names(lambda),
+                dispatch: function_dispatch(value),
+                parameter_names: fixed_parameter_names(value),
                 kind: LocalFunctionKind::Plain,
             })
         } else {
@@ -1852,10 +1815,8 @@ impl Analysis {
             self.attach_method_installation(&mut installation, knowledge);
         }
 
-        for range in method_type_spans {
-            self.registry
-                .pending_source_semantic_roles
-                .insert(SourceRangeKey(range), SourceSemanticRole::MethodType);
+        for (range, role) in method_type_spans {
+            self.set_source_semantic_role(range, role);
         }
         debug_assert_eq!(installation.id.0, self.registry.installations.len());
         self.registry.installations.push(installation);
@@ -1908,52 +1869,22 @@ impl Analysis {
         }
     }
 
-    fn push_scope(
-        &mut self,
-        node: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        parent_idx: Option<usize>,
-        assignments_may_escape: bool,
-    ) -> usize {
-        let range = source.range_for_node(node);
-        let scope_idx = self.registry.scopes.len();
-        self.registry.scopes.push(ScopeInfo {
-            range,
-            parent_idx,
-            assignments_may_escape,
-        });
-        self.registry
-            .scopes_by_range
-            .insert(SourceRangeKey(range), scope_idx);
-        scope_idx
-    }
-
     pub fn binding_id_at(&self, name: &str, pos: Position) -> Option<BindingId> {
         let scope_idx = self.find_scope_at(pos)?;
         self.binding_id_from_scope(name, scope_idx, pos)
     }
 }
 
-fn collect_parameter_nodes<'tree>(node: M2Node<'tree>, parameters: &mut Vec<M2Node<'tree>>) {
-    match node.kind {
-        NodeKind::Symbol => parameters.push(node),
-        // `(x,y)` is a `sequence`; a single `(x)` is a `parenthesized_expression`.
-        // Both group parameters, so recurse into either.
-        NodeKind::Sequence | NodeKind::List | NodeKind::ParenthesizedExpression => {
-            for child in node.children() {
-                collect_parameter_nodes(child, parameters);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn fixed_parameter_names(lambda: LambdaExpressionNode<'_>) -> Option<Vec<ObjectName>> {
+fn fixed_parameter_names(lambda: M2Node<'_>) -> Option<Vec<ObjectName>> {
     if !matches!(function_dispatch(lambda), Some(Dispatch::Fixed(_))) {
         return None;
     }
-    let mut parameters = Vec::new();
-    collect_parameter_nodes(lambda.parameters()?, &mut parameters);
+    let parameters = nested_symbols(lambda.child_by_field_name("parameters")?, |kind| {
+        matches!(
+            kind,
+            NodeKind::Sequence | NodeKind::List | NodeKind::ParenthesizedExpression
+        )
+    });
     Some(
         parameters
             .into_iter()
@@ -1962,10 +1893,10 @@ fn fixed_parameter_names(lambda: LambdaExpressionNode<'_>) -> Option<Vec<ObjectN
     )
 }
 
-fn assigned_lambda(node: M2Node<'_>) -> Option<LambdaExpressionNode<'_>> {
+fn assigned_lambda(node: M2Node<'_>) -> Option<M2Node<'_>> {
     let node = parenthesized_value(node)?;
-    if let Ok(lambda) = node.try_into() {
-        return Some(lambda);
+    if node.kind == NodeKind::LambdaExpression {
+        return Some(node);
     }
     (node.binary_operator() == Some("=>"))
         .then(|| node.child_by_field_name("right"))
@@ -2193,31 +2124,6 @@ fn clause_value(clause: M2Node) -> Option<M2Node> {
     clause.named_children().next()
 }
 
-/// Whether a node kind is a `try` clause (so the remaining named child is the
-/// guarded body).
-fn is_try_clause(kind: NodeKind) -> bool {
-    matches!(
-        kind,
-        NodeKind::ThenClause
-            | NodeKind::ElseClause
-            | NodeKind::ExceptClause
-            | NodeKind::DoClause
-            | NodeKind::WhenClause
-    )
-}
-
-fn is_loop_clause(kind: NodeKind) -> bool {
-    matches!(
-        kind,
-        NodeKind::FromClause
-            | NodeKind::ToClause
-            | NodeKind::InClause
-            | NodeKind::WhenClause
-            | NodeKind::ListClause
-            | NodeKind::DoClause
-    )
-}
-
 fn direct_callback_callable(lambda: M2Node<'_>) -> Option<M2Node<'_>> {
     let mut argument = lambda;
     let mut parent = argument.parent()?;
@@ -2247,34 +2153,6 @@ fn direct_callback_callable(lambda: M2Node<'_>) -> Option<M2Node<'_>> {
     parent
         .child_by_field_name("left")
         .filter(|callable| callable.kind == NodeKind::Symbol)
-}
-
-fn control_flow_scope(parent: M2Node<'_>, child: M2Node<'_>) -> Option<ControlFlowScope> {
-    match parent.kind {
-        NodeKind::IfStatement => {
-            let is_condition = parent
-                .child_by_field_name("condition")
-                .is_some_and(|condition| condition.id() == child.id());
-            (is_condition || matches!(child.kind, NodeKind::ThenClause | NodeKind::ElseClause))
-                .then_some(ControlFlowScope::Branch)
-        }
-        NodeKind::TryStatement => {
-            let is_body = parent
-                .named_child(0)
-                .is_some_and(|body| body.id() == child.id());
-            (is_body || is_try_clause(child.kind)).then_some(ControlFlowScope::Branch)
-        }
-        NodeKind::ForStatement => {
-            is_loop_clause(child.kind).then_some(ControlFlowScope::LoopClause)
-        }
-        NodeKind::WhileStatement => {
-            let is_condition = parent
-                .named_child(0)
-                .is_some_and(|condition| condition.id() == child.id());
-            (is_condition || is_loop_clause(child.kind)).then_some(ControlFlowScope::LoopClause)
-        }
-        _ => None,
-    }
 }
 
 /// The value a node denotes, peeling parenthesized grouping: `(a)` → `a`,
@@ -2390,13 +2268,4 @@ fn is_colon_equal_assignment_left(node: M2Node) -> bool {
     parent
         .child_by_field_name("operator")
         .is_some_and(|operator| operator.text() == ":=")
-}
-
-fn is_range_smaller(a: TextRange, b: TextRange) -> bool {
-    // Very simple check: is a contained in b?
-    let starts_inside = a.start.line > b.start.line
-        || (a.start.line == b.start.line && a.start.character >= b.start.character);
-    let ends_inside =
-        a.end.line < b.end.line || (a.end.line == b.end.line && a.end.character <= b.end.character);
-    starts_inside && ends_inside && a != b
 }
