@@ -5,12 +5,9 @@ use super::*;
 #[cfg(test)]
 mod cst_compliance_gate {
     //! Build gate enforcing the repo rule that the rest of the crate must reach
-    //! the syntax tree only through `M2Node` / `NodeKind` — never the raw
-    //! tree-sitter node-type name and never the raw source buffer. The grammar is
-    //! renamed over time, so node-type names live ONLY in `NodeKind::from_str` and
-    //! the anonymous-token predicates in this module; reading raw code re-derives
-    //! parser logic (escaped `/////`, `"` in comments, `--` in strings) and is
-    //! banned. A violation fails the test run, not just review.
+    //! the syntax tree only through `M2Node` and m2-syn types, never raw
+    //! tree-sitter node names or the raw source buffer. Reading raw code
+    //! re-derives parser logic and is banned.
     use std::{
         fs,
         path::{Path, PathBuf},
@@ -21,7 +18,7 @@ mod cst_compliance_gate {
     const BANNED: &[(&str, &str)] = &[
         (
             ".kind()",
-            "raw tree-sitter node-type name; use `node.kind` / `NodeKind` instead",
+            "raw tree-sitter node-type name; use `node.is::<Syntax>()` instead",
         ),
         (
             ".raw_kind()",
@@ -96,7 +93,7 @@ mod cst_compliance_gate {
 
         assert!(
             violations.is_empty(),
-            "CST-compliance gate failed; route these through M2Node/NodeKind:\n{}",
+            "CST-compliance gate failed; route these through M2Node and m2-syn:\n{}",
             violations.join("\n")
         );
     }
@@ -108,32 +105,30 @@ mod descendants_tests {
     //! every migrated call site relies on (parent before children, source order
     //! across siblings, root yielded exactly once, empty file safe).
     use super::*;
-
-    fn kinds_of(text: &str) -> Vec<NodeKind> {
-        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
-        let root = parser.parse(text).expect("fixture should parse");
-        root.descendants().map(|node| node.kind).collect()
-    }
+    use m2_syn::{
+        DebugClause, EmptyComponent, MutedCell, NakedSequence, ParenthesizedExpression,
+        QuoteExpression, Sequence, SourceFile, Symbol,
+    };
 
     #[test]
     fn descendants_visit_parent_before_children_in_source_order() {
-        let kinds = kinds_of("f(x, y)\n");
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse("f(x, y)\n").expect("fixture should parse");
+        let nodes = root.descendants().collect::<Vec<_>>();
 
         // Root first, then `f`, then the parenthesized call's inner sequence
         // and its three children in source order: `x`, `,`, `y`. We assert a
         // few key landmarks rather than the full token list, so a future
         // grammar renormalization that adds wrapper nodes doesn't break the
         // test for a property it doesn't care about.
-        assert_eq!(kinds.first(), Some(&NodeKind::SourceFile));
-        assert!(kinds.contains(&NodeKind::Symbol));
-        assert!(kinds.contains(&NodeKind::Sequence));
-        let x_pos = kinds
+        assert!(nodes.first().is_some_and(|node| node.is::<SourceFile>()));
+        let x_pos = nodes
             .iter()
-            .position(|k| *k == NodeKind::Symbol)
+            .position(|node| node.is::<Symbol>())
             .expect("a Symbol is emitted");
-        let seq_pos = kinds
+        let seq_pos = nodes
             .iter()
-            .position(|k| *k == NodeKind::Sequence)
+            .position(|node| node.is::<Sequence>())
             .expect("a Sequence is emitted");
         // Whichever node contains the call appears before its `Symbol` child
         // (pre-order). Both orderings of `Symbol`-then-`Sequence` are valid
@@ -144,8 +139,10 @@ mod descendants_tests {
 
     #[test]
     fn descendants_of_empty_file_yields_root_once() {
+        let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
+        let root = parser.parse("").expect("fixture should parse");
         assert_eq!(
-            kinds_of("").len(),
+            root.descendants().count(),
             1,
             "empty file yields only the SourceFile root"
         );
@@ -166,20 +163,20 @@ mod descendants_tests {
     }
 
     #[test]
-    fn grammar_v5_exposes_muted_empty_components_and_naked_sequences() {
+    fn grammar_exposes_muted_empty_components_and_naked_sequences() {
         let text = "local if\nstep 1\nfinish\n(x;)\n(,a,,)\na,b\n";
         let mut parser = M2Parser::new().expect("Macaulay2 parser should load");
         let root = parser.parse(text).expect("fixture should parse");
         let quote = root
             .descendants()
-            .find(|node| node.kind == NodeKind::QuoteExpression)
+            .find(|node| node.is::<QuoteExpression>())
             .expect("`local if` is a quote expression");
         assert_eq!(
             quote
                 .child_by_field_name("symbol")
                 .expect("quote has a symbol field")
-                .kind,
-            NodeKind::QuotedKeyword
+                .text(),
+            "if"
         );
         assert!(quote
             .child_by_field_name("specifier")
@@ -188,7 +185,7 @@ mod descendants_tests {
 
         assert_eq!(
             root.descendants()
-                .filter(|node| node.kind == NodeKind::DebugClause)
+                .filter(|node| node.is::<DebugClause>())
                 .count(),
             2,
             "both `step` and `finish` are debug clauses"
@@ -196,12 +193,12 @@ mod descendants_tests {
 
         let parens = root
             .descendants()
-            .find(|node| node.kind == NodeKind::ParenthesizedExpression)
+            .find(|node| node.is::<ParenthesizedExpression>())
             .expect("parenthesized expression is present");
-        assert_eq!(
-            parens.named_children().next().map(|child| child.kind),
-            Some(NodeKind::Muted)
-        );
+        assert!(parens
+            .named_children()
+            .next()
+            .is_some_and(|child| child.is::<MutedCell>()));
         assert!(
             parens.final_value_child().is_none(),
             "a grouping ending in a muted expression has no value child"
@@ -209,14 +206,14 @@ mod descendants_tests {
 
         let sequence = root
             .descendants()
-            .find(|node| node.kind == NodeKind::Sequence)
+            .find(|node| node.is::<Sequence>())
             .expect("parenthesized comma sequence is present");
         let elements = sequence.collection_elements().collect::<Vec<_>>();
         assert_eq!(elements.len(), 4, "every comma slot remains an element");
         assert_eq!(
             elements
                 .iter()
-                .filter(|element| element.kind == NodeKind::EmptyComponent)
+                .filter(|element| element.is::<EmptyComponent>())
                 .count(),
             3,
             "empty comma slots are explicit empty-component nodes"
@@ -224,7 +221,7 @@ mod descendants_tests {
 
         let naked = root
             .descendants()
-            .find(|node| node.kind == NodeKind::NakedSequence)
+            .find(|node| node.is::<NakedSequence>())
             .expect("top-level comma expression is a naked sequence");
         assert_eq!(naked.collection_elements().count(), 2);
     }

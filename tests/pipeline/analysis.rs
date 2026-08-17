@@ -366,7 +366,7 @@ async fn diverging_error_branches_do_not_widen_inferred_types() {
 }
 
 #[tokio::test]
-async fn method_codomains_are_annotations_and_all_known_types_are_configurable() {
+async fn method_codomains_are_type_parameters_and_all_known_types_are_configurable() {
     let source = concat!(
         "p = method(TypicalValue => List)\n",
         "p(ZZ) := Array => x -> [x]\n",
@@ -376,7 +376,7 @@ async fn method_codomains_are_annotations_and_all_known_types_are_configurable()
     let tokens = semantic_tokens(&mut session).await;
     assert_eq!(
         token_at(&tokens, source, "Array", 0).0,
-        session.semantic_token_type("decorator")
+        session.semantic_token_type("typeParameter")
     );
 
     session.set_expression_type_hints(false).await;
@@ -523,8 +523,8 @@ async fn registered_source_roles_drive_semantic_tokens_through_the_server() {
     let tokens = semantic_tokens(&mut session).await;
 
     for (needle, expected_role, description) in [
-        ("ZZ", "type", "method domain"),
-        ("Array", "decorator", "method codomain annotation"),
+        ("ZZ", "typeParameter", "method domain"),
+        ("Array", "typeParameter", "method codomain"),
         ("Strategy", "enumMember", "option key"),
         ("name", "property", "quoted member key"),
         ("\"key\"", "property", "lookup key"),
@@ -536,6 +536,31 @@ async fn registered_source_roles_drive_semantic_tokens_through_the_server() {
             "unexpected semantic role for {description}"
         );
     }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn output_references_preserve_the_referenced_cells_package_environment() {
+    let source = "toJSON 1\nneedsPackage \"JSON\"\nooo\n";
+    let mut session = DocumentSession::open(source).await;
+    let hints = inlay_labels_by_line(&mut session).await;
+    let first_cell = hints
+        .iter()
+        .filter(|(line, _)| *line == 0)
+        .map(|(_, label)| label.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(
+        first_cell.iter().any(|label| label.contains("Thing")),
+        "the call before needsPackage should remain unresolved: {hints:?}"
+    );
+    assert!(
+        first_cell
+            .iter()
+            .all(|label| !label.contains("String") && !label.contains("MethodFunctionSingle")),
+        "the later package environment leaked into the referenced cell: {hints:?}"
+    );
 
     session.shutdown().await;
 }
@@ -683,6 +708,78 @@ async fn installation_and_syntax_diagnostics_run_through_the_server_pipeline() {
         .as_str()
         .is_some_and(|message| message.contains("never dispatches")));
 
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn install_method_calls_contribute_explicit_installations() {
+    let source = concat!(
+        "f = method(TypicalValue => List)\n",
+        "installMethod(f, ZZ, x -> [x])\n",
+        "result = f 1\n",
+        "result\n",
+        "Accumulator = new Type\n",
+        "installMethod(symbol +=, Accumulator, (left, right) -> left)\n",
+        "installMethod(symbol <-, String, peek)\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+
+    assert_eq!(hover_type_at(&mut session, 3, 0).await, "List");
+    assert!(
+        !session.diagnostic_codes().contains(&"E02"),
+        "explicit operator installation must not require Flexible: {:?}",
+        session.diagnostics()
+    );
+    assert!(
+        !session.diagnostic_codes().contains(&"E03"),
+        "explicit installation arity should follow the installed callable form: {:?}",
+        session.diagnostics()
+    );
+    assert!(!session.diagnostic_codes().contains(&"E09"));
+
+    let tokens = semantic_tokens(&mut session).await;
+    let type_parameter = session.semantic_token_type("typeParameter");
+    for line in [1, 5, 6] {
+        assert!(
+            tokens
+                .iter()
+                .any(|(token_line, _, token_type, _)| *token_line == line
+                    && *token_type == type_parameter),
+            "missing explicit installation type role on line {}: {tokens:?}",
+            line + 1
+        );
+    }
+
+    for source in [
+        "String <- Thing := (left, right) -> left\n",
+        "(String <- Thing) := (left, right) -> left\n",
+    ] {
+        session.replace(source).await;
+        assert_eq!(diagnostic_lines(&session, "E09"), vec![0]);
+    }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn new_expressions_are_method_installation_heads() {
+    let source = concat!(
+        "M = new Type of BasicList\n",
+        "new Type of BasicList from Function := (target, parent, convert) -> hashTable {}\n",
+        "new M from (ZZ, ZZ) := (target, left, right) -> {left, right}\n",
+        "new M := target -> {}\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    assert!(
+        !session.diagnostic_codes().contains(&"E03"),
+        "valid new installations should have their complete runtime arity: {:?}",
+        session.diagnostics()
+    );
+
+    session
+        .replace("M = new Type\nnew M from ZZ := (value) -> value\n")
+        .await;
+    assert_eq!(diagnostic_lines(&session, "E03"), vec![1]);
     session.shutdown().await;
 }
 
@@ -843,6 +940,60 @@ async fn method_codomain_diagnostics_offer_annotation_quick_fixes() {
 }
 
 #[tokio::test]
+async fn nonexact_call_arguments_join_every_possible_dispatch_codomain() {
+    let source = concat!(
+        "children CstNode := List => node -> apply(childRawIndices node, rawIndex ->\n",
+        "    cstNodeAt(node.CstOwner, append(node.CstPath, rawIndex)))\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+
+    assert!(
+        !session.diagnostic_codes().contains(&"T04"),
+        "an argument inferred only as Thing must not select the exact Thing overload: {:?}",
+        session.diagnostics()
+    );
+
+    let hover = session.request_at("textDocument/hover", "apply", 0).await;
+    let markdown = hover["contents"]["value"]
+        .as_str()
+        .unwrap_or_else(|| panic!("expected apply hover markdown, got {hover}"));
+    assert!(
+        !markdown.starts_with("**apply** `(Thing, Function) -> Iterator`"),
+        "a nonexact Thing range must not pin the Thing overload: {markdown}"
+    );
+    for signature in [
+        "`(BasicList, Function) -> BasicList`",
+        "`(ZZ, Function) -> List`",
+        "`(String, Function) -> Sequence`",
+        "`(Thing, Function) -> Iterator`",
+    ] {
+        assert!(
+            markdown.contains(signature),
+            "the possible dispatch range should contain {signature}: {markdown}"
+        );
+    }
+
+    session
+        .replace(concat!(
+            "rangeResult = apply(mystery value, identity)\n",
+            "integerResult = apply(3, identity)\n",
+            "stringResult = apply(\"x\", identity)\n",
+            "rangeResult\n",
+            "integerResult\n",
+            "stringResult\n",
+        ))
+        .await;
+    assert_eq!(
+        hover_type_at(&mut session, 3, 0).await,
+        "BasicList | Iterator"
+    );
+    assert_eq!(hover_type_at(&mut session, 4, 0).await, "List");
+    assert_eq!(hover_type_at(&mut session, 5, 0).await, "Sequence");
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn declarative_diagnostics_expose_their_coupled_quick_fixes() {
     let cases = [
         ("x#0 := 1\n", "X05", "Use `=` for part assignment", "="),
@@ -915,6 +1066,58 @@ async fn declarative_diagnostics_expose_their_coupled_quick_fixes() {
         assert_eq!(action["edit"]["changes"][&uri][0]["newText"], replacement);
     }
 
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn expression_simplification_actions_are_backed_by_hints() {
+    let cases = [
+        (
+            "if ready then value else null\n",
+            "Simplify unnecessary null branch",
+        ),
+        (
+            "if not (left == right) then value\n",
+            "Simplify if condition",
+        ),
+        (
+            "if outer then one else (if inner then two else three)\n",
+            "Flatten nested if into else-if chain",
+        ),
+        ("try value then value\n", "Simplify try"),
+    ];
+    let mut session = DocumentSession::open(cases[0].0).await;
+
+    for (source, title) in cases {
+        session.replace(source).await;
+        let diagnostic = session
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic["code"] == "S05")
+            .unwrap_or_else(|| panic!("expected a simplification hint for `{source}`"))
+            .clone();
+        assert_eq!(diagnostic["severity"], 4);
+
+        let uri = session.uri().to_string();
+        let response = session
+            .request(
+                "textDocument/codeAction",
+                json!({
+                    "textDocument": {"uri": uri},
+                    "range": diagnostic["range"],
+                    "context": {"diagnostics": [diagnostic]}
+                }),
+            )
+            .await;
+        let action = response_array(&response)
+            .iter()
+            .find(|action| action["title"] == title)
+            .unwrap_or_else(|| panic!("expected `{title}` for `{source}`"));
+        assert_eq!(action["diagnostics"][0]["code"], "S05");
+    }
+
+    session.replace("if ready then value\n").await;
+    assert!(!session.diagnostic_codes().contains(&"S05"));
     session.shutdown().await;
 }
 
@@ -1254,27 +1457,127 @@ async fn callable_aliases_reinstall_methods_and_reassignments_remain_source_orde
     }
 
     session.replace("x = 1\na = x\nx = \"a\"\nb = x\n").await;
-    let before_reassignment = session
-        .request(
-            "textDocument/definition",
-            json!({
-                "textDocument": {"uri": session.uri()},
-                "position": {"line": 1, "character": 4}
-            }),
-        )
-        .await;
-    assert_eq!(before_reassignment["range"]["start"]["line"], 0);
+    for line in [1, 3] {
+        let declaration = session
+            .request(
+                "textDocument/declaration",
+                json!({
+                    "textDocument": {"uri": session.uri()},
+                    "position": {"line": line, "character": 4}
+                }),
+            )
+            .await;
+        assert_eq!(declaration["range"]["start"]["line"], 0);
 
-    let after_reassignment = session
+        let definitions = session
+            .request(
+                "textDocument/definition",
+                json!({
+                    "textDocument": {"uri": session.uri()},
+                    "position": {"line": line, "character": 4}
+                }),
+            )
+            .await;
+        assert_eq!(
+            response_array(&definitions)
+                .iter()
+                .map(|location| location["range"]["start"]["line"]
+                    .as_u64()
+                    .expect("definition line"))
+                .collect::<Vec<_>>(),
+            [0, 2]
+        );
+    }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn type_definitions_and_method_implementations_use_analysis_facts() {
+    let source = concat!(
+        "Token = new Type\n",
+        "value = new Token\n",
+        "value\n",
+        "p = method()\n",
+        "p(Token) := x -> x\n",
+        "p(ZZ) := x -> x\n",
+        "p\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+
+    let type_definition = session
+        .request_at("textDocument/typeDefinition", "value", 1)
+        .await;
+    assert_eq!(
+        type_definition["range"]["start"],
+        position(source, "Token", 0)
+    );
+
+    let implementations = session
+        .request_at("textDocument/implementation", "p", 3)
+        .await;
+    assert_eq!(
+        response_array(&implementations)
+            .iter()
+            .map(|location| location["range"]["start"]["line"]
+                .as_u64()
+                .expect("implementation line"))
+            .collect::<Vec<_>>(),
+        [4, 5]
+    );
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn document_links_resolve_and_completion_surfaces_contextual_choices() {
+    let source = concat!(
+        "-- header\n",
+        "x = 1\n",
+        "-- use `x`\n",
+        "needsPackage \"J\"\n",
+        "determinant(Str)\n",
+        "\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+
+    let links = session
         .request(
-            "textDocument/definition",
+            "textDocument/documentLink",
+            json!({"textDocument": {"uri": session.uri()}}),
+        )
+        .await;
+    let local_link = response_array(&links)
+        .iter()
+        .find(|link| link["tooltip"] == "Open `x`")
+        .expect("the documentation reference should be a document link")
+        .clone();
+    assert!(local_link["target"].is_null());
+    let resolved = session.request("documentLink/resolve", local_link).await;
+    assert!(
+        resolved["target"]
+            .as_str()
+            .is_some_and(|target| target.ends_with("#L2,1")),
+        "resolved local link should retain the definition position: {resolved}"
+    );
+
+    let package_completions = session.completion_labels("J", 0).await;
+    assert!(package_completions.iter().any(|label| label == "JSON"));
+    let option_completions = session.completion_labels("Str", 0).await;
+    assert!(option_completions.iter().any(|label| label == "Strategy"));
+
+    let empty_slot = session
+        .request(
+            "textDocument/completion",
             json!({
                 "textDocument": {"uri": session.uri()},
-                "position": {"line": 3, "character": 4}
+                "position": {"line": 5, "character": 0}
             }),
         )
         .await;
-    assert_eq!(after_reassignment["range"]["start"]["line"], 2);
+    assert!(response_array(&empty_slot)
+        .iter()
+        .any(|item| item["label"] == "while"));
 
     session.shutdown().await;
 }
@@ -1324,7 +1627,7 @@ async fn ring_generator_reassignments_preserve_binding_identity() {
 }
 
 #[tokio::test]
-async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
+async fn inlay_hints_track_values_destructuring_and_reassignments() {
     let source = concat!(
         "f = (count, text) -> text\n",
         "value = f(2, \"a\")\n",
@@ -1346,23 +1649,7 @@ async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
     let mut session = DocumentSession::open(source).await;
     session.set_expression_type_hints(false).await;
     let hints = inlay_hints(&mut session).await;
-
-    let parameter_hints = hints
-        .iter()
-        .filter(|hint| hint["kind"] == 2)
-        .map(|hint| {
-            (
-                hint["position"]["line"].as_u64().expect("hint line"),
-                hint["position"]["character"]
-                    .as_u64()
-                    .expect("hint character"),
-                hint["label"].as_str().expect("hint label"),
-            )
-        })
-        .collect::<Vec<_>>();
-    assert!(parameter_hints.contains(&(1, 10, "count:")));
-    assert!(parameter_hints.contains(&(1, 13, "text:")));
-    assert!(parameter_hints.contains(&(8, 16, "item:")));
+    assert!(hints.iter().all(|hint| hint["kind"] == 1));
 
     let type_hints = hints
         .iter()
@@ -1386,14 +1673,171 @@ async fn inlay_hints_track_values_destructuring_reassignments_and_parameters() {
     assert!(type_hints
         .iter()
         .any(|(line, _, label)| { *line == 5 && *label == "String" }));
-    assert!(type_hints.iter().all(|(_, _, label)| *label != "Thing"));
-    for quiet_line in [3, 4, 8, 9, 10, 11, 12, 13, 14, 15] {
+    for expected in [
+        (0, 25, "↑Thing"),
+        (1, 5, "↑Thing"),
+        (7, 30, "↑Thing"),
+        (8, 7, "↑Thing"),
+        (14, 29, "↑Thing"),
+    ] {
+        assert!(
+            type_hints.contains(&expected),
+            "missing unresolved type hint {expected:?}: {type_hints:?}"
+        );
+    }
+    for quiet_line in [3, 4, 9, 10, 11, 12, 13, 15] {
         assert!(
             type_hints.iter().all(|(line, _, _)| *line != quiet_line),
             "line {} should not have a type hint: {type_hints:?}",
             quiet_line + 1
         );
     }
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn expression_type_hints_follow_typechecker_substitutions() {
+    let mut session = DocumentSession::open("value = (toList 1, toList 2)\n").await;
+    let hints = inlay_hints(&mut session).await;
+    let list_positions = hints
+        .iter()
+        .filter(|hint| hint["label"] == "-> ↑List")
+        .map(|hint| {
+            hint["position"]["character"]
+                .as_u64()
+                .expect("hint position")
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        list_positions.contains(&17),
+        "missing first call: {hints:?}"
+    );
+    assert!(
+        list_positions.contains(&27),
+        "missing second call: {hints:?}"
+    );
+    assert!(hints.iter().all(|hint| hint["kind"] == 1));
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn expression_type_hints_render_complete_inferred_subsets() {
+    let source = concat!(
+        "if condition then 1 else toList 2\n",
+        "if condition then 1 else \"text\"\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    let hints = inlay_labels_by_line(&mut session).await;
+
+    assert!(
+        hints.contains(&(0, "↑List | ZZ".to_string())),
+        "missing upper-set and exact-point union: {hints:?}"
+    );
+    assert!(
+        hints.contains(&(1, "ZZ | String".to_string())),
+        "missing exact-point union: {hints:?}"
+    );
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn inferred_subsets_are_reduced_with_source_type_edges() {
+    let source = concat!(
+        "TokenStream = new Type of HashTable\n",
+        "known = method()\n",
+        "known Thing := TokenStream => x -> new TokenStream\n",
+        "f = x -> if condition then known x else mystery x\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    let hints = inlay_labels_by_line(&mut session).await;
+
+    assert!(
+        hints
+            .iter()
+            .any(|(line, label)| *line == 3 && label == "-> TokenStream"),
+        "fixture did not infer the source codomain: {hints:?}"
+    );
+    assert!(
+        hints
+            .iter()
+            .any(|(line, label)| *line == 3 && label == "↑Thing"),
+        "unknown reduced result was hidden: {hints:?}"
+    );
+    assert!(
+        hints.iter().all(|(_, label)| {
+            !label.contains("↑TokenStream | ↑Thing") && !label.contains("↑Thing | ↑TokenStream")
+        }),
+        "source subtype was not absorbed by Thing: {hints:?}"
+    );
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn call_hints_replace_parameter_names_with_types_and_codomains() {
+    let source = concat!(
+        "f = method()\n",
+        "f ZZ := List => x -> toList x\n",
+        "argument = 1\n",
+        "f argument\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    let hints = inlay_hints(&mut session).await;
+
+    assert!(
+        hints.iter().all(|hint| hint["kind"] == 1),
+        "parameter-name hints should be gone: {hints:?}"
+    );
+    assert!(
+        hints
+            .iter()
+            .all(|hint| { hint["position"]["line"] != 1 || hint["label"] != "↑ZZ" }),
+        "installation-typed parameters should not be repeated: {hints:?}"
+    );
+
+    let terminal_labels = hints
+        .iter()
+        .filter(|hint| hint["position"] == json!({"line": 3, "character": 10}))
+        .map(|hint| hint["label"].as_str().expect("hint label"))
+        .collect::<Vec<_>>();
+    assert_eq!(terminal_labels, ["ZZ", "-> ↑List"]);
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn lambda_bodies_keep_intermediate_and_return_type_hints() {
+    let source = concat!(
+        "f = x -> (\n",
+        "    x === x;\n",
+        "    toList x;\n",
+        "    toList x\n",
+        ")\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+    let hints = inlay_labels_by_line(&mut session).await;
+
+    assert!(
+        hints.contains(&(1, "Boolean".to_string())),
+        "semicolon hid the comparison type inside a lambda: {hints:?}"
+    );
+    assert!(
+        hints
+            .iter()
+            .any(|(line, label)| *line == 2 && label.as_str() == "-> ↑List"),
+        "semicolon hid a call codomain inside a lambda: {hints:?}"
+    );
+    assert!(
+        hints
+            .iter()
+            .any(|(line, label)| *line == 3 && label.as_str() == "↑List"),
+        "missing lambda return type: {hints:?}"
+    );
+    assert!(hints.iter().all(|(_, label)| label != "Nothing"));
 
     session.shutdown().await;
 }
@@ -1432,10 +1876,11 @@ async fn lambda_return_values_receive_nontrivial_type_hints() {
     assert_eq!(
         type_hints,
         [
-            (0, "List".into()),
-            (1, "List".into()),
-            (2, "List".into()),
-            (4, "List".into()),
+            (0, "↑List".into()),
+            (1, "↑Thing".into()),
+            (1, "↑List".into()),
+            (2, "↑List".into()),
+            (4, "↑List".into()),
         ]
     );
 
@@ -1477,55 +1922,6 @@ async fn assignment_type_hint_follows_the_binding_target() {
         .expect("the assignment should have a type hint");
 
     assert_eq!(type_hint["position"], json!({"line": 0, "character": 1}));
-
-    session.shutdown().await;
-}
-
-#[tokio::test]
-async fn parameter_inlay_hints_require_parenthesized_fixed_user_dispatch() {
-    let source = concat!(
-        "fixed = (left, right) -> left\n",
-        "fixed(1, 2)\n",
-        "fixed (3, 4)\n",
-        "unary = (item) -> item\n",
-        "unary 1\n",
-        "unary(1)\n",
-        "variadic = values -> values\n",
-        "variadic(1, 2)\n",
-        "dispatch = method()\n",
-        "dispatch(Thing) := (value) -> value\n",
-        "dispatch(ZZ) := (integer) -> integer\n",
-        "dispatch(1)\n",
-        "dispatch(\"a\")\n",
-        "builtin = ideal\n",
-        "builtin(1, 2)\n",
-    );
-    let mut session = DocumentSession::open(source).await;
-    session.set_expression_type_hints(false).await;
-    let hints = inlay_hints(&mut session).await;
-    let parameter_hints = hints
-        .iter()
-        .filter(|hint| hint["kind"] == 2)
-        .map(|hint| {
-            (
-                hint["position"]["line"].as_u64().expect("hint line"),
-                hint["label"].as_str().expect("hint label"),
-            )
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(
-        parameter_hints,
-        vec![
-            (1, "left:"),
-            (1, "right:"),
-            (2, "left:"),
-            (2, "right:"),
-            (5, "item:"),
-            (11, "integer:"),
-            (12, "value:"),
-        ]
-    );
 
     session.shutdown().await;
 }
@@ -1673,10 +2069,10 @@ async fn algebraic_runtime_types_and_generator_rebinding_reach_hover() {
         (6, "Q"),
         (7, "Q"),
         (8, "PolynomialRing"),
-        (9, "Ideal"),
+        (9, "↑Ideal"),
         (10, "QuotientRing"),
         (11, "Module"),
-        (12, "Ideal"),
+        (12, "↑Ideal"),
         (13, "Module"),
     ] {
         assert!(
@@ -1725,8 +2121,8 @@ async fn algebraic_runtime_types_and_generator_rebinding_reach_hover() {
         .replace("R = QQ[x]\nf = x^2\nJ = ideal(f)\nf\nJ\n")
         .await;
     let hints = inlay_labels_by_line(&mut session).await;
-    assert!(hints.contains(&(3, "RingElement".to_string())));
-    assert!(hints.contains(&(4, "Ideal".to_string())));
+    assert!(hints.contains(&(3, "↑RingElement".to_string())));
+    assert!(hints.contains(&(4, "↑Ideal".to_string())));
 
     session.shutdown().await;
 }

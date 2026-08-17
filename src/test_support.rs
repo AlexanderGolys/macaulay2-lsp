@@ -26,6 +26,10 @@ impl TypeStore for NoTypeKnowledge {
     fn parent_type_id(&self, _type_id: &TypeId) -> Option<TypeId> {
         None
     }
+
+    fn has_strict_subtype_id(&self, _type_id: &TypeId) -> bool {
+        false
+    }
 }
 
 impl TypeKnowledge for NoTypeKnowledge {
@@ -45,5 +49,5 @@ impl PositionedTypeKnowledge for NoTypeKnowledge {
 /// Analyze one syntax fixture without external object knowledge.
 pub fn analyze(root: M2Node<'_>) -> Analysis {
     let source = DocumentSource::new(root.text().to_string());
-    Analysis::new_with_knowledge(root, &source, &NoTypeKnowledge)
+    Analysis::new_with_knowledge(root, None, &source, &NoTypeKnowledge)
 }

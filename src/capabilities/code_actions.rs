@@ -2,17 +2,22 @@
 
 use std::collections::HashMap;
 
+use m2_syn::{
+    AdjacentExpression, BinaryExpression, IfStatement, ParenthesizedExpression, StringLiteral,
+    Symbol, Token, TryStatement,
+};
 use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
 use crate::analysis::{
-    ambiguous_float_member_access_rewrite, coalescence_rewrite,
-    redundant_control_parentheses_inner, MethodCodomainEdit,
+    ambiguous_float_member_access_rewrite, coalescence_rewrite, else_if_chain_rewrite,
+    if_condition_rewrite, if_null_branch_rewrite, redundant_control_parentheses_inner,
+    try_statement_rewrite, MethodCodomainEdit,
 };
 use crate::diagnostic_declarations;
 use crate::diagnostic_registry::{diagnostic_has_kind, DiagnosticKind};
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::{token_spelling, M2Node};
 use crate::source::SourceNavigation;
 use crate::util::TextRangeExt;
 
@@ -25,29 +30,27 @@ struct CodeActionContext<'tree, 'request> {
 }
 
 macro_rules! push_declared_action {
-    (none, $context:ident, $actions:ident) => {};
-    ((|$action_context:ident| $action:expr), $context:ident, $actions:ident) => {
-        let $action_context = $context;
-        if let Some(action) = $action {
+    ($kind:ident, $context:ident, $actions:ident) => {};
+    ($kind:ident, $context:ident, $actions:ident, $action:ident) => {
+        if let Some(action) = $action($context) {
             $actions.push(CodeActionOrCommand::CodeAction(action));
         }
     };
 }
 
 macro_rules! declared_code_actions {
-    (diagnostics { $($kind:ident {
+    (diagnostics { $($phase:ident { $($kind:ident {
         code: $code:literal, name: $name:literal, severity: $severity:ident,
-        legacy: [$($legacy:literal),* $(,)?],
-        check: $phase:ident => |$check_context:ident| $check:expr, action: $action:tt,
-    }),+ $(,)? } standalone_actions {
-        $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)?
+        check: $check:ident
+        $(, action: $action:ident)? $(,)?
+    }),+ $(,)? })+ } standalone_actions {
+        $($standalone:ident: $standalone_action:ident),* $(,)?
     }) => {
         |context: &CodeActionContext<'_, '_>| {
             let mut actions = CodeActionResponse::new();
-            $(push_declared_action!($action, context, actions);)+
+            $($(push_declared_action!($kind, context, actions $(, $action)?);)+)+
             $(
-                let $action_context = context;
-                if let Some(action) = $standalone_action {
+                if let Some(action) = $standalone_action(context) {
                     actions.push(CodeActionOrCommand::CodeAction(action));
                 }
             )*
@@ -110,8 +113,8 @@ fn colon_equal_part_assignment_action(context: &CodeActionContext<'_, '_>) -> Op
     assignment_operator_action(
         context,
         DiagnosticKind::ColonEqualPartAssignment,
-        ":=",
-        "=",
+        token_spelling::<Token![:=]>(),
+        token_spelling::<Token![=]>(),
         "Use `=` for part assignment",
     )
 }
@@ -120,8 +123,8 @@ fn install_needs_colon_equals_action(context: &CodeActionContext<'_, '_>) -> Opt
     assignment_operator_action(
         context,
         DiagnosticKind::InstallNeedsColonEquals,
-        "=",
-        ":=",
+        token_spelling::<Token![=]>(),
+        token_spelling::<Token![:=]>(),
         "Use `:=` for method installation",
     )
 }
@@ -159,7 +162,7 @@ fn assignment_operator_action(
 
 fn option_key_convention_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
     let diagnostic = diagnostic_at(context, DiagnosticKind::OptionKeyConvention)?;
-    let key = enclosing_node_with_range(context, NodeKind::Symbol, diagnostic.range)?;
+    let key = enclosing_node_with_range(context, diagnostic.range, |node| node.is::<Symbol>())?;
     let mut replacement = key.text().to_string();
     replacement.get_mut(..1)?.make_ascii_uppercase();
     Some(
@@ -179,8 +182,9 @@ fn option_key_convention_action(context: &CodeActionContext<'_, '_>) -> Option<C
 
 fn redundant_control_parentheses_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
     let diagnostic = diagnostic_at(context, DiagnosticKind::RedundantControlParentheses)?;
-    let parentheses =
-        enclosing_node_with_range(context, NodeKind::ParenthesizedExpression, diagnostic.range)?;
+    let parentheses = enclosing_node_with_range(context, diagnostic.range, |node| {
+        node.is::<ParenthesizedExpression>()
+    })?;
     let inner = redundant_control_parentheses_inner(parentheses)?;
     let range = diagnostic.range;
     Some(
@@ -223,7 +227,7 @@ fn coalescence_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction>
 
 fn protect_assigned_symbol_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
     let diagnostic = diagnostic_at(context, DiagnosticKind::ProtectAssignedSymbol)?;
-    let symbol = enclosing_node_with_range(context, NodeKind::Symbol, diagnostic.range)?;
+    let symbol = enclosing_node_with_range(context, diagnostic.range, |node| node.is::<Symbol>())?;
     let start = context.document.position_for_node(symbol);
     Some(
         CodeActionSpec {
@@ -242,19 +246,17 @@ fn protect_assigned_symbol_action(context: &CodeActionContext<'_, '_>) -> Option
 
 fn enclosing_node_with_range<'tree>(
     context: &CodeActionContext<'tree, '_>,
-    kind: NodeKind,
     range: TextRange,
+    matches: impl Fn(M2Node<'tree>) -> bool,
 ) -> Option<M2Node<'tree>> {
-    if kind == NodeKind::Symbol {
-        if let Some(symbol) = context.document.symbol_node_at_position(range.start) {
-            if context.document.range_for_node(symbol) == range {
-                return Some(symbol);
-            }
+    if let Some(symbol) = context.document.symbol_node_at_position(range.start) {
+        if matches(symbol) && context.document.range_for_node(symbol) == range {
+            return Some(symbol);
         }
     }
     let mut current = Some(context.cursor);
     while let Some(node) = current {
-        if node.kind == kind && context.document.range_for_node(node) == range {
+        if matches(node) && context.document.range_for_node(node) == range {
             return Some(node);
         }
         current = node.parent();
@@ -321,7 +323,9 @@ impl CodeActionSpec {
 /// Refactor: rewrite a heavily-escaped string literal as a raw `///…///` string
 /// when the value survives verbatim (no unsupported escapes, no `///` inside).
 fn convert_to_raw_string_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-    let string_node = context.cursor.enclosing(NodeKind::StringLiteral)?;
+    let string_node = context
+        .cursor
+        .enclosing_node(|node| node.is::<StringLiteral>())?;
     let replacement = raw_string_replacement(string_node)?;
 
     Some(
@@ -343,7 +347,9 @@ fn convert_to_raw_string_action(context: &CodeActionContext<'_, '_>) -> Option<C
 /// rewrite to the member access the user almost certainly meant (`x#3`).
 fn ambiguous_float_member_access_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
     let diagnostic = diagnostic_at(context, DiagnosticKind::AmbiguousFloatMemberAccess)?;
-    let expression = context.cursor.enclosing(NodeKind::BinaryExpression)?;
+    let expression = context
+        .cursor
+        .enclosing_node(|node| node.is::<AdjacentExpression>() || node.is::<BinaryExpression>())?;
     let replacement = ambiguous_float_member_access_rewrite(expression)?;
 
     Some(
@@ -364,15 +370,18 @@ fn ambiguous_float_member_access_action(context: &CodeActionContext<'_, '_>) -> 
 /// Refactor: drop a redundant `else null` (or `then null`, negating the
 /// condition) from an `if` statement.
 fn conditional_null_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-    let if_node = context.cursor.enclosing(NodeKind::IfStatement)?;
-    let replacement = refactor_if_null_branch(if_node)?;
+    let diagnostic = diagnostic_at(context, DiagnosticKind::SimplifiableExpression)?;
+    let if_node = context
+        .cursor
+        .enclosing_node(|node| node.is::<IfStatement>())?;
+    let replacement = if_null_branch_rewrite(if_node)?;
 
     Some(
         CodeActionSpec {
             title: "Simplify unnecessary null branch",
             kind: CodeActionKind::REFACTOR_REWRITE,
             is_preferred: None,
-            diagnostics: None,
+            diagnostics: Some(vec![diagnostic]),
         }
         .build(
             context.uri,
@@ -385,15 +394,18 @@ fn conditional_null_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAc
 /// Refactor: simplify a `try` statement — drop a redundant `then` echo or a
 /// redundant `else null`.
 fn simplify_try_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-    let try_node = context.cursor.enclosing(NodeKind::TryStatement)?;
-    let replacement = refactor_try_statement(try_node)?;
+    let diagnostic = diagnostic_at(context, DiagnosticKind::SimplifiableExpression)?;
+    let try_node = context
+        .cursor
+        .enclosing_node(|node| node.is::<TryStatement>())?;
+    let replacement = try_statement_rewrite(try_node)?;
 
     Some(
         CodeActionSpec {
             title: "Simplify try",
             kind: CodeActionKind::REFACTOR_REWRITE,
             is_preferred: None,
-            diagnostics: None,
+            diagnostics: Some(vec![diagnostic]),
         }
         .build(
             context.uri,
@@ -406,25 +418,18 @@ fn simplify_try_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction
 /// Refactor: push a leading `not` through a parenthesized comparison
 /// (`if not (a == b) then x` → `if a != b then x`).
 fn simplify_if_condition_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
-    let if_node = context.cursor.enclosing(NodeKind::IfStatement)?;
-    let condition = if_node.child_by_field_name("condition")?;
-    let simplified = simplify_condition(condition)?;
-
-    let then_branch = expression_of_clause(clause_child(if_node, NodeKind::ThenClause)?)?;
-    let else_clause = clause_child(if_node, NodeKind::ElseClause);
-
-    let mut replacement = format!("if {} then {}", simplified, then_branch.text());
-    if let Some(else_clause) = else_clause {
-        replacement.push(' ');
-        replacement.push_str(else_clause.text());
-    }
+    let diagnostic = diagnostic_at(context, DiagnosticKind::SimplifiableExpression)?;
+    let if_node = context
+        .cursor
+        .enclosing_node(|node| node.is::<IfStatement>())?;
+    let replacement = if_condition_rewrite(if_node)?;
 
     Some(
         CodeActionSpec {
             title: "Simplify if condition",
             kind: CodeActionKind::REFACTOR_REWRITE,
             is_preferred: None,
-            diagnostics: None,
+            diagnostics: Some(vec![diagnostic]),
         }
         .build(
             context.uri,
@@ -435,11 +440,12 @@ fn simplify_if_condition_action(context: &CodeActionContext<'_, '_>) -> Option<C
 }
 
 fn flatten_else_if_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
+    let diagnostic = diagnostic_at(context, DiagnosticKind::SimplifiableExpression)?;
     let mut current = Some(context.cursor);
     let mut candidate = None;
     while let Some(node) = current {
-        if node.kind == NodeKind::IfStatement {
-            if let Some(replacement) = flatten_else_if_chain(node) {
+        if node.is::<IfStatement>() {
+            if let Some(replacement) = else_if_chain_rewrite(node) {
                 candidate = Some((node, replacement));
             }
         }
@@ -451,7 +457,7 @@ fn flatten_else_if_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAct
             title: "Flatten nested if into else-if chain",
             kind: CodeActionKind::REFACTOR_REWRITE,
             is_preferred: None,
-            diagnostics: None,
+            diagnostics: Some(vec![diagnostic]),
         }
         .build(
             context.uri,
@@ -459,98 +465,6 @@ fn flatten_else_if_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAct
             replacement,
         ),
     )
-}
-
-fn flatten_else_if_chain(if_node: M2Node<'_>) -> Option<String> {
-    flatten_then_if_chain(if_node).or_else(|| flatten_parenthesized_else_if_chain(if_node))
-}
-
-fn flatten_then_if_chain(if_node: M2Node<'_>) -> Option<String> {
-    let condition = if_node.child_by_field_name("condition")?;
-    let then_clause = clause_child(if_node, NodeKind::ThenClause)?;
-    let then_branch = expression_of_clause(then_clause)?;
-    let nested_if = unwrap_parentheses(then_branch);
-    if nested_if.kind != NodeKind::IfStatement {
-        return None;
-    }
-    let else_branch = expression_of_clause(clause_child(if_node, NodeKind::ElseClause)?)?;
-    let nested_replacement =
-        flatten_else_if_chain(nested_if).unwrap_or_else(|| nested_if.text().to_string());
-
-    Some(format!(
-        "if {} then {} else {}",
-        negated_condition_text(condition),
-        else_branch.text(),
-        nested_replacement
-    ))
-}
-
-fn flatten_parenthesized_else_if_chain(if_node: M2Node<'_>) -> Option<String> {
-    let else_clause = clause_child(if_node, NodeKind::ElseClause)?;
-    let else_branch = expression_of_clause(else_clause)?;
-    let nested_if = unwrap_parentheses(else_branch);
-    if nested_if.kind != NodeKind::IfStatement {
-        return None;
-    }
-
-    let nested_replacement = flatten_else_if_chain(nested_if);
-    let removes_parentheses = nested_if.id() != else_branch.id();
-    if !removes_parentheses && nested_replacement.is_none() {
-        return None;
-    }
-
-    let replacement = nested_replacement.unwrap_or_else(|| nested_if.text().to_string());
-    let start = else_branch.start_byte() - if_node.start_byte();
-    let end = else_branch.end_byte() - if_node.start_byte();
-    let mut flattened = if_node.text().to_string();
-    flattened.replace_range(start..end, &replacement);
-    Some(flattened)
-}
-
-fn simplify_condition(node: M2Node<'_>) -> Option<String> {
-    let original = node.text();
-
-    if node.kind == NodeKind::PrefixExpression {
-        if let Some(operator) = node.child_by_field_name("operator") {
-            if operator.text() == "not" {
-                for child in node.named_children() {
-                    if child.id() != operator.id() {
-                        let inner = unwrap_parentheses(child);
-                        let simplified = negated_condition_text(inner);
-                        if simplified != original {
-                            return Some(simplified);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Note: there is deliberately no `(not a) <op> b` => `a <neg-op> b` rule.
-    // M2's `not` binds looser than every comparison, so `not a == b` parses as
-    // `not (a == b)` (handled above), and the only way to get a comparison whose
-    // operand is a `not` is to parenthesize it — `(not a) == b` — which the
-    // grammar wraps in a `parenthesized_expression`, not a bare prefix. That
-    // rewrite would also be unsound in general (it holds only for the boolean XOR
-    // case), so it is intentionally absent rather than dead/unsound code.
-    None
-}
-
-fn unwrap_parentheses(node: M2Node<'_>) -> M2Node<'_> {
-    if node.kind == NodeKind::ParenthesizedExpression && node.child_count() == 3 {
-        if let Some(inner) = node.child(1) {
-            return inner;
-        }
-    }
-    node
-}
-
-fn clause_child<'tree>(parent: M2Node<'tree>, kind: NodeKind) -> Option<M2Node<'tree>> {
-    parent.children().find(|child| child.kind == kind)
-}
-
-fn expression_of_clause(clause: M2Node<'_>) -> Option<M2Node<'_>> {
-    clause.named_children().next()
 }
 
 fn raw_string_replacement(string_node: M2Node<'_>) -> Option<String> {
@@ -604,125 +518,4 @@ fn unescape_string_literal_content(content: &str) -> Option<String> {
         }
     }
     Some(result)
-}
-
-fn is_null_literal(node: M2Node<'_>) -> bool {
-    node.kind == NodeKind::Symbol && node.text() == "null"
-}
-
-fn not_condition_needs_parentheses(node: M2Node<'_>) -> bool {
-    node.kind == NodeKind::BinaryExpression
-}
-
-fn negated_binary_operator(operator: &str) -> Option<&'static str> {
-    match operator {
-        "==" => Some("!="),
-        "!=" => Some("=="),
-        "===" => Some("=!="),
-        "=!=" => Some("==="),
-        "<" => Some(">="),
-        "<=" => Some(">"),
-        ">" => Some("<="),
-        ">=" => Some("<"),
-        _ => None,
-    }
-}
-
-fn negated_condition_text(node: M2Node<'_>) -> String {
-    if node.kind == NodeKind::PrefixExpression {
-        if let Some(operator) = node.child_by_field_name("operator") {
-            if operator.text() == "not" {
-                for child in node.named_children() {
-                    if child.id() != operator.id() {
-                        return child.text().to_string();
-                    }
-                }
-            }
-        }
-    }
-
-    if let Some(operator) = node.binary_operator() {
-        if let Some(negated_operator) = negated_binary_operator(operator) {
-            // A malformed binary expression (a MISSING operand in broken code)
-            // cannot be negated; fall through to the `not …` wrap instead.
-            if let (Some(left), Some(right)) = (
-                node.child_by_field_name("left"),
-                node.child_by_field_name("right"),
-            ) {
-                return format!("{} {} {}", left.text(), negated_operator, right.text());
-            }
-        }
-    }
-
-    let condition_text = node.text();
-    if not_condition_needs_parentheses(node) {
-        format!("not ({condition_text})")
-    } else {
-        format!("not {condition_text}")
-    }
-}
-
-pub fn refactor_if_null_branch(if_node: M2Node<'_>) -> Option<String> {
-    let condition = if_node.child_by_field_name("condition")?;
-    let then_branch = expression_of_clause(clause_child(if_node, NodeKind::ThenClause)?)?;
-    let else_branch = expression_of_clause(clause_child(if_node, NodeKind::ElseClause)?)?;
-
-    if is_null_literal(else_branch) {
-        return Some(format!(
-            "if {} then {}",
-            condition.text(),
-            then_branch.text(),
-        ));
-    }
-
-    if is_null_literal(then_branch) && !is_null_literal(else_branch) {
-        return Some(format!(
-            "if {} then {}",
-            negated_condition_text(condition),
-            else_branch.text(),
-        ));
-    }
-
-    None
-}
-
-fn try_condition(try_node: M2Node<'_>) -> Option<M2Node<'_>> {
-    try_node.named_children().find(|child| {
-        !matches!(
-            child.kind,
-            NodeKind::ThenClause
-                | NodeKind::ElseClause
-                | NodeKind::ExceptClause
-                | NodeKind::DoClause
-        )
-    })
-}
-
-pub fn refactor_try_statement(try_node: M2Node<'_>) -> Option<String> {
-    let condition = try_condition(try_node)?;
-    let consequence = clause_child(try_node, NodeKind::ThenClause).and_then(expression_of_clause);
-    let else_clause = clause_child(try_node, NodeKind::ElseClause);
-
-    let condition_text = condition.text();
-    let consequence_text = consequence.map(|node| node.text());
-
-    if let Some(consequence_text) = consequence_text {
-        if consequence_text == condition_text && else_clause.is_none() {
-            return Some(format!("try {condition_text}"));
-        }
-    }
-
-    if let Some(else_clause) = else_clause {
-        let alternative = expression_of_clause(else_clause)?;
-        if is_null_literal(alternative) {
-            let mut simplified = format!("try {condition_text}");
-            if let Some(consequence_text) = consequence_text {
-                simplified.push_str(" then ");
-                simplified.push_str(consequence_text);
-            }
-            return Some(simplified);
-        }
-    }
-
-    None
 }

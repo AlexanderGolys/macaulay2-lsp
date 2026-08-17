@@ -5,10 +5,11 @@
 .claude/
 .opencode/
 opencode.json
+.codex/
 
-# Agent planning docs
 docs/
 example_m2_code/
+examples/document1/
 
 # Root-level .md files are agent scratch (AGENTS/BUGS/TODO/TOTEST/...),
 # except the real project docs:
@@ -16,3 +17,4 @@ example_m2_code/
 !/README.md
 !/CONTRIBUTIONS.md
 !/CHANGELOG.md
+!/ANALYSIS.md

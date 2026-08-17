@@ -222,8 +222,9 @@ fn build_scope_symbols(scope_idx: usize, by_scope: &mut [Vec<Declaration>]) -> V
 mod tests {
     use super::*;
     use crate::document::DocumentSnapshot;
-    use crate::node_metadata::{M2Node, M2Parser, NodeKind};
+    use crate::node_metadata::{M2Node, M2Parser};
     use crate::object_registry::ObjectRegistry;
+    use m2_syn::{LambdaExpression, Symbol};
     use tower_lsp::lsp_types::Range as TextRange;
 
     fn document(text: &str, builtins: &ObjectRegistry) -> DocumentSnapshot {
@@ -399,17 +400,13 @@ mod tests {
     fn document_symbols_cover_static_top_level_extractor_bindings() {
         fn has_function_ancestor(node: M2Node) -> bool {
             node.ancestors()
-                .any(|parent| parent.kind == NodeKind::LambdaExpression)
+                .any(|parent| parent.is::<LambdaExpression>())
         }
 
         fn collect_static_top_level_bindings(node: M2Node, names: &mut Vec<String>) {
             if node.is_assignment() && !has_function_ancestor(node) {
-                if let (Some(left), Some(operator)) = (
-                    node.child_by_field_name("left"),
-                    node.child_by_field_name("operator"),
-                ) {
-                    let operator_text = operator.text();
-                    if left.kind == NodeKind::Symbol && operator_text.contains(['=', ':']) {
+                if let Some(left) = node.child_by_field_name("left") {
+                    if left.is::<Symbol>() {
                         let name = left.text().to_string();
                         if !names.contains(&name) {
                             names.push(name);

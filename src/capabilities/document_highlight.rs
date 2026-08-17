@@ -1,8 +1,10 @@
 //! In-document highlighting for resolved symbols and compound-statement words.
 
+use m2_syn::{ForLoop, LambdaExpression, MutedCell, PrefixExpression, WhileLoop};
+
 use crate::capabilities::navigation::{reference_ranges_resolved, unbound_reference_ranges};
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::M2Node;
 use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
 use crate::typesystem::TypeKnowledge;
@@ -122,12 +124,12 @@ fn semicolon_expression_highlight(
         return None;
     }
     let muted = semicolon.parent()?;
-    if muted.kind != NodeKind::Muted {
+    if !muted.is::<MutedCell>() {
         return None;
     }
     let expression = muted
         .named_children()
-        .find(|child| !child.kind.is_comment() && child.end_byte() <= semicolon.start_byte())?;
+        .find(|child| !child.is_comment() && child.end_byte() <= semicolon.start_byte())?;
     let mut markers = expression_boundary_markers(expression)
         .into_iter()
         .filter(|marker| marker.start_byte() < marker.end_byte())
@@ -159,7 +161,7 @@ fn semicolon_expression_highlight(
 /// Every selected range comes from the CST; this deliberately does not scan the
 /// source to rediscover token boundaries.
 fn expression_boundary_markers(expression: M2Node<'_>) -> Vec<M2Node<'_>> {
-    if expression.kind == NodeKind::PrefixExpression {
+    if expression.is::<PrefixExpression>() {
         let mut markers = expression
             .child_by_field_name("operator")
             .into_iter()
@@ -185,7 +187,7 @@ fn expression_boundary_markers(expression: M2Node<'_>) -> Vec<M2Node<'_>> {
         let mut markers = vec![opening];
         if let Some(first_expression) = expression
             .named_children()
-            .find(|child| !child.kind.is_comment())
+            .find(|child| !child.is_comment())
         {
             markers.extend(expression_boundary_markers(first_expression));
         }
@@ -193,13 +195,13 @@ fn expression_boundary_markers(expression: M2Node<'_>) -> Vec<M2Node<'_>> {
         return markers;
     }
 
-    if expression.kind.is_symbol_like() || expression.kind.is_literal() {
+    if expression.is_symbol_like() || expression.is_literal() {
         return vec![expression];
     }
 
     expression
         .children()
-        .find(|child| !child.kind.is_comment())
+        .find(|child| !child.is_comment())
         .map(expression_boundary_markers)
         .unwrap_or_else(|| vec![expression])
 }
@@ -252,7 +254,7 @@ fn control_owner_highlights(
     let cursor = document.node_at_position_minimal(position)?;
     let mut current = cursor;
     loop {
-        if current.kind == NodeKind::LambdaExpression {
+        if current.is::<LambdaExpression>() {
             let operator = current.child_by_field_name("operator")?;
             if operator.contains(cursor) {
                 let mut nodes = vec![operator];
@@ -261,10 +263,7 @@ fn control_owner_highlights(
             }
             return None;
         }
-        if matches!(
-            current.kind,
-            NodeKind::ForStatement | NodeKind::WhileStatement
-        ) {
+        if current.is::<ForLoop>() || current.is::<WhileLoop>() {
             let mut nodes = statement_keyword_tokens(current);
             if nodes.iter().any(|keyword| keyword.contains(cursor)) {
                 extend_control_transfer_nodes(&mut nodes, current, document, knowledge);
@@ -279,20 +278,19 @@ fn control_owner_highlights(
 fn extend_control_transfer_nodes<'tree>(
     nodes: &mut Vec<M2Node<'tree>>,
     owner: M2Node<'tree>,
-    document: &DocumentSnapshot,
+    document: &'tree DocumentSnapshot,
     knowledge: &(impl TypeKnowledge + ?Sized),
 ) {
-    nodes.extend(
-        owner
-            .descendants()
-            .filter(|candidate| {
-                candidate.kind.is_control_transfer()
-                    && document
-                        .analysis()
-                        .control_transfer_target(*candidate, document, knowledge)
-                        .is_some_and(|candidate_target| candidate_target.owner().id() == owner.id())
-            })
-            .filter_map(|statement| statement.child(0)),
+    document.analysis().for_each_control_transfer(
+        document.root_node(),
+        document.syntax(),
+        document,
+        knowledge,
+        |statement, target| {
+            if target.owner().id() == owner.id() {
+                nodes.extend(statement.child(0));
+            }
+        },
     );
 }
 
@@ -313,7 +311,7 @@ fn highlights_for_nodes(
 }
 
 fn enclosing_control_transfer(node: M2Node<'_>) -> Option<M2Node<'_>> {
-    node.enclosing_matching(|kind| kind.is_control_transfer())
+    node.enclosing_node(M2Node::is_control_transfer)
 }
 
 /// Highlight the keyword sequence of the compound statement under the cursor:
@@ -344,30 +342,26 @@ fn keyword_sequence_highlights(
 }
 
 fn enclosing_keyword_statement(node: M2Node<'_>) -> Option<M2Node<'_>> {
-    node.enclosing_matching(|kind| kind.is_keyword_statement())
+    node.enclosing_node(M2Node::is_keyword_statement)
 }
 
 /// Collect the keyword tokens of a compound statement: its own leading keyword
 /// plus the leading keyword of each direct clause child. Nested statements are
 /// not descended into — they own their own sequence.
 fn statement_keyword_tokens(statement: M2Node<'_>) -> Vec<M2Node<'_>> {
-    let mut keywords = Vec::new();
-    if statement.kind.is_keyword_statement() {
-        let Some(kw) = statement.child(0) else {
-            return Vec::new();
-        };
-        keywords.push(kw);
+    if statement.is_keyword_statement() {
+        let mut keywords = statement
+            .children()
+            .filter(M2Node::is_keyword_token)
+            .collect::<Vec<_>>();
         for child in statement.named_children() {
-            let Some(kw_child) = child.child(0) else {
-                continue;
-            };
-            if child.kind.is_keyword_clause() {
-                keywords.push(kw_child);
-            };
+            if child.is_keyword_clause() {
+                keywords.extend(child.children().filter(M2Node::is_keyword_token));
+            }
         }
         return keywords;
     }
-    if statement.kind.is_keyword_clause() {
+    if statement.is_keyword_clause() {
         let Some(st) = enclosing_keyword_statement(statement) else {
             return Vec::new();
         };

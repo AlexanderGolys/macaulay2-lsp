@@ -5,9 +5,10 @@
 //! deliberately treats those regions as opaque, so each span receives a small
 //! isolated parse for reference extraction.
 
+use m2_syn::RawStringLiteral;
 use tower_lsp::lsp_types::{Position, Range as TextRange};
 
-use crate::node_metadata::{M2Node, M2Parser, NodeKind};
+use crate::node_metadata::{M2Node, M2Parser};
 use crate::source::{ByteRange, DocumentSpan, SourceNavigation};
 use crate::util::TextRangeExt;
 
@@ -70,7 +71,7 @@ pub fn collect_documentation(
 }
 
 fn is_documentation_container(node: M2Node<'_>) -> bool {
-    node.kind.is_comment() || node.kind == NodeKind::RawStringLiteral
+    node.is_comment() || node.is::<RawStringLiteral>()
 }
 
 fn collect_backtick_snippets(

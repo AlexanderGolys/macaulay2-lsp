@@ -11,6 +11,10 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use tokio::{io, task};
 use tower_lsp::jsonrpc::{Error, Result};
+use tower_lsp::lsp_types::request::{
+    GotoDeclarationParams, GotoDeclarationResponse, GotoImplementationParams,
+    GotoImplementationResponse, GotoTypeDefinitionParams, GotoTypeDefinitionResponse,
+};
 use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
@@ -24,7 +28,6 @@ mod client_capabilities;
 mod diagnostic_registry;
 mod document;
 mod documentation;
-mod macro_syntax;
 mod meta;
 mod node_metadata;
 mod object_registry;
@@ -51,9 +54,11 @@ use capabilities::formatting::{
 use capabilities::hover::hover_response;
 use capabilities::inlay_hints::{inlay_hint_provider_capability, inlay_hints_response};
 use capabilities::navigation::{
-    completion_response, global_reference_ranges, goto_definition_response, is_valid_m2_identifier,
-    prepare_rename_range, reference_target, references_response, rename_edits,
-    workspace_symbols_response, ReferenceTarget,
+    completion_response, document_link_request, document_links_response, global_reference_ranges,
+    goto_declaration_response, goto_definition_response, goto_implementation_response,
+    goto_type_definition_response, is_valid_m2_identifier, prepare_rename_range, reference_target,
+    references_response, rename_edits, resolve_document_link, workspace_symbols_response,
+    ReferenceTarget,
 };
 use capabilities::semantic_tokens::collect_semantic_tokens;
 use capabilities::signature_help::signature_help_response;
@@ -307,7 +312,12 @@ impl LanguageServer for Backend {
                 folding_range_provider: folding_range_provider_capability(),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
                 completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec!["$".to_string()]),
+                    trigger_characters: Some(
+                        ["$", "(", ",", "\""]
+                            .into_iter()
+                            .map(str::to_string)
+                            .collect(),
+                    ),
                     ..Default::default()
                 }),
                 signature_help_provider: Some(SignatureHelpOptions {
@@ -316,6 +326,13 @@ impl LanguageServer for Backend {
                     work_done_progress_options: Default::default(),
                 }),
                 definition_provider: Some(OneOf::Left(true)),
+                declaration_provider: Some(DeclarationCapability::Simple(true)),
+                type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
+                implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
+                document_link_provider: Some(DocumentLinkOptions {
+                    resolve_provider: Some(true),
+                    work_done_progress_options: WorkDoneProgressOptions::default(),
+                }),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 document_highlight_provider: document_highlight_provider_capability(),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
@@ -742,10 +759,96 @@ impl LanguageServer for Backend {
                     &knowledge.at(position),
                     &self.source_resolver,
                     &self.workspace_index,
-                    |package| self.source_resolver.package_location(package),
                 )
             })
             .flatten())
+    }
+
+    async fn goto_declaration(
+        &self,
+        params: GotoDeclarationParams,
+    ) -> Result<Option<GotoDeclarationResponse>> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        Ok(self
+            .with_scoped_document(uri, |document, knowledge| {
+                goto_declaration_response(
+                    document,
+                    uri,
+                    position,
+                    &knowledge.at(position),
+                    &self.source_resolver,
+                    &self.workspace_index,
+                )
+            })
+            .flatten())
+    }
+
+    async fn goto_type_definition(
+        &self,
+        params: GotoTypeDefinitionParams,
+    ) -> Result<Option<GotoTypeDefinitionResponse>> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        Ok(self
+            .with_scoped_document(uri, |document, knowledge| {
+                goto_type_definition_response(
+                    document,
+                    uri,
+                    position,
+                    &knowledge.at(position),
+                    &self.workspace_index,
+                    &self.source_resolver,
+                )
+            })
+            .flatten())
+    }
+
+    async fn goto_implementation(
+        &self,
+        params: GotoImplementationParams,
+    ) -> Result<Option<GotoImplementationResponse>> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        Ok(self
+            .with_scoped_document(uri, |document, knowledge| {
+                goto_implementation_response(
+                    document,
+                    position,
+                    uri,
+                    &knowledge.at(position),
+                    &self.source_resolver,
+                )
+            })
+            .flatten())
+    }
+
+    async fn document_link(&self, params: DocumentLinkParams) -> Result<Option<Vec<DocumentLink>>> {
+        let uri = params.text_document.uri;
+        Ok(self.with_document(&uri, |document| document_links_response(document, &uri)))
+    }
+
+    async fn document_link_resolve(&self, link: DocumentLink) -> Result<DocumentLink> {
+        let Some(request) = document_link_request(&link) else {
+            return Ok(link);
+        };
+        let uri = request.text_document.uri;
+        let position = request.position;
+        let response = self
+            .with_scoped_document(&uri, |document, knowledge| {
+                goto_definition_response(
+                    document,
+                    &uri,
+                    position,
+                    &knowledge.at(position),
+                    &self.source_resolver,
+                    &self.workspace_index,
+                )
+            })
+            .flatten();
+        Ok(response.map_or(link.clone(), |response| {
+            resolve_document_link(link, response)
+        }))
     }
 }
 

@@ -44,3 +44,5 @@ e_2.e2
 keys e_2.
 e_2. e2
 disassemble (() -> 2. .e2) -- keyError, but syntax ok:
+s#"1".a
+"1".2

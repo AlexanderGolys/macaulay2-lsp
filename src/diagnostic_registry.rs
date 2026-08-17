@@ -6,121 +6,128 @@ use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Range
 macro_rules! diagnostic_declarations {
     ($consumer:ident) => {
         $consumer! {
-          diagnostics {
-            SyntaxError {
-                code: "X01", name: "syntax-error", severity: ERROR, legacy: ["E00"],
-                check: node => |context| context.syntax_error(), action: none,
-            },
-            MissingNode {
-                code: "X02", name: "missing-node", severity: ERROR, legacy: ["E01"],
-                check: node => |context| context.missing_node(), action: none,
-            },
-            AmbiguousFloatMemberAccess {
-                code: "X03", name: "ambiguous-float-member-access", severity: WARNING,
-                legacy: ["E02"],
-                check: node => |context| context.ambiguous_float_member_access(),
-                action: (|context| ambiguous_float_member_access_action(context)),
-            },
-            MultipleAssignmentTargets {
-                code: "X04", name: "multiple-assignment-targets", severity: ERROR,
-                legacy: ["E03"],
-                check: node => |context| context.multiple_assignment_targets(), action: none,
-            },
-            ColonEqualPartAssignment {
-                code: "X05", name: "colon-equal-part-assignment", severity: ERROR,
-                legacy: ["E04"],
-                check: node => |context| context.colon_equal_part_assignment(),
-                action: (|context| colon_equal_part_assignment_action(context)),
-            },
-            ParallelAssignmentArity {
-                code: "X06", name: "parallel-assignment-arity", severity: ERROR,
-                legacy: ["E05"],
-                check: node => |context| context.parallel_assignment_arity(), action: none,
-            },
-            OptionKeyConvention {
-                code: "S01", name: "option-key-convention", severity: HINT, legacy: ["E06"],
-                check: node => |context| context.option_key_convention(),
-                action: (|context| option_key_convention_action(context)),
-            },
-            RedundantControlParentheses {
-                code: "S03", name: "redundant-control-parentheses", severity: HINT, legacy: [],
-                check: node => |context| context.redundant_control_parentheses(),
-                action: (|context| redundant_control_parentheses_action(context)),
-            },
-            PreferCoalescence {
-                code: "S04", name: "prefer-coalescence", severity: HINT, legacy: [],
-                check: node => |context| context.prefer_coalescence(),
-                action: (|context| coalescence_action(context)),
-            },
-            UnusedBinding {
-                code: "S02", name: "unused-binding", severity: WARNING, legacy: ["E07"],
-                check: document => |context| context.unused_bindings(), action: none,
-            },
-            InstallNoEffect {
-                code: "E01", name: "install-no-effect", severity: WARNING, legacy: ["E08"],
-                check: installation => |context| context.install_no_effect(), action: none,
-            },
-            OperatorNotFlexible {
-                code: "E02", name: "operator-not-flexible", severity: ERROR, legacy: ["E09"],
-                check: installation => |context| context.operator_not_flexible(), action: none,
-            },
-            InstallArity {
-                code: "E03", name: "install-arity", severity: ERROR, legacy: ["E10"],
-                check: installation => |context| context.install_arity(), action: none,
-            },
-            InstallNeedsColonEquals {
-                code: "E04", name: "install-needs-colon-equals", severity: ERROR,
-                legacy: ["E11"],
-                check: node => |context| context.install_needs_colon_equals(),
-                action: (|context| install_needs_colon_equals_action(context)),
-            },
-            ProtectAssignedSymbol {
-                code: "E05", name: "protect-assigned-symbol", severity: HINT, legacy: ["E12"],
-                check: node => |context| context.protect_assigned_symbol(),
-                action: (|context| protect_assigned_symbol_action(context)),
-            },
-            ProtectComputedSymbol {
-                code: "E06", name: "protect-computed-symbol", severity: WARNING,
-                legacy: ["E13"],
-                check: node => |context| context.protect_computed_symbol(), action: none,
-            },
-            MissingOutputCell {
-                code: "E07", name: "missing-output-cell", severity: WARNING, legacy: ["E14"],
-                check: node => |context| context.missing_output_cell(), action: none,
-            },
-            InvalidControlTransfer {
-                code: "E08", name: "invalid-control-transfer", severity: ERROR, legacy: ["E15"],
-                check: node => |context| context.invalid_control_transfer(), action: none,
-            },
-            ParallelAssignmentType {
-                code: "T01", name: "parallel-assignment-type", severity: ERROR,
-                legacy: ["E16"],
-                check: node => |context| context.parallel_assignment_type(), action: none,
-            },
-            ConditionType {
-                code: "T02", name: "condition-type", severity: WARNING,
-                legacy: ["E17", "E18", "while-condition-type", "if-condition-type"],
-                check: node => |context| context.condition_type(), action: none,
-            },
-            InstallCodomainMissing {
-                code: "T03", name: "install-codomain-missing", severity: HINT,
-                legacy: ["E19"],
-                check: codomain => |context| context.missing_codomain(),
-                action: (|context| method_codomain_action(context)),
-            },
-            InstallCodomainMismatch {
-                code: "T04", name: "install-codomain-mismatch", severity: WARNING,
-                legacy: ["E20"],
-                check: codomain => |context| context.codomain_mismatch(), action: none,
-            },
-          }
-          standalone_actions {
-            ConvertToRawString => |context| convert_to_raw_string_action(context),
-            ConditionalNull => |context| conditional_null_action(context),
-            SimplifyTry => |context| simplify_try_action(context),
-            SimplifyIfCondition => |context| simplify_if_condition_action(context),
-            FlattenElseIf => |context| flatten_else_if_action(context),
-          }
+            diagnostics {
+                node {
+                    SyntaxError {
+                        code: "X01", name: "syntax-error", severity: ERROR,
+                        check: syntax_error,
+                    },
+                    MissingNode {
+                        code: "X02", name: "missing-node", severity: ERROR,
+                        check: missing_node,
+                    },
+                    AmbiguousFloatMemberAccess {
+                        code: "X03", name: "ambiguous-float-member-access", severity: WARNING,
+                        check: ambiguous_float_member_access,
+                        action: ambiguous_float_member_access_action,
+                    },
+                    MultipleAssignmentTargets {
+                        code: "X04", name: "multiple-assignment-targets", severity: ERROR,
+                        check: multiple_assignment_targets,
+                    },
+                    ColonEqualPartAssignment {
+                        code: "X05", name: "colon-equal-part-assignment", severity: ERROR,
+                        check: colon_equal_part_assignment,
+                        action: colon_equal_part_assignment_action,
+                    },
+                    ParallelAssignmentArity {
+                        code: "X06", name: "parallel-assignment-arity", severity: ERROR,
+                        check: parallel_assignment_arity,
+                    },
+                    OptionKeyConvention {
+                        code: "S01", name: "option-key-convention", severity: HINT,
+                        check: option_key_convention,
+                        action: option_key_convention_action,
+                    },
+                    RedundantControlParentheses {
+                        code: "S03", name: "redundant-control-parentheses", severity: HINT,
+                        check: redundant_control_parentheses,
+                        action: redundant_control_parentheses_action,
+                    },
+                    PreferCoalescence {
+                        code: "S04", name: "prefer-coalescence", severity: HINT,
+                        check: prefer_coalescence, action: coalescence_action,
+                    },
+                    SimplifiableExpression {
+                        code: "S05", name: "simplifiable-expression", severity: HINT,
+                        check: simplifiable_expression,
+                    },
+                }
+                document {
+                    UnusedBinding {
+                        code: "S02", name: "unused-binding", severity: WARNING,
+                        check: unused_bindings,
+                    },
+                }
+                installation {
+                    InstallNoEffect {
+                        code: "E01", name: "install-no-effect", severity: WARNING,
+                        check: install_no_effect,
+                    },
+                    OperatorNotFlexible {
+                        code: "E02", name: "operator-not-flexible", severity: ERROR,
+                        check: operator_not_flexible,
+                    },
+                    InstallArity {
+                        code: "E03", name: "install-arity", severity: ERROR,
+                        check: install_arity,
+                    },
+                }
+                node {
+                    InstallNeedsColonEquals {
+                        code: "E04", name: "install-needs-colon-equals", severity: ERROR,
+                        check: install_needs_colon_equals,
+                        action: install_needs_colon_equals_action,
+                    },
+                    ProtectAssignedSymbol {
+                        code: "E05", name: "protect-assigned-symbol", severity: HINT,
+                        check: protect_assigned_symbol,
+                        action: protect_assigned_symbol_action,
+                    },
+                    ProtectComputedSymbol {
+                        code: "E06", name: "protect-computed-symbol", severity: WARNING,
+                        check: protect_computed_symbol,
+                    },
+                    MissingOutputCell {
+                        code: "E07", name: "missing-output-cell", severity: WARNING,
+                        check: missing_output_cell,
+                    },
+                    InvalidControlTransfer {
+                        code: "E08", name: "invalid-control-transfer", severity: ERROR,
+                        check: invalid_control_transfer,
+                    },
+                    ExplicitInstallRequired {
+                        code: "E09", name: "explicit-install-required", severity: ERROR,
+                        check: explicit_install_required,
+                    },
+                    ParallelAssignmentType {
+                        code: "T01", name: "parallel-assignment-type", severity: ERROR,
+                        check: parallel_assignment_type,
+                    },
+                    ConditionType {
+                        code: "T02", name: "condition-type", severity: WARNING,
+                        check: condition_type,
+                    },
+                }
+                codomain {
+                    InstallCodomainMissing {
+                        code: "T03", name: "install-codomain-missing", severity: HINT,
+                        check: missing_codomain,
+                        action: method_codomain_action,
+                    },
+                    InstallCodomainMismatch {
+                        code: "T04", name: "install-codomain-mismatch", severity: WARNING,
+                        check: codomain_mismatch,
+                    },
+                }
+            }
+            standalone_actions {
+                ConvertToRawString: convert_to_raw_string_action,
+                ConditionalNull: conditional_null_action,
+                SimplifyTry: simplify_try_action,
+                SimplifyIfCondition: simplify_if_condition_action,
+                FlattenElseIf: flatten_else_if_action,
+            }
         }
     };
 }
@@ -129,34 +136,34 @@ struct DiagnosticRegistration {
     code: &'static str,
     name: &'static str,
     severity: DiagnosticSeverity,
-    legacy_selectors: &'static [&'static str],
 }
 
 macro_rules! register_diagnostics {
     (diagnostics { $(
-        $kind:ident {
-            code: $code:literal, name: $name:literal, severity: $severity:ident,
-            legacy: [$($legacy:literal),* $(,)?],
-            check: $phase:ident => |$context:ident| $check:expr, action: $action:tt,
-        }
-    ),+ $(,)? } standalone_actions { $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)? }) => {
+        $phase:ident { $(
+            $kind:ident {
+                code: $code:literal, name: $name:literal, severity: $severity:ident,
+                check: $check:ident
+                $(, action: $action:ident)? $(,)?
+            }
+        ),+ $(,)? }
+    )+ } standalone_actions { $($standalone:ident: $standalone_action:ident),* $(,)? }) => {
         /// A diagnostic the server can publish.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum DiagnosticKind {
-            $($kind),+
+            $($($kind),+),+
         }
 
         impl DiagnosticKind {
-            pub const ALL: &'static [Self] = &[$(Self::$kind),+];
+            pub const ALL: &'static [Self] = &[$($(Self::$kind),+),+];
 
             fn registration(self) -> DiagnosticRegistration {
                 match self {
-                    $(Self::$kind => DiagnosticRegistration {
+                    $($(Self::$kind => DiagnosticRegistration {
                         code: $code,
                         name: $name,
                         severity: DiagnosticSeverity::$severity,
-                        legacy_selectors: &[$($legacy),*],
-                    }),+
+                    }),+),+
                 }
             }
         }
@@ -175,21 +182,10 @@ impl DiagnosticKind {
     }
 
     pub fn from_selector(selector: &str) -> Option<Self> {
-        Self::ALL
-            .iter()
-            .copied()
-            .find(|diagnostic| {
-                let registration = diagnostic.registration();
-                selector == registration.code || selector == registration.name
-            })
-            .or_else(|| {
-                Self::ALL.iter().copied().find(|diagnostic| {
-                    diagnostic
-                        .registration()
-                        .legacy_selectors
-                        .contains(&selector)
-                })
-            })
+        Self::ALL.iter().copied().find(|diagnostic| {
+            let registration = diagnostic.registration();
+            selector == registration.code || selector == registration.name
+        })
     }
 
     pub fn from_lsp(diagnostic: &Diagnostic) -> Option<Self> {
@@ -240,10 +236,9 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn categorized_codes_names_and_legacy_selectors_are_unique() {
+    fn categorized_codes_and_names_are_unique() {
         let mut codes = HashSet::new();
         let mut names = HashSet::new();
-        let mut legacy_selectors = HashSet::new();
         for diagnostic in DiagnosticKind::ALL {
             let registration = diagnostic.registration();
             assert!(
@@ -256,28 +251,21 @@ mod tests {
             );
             assert!(codes.insert(registration.code), "duplicate diagnostic code");
             assert!(names.insert(registration.name), "duplicate diagnostic name");
-            for selector in registration.legacy_selectors {
-                assert!(
-                    legacy_selectors.insert(*selector),
-                    "duplicate legacy diagnostic selector `{selector}`"
-                );
-            }
         }
     }
 
     #[test]
-    fn canonical_codes_take_precedence_over_colliding_legacy_selectors() {
+    fn accepts_only_canonical_codes_and_names() {
         assert_eq!(
             DiagnosticKind::from_selector("E01"),
             Some(DiagnosticKind::InstallNoEffect)
         );
         assert_eq!(
-            DiagnosticKind::from_selector("E20"),
+            DiagnosticKind::from_selector("install-codomain-mismatch"),
             Some(DiagnosticKind::InstallCodomainMismatch)
         );
-        assert_eq!(
-            DiagnosticKind::from_selector("E00"),
-            Some(DiagnosticKind::SyntaxError)
-        );
+        assert_eq!(DiagnosticKind::from_selector("E00"), None);
+        assert_eq!(DiagnosticKind::from_selector("E20"), None);
+        assert_eq!(DiagnosticKind::from_selector("if-condition-type"), None);
     }
 }

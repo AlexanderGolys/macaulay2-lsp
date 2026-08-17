@@ -1,5 +1,9 @@
 //! Ring construction, generator rebinding, and ring-specific type rules.
 
+use m2_syn::{FloatLiteral, IntegerLiteral, NewStatement, Symbol, Token};
+
+use crate::node_metadata::visit_expression_nodes;
+
 use super::typechecker::{OperatorTypeQuery, TypeChecker};
 use super::*;
 
@@ -44,20 +48,23 @@ impl Analysis {
     pub fn collect_ring_generator_bindings(
         &mut self,
         ring_name: &str,
-        expression: M2Node,
+        expression: (M2Node, Option<&Expr>),
         rebind_node: M2Node,
         scope_idx: usize,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        let containers = expression
-            .descendants()
+        let (expression, syntax) = expression;
+        let mut nodes = Vec::new();
+        visit_expression_nodes(expression, syntax, |node| nodes.push(node));
+        let containers = nodes
+            .into_iter()
             .filter(|node| node.is_space_application())
             .filter_map(|node| {
                 let head = node.child_by_field_name("left")?;
                 let variables = RingGeneratorBinding::constructor_variables(node)?;
-                TypeChecker::new(self)
-                    .type_of(head, source, scope_idx, knowledge)
+                TypeChecker::new(self, knowledge)
+                    .type_of(head, source, scope_idx)
                     .single()
                     .is_some_and(|head_type| knowledge.has_type_role(head_type, TypeRole::Ring))
                     .then_some(variables)
@@ -104,14 +111,13 @@ impl Analysis {
 
     fn ring_source_symbol<'tree>(&self, expression: M2Node<'tree>) -> Option<&'tree str> {
         let expression = parenthesized_value(expression).unwrap_or(expression);
-        if expression.kind.is_symbol_like() {
-            return Some(expression.text());
+        if let Some(name) = symbol_node_text(expression) {
+            return Some(name);
         }
-        if expression.binary_operator() == Some("/") {
+        if expression.has_binary_operator::<Token![/]>() {
             return expression
                 .child_by_field_name("left")
-                .filter(|left| left.kind.is_symbol_like())
-                .map(|left| left.text());
+                .and_then(symbol_node_text);
         }
         None
     }
@@ -163,12 +169,16 @@ impl Analysis {
             })
             .or_else(|| self.future_assignment_binding(name, 0, position));
         let fact = BindingFact {
-            target: node,
-            value: None,
-            role: BindingRole::Ordinary,
-            effect: BindingEffect::Assign,
-            scope: 0,
-            potential_export: true,
+            name: ObjectName::new(name),
+            ..BindingFact::from_node(
+                node,
+                None,
+                BindingRole::Ordinary,
+                BindingEffect::Assign,
+                0,
+                true,
+                source,
+            )
         };
         let enrichment = BindingEnrichment {
             presentation_kind: SymbolKind::VARIABLE,
@@ -178,7 +188,7 @@ impl Analysis {
             parent_type: None,
         };
         let (binding_id, state_index) = if let Some(binding_id) = binding_id {
-            let Some(mut state_index) = self.add_binding_state(binding_id, fact, source) else {
+            let Some(mut state_index) = self.add_binding_state(binding_id, fact) else {
                 return;
             };
             if let Some(binding) = self.registry.bindings.get_mut(binding_id.0 as usize) {
@@ -193,7 +203,7 @@ impl Analysis {
             self.reindex_binding_states(binding_id);
             (binding_id, state_index)
         } else {
-            (self.add_binding(name, fact, source), 0)
+            (self.add_binding(fact), 0)
         };
         self.enrich_binding_state(binding_id, state_index, enrichment);
     }
@@ -202,12 +212,12 @@ impl Analysis {
 impl<'tree> RingGeneratorBinding<'tree> {
     fn constructor_variables(application: M2Node<'tree>) -> Option<M2Node<'tree>> {
         let argument = application.child_by_field_name("right")?;
-        if argument.kind.is_collection_expression() {
+        if argument.is_collection_expression() {
             return Some(argument);
         }
         argument
             .child_by_field_name("left")
-            .filter(|left| left.kind.is_collection_expression())
+            .filter(M2Node::is_collection_expression)
     }
 
     fn collect(container: M2Node<'tree>) -> Vec<Self> {
@@ -221,7 +231,7 @@ impl<'tree> RingGeneratorBinding<'tree> {
         for element in elements {
             if element.is_option_assignment() {
                 if let Some(variables) = Self::option_value(element, "Variables") {
-                    if variables.kind == NodeKind::IntegerLiteral {
+                    if variables.is::<IntegerLiteral>() {
                         let name = variable_base.clone().unwrap_or_else(|| "p".to_string());
                         Self::push(
                             &mut bindings,
@@ -248,22 +258,20 @@ impl<'tree> RingGeneratorBinding<'tree> {
             return None;
         }
         node.child_by_field_name("left")
-            .filter(|left| left.kind == NodeKind::Symbol && left.text() == key)?;
+            .filter(|left| left.is::<Symbol>() && left.text() == key)?;
         node.child_by_field_name("right")
     }
 
     fn base_name(node: M2Node<'tree>) -> Option<String> {
-        match node.kind {
-            NodeKind::Symbol => Some(node.text().to_string()),
-            kind if kind.is_string_literal() => {
-                node.string_literal_inner_text().map(ToString::to_string)
-            }
-            _ => None,
+        if node.is::<Symbol>() {
+            Some(node.text().to_string())
+        } else {
+            node.string_literal_inner_text().map(ToString::to_string)
         }
     }
 
     fn collect_spec(node: M2Node<'tree>, bindings: &mut Vec<RingGeneratorBinding<'tree>>) {
-        if node.kind == NodeKind::Symbol {
+        if node.is::<Symbol>() {
             Self::push(
                 bindings,
                 RingGeneratorBinding {
@@ -275,10 +283,10 @@ impl<'tree> RingGeneratorBinding<'tree> {
             return;
         }
 
-        if node.binary_operator() == Some("_") {
+        if node.has_binary_operator::<Token![_]>() {
             if let Some(base) = node
                 .child_by_field_name("left")
-                .filter(|base| base.kind == NodeKind::Symbol)
+                .filter(|base| base.is::<Symbol>())
             {
                 Self::push(
                     bindings,
@@ -292,7 +300,7 @@ impl<'tree> RingGeneratorBinding<'tree> {
             return;
         }
 
-        if matches!(node.binary_operator(), Some("..") | Some("..<")) {
+        if node.has_binary_operator::<Token![..]>() || node.has_binary_operator::<Token![..<]>() {
             let left = node.child_by_field_name("left");
             let right = node.child_by_field_name("right");
             if let (Some(left), Some(right)) = (left, right) {
@@ -328,7 +336,7 @@ impl<'tree> RingGeneratorBinding<'tree> {
             }
         }
 
-        if node.kind.is_collection_expression() {
+        if node.is_collection_expression() {
             for element in node.collection_elements() {
                 Self::collect_spec(element, bindings);
             }
@@ -336,10 +344,10 @@ impl<'tree> RingGeneratorBinding<'tree> {
     }
 
     fn indexed_base(node: M2Node<'tree>) -> Option<M2Node<'tree>> {
-        (node.binary_operator() == Some("_"))
+        node.has_binary_operator::<Token![_]>()
             .then(|| node.child_by_field_name("left"))
             .flatten()
-            .filter(|base| base.kind == NodeKind::Symbol)
+            .filter(|base| base.is::<Symbol>())
     }
 
     fn symbol_range(
@@ -347,7 +355,7 @@ impl<'tree> RingGeneratorBinding<'tree> {
         left: M2Node<'tree>,
         right: M2Node<'tree>,
     ) -> Option<Vec<String>> {
-        if left.kind != NodeKind::Symbol || right.kind != NodeKind::Symbol {
+        if !left.is::<Symbol>() || !right.is::<Symbol>() {
             return None;
         }
         let [start] = left.text().as_bytes() else {
@@ -364,7 +372,7 @@ impl<'tree> RingGeneratorBinding<'tree> {
             return None;
         }
 
-        let exclusive = range.binary_operator() == Some("..<");
+        let exclusive = range.has_binary_operator::<Token![..<]>();
         let stop = if exclusive {
             *end
         } else {
@@ -387,7 +395,7 @@ impl<'tree> RingGeneratorBinding<'tree> {
     }
 }
 
-impl TypeChecker<'_> {
+impl<Knowledge: PositionedTypeKnowledge + ?Sized> TypeChecker<'_, '_, Knowledge> {
     /// Infer the ring-specific indexed-variable and quotient operator cases.
     pub fn ring_operator_type(
         &self,
@@ -397,14 +405,11 @@ impl TypeChecker<'_> {
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
         let promoted_value = parenthesized_value(query.left)?;
-        if query.operator == "_"
-            && matches!(
-                promoted_value.kind,
-                NodeKind::IntegerLiteral | NodeKind::FloatLiteral
-            )
+        if matches_token::<Token![_]>(query.operator)
+            && (promoted_value.is::<IntegerLiteral>() || promoted_value.is::<FloatLiteral>())
         {
             let ring = parenthesized_value(query.right?)?;
-            let ring_type = self.type_of(ring, source, query.scope_idx, knowledge);
+            let ring_type = self.type_of(ring, source, query.scope_idx);
             if knowledge.has_type_role(ring_type.single()?, TypeRole::Ring) {
                 let element_type = self
                     .resolved_ring_element_type(
@@ -419,7 +424,9 @@ impl TypeChecker<'_> {
             }
         }
 
-        if query.operator == "_" && left_name.as_ref() == "IndexedVariableTable" {
+        if matches_token::<Token![_]>(query.operator)
+            && left_name.as_ref() == "IndexedVariableTable"
+        {
             if let Some(element_type) = self
                 .get_binding_from_scope(
                     query.left.text(),
@@ -433,8 +440,10 @@ impl TypeChecker<'_> {
             return Some(InferredType::upward("RingElement"));
         }
 
-        if query.operator == "/" && knowledge.has_type_role(left_name, TypeRole::Ring) {
-            let right_type = self.type_of(query.right?, source, query.scope_idx, knowledge);
+        if matches_token::<Token![/]>(query.operator)
+            && knowledge.has_type_role(left_name, TypeRole::Ring)
+        {
+            let right_type = self.type_of(query.right?, source, query.scope_idx);
             if right_type.single()?.as_ref() == "ZZ" {
                 return Some(InferredType::exact("QuotientRing"));
             }
@@ -503,16 +512,16 @@ impl TypeChecker<'_> {
         let Some(expression) = parenthesized_value(expression) else {
             return false;
         };
-        if expression.kind == NodeKind::NewStatement {
+        if expression.is::<NewStatement>() {
             return true;
         }
         let introduces_identity =
-            expression.is_space_application() || expression.binary_operator() == Some("/");
+            expression.is_space_application() || expression.has_binary_operator::<Token![/]>();
         let operand = introduces_identity
             .then(|| expression.child_by_field_name("left"))
             .flatten();
         operand.is_some_and(|operand| {
-            self.type_of(operand, source, scope_idx, knowledge)
+            self.type_of(operand, source, scope_idx)
                 .single()
                 .is_some_and(|type_name| knowledge.has_type_role(type_name, TypeRole::Ring))
         })
@@ -539,12 +548,12 @@ impl TypeChecker<'_> {
 
         let operator = argument.binary_operator()?;
         let variables = argument.child_by_field_name("left")?;
-        if !variables.kind.is_collection_expression() {
+        if !variables.is_collection_expression() {
             return None;
         }
         let trailing_operand = argument.child_by_field_name("right")?;
 
-        let variables_type = self.type_of(variables, source, scope_idx, knowledge);
+        let variables_type = self.type_of(variables, source, scope_idx);
         let ring_type = self.dispatch_codomain(
             knowledge,
             application_operator,
@@ -557,19 +566,16 @@ impl TypeChecker<'_> {
             return None;
         }
 
-        let trailing_type = self.type_of(trailing_operand, source, scope_idx, knowledge);
-        let result = knowledge.resolve_call_return_type_with_options(
-            &ObjectName::new(operator),
-            &[
-                self.dispatch_object_id(&ring_type, source.position_for_node(argument), knowledge),
-                self.dispatch_object_id(
-                    &trailing_type,
-                    source.position_for_node(argument),
-                    knowledge,
-                ),
-            ],
+        let trailing_type = self.type_of(trailing_operand, source, scope_idx);
+        Some(self.dispatch_codomain(
+            knowledge,
+            &Operator {
+                token: ObjectName::new(operator),
+                form: OperatorForm::Binary,
+            },
+            &[ring_type, trailing_type],
             &[],
-        )?;
-        Some(self.inferred_external_type(result, knowledge))
+            source.position_for_node(argument),
+        ))
     }
 }

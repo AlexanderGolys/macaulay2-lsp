@@ -2,75 +2,76 @@
 
 use super::*;
 use crate::diagnostic_declarations;
+use m2_syn::{
+    BreakStatement, ContinueStatement, FloatLiteral, ForLoop, IfStatement, IterationRange,
+    LambdaExpression, ParenthesizedExpression, PrefixExpression, QuoteExpression, ReturnStatement,
+    Symbol, Token, TryStatement, WhileLoop,
+};
 
 macro_rules! run_check_for_phase {
-    (node, node, $kind:ident, $check_context:ident, $check:expr, $context:ident) => {{
+    (node, node, $kind:ident, $check:ident, $context:ident) => {{
         $context.kind = DiagnosticKind::$kind;
-        let $check_context = &mut *$context;
-        $check;
+        $context.$check();
     }};
-    (installation, installation, $kind:ident, $check_context:ident, $check:expr, $context:ident) => {{
+    (installation, installation, $kind:ident, $check:ident, $context:ident) => {{
         $context.kind = DiagnosticKind::$kind;
-        let $check_context = &mut *$context;
-        $check;
+        $context.$check();
     }};
-    (codomain, codomain, $kind:ident, $check_context:ident, $check:expr, $context:ident) => {{
+    (codomain, codomain, $kind:ident, $check:ident, $context:ident) => {{
         $context.kind = DiagnosticKind::$kind;
-        let $check_context = &mut *$context;
-        $check;
+        $context.$check();
     }};
-    (document, document, $kind:ident, $check_context:ident, $check:expr, $context:ident) => {{
+    (document, document, $kind:ident, $check:ident, $context:ident) => {{
         $context.kind = DiagnosticKind::$kind;
-        let $check_context = &mut *$context;
-        $check;
+        $context.$check();
     }};
-    ($expected:ident, $actual:ident, $kind:ident, $check_context:ident, $check:expr, $context:ident) => {};
+    ($expected:ident, $actual:ident, $kind:ident, $check:ident, $context:ident) => {};
 }
 
 macro_rules! node_diagnostic_checks {
-    (diagnostics { $($kind:ident {
+    (diagnostics { $($phase:ident { $($kind:ident {
         code: $code:literal, name: $name:literal, severity: $severity:ident,
-        legacy: [$($legacy:literal),* $(,)?],
-        check: $phase:ident => |$check_context:ident| $check:expr, action: $action:tt,
-    }),+ $(,)? } standalone_actions { $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)? }) => {
+        check: $check:ident
+        $(, action: $action:ident)? $(,)?
+    }),+ $(,)? })+ } standalone_actions { $($standalone:ident: $standalone_action:ident),* $(,)? }) => {
         |context: &mut NodeDiagnosticContext<'_, '_, '_, _, _>| {
-            $(run_check_for_phase!(node, $phase, $kind, $check_context, $check, context);)+
+            $($(run_check_for_phase!(node, $phase, $kind, $check, context);)+)+
         }
     };
 }
 
 macro_rules! installation_diagnostic_checks {
-    (diagnostics { $($kind:ident {
+    (diagnostics { $($phase:ident { $($kind:ident {
         code: $code:literal, name: $name:literal, severity: $severity:ident,
-        legacy: [$($legacy:literal),* $(,)?],
-        check: $phase:ident => |$check_context:ident| $check:expr, action: $action:tt,
-    }),+ $(,)? } standalone_actions { $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)? }) => {
+        check: $check:ident
+        $(, action: $action:ident)? $(,)?
+    }),+ $(,)? })+ } standalone_actions { $($standalone:ident: $standalone_action:ident),* $(,)? }) => {
         |context: &mut InstallationDiagnosticContext<'_, '_, _>| {
-            $(run_check_for_phase!(installation, $phase, $kind, $check_context, $check, context);)+
+            $($(run_check_for_phase!(installation, $phase, $kind, $check, context);)+)+
         }
     };
 }
 
 macro_rules! codomain_diagnostic_checks {
-    (diagnostics { $($kind:ident {
+    (diagnostics { $($phase:ident { $($kind:ident {
         code: $code:literal, name: $name:literal, severity: $severity:ident,
-        legacy: [$($legacy:literal),* $(,)?],
-        check: $phase:ident => |$check_context:ident| $check:expr, action: $action:tt,
-    }),+ $(,)? } standalone_actions { $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)? }) => {
+        check: $check:ident
+        $(, action: $action:ident)? $(,)?
+    }),+ $(,)? })+ } standalone_actions { $($standalone:ident: $standalone_action:ident),* $(,)? }) => {
         |context: &mut CodomainDiagnosticContext<'_, '_, '_, _, _>| {
-            $(run_check_for_phase!(codomain, $phase, $kind, $check_context, $check, context);)+
+            $($(run_check_for_phase!(codomain, $phase, $kind, $check, context);)+)+
         }
     };
 }
 
 macro_rules! document_diagnostic_checks {
-    (diagnostics { $($kind:ident {
+    (diagnostics { $($phase:ident { $($kind:ident {
         code: $code:literal, name: $name:literal, severity: $severity:ident,
-        legacy: [$($legacy:literal),* $(,)?],
-        check: $phase:ident => |$check_context:ident| $check:expr, action: $action:tt,
-    }),+ $(,)? } standalone_actions { $($standalone:ident => |$action_context:ident| $standalone_action:expr),* $(,)? }) => {
+        check: $check:ident
+        $(, action: $action:ident)? $(,)?
+    }),+ $(,)? })+ } standalone_actions { $($standalone:ident: $standalone_action:ident),* $(,)? }) => {
         |context: &mut DocumentDiagnosticContext<'_, '_, '_, _>| {
-            $(run_check_for_phase!(document, $phase, $kind, $check_context, $check, context);)+
+            $($(run_check_for_phase!(document, $phase, $kind, $check, context);)+)+
         }
     };
 }
@@ -107,8 +108,10 @@ struct DocumentDiagnosticContext<'analysis, 'tree, 'source, Source: ?Sized> {
     source: &'source Source,
 }
 
-impl<Source: SourceNavigation + ?Sized, Knowledge: TypeKnowledge + ?Sized>
-    NodeDiagnosticContext<'_, '_, '_, Source, Knowledge>
+impl<
+        Source: SourceNavigation + ?Sized,
+        Knowledge: TypeKnowledge + PositionedTypeKnowledge + ?Sized,
+    > NodeDiagnosticContext<'_, '_, '_, Source, Knowledge>
 {
     fn syntax_error(&mut self) {
         if self.node.is_error() {
@@ -151,7 +154,7 @@ impl<Source: SourceNavigation + ?Sized, Knowledge: TypeKnowledge + ?Sized>
             return;
         };
         let operator = operator.text();
-        if matches!(operator, "=" | ":=")
+        if (matches_token::<Token![=]>(operator) || matches_token::<Token![:=]>(operator))
             && self
                 .analysis
                 .installation_for(self.node, self.source)
@@ -166,13 +169,13 @@ impl<Source: SourceNavigation + ?Sized, Knowledge: TypeKnowledge + ?Sized>
     }
 
     fn colon_equal_part_assignment(&mut self) {
-        if self.node.binary_operator() != Some(":=") {
+        if !self.node.has_binary_operator::<Token![:=]>() {
             return;
         }
         let Some(left) = self.node.child_by_field_name("left") else {
             return;
         };
-        if left.binary_operator() == Some("#") {
+        if left.has_binary_operator::<Token![#]>() {
             self.analysis.diagnostics.push(self.kind.at(
                 self.source.range_for_node(left),
                 "`:=` cannot assign to parts; use `=` for part assignment",
@@ -212,6 +215,22 @@ impl<Source: SourceNavigation + ?Sized, Knowledge: TypeKnowledge + ?Sized>
         ));
     }
 
+    fn simplifiable_expression(&mut self) {
+        let can_simplify = if self.node.is::<IfStatement>() {
+            if_null_branch_rewrite(self.node).is_some()
+                || if_condition_rewrite(self.node).is_some()
+                || else_if_chain_rewrite(self.node).is_some()
+        } else {
+            self.node.is::<TryStatement>() && try_statement_rewrite(self.node).is_some()
+        };
+        if can_simplify {
+            self.analysis.diagnostics.push(self.kind.at(
+                self.source.range_for_node(self.node),
+                "This expression can be simplified",
+            ));
+        }
+    }
+
     fn install_needs_colon_equals(&mut self) {
         let position = self.source.position_for_node(self.node);
         let Some(name) =
@@ -249,6 +268,35 @@ impl<Source: SourceNavigation + ?Sized, Knowledge: TypeKnowledge + ?Sized>
             .diagnose_control_transfer(self.kind, self.node, self.source, self.knowledge);
     }
 
+    fn explicit_install_required(&mut self) {
+        let is_classical_left_arrow_install = if self.node.has_binary_operator::<Token![<-]>() {
+            self.node
+                .child_by_field_name("right")
+                .filter(|right| right.has_binary_operator::<Token![:=]>())
+                .and_then(|right| right.child_by_field_name("right"))
+                .and_then(assigned_lambda)
+                .is_some()
+        } else {
+            self.node.has_binary_operator::<Token![:=]>()
+                && self
+                    .node
+                    .child_by_field_name("left")
+                    .and_then(parenthesized_value)
+                    .is_some_and(|left| left.has_binary_operator::<Token![<-]>())
+                && self
+                    .node
+                    .child_by_field_name("right")
+                    .and_then(assigned_lambda)
+                    .is_some()
+        };
+        if is_classical_left_arrow_install {
+            self.analysis.diagnostics.push(self.kind.at(
+                self.source.range_for_node(self.node),
+                "Methods for `<-` must be installed with `installMethod(symbol <-, Type, function)`",
+            ));
+        }
+    }
+
     fn parallel_assignment_type(&mut self) {
         self.parallel_assignment();
     }
@@ -260,7 +308,8 @@ impl<Source: SourceNavigation + ?Sized, Knowledge: TypeKnowledge + ?Sized>
 
     fn parallel_assignment(&mut self) {
         if !self.node.is_assignment()
-            || !matches!(self.node.binary_operator(), Some("=") | Some(":="))
+            || !(self.node.has_binary_operator::<Token![=]>()
+                || self.node.has_binary_operator::<Token![:=]>())
             || self
                 .analysis
                 .installation_for(self.node, self.source)
@@ -289,7 +338,7 @@ impl<Knowledge: TypeKnowledge + ?Sized> InstallationDiagnosticContext<'_, '_, Kn
         let method = &self.installation.method;
         if let MethodHead::Operator(operator) = &method.head {
             if operator.form == OperatorForm::Binary
-                && operator.token.name() == "??"
+                && matches_token::<Token![??]>(operator.token.name())
                 && self.installation.expected_rhs_arity() == method.domain.len()
             {
                 self.diagnostics.push(self.kind.at(
@@ -320,6 +369,9 @@ impl<Knowledge: TypeKnowledge + ?Sized> InstallationDiagnosticContext<'_, '_, Kn
     }
 
     fn operator_not_flexible(&mut self) {
+        if self.installation.syntax == MethodInstallationSyntax::InstallMethod {
+            return;
+        }
         let MethodHead::Operator(operator) = &self.installation.method.head else {
             return;
         };
@@ -413,11 +465,37 @@ impl Analysis {
     pub fn collect_diagnostics(
         &mut self,
         root: M2Node,
+        syntax: Option<&SourceFile>,
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl PositionedTypeKnowledge + ?Sized),
     ) {
-        self.diagnose_installations(root, source, knowledge);
-        self.scan_diagnostics(root, source, knowledge);
+        let installations_enabled = knowledge.at_position(pos!()).is_available();
+        let mut installation_diagnostics = Vec::new();
+        if installations_enabled {
+            for installation in &self.registry.installations {
+                let knowledge = knowledge.at_position(installation.span.start);
+                let mut context = InstallationDiagnosticContext {
+                    analysis: self,
+                    kind: DiagnosticKind::SyntaxError,
+                    installation,
+                    knowledge: &knowledge,
+                    diagnostics: &mut installation_diagnostics,
+                };
+                diagnostic_declarations!(installation_diagnostic_checks)(&mut context);
+            }
+        }
+        visit_source_nodes(root, syntax, |node| {
+            self.diagnose_node(node, source, knowledge);
+            if installations_enabled {
+                self.diagnose_installation_codomain(
+                    node,
+                    source,
+                    knowledge,
+                    &mut installation_diagnostics,
+                );
+            }
+        });
+        self.diagnostics.extend(installation_diagnostics);
         let mut context = DocumentDiagnosticContext {
             analysis: self,
             kind: DiagnosticKind::SyntaxError,
@@ -427,58 +505,26 @@ impl Analysis {
         diagnostic_declarations!(document_diagnostic_checks)(&mut context);
     }
 
-    fn diagnose_installations(
-        &mut self,
-        root: M2Node,
-        source: &(impl SourceNavigation + ?Sized),
-        knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
-    ) {
-        if !knowledge_provider.at_position(pos!()).is_available() {
-            return;
-        }
-        let mut diagnostics = Vec::new();
-        for installation in &self.registry.installations {
-            let knowledge = knowledge_provider.at_position(installation.span.start);
-            let mut context = InstallationDiagnosticContext {
-                analysis: self,
-                kind: DiagnosticKind::SyntaxError,
-                installation,
-                knowledge: &knowledge,
-                diagnostics: &mut diagnostics,
-            };
-            diagnostic_declarations!(installation_diagnostic_checks)(&mut context);
-        }
-        self.scan_installation_codomain_diagnostics(
-            root,
-            source,
-            knowledge_provider,
-            &mut diagnostics,
-        );
-        self.diagnostics.extend(diagnostics);
-    }
-
-    fn scan_installation_codomain_diagnostics(
+    fn diagnose_installation_codomain(
         &self,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
         knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
         out: &mut Vec<M2Diagnostic>,
     ) {
-        if node.is_assignment() {
-            let knowledge = knowledge_provider.at_position(source.position_for_node(node));
-            let mut context = CodomainDiagnosticContext {
-                analysis: self,
-                kind: DiagnosticKind::SyntaxError,
-                node,
-                source,
-                knowledge: &knowledge,
-                diagnostics: out,
-            };
-            diagnostic_declarations!(codomain_diagnostic_checks)(&mut context);
+        if !node.is_assignment() {
+            return;
         }
-        for child in node.children() {
-            self.scan_installation_codomain_diagnostics(child, source, knowledge_provider, out);
-        }
+        let knowledge = knowledge_provider.at_position(source.position_for_node(node));
+        let mut context = CodomainDiagnosticContext {
+            analysis: self,
+            kind: DiagnosticKind::SyntaxError,
+            node,
+            source,
+            knowledge: &knowledge,
+            diagnostics: out,
+        };
+        diagnostic_declarations!(codomain_diagnostic_checks)(&mut context);
     }
 
     fn illegal_equals_install_head(
@@ -487,11 +533,11 @@ impl Analysis {
         position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<String> {
-        if node.binary_operator() != Some("=") {
+        if !node.has_binary_operator::<Token![=]>() {
             return None;
         }
         let right = node.child_by_field_name("right")?;
-        if right.kind != NodeKind::LambdaExpression {
+        if !right.is::<LambdaExpression>() {
             return None;
         }
         let left = node.child_by_field_name("left")?;
@@ -516,7 +562,7 @@ impl Analysis {
 }
 
 impl Analysis {
-    fn scan_diagnostics(
+    fn diagnose_node(
         &mut self,
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
@@ -531,10 +577,6 @@ impl Analysis {
             knowledge: &knowledge,
         };
         diagnostic_declarations!(node_diagnostic_checks)(&mut context);
-
-        for child in node.children() {
-            self.scan_diagnostics(child, source, knowledge_provider);
-        }
     }
 
     fn diagnose_condition_type(
@@ -544,18 +586,20 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        let (construct, condition) = match node.kind {
-            NodeKind::IfStatement => ("if", node.child_by_field_name("condition")),
-            NodeKind::WhileStatement => ("while", node.named_child(0)),
-            _ => return,
+        let construct = if node.is::<IfStatement>() {
+            "if"
+        } else if node.is::<WhileLoop>() {
+            "while"
+        } else {
+            return;
         };
-        let Some(condition) = condition else {
+        let Some(condition) = node.child_by_field_name("condition") else {
             return;
         };
         let position = source.position_for_node(condition);
         let scope_idx = self.find_scope_at(position).unwrap_or(0);
-        let checker = TypeChecker::new(self);
-        let actual = checker.type_of(condition, source, scope_idx, knowledge);
+        let checker = TypeChecker::new(self, knowledge);
+        let actual = checker.type_of(condition, source, scope_idx);
         if actual.possibility_by(&TypeRole::Boolean.object_name(), |candidate, bound| {
             checker.subtype_evidence(candidate, bound, position, knowledge)
         }) != SubtypeEvidence::Disproven
@@ -578,7 +622,10 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        if !node.kind.is_control_transfer() {
+        if !node.is::<ReturnStatement>()
+            && !node.is::<BreakStatement>()
+            && !node.is::<ContinueStatement>()
+        {
             return;
         }
         let target = self.control_transfer_target(node, source, knowledge);
@@ -586,27 +633,19 @@ impl Analysis {
             return;
         }
 
-        let message = match node.kind {
-            NodeKind::ReturnStatement => "`return` can only be used inside a function body",
-            NodeKind::BreakStatement => {
-                "`break` can only be used inside a loop body or an `apply`/`scan` callback"
-            }
-            NodeKind::ContinueStatement
-                if node.named_child(0).is_some()
-                    && matches!(
-                        target,
-                        Some(
-                            ControlTransferTarget::DoLoop(_)
-                                | ControlTransferTarget::LoopCallback { .. }
-                        )
-                    ) =>
-            {
-                "`continue` with a value requires a `list` clause"
-            }
-            NodeKind::ContinueStatement => {
-                "`continue` can only be used inside a `list` or `do` loop body"
-            }
-            _ => return,
+        let message = if node.is::<ReturnStatement>() {
+            "`return` can only be used inside a function body"
+        } else if node.is::<BreakStatement>() {
+            "`break` can only be used inside a loop body or an `apply`/`scan` callback"
+        } else if node.named_child(0).is_some()
+            && matches!(
+                target,
+                Some(ControlTransferTarget::DoLoop(_) | ControlTransferTarget::LoopCallback { .. })
+            )
+        {
+            "`continue` with a value requires a `list` clause"
+        } else {
+            "`continue` can only be used inside a `list` or `do` loop body"
         };
         let keyword = node.child(0).unwrap_or(node);
         self.diagnostics
@@ -620,10 +659,10 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        if node.kind != NodeKind::Symbol
+        if !node.is::<Symbol>()
             || node
                 .parent()
-                .is_some_and(|parent| parent.kind == NodeKind::QuoteExpression)
+                .is_some_and(|parent| parent.is::<QuoteExpression>())
         {
             return;
         }
@@ -664,7 +703,7 @@ impl Analysis {
         ) else {
             return;
         };
-        if callable.kind != NodeKind::Symbol || callable.text() != "protect" {
+        if !callable.is::<Symbol>() || callable.text() != "protect" {
             return;
         }
         if self
@@ -674,9 +713,11 @@ impl Analysis {
             return;
         }
 
-        match argument.kind {
-            NodeKind::QuoteExpression => {}
-            NodeKind::Symbol if kind == DiagnosticKind::ProtectAssignedSymbol => {
+        if argument.is::<QuoteExpression>() {
+            return;
+        }
+        if argument.is::<Symbol>() {
+            if kind == DiagnosticKind::ProtectAssignedSymbol {
                 let name = argument.text();
                 let position = source.position_for_node(argument);
                 let has_source_binding = self.binding_id_at(name, position).is_some();
@@ -691,21 +732,20 @@ impl Analysis {
                     ));
                 }
             }
-            NodeKind::Symbol => {}
-            _ if kind == DiagnosticKind::ProtectComputedSymbol => {
-                let inferred = self.infer_expression_static_type(argument, source, knowledge);
-                if inferred
-                    .as_ref()
-                    .is_none_or(|type_id| type_id.name() == "Symbol")
-                {
-                    self.diagnostics.push(kind.at(
-                        source.range_for_node(argument),
-                        "`protect` evaluates this expression to choose a Symbol at runtime; \
-                         the protected symbol is not statically apparent",
-                    ));
-                }
+            return;
+        }
+        if kind == DiagnosticKind::ProtectComputedSymbol {
+            let inferred = self.infer_expression_static_type(argument, source, knowledge);
+            if inferred
+                .as_ref()
+                .is_none_or(|type_id| type_id.name() == "Symbol")
+            {
+                self.diagnostics.push(kind.at(
+                    source.range_for_node(argument),
+                    "`protect` evaluates this expression to choose a Symbol at runtime; \
+                     the protected symbol is not statically apparent",
+                ));
             }
-            _ => {}
         }
     }
 
@@ -715,13 +755,13 @@ impl Analysis {
         node: M2Node,
         source: &(impl SourceNavigation + ?Sized),
     ) {
-        if node.binary_operator() != Some("=>") {
+        if !node.has_binary_operator::<Token![=>]>() {
             return;
         }
         let Some(key) = node.child_by_field_name("left") else {
             return;
         };
-        if key.kind != NodeKind::Symbol {
+        if !key.is::<Symbol>() {
             return;
         }
         let key_text = key.text();
@@ -746,12 +786,12 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        if !left.kind.is_collection_expression() {
+        if !left.is_collection_expression() {
             return;
         }
 
         let target_nodes = left.collection_elements().collect::<Vec<_>>();
-        if !right.kind.is_collection_expression() {
+        if !right.is_collection_expression() {
             if kind != DiagnosticKind::ParallelAssignmentType {
                 return;
             }
@@ -759,13 +799,13 @@ impl Analysis {
                 return;
             }
             let mut value = right;
-            while value.kind == NodeKind::ParenthesizedExpression {
+            while value.is::<ParenthesizedExpression>() {
                 let Some(inner) = value.final_value_child() else {
                     break;
                 };
                 value = inner;
             }
-            if value.kind == NodeKind::Symbol {
+            if value.is::<Symbol>() {
                 let position = source.position_for_node(value);
                 let has_source_binding = self
                     .visible_source_binding_at(value.text(), position, knowledge)
@@ -862,33 +902,39 @@ impl Analysis {
 fn is_function_option_context(option: M2Node<'_>) -> bool {
     let mut current = option;
     while let Some(parent) = current.parent() {
-        match parent.kind {
-            NodeKind::Sequence => return true,
-            NodeKind::List | NodeKind::Array | NodeKind::AngleBarList => return false,
-            _ => current = parent,
+        if parent.is::<Sequence>() {
+            return true;
         }
+        if parent.is::<List>() || parent.is::<Array>() || parent.is::<AngleBarList>() {
+            return false;
+        }
+        current = parent;
     }
     false
 }
 
 pub fn redundant_control_parentheses_inner(node: M2Node<'_>) -> Option<M2Node<'_>> {
-    if node.kind != NodeKind::ParenthesizedExpression {
+    if !node.is::<ParenthesizedExpression>() {
         return None;
     }
     let parent = node.parent()?;
-    let is_control_expression = match parent.kind {
-        NodeKind::IfStatement => parent
-            .child_by_field_name("condition")
-            .is_some_and(|condition| condition.id() == node.id()),
-        NodeKind::WhileStatement | NodeKind::TryStatement => parent
-            .named_child(0)
-            .is_some_and(|condition| condition.id() == node.id()),
-        NodeKind::FromClause | NodeKind::ToClause | NodeKind::InClause | NodeKind::WhenClause => {
-            parent
-                .named_child(0)
-                .is_some_and(|value| value.id() == node.id())
-        }
-        _ => false,
+    let is_field = |field| {
+        parent
+            .child_by_field_name(field)
+            .is_some_and(|value| value.id() == node.id())
+    };
+    let is_control_expression = if parent.is::<IfStatement>() || parent.is::<WhileLoop>() {
+        is_field("condition")
+    } else if parent.is::<TryStatement>() {
+        is_field("value")
+    } else if parent.is::<IterationRange>() {
+        ["iterated_collection", "range_start", "range_end"]
+            .into_iter()
+            .any(is_field)
+    } else if parent.is::<ForLoop>() {
+        is_field("filter")
+    } else {
+        false
     };
     is_control_expression
         .then(|| parenthesized_value(node))
@@ -896,17 +942,17 @@ pub fn redundant_control_parentheses_inner(node: M2Node<'_>) -> Option<M2Node<'_
 }
 
 pub fn coalescence_rewrite(node: M2Node<'_>) -> Option<String> {
-    if node.binary_operator() == Some("=") {
+    if node.has_binary_operator::<Token![=]>() {
         let target = node.child_by_field_name("left")?;
         let conditional = node.child_by_field_name("right")?;
-        if target.kind != NodeKind::Symbol || conditional.kind != NodeKind::IfStatement {
+        if !target.is::<Symbol>() || !conditional.is::<IfStatement>() {
             return None;
         }
         let (subject, fallback) = coalescence_parts(conditional)?;
         return (target.text() == subject.text())
             .then(|| format!("{} ??= {}", target.text(), fallback.text()));
     }
-    if node.kind != NodeKind::IfStatement {
+    if !node.is::<IfStatement>() {
         return None;
     }
     if node
@@ -919,46 +965,230 @@ pub fn coalescence_rewrite(node: M2Node<'_>) -> Option<String> {
     Some(format!("{} ?? {}", subject.text(), fallback.text()))
 }
 
+pub fn if_null_branch_rewrite(if_node: M2Node<'_>) -> Option<String> {
+    let condition = if_node.child_by_field_name("condition")?;
+    let then_branch = clause_of::<ThenClause>(if_node).and_then(clause_value)?;
+    let else_branch = clause_of::<ElseClause>(if_node).and_then(clause_value)?;
+
+    if is_null_value(else_branch) {
+        return Some(format!(
+            "if {} then {}",
+            condition.text(),
+            then_branch.text()
+        ));
+    }
+
+    if is_null_value(then_branch) && !is_null_value(else_branch) {
+        return Some(format!(
+            "if {} then {}",
+            negated_condition_text(condition),
+            else_branch.text(),
+        ));
+    }
+
+    None
+}
+
+pub fn try_statement_rewrite(try_node: M2Node<'_>) -> Option<String> {
+    let condition = try_node.child_by_field_name("value")?;
+    let consequence = clause_of::<ThenClause>(try_node).and_then(clause_value);
+    let else_clause = clause_of::<ElseClause>(try_node);
+    let condition_text = condition.text();
+    let consequence_text = consequence.map(|node| node.text());
+
+    if consequence_text == Some(condition_text) && else_clause.is_none() {
+        return Some(format!("try {condition_text}"));
+    }
+
+    if let Some(alternative) = else_clause.and_then(clause_value) {
+        if is_null_value(alternative) {
+            let mut simplified = format!("try {condition_text}");
+            if let Some(consequence_text) = consequence_text {
+                simplified.push_str(" then ");
+                simplified.push_str(consequence_text);
+            }
+            return Some(simplified);
+        }
+    }
+
+    None
+}
+
+pub fn if_condition_rewrite(if_node: M2Node<'_>) -> Option<String> {
+    let condition = if_node.child_by_field_name("condition")?;
+    let simplified = simplify_condition(condition)?;
+    let then_branch = clause_of::<ThenClause>(if_node).and_then(clause_value)?;
+    let else_clause = clause_of::<ElseClause>(if_node);
+
+    let mut replacement = format!("if {} then {}", simplified, then_branch.text());
+    if let Some(else_clause) = else_clause {
+        replacement.push(' ');
+        replacement.push_str(else_clause.text());
+    }
+    Some(replacement)
+}
+
+pub fn else_if_chain_rewrite(if_node: M2Node<'_>) -> Option<String> {
+    flatten_then_if_chain(if_node).or_else(|| flatten_parenthesized_else_if_chain(if_node))
+}
+
+fn flatten_then_if_chain(if_node: M2Node<'_>) -> Option<String> {
+    let condition = if_node.child_by_field_name("condition")?;
+    let then_branch = clause_of::<ThenClause>(if_node).and_then(clause_value)?;
+    let nested_if = unwrap_parentheses(then_branch);
+    if !nested_if.is::<IfStatement>() {
+        return None;
+    }
+    let else_branch = clause_of::<ElseClause>(if_node).and_then(clause_value)?;
+    let nested_replacement =
+        else_if_chain_rewrite(nested_if).unwrap_or_else(|| nested_if.text().to_string());
+
+    Some(format!(
+        "if {} then {} else {}",
+        negated_condition_text(condition),
+        else_branch.text(),
+        nested_replacement
+    ))
+}
+
+fn flatten_parenthesized_else_if_chain(if_node: M2Node<'_>) -> Option<String> {
+    let else_branch = clause_of::<ElseClause>(if_node).and_then(clause_value)?;
+    let nested_if = unwrap_parentheses(else_branch);
+    if !nested_if.is::<IfStatement>() {
+        return None;
+    }
+
+    let nested_replacement = else_if_chain_rewrite(nested_if);
+    let removes_parentheses = nested_if.id() != else_branch.id();
+    if !removes_parentheses && nested_replacement.is_none() {
+        return None;
+    }
+
+    let replacement = nested_replacement.unwrap_or_else(|| nested_if.text().to_string());
+    let start = else_branch.start_byte() - if_node.start_byte();
+    let end = else_branch.end_byte() - if_node.start_byte();
+    let mut flattened = if_node.text().to_string();
+    flattened.replace_range(start..end, &replacement);
+    Some(flattened)
+}
+
+fn simplify_condition(node: M2Node<'_>) -> Option<String> {
+    let original = node.text();
+    if !node.is::<PrefixExpression>() {
+        return None;
+    }
+    let operator = node.child_by_field_name("operator")?;
+    if !matches_token::<Token![not]>(operator.text()) {
+        return None;
+    }
+    let child = node
+        .named_children()
+        .find(|child| child.id() != operator.id())?;
+    let inner = unwrap_parentheses(child);
+    let simplified = negated_condition_text(inner);
+    (simplified != original).then_some(simplified)
+}
+
+fn unwrap_parentheses(node: M2Node<'_>) -> M2Node<'_> {
+    if node.is::<ParenthesizedExpression>() && node.child_count() == 3 {
+        if let Some(inner) = node.child(1) {
+            return inner;
+        }
+    }
+    node
+}
+
+fn negated_condition_text(node: M2Node<'_>) -> String {
+    if node.is::<PrefixExpression>() {
+        if let Some(operator) = node.child_by_field_name("operator") {
+            if matches_token::<Token![not]>(operator.text()) {
+                if let Some(child) = node
+                    .named_children()
+                    .find(|child| child.id() != operator.id())
+                {
+                    return child.text().to_string();
+                }
+            }
+        }
+    }
+
+    if let Some(negated_operator) = node.binary_operator().and_then(negated_binary_operator) {
+        if let (Some(left), Some(right)) = (
+            node.child_by_field_name("left"),
+            node.child_by_field_name("right"),
+        ) {
+            return format!("{} {} {}", left.text(), negated_operator, right.text());
+        }
+    }
+
+    if node.is::<BinaryExpression>() {
+        format!("not ({})", node.text())
+    } else {
+        format!("not {}", node.text())
+    }
+}
+
+fn negated_binary_operator(operator: &str) -> Option<&'static str> {
+    if matches_token::<Token![==]>(operator) {
+        Some(token_spelling::<Token![!=]>())
+    } else if matches_token::<Token![!=]>(operator) {
+        Some(token_spelling::<Token![==]>())
+    } else if matches_token::<Token![===]>(operator) {
+        Some(token_spelling::<Token![=!=]>())
+    } else if matches_token::<Token![=!=]>(operator) {
+        Some(token_spelling::<Token![===]>())
+    } else if matches_token::<Token![<]>(operator) {
+        Some(token_spelling::<Token![>=]>())
+    } else if matches_token::<Token![<=]>(operator) {
+        Some(token_spelling::<Token![>]>())
+    } else if matches_token::<Token![>]>(operator) {
+        Some(token_spelling::<Token![<=]>())
+    } else if matches_token::<Token![>=]>(operator) {
+        Some(token_spelling::<Token![<]>())
+    } else {
+        None
+    }
+}
+
 fn coalescence_parts(if_statement: M2Node<'_>) -> Option<(M2Node<'_>, M2Node<'_>)> {
     let condition = if_statement.child_by_field_name("condition")?;
     let operator = condition.binary_operator()?;
     let left = condition.child_by_field_name("left")?;
     let right = condition.child_by_field_name("right")?;
-    let (subject, null_when_true) = match (is_null_value(left), is_null_value(right), operator) {
-        (true, false, "===") => (right, true),
-        (false, true, "===") => (left, true),
-        (true, false, "=!=") => (right, false),
-        (false, true, "=!=") => (left, false),
+    let (subject, null_when_true) = match (is_null_value(left), is_null_value(right)) {
+        (true, false) if matches_token::<Token![===]>(operator) => (right, true),
+        (false, true) if matches_token::<Token![===]>(operator) => (left, true),
+        (true, false) if matches_token::<Token![=!=]>(operator) => (right, false),
+        (false, true) if matches_token::<Token![=!=]>(operator) => (left, false),
         _ => return None,
     };
-    if subject.kind != NodeKind::Symbol {
+    if !subject.is::<Symbol>() {
         return None;
     }
-    let then_value = clause_value(clause_of(if_statement, NodeKind::ThenClause)?)?;
-    let else_value = clause_value(clause_of(if_statement, NodeKind::ElseClause)?)?;
+    let then_value = clause_value(clause_of::<ThenClause>(if_statement)?)?;
+    let else_value = clause_value(clause_of::<ElseClause>(if_statement)?)?;
     let (fallback, repeated_subject) = if null_when_true {
         (then_value, else_value)
     } else {
         (else_value, then_value)
     };
     let repeated_subject = parenthesized_value(repeated_subject)?;
-    (repeated_subject.kind == NodeKind::Symbol && repeated_subject.text() == subject.text())
+    (repeated_subject.is::<Symbol>() && repeated_subject.text() == subject.text())
         .then_some((subject, fallback))
 }
 
 fn is_null_value(node: M2Node<'_>) -> bool {
-    node.kind == NodeKind::Symbol && node.text() == "null"
+    node.is::<Symbol>() && node.text() == "null"
 }
 
 fn multiple_assignment_targets_are_symbols(node: M2Node) -> bool {
-    if !node.kind.is_collection_expression() {
+    if !node.is_collection_expression() {
         return true;
     }
 
     node.collection_elements().all(|child| {
-        child.kind == NodeKind::Symbol
-            || (child.kind.is_collection_expression()
-                && multiple_assignment_targets_are_symbols(child))
+        child.is::<Symbol>()
+            || (child.is_collection_expression() && multiple_assignment_targets_are_symbols(child))
     })
 }
 
@@ -970,7 +1200,7 @@ pub fn ambiguous_float_member_access_rewrite(node: M2Node<'_>) -> Option<String>
     let left = node.child_by_field_name("left")?;
     let right = node.child_by_field_name("right")?;
     if symbol_node_text(left).is_none()
-        || right.kind != NodeKind::FloatLiteral
+        || !right.is::<FloatLiteral>()
         || left.end_byte() != right.start_byte()
     {
         return None;

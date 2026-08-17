@@ -208,7 +208,6 @@ where
                 source_token,
                 binding: binding.as_ref().map(|(binding, _)| binding),
                 is_declaration: binding.is_some_and(|(_, is_declaration)| is_declaration),
-                is_macro: self.document.is_macro_name_span(&source_token.span),
                 workspace_token_type: (!source_token.is_condition_value)
                     .then(|| {
                         self.workspace_index
@@ -260,7 +259,6 @@ mod tests {
     const FILE_MODIFIER: u32 = M2SemanticTokenModifier::File.bit();
     const DECLARATION_MODIFIER: u32 = M2SemanticTokenModifier::Declaration.bit();
     const BUILTIN_MODIFIER: u32 = M2SemanticTokenModifier::Builtin.bit();
-    const MACRO_MODIFIER: u32 = M2SemanticTokenModifier::Macro.bit();
 
     fn document(text: &str, builtins: &ObjectRegistry) -> DocumentSnapshot {
         DocumentSnapshot::from_text(text.to_string(), builtins).expect("fixture should parse")
@@ -450,7 +448,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
                 .map(|token| token.token_type)
                 .collect::<Vec<_>>(),
             vec![
-                M2SemanticTokenType::Type as u32,
+                M2SemanticTokenType::TypeParameter as u32,
                 M2SemanticTokenType::Operator as u32,
                 M2SemanticTokenType::Parameter as u32,
                 M2SemanticTokenType::Operator as u32,
@@ -1186,46 +1184,6 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
     }
 
     #[test]
-    fn procedural_macro_names_use_method_plus_macro_without_parse_errors() {
-        let text = concat!(
-            "x = $outer $inner 1 $ $\n",
-            "y = 2\n",
-            "message = \"$fake 3 $\"\n",
-        );
-        let builtins = ObjectRegistry::default();
-        let document = document(text, &builtins);
-        let tokens = collect_tokens(&document, &builtins, false);
-
-        assert!(
-            document.diagnostics().is_empty(),
-            "matched macro syntax should be parsed through its masked sigils: {:?}",
-            document.diagnostics()
-        );
-        for character in [5, 12] {
-            let token = token_at(&tokens, 0, character)
-                .unwrap_or_else(|| panic!("macro name at {character} should be highlighted"));
-            assert_eq!(token.token_type, M2SemanticTokenType::Method as u32);
-            assert_eq!(
-                token.token_modifiers_bitset & MACRO_MODIFIER,
-                MACRO_MODIFIER
-            );
-        }
-        assert!(
-            document
-                .analysis()
-                .get_binding_at("y", pos!(1, 0))
-                .is_some(),
-            "source after a macro invocation should remain visible to analysis"
-        );
-        let fake = text.lines().nth(2).unwrap().find("fake").unwrap() as u32;
-        assert_eq!(
-            token_at(&tokens, 2, fake).map(|token| token.token_type),
-            Some(M2SemanticTokenType::String as u32),
-            "macro-like text inside a string stays ordinary string syntax"
-        );
-    }
-
-    #[test]
     fn semantic_token_modifier_bits_match_legend_order() {
         assert_eq!(
             LEGEND_MODIFIERS,
@@ -1235,7 +1193,6 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
                 SemanticTokenModifier::new("file"),
                 SemanticTokenModifier::DECLARATION,
                 SemanticTokenModifier::new("builtin"),
-                SemanticTokenModifier::new("macro"),
             ]
         );
         assert_eq!(OPTION_MODIFIER, 1 << 0);
@@ -1243,7 +1200,6 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
         assert_eq!(FILE_MODIFIER, 1 << 2);
         assert_eq!(DECLARATION_MODIFIER, 1 << 3);
         assert_eq!(BUILTIN_MODIFIER, 1 << 4);
-        assert_eq!(MACRO_MODIFIER, 1 << 5);
     }
 
     #[test]
@@ -1274,7 +1230,7 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
     }
 
     #[test]
-    fn method_installation_domain_emits_type_for_known_types() {
+    fn method_installation_types_emit_type_parameters() {
         let text = "Ring Element := x -> x";
         let builtins = ObjectRegistry::load(include_str!("../data/m2-index.jsonl"));
 
@@ -1282,10 +1238,10 @@ matchingMacroClose = (src, bodyStart, outerName) -> (
         let tokens = collect_tokens(&document, &builtins, false);
         let token_types: Vec<u32> = tokens.iter().map(|t| t.token_type).collect();
 
-        let type_param = M2SemanticTokenType::Type as u32;
+        let type_param = M2SemanticTokenType::TypeParameter as u32;
         assert!(
             token_types.contains(&type_param),
-            "Ring in method installation should be Type, got {:?}",
+            "Ring in method installation should be TypeParameter, got {:?}",
             token_types
         );
     }
@@ -1303,8 +1259,8 @@ p(ZZ) := Array => x -> [x]
 
         assert_eq!(
             token_type_at(&tokens, 1, 9),
-            Some(M2SemanticTokenType::Annotation as u32),
-            "the explicit Array codomain is an annotation, not an option field"
+            Some(M2SemanticTokenType::TypeParameter as u32),
+            "the explicit Array codomain is a type parameter, not an option field"
         );
     }
 }

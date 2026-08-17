@@ -1,11 +1,17 @@
 //! Tree-sitter-guided formatting and folding ranges for Macaulay2 source.
 
+use m2_syn::{
+    BlockComment, ElseClause, ExceptClause, FloatLiteral, ForLoop, IfStatement, IntegerLiteral,
+    LambdaExpression, LineComment, LoopBody, ParenthesizedExpression, PostfixExpression,
+    PrefixExpression, RawStringLiteral, Sequence, StringLiteral, Symbol, ThenClause, Token,
+    TryStatement, WhileLoop,
+};
 use tower_lsp::lsp_types::{
     DocumentFormattingOptions, FoldingRange, FoldingRangeKind, FoldingRangeProviderCapability,
     OneOf, TextEdit,
 };
 
-use crate::node_metadata::{M2Node, M2Parser, NodeKind};
+use crate::node_metadata::{matches_token, M2Node, M2Parser};
 use crate::source::SourceNavigation;
 
 pub trait FormattingConfiguration {
@@ -144,6 +150,7 @@ pub fn format_document_text(text: &str) -> String {
 pub fn format_document_text_with_options(text: &str, options: &FormatOptions) -> String {
     let newline = detect_line_ending(text);
     let formatted = normalize_whitespace(text, options);
+    let formatted = inline_empty_bodies(&formatted);
     let formatted = format_control_flow(&formatted, options, newline);
     let formatted = reindent_from_tree(&formatted, options, newline);
     let formatted = wrap_long_lines(&formatted, options, newline);
@@ -165,9 +172,7 @@ fn separate_line_end_bracket_closers(text: &str, newline: &'static str) -> Strin
         return text.to_string();
     };
     let mut edits = Vec::new();
-    for node in root.descendants().filter(|node| {
-        node.kind.is_collection_expression() || node.kind == NodeKind::ParenthesizedExpression
-    }) {
+    for node in root.descendants().filter(M2Node::is_delimited_expression) {
         let children = node.children().collect::<Vec<_>>();
         let (Some(opener), Some(closer)) = (children.first(), children.last()) else {
             continue;
@@ -206,6 +211,61 @@ fn detect_line_ending(text: &str) -> &'static str {
     }
 }
 
+fn inline_empty_bodies(text: &str) -> String {
+    let Some(mut parser) = M2Parser::new() else {
+        return text.to_string();
+    };
+    let Some(root) = parser.parse(text) else {
+        return text.to_string();
+    };
+    let mut edits = Vec::new();
+    for body in root.descendants().filter(|node| empty_body_role(*node)) {
+        let children = body.children().collect::<Vec<_>>();
+        let (Some(opener), Some(closer)) = (children.first(), children.last()) else {
+            continue;
+        };
+        if opener.is_opening_delimiter()
+            && closer.is_closing_delimiter()
+            && text[opener.end_byte()..closer.start_byte()]
+                .bytes()
+                .all(|byte| byte.is_ascii_whitespace())
+        {
+            edits.push(FormatEdit {
+                start_byte: opener.end_byte(),
+                end_byte: closer.start_byte(),
+                replacement: "",
+            });
+        }
+    }
+    apply_format_edits(text, edits)
+}
+
+fn empty_body_role(node: M2Node<'_>) -> bool {
+    if !node.is_delimited_expression() {
+        return false;
+    }
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    if parent.is::<LambdaExpression>() {
+        return parent
+            .child_by_field_name("body")
+            .is_some_and(|body| body.id() == node.id());
+    }
+    if parent.is_keyword_clause() {
+        return parent
+            .named_child(0)
+            .is_some_and(|body| body.id() == node.id());
+    }
+    if parent.is::<LoopBody>() {
+        return ["listed_value", "ignored_value"]
+            .into_iter()
+            .filter_map(|field| parent.child_by_field_name(field))
+            .any(|body| body.id() == node.id());
+    }
+    parent.is::<TryStatement>()
+}
+
 fn format_control_flow(text: &str, options: &FormatOptions, newline: &'static str) -> String {
     if options.control_flow_layout == ControlFlowLayout::Compact {
         return text.to_string();
@@ -219,16 +279,39 @@ fn format_control_flow(text: &str, options: &FormatOptions, newline: &'static st
     };
     let mut edits = Vec::new();
     for clause in root.descendants().filter(|node| {
-        matches!(
-            node.kind,
-            NodeKind::ThenClause
-                | NodeKind::ElseClause
-                | NodeKind::DoClause
-                | NodeKind::ListClause
-                | NodeKind::ExceptClause
-        )
+        node.is::<ThenClause>()
+            || node.is::<ElseClause>()
+            || node.is::<ExceptClause>()
+            || node.is::<LoopBody>()
     }) {
         if !control_clause_breaks_are_parseable(clause, text) {
+            continue;
+        }
+        if clause.is::<LoopBody>() {
+            for (keyword, field) in [
+                (direct_keyword::<Token![list]>(clause), "listed_value"),
+                (direct_keyword::<Token![do]>(clause), "ignored_value"),
+            ] {
+                let Some((keyword, body)) = keyword.zip(clause.child_by_field_name(field)) else {
+                    continue;
+                };
+                push_control_clause_body_break(keyword, body, text, newline, &mut edits);
+            }
+            continue;
+        }
+        if clause.is::<ExceptClause>() && clause.child_by_field_name("exception").is_some() {
+            push_control_flow_break(
+                text,
+                same_line_horizontal_whitespace_start(text, clause.start_byte()),
+                clause.start_byte(),
+                newline,
+                &mut edits,
+            );
+            if let Some((keyword, body)) =
+                direct_keyword::<Token![do]>(clause).zip(clause.child_by_field_name("value"))
+            {
+                push_control_clause_body_break(keyword, body, text, newline, &mut edits);
+            }
             continue;
         }
         let Some(keyword) = clause.child(0) else {
@@ -238,41 +321,91 @@ fn format_control_flow(text: &str, options: &FormatOptions, newline: &'static st
             continue;
         };
 
-        if matches!(clause.kind, NodeKind::ElseClause | NodeKind::ExceptClause) {
-            push_control_flow_break(
-                text,
-                same_line_horizontal_whitespace_start(text, clause.start_byte()),
-                clause.start_byte(),
-                newline,
-                &mut edits,
-            );
-            if clause.kind == NodeKind::ExceptClause {
+        if clause.is::<ElseClause>() || clause.is::<ExceptClause>() {
+            if !clause.is::<ElseClause>() || !keep_else_after_closer(clause, text, &mut edits) {
+                push_control_flow_break(
+                    text,
+                    same_line_horizontal_whitespace_start(text, clause.start_byte()),
+                    clause.start_byte(),
+                    newline,
+                    &mut edits,
+                );
+            }
+            if clause.is::<ExceptClause>() {
                 continue;
             }
-            if body.kind == NodeKind::IfStatement
+            if body.is::<IfStatement>()
                 || options.control_flow_layout == ControlFlowLayout::MultilineCompactElse
             {
                 continue;
             }
         }
 
-        if body
-            .child(0)
-            .is_some_and(|child| child.is_opening_delimiter())
-        {
-            continue;
-        }
-
-        push_control_flow_break(
-            text,
-            Some(keyword.end_byte()),
-            body.start_byte(),
-            newline,
-            &mut edits,
-        );
+        push_control_clause_body_break(keyword, body, text, newline, &mut edits);
     }
 
     apply_format_edits(text, edits)
+}
+
+fn direct_keyword<'tree, Keyword: m2_syn::Token>(node: M2Node<'tree>) -> Option<M2Node<'tree>> {
+    node.children()
+        .find(|child| child.is_keyword_token() && matches_token::<Keyword>(child.text()))
+}
+
+fn push_control_clause_body_break(
+    keyword: M2Node<'_>,
+    body: M2Node<'_>,
+    text: &str,
+    newline: &'static str,
+    edits: &mut Vec<FormatEdit>,
+) {
+    if body
+        .child(0)
+        .is_some_and(|child| child.is_opening_delimiter())
+    {
+        return;
+    }
+    push_control_flow_break(
+        text,
+        Some(keyword.end_byte()),
+        body.start_byte(),
+        newline,
+        edits,
+    );
+}
+
+fn keep_else_after_closer(clause: M2Node<'_>, text: &str, edits: &mut Vec<FormatEdit>) -> bool {
+    let Some(body) = clause.parent().and_then(|owner| {
+        owner
+            .children()
+            .filter(|candidate| {
+                candidate.is::<ThenClause>() && candidate.end_byte() <= clause.start_byte()
+            })
+            .max_by_key(M2Node::end_byte)
+            .and_then(|then_clause| then_clause.named_child(0))
+    }) else {
+        return false;
+    };
+    let children = body.children().collect::<Vec<_>>();
+    let (Some(opener), Some(closer)) = (children.first(), children.last()) else {
+        return false;
+    };
+    if !opener.is_opening_delimiter()
+        || !closer.is_closing_delimiter()
+        || !text[closer.end_byte()..clause.start_byte()]
+            .bytes()
+            .all(|byte| byte.is_ascii_whitespace())
+    {
+        return false;
+    }
+    if closer.end_position().row < clause.start_position().row {
+        edits.push(FormatEdit {
+            start_byte: closer.end_byte(),
+            end_byte: clause.start_byte(),
+            replacement: " ",
+        });
+    }
+    true
 }
 
 fn control_clause_breaks_are_parseable(clause: M2Node<'_>, text: &str) -> bool {
@@ -281,24 +414,22 @@ fn control_clause_breaks_are_parseable(clause: M2Node<'_>, text: &str) -> bool {
         let Some(parent) = current.parent() else {
             return true;
         };
-        if matches!(
-            parent.kind,
-            NodeKind::IfStatement
-                | NodeKind::TryStatement
-                | NodeKind::ForStatement
-                | NodeKind::WhileStatement
-        ) {
+        if parent.is::<IfStatement>()
+            || parent.is::<TryStatement>()
+            || parent.is::<ForLoop>()
+            || parent.is::<WhileLoop>()
+        {
             break parent;
         }
         current = parent;
     };
 
     let mut layout_control = control;
-    while layout_control.kind == NodeKind::IfStatement && if_statement_is_else_if(layout_control) {
+    while layout_control.is::<IfStatement>() && if_statement_is_else_if(layout_control) {
         let Some(outer_if) = layout_control
             .parent()
             .and_then(|else_clause| else_clause.parent())
-            .filter(|parent| parent.kind == NodeKind::IfStatement)
+            .filter(|parent| parent.is::<IfStatement>())
         else {
             break;
         };
@@ -317,14 +448,14 @@ fn control_clause_breaks_are_parseable(clause: M2Node<'_>, text: &str) -> bool {
 
     let has_alternative = layout_control
         .children()
-        .any(|child| matches!(child.kind, NodeKind::ElseClause | NodeKind::ExceptClause));
+        .any(|child| child.is::<ElseClause>() || child.is::<ExceptClause>());
     if !has_alternative {
         return true;
     }
 
     let mut ancestor = layout_control.parent();
     while let Some(node) = ancestor {
-        if node.kind == NodeKind::ParenthesizedExpression || node.kind.is_collection_expression() {
+        if node.is_delimited_expression() {
             return true;
         }
         ancestor = node.parent();
@@ -473,10 +604,7 @@ impl LineBreakRule for OperatorBreakRule {
             return;
         };
         if node.is_operator()
-            && matches!(
-                parent.kind,
-                NodeKind::BinaryExpression | NodeKind::LambdaExpression
-            )
+            && (parent.binary_operator().is_some() || parent.is::<LambdaExpression>())
             && is_spaced_line_final_operator(node.text(), options.compact_factor_operators)
         {
             push_line_break_candidate_after(node, text, candidates);
@@ -757,19 +885,17 @@ fn collect_comment_fold_ranges(root: M2Node<'_>, line_leads: &[usize]) -> Vec<Fo
     for node in root.descendants() {
         let start = node.start_position();
         let end = node.end_position();
-        match node.kind {
-            NodeKind::LineComment
-                if start.row == end.row
-                    && line_leads.get(start.row).copied() == Some(start.column) =>
-            {
-                line_comment_rows.push(start.row as u32);
-            }
-            NodeKind::BlockComment if start.row < end.row => ranges.push(FormatFoldRange {
+        if node.is::<LineComment>()
+            && start.row == end.row
+            && line_leads.get(start.row).copied() == Some(start.column)
+        {
+            line_comment_rows.push(start.row as u32);
+        } else if node.is::<BlockComment>() && start.row < end.row {
+            ranges.push(FormatFoldRange {
                 start_line: start.row as u32,
                 end_line: end.row as u32,
                 kind: FormatFoldKind::Comment,
-            }),
-            _ => {}
+            });
         }
     }
 
@@ -825,7 +951,7 @@ fn collect_bracket_groups(root: M2Node<'_>, line_count: usize) -> Vec<BracketGro
     while let Some(node) = stack.pop() {
         // A multiline parenthesized block `(\n …\n)` indents its body like a
         // collection, though it is not a collection value.
-        if node.kind.is_collection_expression() || node.kind == NodeKind::ParenthesizedExpression {
+        if node.is_delimited_expression() {
             let open_row = node.start_position().row;
             let close_position = node.end_position();
             if open_row < close_position.row {
@@ -834,7 +960,7 @@ fn collect_bracket_groups(root: M2Node<'_>, line_count: usize) -> Vec<BracketGro
                     close_row: close_position.row,
                     closing_delimiter_column: close_position
                         .column
-                        .saturating_sub(node.kind.closing_delimiter_width()),
+                        .saturating_sub(node.closing_delimiter_width()),
                 });
             }
         }
@@ -882,7 +1008,7 @@ fn collect_literal_rows(root: M2Node<'_>, line_count: usize) -> (Vec<bool>, Vec<
     let mut literal_starts = vec![false; line_count];
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
-        if node.kind.is_string_literal() {
+        if node.is_string_literal() {
             let start_row = node.start_position().row;
             let end_row = node.end_position().row;
             if start_row < end_row {
@@ -1000,10 +1126,12 @@ fn is_right_operand_first_token(
 ) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
-        let right_field = match parent.kind {
-            NodeKind::BinaryExpression => Some("right"),
-            NodeKind::LambdaExpression => Some("body"),
-            _ => None,
+        let right_field = if parent.binary_operator().is_some() {
+            Some("right")
+        } else if parent.is::<LambdaExpression>() {
+            Some("body")
+        } else {
+            None
         };
         if let Some((operator, right)) = right_field.and_then(|right_field| {
             Some((
@@ -1011,8 +1139,7 @@ fn is_right_operand_first_token(
                 parent.child_by_field_name(right_field)?,
             ))
         }) {
-            let assignment_conditional =
-                parent.is_assignment() && right.kind == NodeKind::IfStatement;
+            let assignment_conditional = parent.is_assignment() && right.is::<IfStatement>();
             if right.start_byte() == node.start_byte()
                 && operator.start_position().row < row
                 && is_spaced_line_final_operator(operator.text(), compact_factor_operators)
@@ -1031,11 +1158,30 @@ fn is_right_operand_first_token(
 fn is_clause_body_first_token(node: M2Node<'_>, row: usize) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
-        if matches!(
-            parent.kind,
-            NodeKind::ThenClause | NodeKind::ElseClause | NodeKind::DoClause | NodeKind::ListClause
-        ) {
+        if parent.is::<ThenClause>() || parent.is::<ElseClause>() {
             if let (Some(keyword), Some(body)) = (parent.child(0), parent.named_child(0)) {
+                if body.start_byte() == node.start_byte() && keyword.start_position().row < row {
+                    return true;
+                }
+            }
+        }
+        if parent.is::<LoopBody>() {
+            for (keyword, field) in [
+                (direct_keyword::<Token![list]>(parent), "listed_value"),
+                (direct_keyword::<Token![do]>(parent), "ignored_value"),
+            ] {
+                let Some((keyword, body)) = keyword.zip(parent.child_by_field_name(field)) else {
+                    continue;
+                };
+                if body.start_byte() == node.start_byte() && keyword.start_position().row < row {
+                    return true;
+                }
+            }
+        }
+        if parent.is::<ExceptClause>() {
+            let clause_body =
+                direct_keyword::<Token![do]>(parent).zip(parent.child_by_field_name("value"));
+            if let Some((keyword, body)) = clause_body {
                 if body.start_byte() == node.start_byte() && keyword.start_position().row < row {
                     return true;
                 }
@@ -1064,7 +1210,7 @@ fn is_dangling_clause_keyword(node: M2Node<'_>, row: usize, line_leads: &[usize]
     match enclosing_clause_owner(node) {
         Some(owner) => {
             !(control_statement_is_standalone(owner, line_leads)
-                || owner.kind == NodeKind::IfStatement && if_statement_is_else_if(owner))
+                || owner.is::<IfStatement>() && if_statement_is_else_if(owner))
         }
         None => true,
     }
@@ -1078,14 +1224,16 @@ fn is_clause_keyword_leaf(node: M2Node<'_>) -> bool {
     if node.is_then_or_else_keyword() {
         return true;
     }
-    node.kind == NodeKind::Symbol && matches!(node.text(), "else" | "then")
+    node.is::<Symbol>()
+        && (matches_token::<Token![else]>(node.text())
+            || matches_token::<Token![then]>(node.text()))
 }
 
 /// The nearest enclosing conditional owner of a clause keyword.
 fn enclosing_clause_owner(node: M2Node<'_>) -> Option<M2Node<'_>> {
     let mut current = node;
     while let Some(parent) = current.parent() {
-        if matches!(parent.kind, NodeKind::IfStatement | NodeKind::TryStatement) {
+        if parent.is::<IfStatement>() || parent.is::<TryStatement>() {
             return Some(parent);
         }
         current = parent;
@@ -1101,10 +1249,7 @@ fn control_statement_is_standalone(node: M2Node<'_>, line_leads: &[usize]) -> bo
 }
 
 fn if_statement_is_else_if(node: M2Node<'_>) -> bool {
-    let Some(parent) = node
-        .parent()
-        .filter(|parent| parent.kind == NodeKind::ElseClause)
-    else {
+    let Some(parent) = node.parent().filter(|parent| parent.is::<ElseClause>()) else {
         return false;
     };
     parent
@@ -1241,7 +1386,7 @@ fn collect_format_edits(
                     push_call_gap_whitespace_edit(node, text, edits, "");
                 }
             } else {
-                match operator_spacing(node.kind, operator.text()) {
+                match operator_spacing(node, operator.text()) {
                     OperatorSpacing::Spaced => {
                         push_operator_whitespace_edits(text, operator, edits)
                     }
@@ -1291,80 +1436,88 @@ enum OperatorSpacing {
     None,
 }
 
+macro_rules! matches_tokens {
+    ($text:expr, $($token:ty),+ $(,)?) => {
+        false $(|| matches_token::<$token>($text))+
+    };
+}
+
 /// Spacing rule for the operator `node` carries, keyed by the parent's kind so
 /// the same spelling can route differently in binary vs prefix context
 /// (`-` in `BinaryExpression` is `Spaced`, in `PrefixExpression` is `Prefix`).
 /// `LambdaExpression` shares the binary table: its `->` operator reads as a
 /// spaced binary operator.
-fn operator_spacing(parent_kind: NodeKind, operator: &str) -> OperatorSpacing {
-    match parent_kind {
-        NodeKind::BinaryExpression | NodeKind::LambdaExpression => {
-            binary_operator_spacing(operator)
-        }
-        NodeKind::PrefixExpression => prefix_operator_spacing(operator),
-        _ => OperatorSpacing::None,
+fn operator_spacing(parent: M2Node<'_>, operator: &str) -> OperatorSpacing {
+    if parent.binary_operator().is_some() || parent.is::<LambdaExpression>() {
+        binary_operator_spacing(operator)
+    } else if parent.is::<PrefixExpression>() {
+        prefix_operator_spacing(operator)
+    } else {
+        OperatorSpacing::None
     }
 }
 
 fn binary_operator_spacing(operator: &str) -> OperatorSpacing {
     // Factor operators participate in the adjacency rule before the static
     // spaced/compact tables.
-    if matches!(operator, "*" | "/" | "%" | "**") {
+    if matches_tokens!(operator, Token![*], Token![/], Token![%], Token![**]) {
         return OperatorSpacing::Factor;
     }
-    if matches!(
+    if matches_tokens!(
         operator,
-        "==" | "!="
-            | "==="
-            | "=!="
-            | "<<"
-            | "<"
-            | ">"
-            | "<="
-            | ">="
-            | "or"
-            | "??"
-            | "xor"
-            | "and"
-            | "||"
-            | "|"
-            | "^^"
-            | "&"
-            | "++"
-            | "+"
-            | "-"
-            | "\\"
-            | "\\\\"
-            | ":="
-            | "="
-            | "<-"
-            | "=>"
-            | "->"
-            | "//"
+        Token![==],
+        Token![!=],
+        Token![===],
+        Token![=!=],
+        Token![<<],
+        Token![<],
+        Token![>],
+        Token![<=],
+        Token![>=],
+        Token![or],
+        Token![??],
+        Token![xor],
+        Token![and],
+        Token![||],
+        Token![|],
+        Token![^^],
+        Token![&],
+        Token![++],
+        Token![+],
+        Token![-],
+        Token!["\\"],
+        Token!["\\\\"],
+        Token![:=],
+        Token![=],
+        Token![<-],
+        Token![=>],
+        Token![->],
+        Token![/ /],
     ) {
         return OperatorSpacing::Spaced;
     }
-    if matches!(
+    if matches_tokens!(
         operator,
-        "·" | "⊠"
-            | "⧢"
-            | "@"
-            | "@@"
-            | "@@?"
-            | "|_"
-            | "^"
-            | "^**"
-            | "^<"
-            | "^<="
-            | "^>"
-            | "^>="
-            | "_"
-            | "_<"
-            | "_<="
-            | "_>"
-            | "_>="
-            | "#"
-            | "#?"
+        Token!["·"],
+        Token!["⊠"],
+        Token!["⧢"],
+        Token![@],
+        Token![@@],
+        Token![@@?],
+        Token![| _],
+        Token![^],
+        Token![^**],
+        Token![^<],
+        Token![^<=],
+        Token![^>],
+        Token![^>=],
+        Token![_],
+        Token![_ <],
+        Token![_ <=],
+        Token![_ >],
+        Token![_ >=],
+        Token![#],
+        Token![#?],
     ) {
         return OperatorSpacing::Compact;
     }
@@ -1372,9 +1525,22 @@ fn binary_operator_spacing(operator: &str) -> OperatorSpacing {
 }
 
 fn prefix_operator_spacing(operator: &str) -> OperatorSpacing {
-    if matches!(
+    if matches_tokens!(
         operator,
-        "+" | "-" | "*" | "#" | "<" | "<=" | ">" | ">=" | "?" | "<<" | "|-" | "<===" | "<==" | "??"
+        Token![+],
+        Token![-],
+        Token![*],
+        Token![#],
+        Token![<],
+        Token![<=],
+        Token![>],
+        Token![>=],
+        Token![?],
+        Token![<<],
+        Token![|-],
+        Token![<===],
+        Token![<==],
+        Token![??],
     ) {
         return OperatorSpacing::Prefix;
     }
@@ -1411,7 +1577,7 @@ fn is_spaced_line_final_operator(operator: &str, compact_factor_operators: bool)
 }
 
 fn is_parenthesized_call(node: M2Node<'_>) -> bool {
-    if node.kind != NodeKind::BinaryExpression {
+    if node.binary_operator().is_none() {
         return false;
     }
 
@@ -1425,10 +1591,7 @@ fn is_parenthesized_call(node: M2Node<'_>) -> bool {
     // A call's argument list is a `sequence` (`f(a, b)`, `f()`) or, for a single
     // parenthesized argument, a `parenthesized_expression` (`f(x)`).
     operator.is_implicit_application()
-        && matches!(
-            right.kind,
-            NodeKind::Sequence | NodeKind::ParenthesizedExpression
-        )
+        && (right.is::<Sequence>() || right.is::<ParenthesizedExpression>())
 }
 
 /// Whether a parenthesized call `f(...)` is the head of a `:=` method install
@@ -1438,13 +1601,13 @@ fn is_method_installation_call_head(node: M2Node<'_>) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
-    if parent.kind != NodeKind::BinaryExpression {
+    if parent.binary_operator().is_none() {
         return false;
     }
     let Some(operator) = parent.child_by_field_name("operator") else {
         return false;
     };
-    if operator.text() != ":=" {
+    if !operator.is::<Token![:=]>() {
         return false;
     }
     parent.child_by_field_name("left").is_some_and(|left| {
@@ -1476,22 +1639,15 @@ fn push_call_gap_whitespace_edit(
 }
 
 fn is_adjacent_factor(node: M2Node<'_>) -> bool {
-    matches!(
-        node.kind,
-        NodeKind::Symbol
-            | NodeKind::IntegerLiteral
-            | NodeKind::FloatLiteral
-            | NodeKind::StringLiteral
-            | NodeKind::RawStringLiteral
-            | NodeKind::Sequence
-            | NodeKind::ParenthesizedExpression
-            | NodeKind::List
-            | NodeKind::Array
-            | NodeKind::AngleBarList
-            | NodeKind::PrefixExpression
-            | NodeKind::PostfixExpression
-            | NodeKind::BinaryExpression
-    )
+    node.is::<Symbol>()
+        || node.is::<IntegerLiteral>()
+        || node.is::<FloatLiteral>()
+        || node.is::<StringLiteral>()
+        || node.is::<RawStringLiteral>()
+        || node.is_delimited_expression()
+        || node.is::<PrefixExpression>()
+        || node.is::<PostfixExpression>()
+        || node.binary_operator().is_some()
 }
 
 fn push_operator_whitespace_edits(text: &str, operator: M2Node<'_>, edits: &mut Vec<FormatEdit>) {
@@ -1588,7 +1744,7 @@ fn semicolon_terminates_collection_entry(semicolon: M2Node<'_>) -> bool {
     semicolon
         .parent()
         .and_then(|muted| muted.parent())
-        .is_some_and(|container| container.kind.is_collection_expression())
+        .is_some_and(|container| container.is_collection_expression())
 }
 
 fn push_semicolon_whitespace_edits(
@@ -2267,6 +2423,53 @@ mod tests {
              \x20   else z\n\
              )\n"
         );
+    }
+
+    #[test]
+    fn keeps_empty_control_and_lambda_bodies_inline() {
+        let text = "if ready then (\n)\n\
+                    while ready do (\n)\n\
+                    for i to 2 list (\n)\n\
+                    f = x -> (\n)\n\
+                    value := (\n\
+                    try (\n) then (\n) else (\n)\n\
+                    )\n";
+
+        assert_eq!(
+            format_document_text(text),
+            "if ready then ()\n\
+             while ready do ()\n\
+             for i to 2 list ()\n\
+             f = x -> ()\n\
+             value := (\n\
+             \x20   try () then () else ()\n\
+             )\n"
+        );
+    }
+
+    #[test]
+    fn joins_else_to_a_preceding_closing_delimiter() {
+        let text = "value := (\n\
+                    if ready then (\n\
+                    work\n\
+                    )\n\
+                    else (\n\
+                    fallback\n\
+                    )\n\
+                    )\n";
+
+        let formatted = format_document_text(text);
+        assert_eq!(
+            formatted,
+            "value := (\n\
+             \x20   if ready then (\n\
+             \x20       work\n\
+             \x20   ) else (\n\
+             \x20       fallback\n\
+             \x20   )\n\
+             )\n"
+        );
+        assert_eq!(format_document_text(&formatted), formatted);
     }
 
     #[test]

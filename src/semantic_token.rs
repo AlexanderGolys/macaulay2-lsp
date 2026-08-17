@@ -3,10 +3,11 @@
 use crate::builtin_index::OptionFacts;
 use crate::builtin_index::Record;
 use crate::meta::{BindingRole, Metadata};
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::M2Node;
 use crate::object_registry::{ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView};
 use crate::source::DocumentSpan;
 use crate::typesystem::{TypeKnowledge, TypeRole};
+use m2_syn::{FloatLiteral, IntegerLiteral};
 use tower_lsp::lsp_types::{SemanticTokenModifier, SemanticTokenType, SymbolKind};
 
 /// Indexed facts needed specifically for semantic-token classification.
@@ -48,7 +49,7 @@ pub enum M2SemanticTokenType {
     Comment = 12,
     Method = 13,
     Modifier = 14,
-    Annotation = 16,
+    TypeParameter = 15,
 }
 
 impl M2SemanticTokenType {
@@ -85,7 +86,6 @@ pub enum M2SemanticTokenModifier {
     File,
     Declaration,
     Builtin,
-    Macro,
 }
 
 impl M2SemanticTokenModifier {
@@ -100,7 +100,6 @@ pub const LEGEND_MODIFIERS: &[SemanticTokenModifier] = &[
     SemanticTokenModifier::new("file"),
     SemanticTokenModifier::DECLARATION,
     SemanticTokenModifier::new("builtin"),
-    SemanticTokenModifier::new("macro"),
 ];
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -138,8 +137,7 @@ impl M2SemanticToken {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceSemanticRole {
-    MethodType,
-    MethodAnnotation,
+    MethodTypeParameter,
     OptionKey,
     OptionValue(ObjectName),
     PropertyKey,
@@ -162,7 +160,6 @@ pub struct SourceSemanticTokenContext<'a, M: ?Sized> {
     pub source_token: &'a SourceSemanticToken,
     pub binding: Option<&'a M>,
     pub is_declaration: bool,
-    pub is_macro: bool,
     pub workspace_token_type: Option<M2SemanticTokenType>,
     pub emit_syntax: bool,
 }
@@ -180,21 +177,14 @@ where
         .then(|| knowledge.semantic_token(context.source_text))
         .flatten();
 
-    let mut token = context.is_macro.then(|| {
-        M2SemanticToken::new(M2SemanticTokenType::Method)
-            .with_modifier(M2SemanticTokenModifier::Macro)
+    let mut token = context.source_token.source_role.as_ref().and_then(|role| {
+        source_role_semantic_token(
+            role,
+            context.source_token.is_unquoted_symbol,
+            context.source_text,
+            knowledge,
+        )
     });
-
-    if token.is_none() {
-        token = context.source_token.source_role.as_ref().and_then(|role| {
-            source_role_semantic_token(
-                role,
-                context.source_token.is_unquoted_symbol,
-                context.source_text,
-                knowledge,
-            )
-        });
-    }
 
     if token.is_none() {
         token = context.binding.map(|binding| {
@@ -258,13 +248,18 @@ pub fn syntax_semantic_token_type(node: M2Node<'_>) -> Option<M2SemanticTokenTyp
         return Some(M2SemanticTokenType::Operator);
     }
 
-    match node.kind {
-        NodeKind::IntegerLiteral | NodeKind::FloatLiteral => Some(M2SemanticTokenType::Number),
-        NodeKind::StringLiteral | NodeKind::RawStringLiteral => Some(M2SemanticTokenType::String),
-        kind if kind.is_comment() => Some(M2SemanticTokenType::Comment),
-        _ if node.is_modifier_token() => Some(M2SemanticTokenType::Modifier),
-        _ if node.is_keyword_token() => Some(M2SemanticTokenType::Keyword),
-        _ => None,
+    if node.is::<IntegerLiteral>() || node.is::<FloatLiteral>() {
+        Some(M2SemanticTokenType::Number)
+    } else if node.is_string_literal() {
+        Some(M2SemanticTokenType::String)
+    } else if node.is_comment() {
+        Some(M2SemanticTokenType::Comment)
+    } else if node.is_modifier_token() {
+        Some(M2SemanticTokenType::Modifier)
+    } else if node.is_keyword_token() {
+        Some(M2SemanticTokenType::Keyword)
+    } else {
+        None
     }
 }
 
@@ -275,9 +270,8 @@ fn source_role_semantic_token(
     knowledge: &(impl SemanticTokenKnowledge + ?Sized),
 ) -> Option<M2SemanticToken> {
     let token = match role {
-        SourceSemanticRole::MethodType => M2SemanticToken::new(M2SemanticTokenType::Type),
-        SourceSemanticRole::MethodAnnotation => {
-            M2SemanticToken::new(M2SemanticTokenType::Annotation)
+        SourceSemanticRole::MethodTypeParameter => {
+            M2SemanticToken::new(M2SemanticTokenType::TypeParameter)
         }
         SourceSemanticRole::OptionKey => {
             let token_type = if is_unquoted_symbol && knowledge.is_protected_symbol(source_text) {

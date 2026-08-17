@@ -227,6 +227,20 @@ impl ObjectRegistry {
         self.object(package).map(|record| record.name.name())
     }
 
+    pub fn package_names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<String> {
+        let mut names = self
+            .catalog
+            .packages_by_name
+            .keys()
+            .map(ObjectName::name)
+            .filter(|name| name.starts_with(prefix))
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        names.sort();
+        names.truncate(limit);
+        names
+    }
+
     #[cfg(test)]
     pub fn default_loaded(&self) -> &[String] {
         &self.catalog.default_loaded
@@ -280,12 +294,20 @@ impl PackageRegistration {
 }
 
 impl ObjectRegistryView<'_> {
+    pub fn at(&self, position: Position) -> Self {
+        self.registry.at(position.min(self.position))
+    }
+
     pub fn records_by_precedence(&self) -> impl Iterator<Item = &Record> {
         self.registry.records_by_precedence_at(self.position)
     }
 
     pub fn package_name(&self, package: &ObjectId) -> Option<&str> {
         self.registry.package_name(package)
+    }
+
+    pub fn package_names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<String> {
+        self.registry.package_names_with_prefix(prefix, limit)
     }
 
     pub fn option_facts(&self) -> &OptionFacts {
@@ -358,6 +380,8 @@ pub struct TypeData {
 /// Direct parent access required to navigate the type partial order.
 pub trait TypeStore {
     fn parent_type_id(&self, type_id: &TypeId) -> Option<TypeId>;
+
+    fn has_strict_subtype_id(&self, type_id: &TypeId) -> bool;
 
     fn is_subtype_id(&self, child: &TypeId, parent: &TypeId) -> bool {
         let mut current = child.clone();
@@ -481,6 +505,13 @@ impl TypeStore for ObjectRegistry {
             .type_info()
             .and_then(|data| data.parent.clone())
     }
+
+    fn has_strict_subtype_id(&self, type_id: &TypeId) -> bool {
+        self.records_by_precedence().any(|record| {
+            record.id != *type_id.object()
+                && record.type_info().and_then(|data| data.parent.as_ref()) == Some(type_id)
+        })
+    }
 }
 
 impl TypeStore for ObjectRegistryView<'_> {
@@ -489,11 +520,24 @@ impl TypeStore for ObjectRegistryView<'_> {
             .type_info()
             .and_then(|data| data.parent.clone())
     }
+
+    fn has_strict_subtype_id(&self, type_id: &TypeId) -> bool {
+        self.registry
+            .records_by_precedence_at(self.position)
+            .any(|record| {
+                record.id != *type_id.object()
+                    && record.type_info().and_then(|data| data.parent.as_ref()) == Some(type_id)
+            })
+    }
 }
 
 impl<T: TypeStore + ?Sized> TypeStore for &T {
     fn parent_type_id(&self, type_id: &TypeId) -> Option<TypeId> {
         T::parent_type_id(self, type_id)
+    }
+
+    fn has_strict_subtype_id(&self, type_id: &TypeId) -> bool {
+        T::has_strict_subtype_id(self, type_id)
     }
 }
 

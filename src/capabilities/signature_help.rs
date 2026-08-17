@@ -7,13 +7,14 @@
 //! (local method records first, then the builtin/imported index), and report the
 //! active parameter as the number of completed arguments before the cursor.
 
+use m2_syn::{ParenthesizedExpression, Sequence, Symbol};
 use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, SignatureHelp, SignatureInformation,
 };
 
 use crate::analysis::{Analysis, FunctionInfo, Method};
 use crate::document::DocumentSnapshot;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::M2Node;
 use crate::object_registry::ObjectName;
 use crate::record_lsp::{LspKnowledge, ResolvedSignature};
 use crate::source::SourceNavigation;
@@ -30,7 +31,7 @@ pub fn signature_help_response(
     // Only a named (symbol) head can be resolved to recorded signatures; a
     // computed head (`(f g) x`, `obj#k a`) has no name to look up, so we give no
     // signature help for it rather than guess.
-    if callable_node.kind != NodeKind::Symbol {
+    if !callable_node.is::<Symbol>() {
         return None;
     }
     let callable_name = callable_node.text();
@@ -58,7 +59,7 @@ pub fn signature_help_response(
 /// The innermost SPACE application `head ARGUMENTS` whose argument subtree
 /// contains the cursor — i.e. the cursor sits in the argument list, not on the
 /// head. Returns `(head, arguments)`.
-fn enclosing_application<'tree>(
+pub fn enclosing_application<'tree>(
     node: M2Node<'tree>,
     cursor: usize,
 ) -> Option<(M2Node<'tree>, M2Node<'tree>)> {
@@ -94,7 +95,7 @@ fn active_parameter_index(argument_node: M2Node, cursor: usize) -> u32 {
 /// `(a, b)` sequence (peeling the parentheses), or the single bare argument of
 /// `f x`. Empty for `f ()`.
 fn argument_list(argument_node: M2Node) -> Vec<M2Node> {
-    let inner = if argument_node.kind == NodeKind::ParenthesizedExpression {
+    let inner = if argument_node.is::<ParenthesizedExpression>() {
         match argument_node.final_value_child() {
             Some(inner) => inner,
             None => return Vec::new(),
@@ -102,7 +103,7 @@ fn argument_list(argument_node: M2Node) -> Vec<M2Node> {
     } else {
         argument_node
     };
-    if inner.kind == NodeKind::Sequence {
+    if inner.is::<Sequence>() {
         inner.collection_elements().collect()
     } else {
         vec![inner]
@@ -246,7 +247,7 @@ mod tests {
         signature_help_response(&document, position, &scoped)
     }
 
-    fn argument_kinds(text: &str) -> Vec<NodeKind> {
+    fn argument_texts(text: &str) -> Vec<String> {
         let document = DocumentSnapshot::from_text(text.to_string(), &ObjectRegistry::default())
             .expect("fixture should parse");
         let root = document.root_node();
@@ -259,25 +260,14 @@ mod tests {
             .expect("application should have an argument");
         argument_list(arguments)
             .into_iter()
-            .map(|argument| argument.kind)
+            .map(|argument| argument.text().to_string())
             .collect()
     }
 
     #[test]
     fn argument_slots_keep_empty_components_and_skip_muted_expressions() {
-        assert_eq!(
-            argument_kinds("f(,x,,)\n"),
-            vec![
-                NodeKind::EmptyComponent,
-                NodeKind::Symbol,
-                NodeKind::EmptyComponent,
-                NodeKind::EmptyComponent
-            ]
-        );
-        assert_eq!(
-            argument_kinds("f(ignored;x,y)\n"),
-            vec![NodeKind::Symbol, NodeKind::Symbol]
-        );
+        assert_eq!(argument_texts("f(,x,,)\n"), vec!["", "x", "", ""]);
+        assert_eq!(argument_texts("f(ignored;x,y)\n"), vec!["x", "y"]);
     }
 
     #[test]

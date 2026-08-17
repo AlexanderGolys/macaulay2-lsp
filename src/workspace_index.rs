@@ -23,6 +23,7 @@ struct DefLocation {
     uri: Url,
     range: TextRange,
     semantic_token_type: M2SemanticTokenType,
+    is_declaration: bool,
 }
 
 pub trait WorkspaceSymbolKnowledge {
@@ -36,14 +37,24 @@ impl<T: WorkspaceSymbolKnowledge + ?Sized> WorkspaceSymbolKnowledge for Arc<T> {
 }
 
 pub trait WorkspaceDefinitionKnowledge {
-    fn lookup(&self, name: &str, exclude: &Url) -> Vec<Location>;
+    fn declarations(&self, name: &str, exclude: &Url) -> Vec<Location>;
+    fn definitions(&self, name: &str, exclude: &Url) -> Vec<Location>;
+    fn type_definitions(&self, name: &str, exclude: &Url) -> Vec<Location>;
     fn is_defined(&self, name: &str) -> bool;
     fn semantic_token_type(&self, name: &str, exclude: &Url) -> Option<M2SemanticTokenType>;
 }
 
 impl<T: WorkspaceDefinitionKnowledge + ?Sized> WorkspaceDefinitionKnowledge for Arc<T> {
-    fn lookup(&self, name: &str, exclude: &Url) -> Vec<Location> {
-        self.as_ref().lookup(name, exclude)
+    fn declarations(&self, name: &str, exclude: &Url) -> Vec<Location> {
+        self.as_ref().declarations(name, exclude)
+    }
+
+    fn definitions(&self, name: &str, exclude: &Url) -> Vec<Location> {
+        self.as_ref().definitions(name, exclude)
+    }
+
+    fn type_definitions(&self, name: &str, exclude: &Url) -> Vec<Location> {
+        self.as_ref().type_definitions(name, exclude)
     }
 
     fn is_defined(&self, name: &str) -> bool {
@@ -115,7 +126,7 @@ impl WorkspaceIndex {
             return;
         }
         let mut names = Vec::with_capacity(definitions.len());
-        for (name, range, semantic_token_type) in definitions {
+        for (name, range, semantic_token_type, is_declaration) in definitions {
             let name = ObjectName::new(name);
             self.definitions_by_name
                 .entry(name.clone())
@@ -124,9 +135,12 @@ impl WorkspaceIndex {
                     uri: uri.clone(),
                     range,
                     semantic_token_type,
+                    is_declaration,
                 });
             names.push(name);
         }
+        names.sort();
+        names.dedup();
         self.names_by_file.insert(uri.clone(), names);
     }
 
@@ -185,20 +199,21 @@ impl WorkspaceSymbolKnowledge for WorkspaceIndex {
 }
 
 impl WorkspaceDefinitionKnowledge for WorkspaceIndex {
-    fn lookup(&self, name: &str, exclude: &Url) -> Vec<Location> {
-        self.definitions_by_name
-            .get(name)
-            .map(|locations| {
-                locations
-                    .iter()
-                    .filter(|location| &location.uri != exclude)
-                    .map(|location| Location {
-                        uri: location.uri.clone(),
-                        range: location.range,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
+    fn declarations(&self, name: &str, exclude: &Url) -> Vec<Location> {
+        self.locations(name, exclude, |location| location.is_declaration)
+    }
+
+    fn definitions(&self, name: &str, exclude: &Url) -> Vec<Location> {
+        self.locations(name, exclude, |_| true)
+    }
+
+    fn type_definitions(&self, name: &str, exclude: &Url) -> Vec<Location> {
+        self.locations(name, exclude, |location| {
+            matches!(
+                location.semantic_token_type,
+                M2SemanticTokenType::Type | M2SemanticTokenType::Class
+            )
+        })
     }
 
     fn is_defined(&self, name: &str) -> bool {
@@ -212,6 +227,29 @@ impl WorkspaceDefinitionKnowledge for WorkspaceIndex {
                 .find(|location| &location.uri != exclude)
                 .map(|location| location.semantic_token_type)
         })
+    }
+}
+
+impl WorkspaceIndex {
+    fn locations(
+        &self,
+        name: &str,
+        exclude: &Url,
+        include: impl Fn(&DefLocation) -> bool,
+    ) -> Vec<Location> {
+        self.definitions_by_name
+            .get(name)
+            .map(|locations| {
+                locations
+                    .iter()
+                    .filter(|location| &location.uri != exclude && include(location))
+                    .map(|location| Location {
+                        uri: location.uri.clone(),
+                        range: location.range,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 
@@ -240,14 +278,20 @@ fn collect_m2_files(dir: &Path, out: &mut Vec<PathBuf>) {
 /// returns for an in-file symbol.
 fn top_level_definitions(
     snapshot: &DocumentSnapshot,
-) -> Vec<(String, TextRange, M2SemanticTokenType)> {
+) -> Vec<(String, TextRange, M2SemanticTokenType, bool)> {
     let knowledge = snapshot.object_registry();
     let analysis = snapshot.analysis();
     analysis
-        .bindings_in_scope(0)
+        .binding_states()
+        .filter(|binding| binding.state.scope_idx == 0)
         .map(|binding| {
             let token_type = local_symbol_semantic_token(&binding, &knowledge).token_type;
-            (binding.name.name().to_string(), binding.range, token_type)
+            (
+                binding.name.name().to_string(),
+                binding.state.span,
+                token_type,
+                binding.state.span == binding.range,
+            )
         })
         .collect()
 }
@@ -266,26 +310,27 @@ mod tests {
 
         index.index_file(
             &defs,
-            "myHelper = x -> x + 1\nGreeting = new Type of HashTable\n",
+            "myHelper = x -> x + 1\nmyHelper = x -> x + 2\nGreeting = new Type of HashTable\n",
             &builtins,
         );
 
-        let found = index.lookup("myHelper", &main);
-        assert_eq!(found.len(), 1, "myHelper should be found in defs.m2");
+        let found = index.definitions("myHelper", &main);
+        assert_eq!(found.len(), 2, "every reassignment should be indexed");
         assert_eq!(found[0].uri, defs);
+        assert_eq!(index.declarations("myHelper", &main).len(), 1);
         assert!(
-            !index.lookup("Greeting", &main).is_empty(),
+            !index.definitions("Greeting", &main).is_empty(),
             "Greeting type should be indexed"
         );
         // The current document is excluded (its live analysis is authoritative).
-        assert!(index.lookup("myHelper", &defs).is_empty());
+        assert!(index.definitions("myHelper", &defs).is_empty());
 
         // Re-indexing replaces; removal clears.
         index.index_file(&defs, "renamed = 1\n", &builtins);
-        assert!(index.lookup("myHelper", &main).is_empty());
-        assert_eq!(index.lookup("renamed", &main).len(), 1);
+        assert!(index.definitions("myHelper", &main).is_empty());
+        assert_eq!(index.definitions("renamed", &main).len(), 1);
         index.remove_file(&defs);
-        assert!(index.lookup("renamed", &main).is_empty());
+        assert!(index.definitions("renamed", &main).is_empty());
     }
 
     #[test]

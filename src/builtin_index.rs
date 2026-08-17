@@ -171,7 +171,7 @@ impl OptionFacts {
 ///
 /// Domains use general object identities because M2 supports singleton dispatch
 /// objects as well as types. Codomains are validated type identities.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MethodSignature {
     pub domain: Vec<ObjectId>,
     pub codomain: Option<TypeId>,

@@ -7,7 +7,7 @@ use crate::builtin_index::{CallableInfo, MethodSignature};
 use tower_lsp::lsp_types::Position;
 
 use crate::object_registry::{
-    ObjectId, ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView, TypeId,
+    ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView, TypeId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -59,7 +59,7 @@ pub struct LiteralOption {
 /// Keeping this as a narrow trait decouples the analysis engine from registry
 /// storage and resolution order. The complete [`ObjectRegistry`], an ordered
 /// package view, and syntax-only test knowledge all implement the same contract.
-pub trait TypeKnowledge: ObjectKnowledge {
+pub trait TypeKnowledge: ObjectKnowledge + PositionedTypeKnowledge {
     /// Whether external type facts are available for diagnostics.
     fn is_available(&self) -> bool {
         true
@@ -99,117 +99,6 @@ pub trait TypeKnowledge: ObjectKnowledge {
 
     fn type_role_id(&self, role: TypeRole) -> Option<TypeId> {
         self.resolve_type_id(&role.object_name())
-    }
-
-    /// Whether `smaller` is a strict componentwise subtype of `bigger`.
-    fn domain_strictly_smaller(&self, smaller: &[ObjectId], bigger: &[ObjectId]) -> bool {
-        if smaller == bigger || smaller.len() != bigger.len() {
-            return false;
-        }
-
-        let mut strict = false;
-        for (small, big) in smaller.iter().zip(bigger) {
-            if small == big {
-                continue;
-            }
-            if self.dispatch_matches(small, big) {
-                strict = true;
-                continue;
-            }
-            return false;
-        }
-        strict
-    }
-
-    /// Resolve a call to exactly one known return type, or stay silent when the
-    /// available metadata is ambiguous or incomplete.
-    fn resolve_call_return_type_with_options(
-        &self,
-        callable: &ObjectName,
-        argument_types: &[Option<ObjectId>],
-        _options: &[LiteralOption],
-    ) -> Option<TypeId> {
-        self.resolve_installed_method_codomain(callable, argument_types)
-            .or_else(|| self.get_record(callable)?.callable()?.typical_value.clone())
-    }
-
-    /// Resolve a call only when its known argument types select one installed
-    /// method codomain.
-    fn resolve_installed_method_codomain(
-        &self,
-        callable: &ObjectName,
-        argument_types: &[Option<ObjectId>],
-    ) -> Option<TypeId> {
-        let callable_info = self.get_record(callable)?.callable()?;
-        let mut specialized_candidates = Vec::new();
-        let mut general_candidates = Vec::new();
-        for method in &callable_info.methods {
-            if method.domain.is_empty() || method.domain.len() != argument_types.len() {
-                continue;
-            }
-            if !self.domain_matches(&method.domain, argument_types) {
-                continue;
-            }
-            let Some((codomain, is_specialized)) = callable_info.effective_codomain(method) else {
-                continue;
-            };
-            let candidate = (method.domain.as_slice(), codomain);
-            if is_specialized {
-                specialized_candidates.push(candidate);
-            } else {
-                general_candidates.push(candidate);
-            }
-        }
-
-        let mut candidates = if specialized_candidates.is_empty() {
-            general_candidates
-        } else {
-            specialized_candidates
-        };
-        let originals = candidates.clone();
-        candidates.retain(|candidate| {
-            !originals
-                .iter()
-                .any(|other| self.domain_strictly_smaller(other.0, candidate.0))
-        });
-        candidates.sort_by(|left, right| left.0.cmp(right.0).then_with(|| left.1.cmp(right.1)));
-        candidates.dedup();
-        match candidates.as_slice() {
-            [(_, codomain)] => Some((*codomain).clone()),
-            _ => None,
-        }
-    }
-
-    /// Whether every known argument can inhabit the corresponding domain slot.
-    /// Unknown arguments remain possible for editor-facing signature filtering.
-    fn domain_possibly_matches(
-        &self,
-        domain: &[ObjectId],
-        argument_types: &[Option<ObjectId>],
-    ) -> bool {
-        domain.len() == argument_types.len()
-            && domain.iter().zip(argument_types).all(|(expected, actual)| {
-                actual
-                    .as_ref()
-                    .is_none_or(|actual| self.dispatch_matches(actual, expected))
-            })
-    }
-
-    /// Whether every argument is known and inhabits the corresponding slot.
-    fn domain_matches(&self, domain: &[ObjectId], argument_types: &[Option<ObjectId>]) -> bool {
-        argument_types.iter().all(Option::is_some)
-            && self.domain_possibly_matches(domain, argument_types)
-    }
-
-    /// Whether one runtime dispatch identity satisfies a method-domain slot.
-    /// Singleton domains match by exact identity; type domains additionally
-    /// admit descendants in the registered partial order.
-    fn dispatch_matches(&self, actual: &ObjectId, expected: &ObjectId) -> bool {
-        actual == expected
-            || self
-                .type_id(actual)
-                .zip(self.type_id(expected))
-                .is_some_and(|(actual, expected)| self.is_subtype_id(&actual, &expected))
     }
 }
 
@@ -282,6 +171,30 @@ impl InferredType {
         })
     }
 
+    pub fn subset_label(
+        &self,
+        has_strict_member_above: impl Fn(&ObjectName) -> bool,
+    ) -> Option<String> {
+        (!self.exact_points.is_empty() || !self.upward_generators.is_empty()).then(|| {
+            self.upward_generators
+                .iter()
+                .map(|generator| {
+                    if has_strict_member_above(generator) {
+                        format!("↑{}", generator.name())
+                    } else {
+                        generator.name().to_string()
+                    }
+                })
+                .chain(
+                    self.exact_points
+                        .iter()
+                        .map(|point| point.name().to_string()),
+                )
+                .collect::<Vec<_>>()
+                .join(" | ")
+        })
+    }
+
     pub fn possibility_by(
         &self,
         candidate: &ObjectName,
@@ -301,11 +214,7 @@ impl InferredType {
         result
     }
 
-    pub fn join(self, other: Self, knowledge: &(impl TypeKnowledge + ?Sized)) -> Self {
-        self.union_by(other, |child, parent| knowledge.is_subtype(child, parent))
-    }
-
-    fn union_by(self, other: Self, is_below: impl Fn(&ObjectName, &ObjectName) -> bool) -> Self {
+    pub fn join_by(self, other: Self, is_below: impl Fn(&ObjectName, &ObjectName) -> bool) -> Self {
         let mut exact_points = self.exact_points;
         for point in other.exact_points {
             if !exact_points.contains(&point) {
@@ -341,11 +250,22 @@ impl InferredType {
 
 /// Supplies the object environment effective at one source position.
 pub trait PositionedTypeKnowledge {
-    type Knowledge<'a>: TypeKnowledge
+    type Knowledge<'a>: TypeKnowledge + PositionedTypeKnowledge
     where
         Self: 'a;
 
     fn at_position(&self, position: Position) -> Self::Knowledge<'_>;
+}
+
+impl<T: PositionedTypeKnowledge + ?Sized> PositionedTypeKnowledge for &T {
+    type Knowledge<'a>
+        = T::Knowledge<'a>
+    where
+        Self: 'a;
+
+    fn at_position(&self, position: Position) -> Self::Knowledge<'_> {
+        T::at_position(self, position)
+    }
 }
 
 impl PositionedTypeKnowledge for ObjectRegistry {
@@ -362,8 +282,8 @@ impl PositionedTypeKnowledge for ObjectRegistryView<'_> {
     where
         Self: 'a;
 
-    fn at_position(&self, _position: Position) -> Self::Knowledge<'_> {
-        *self
+    fn at_position(&self, position: Position) -> Self::Knowledge<'_> {
+        self.at(position)
     }
 }
 
@@ -406,108 +326,6 @@ impl CallableInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn dispatch_walks_the_lattice_to_the_installed_supertype_method() {
-        // dim is installed on Ring; PolynomialRing <: Ring.
-        let corpus = concat!(
-            r#"{"kind":"type","name":"Thing","aliases":[],"extra_keys":[]}"#,
-            "\n",
-            r#"{"kind":"type","name":"Ring","parent":"Thing","ancestors":["Thing"],"subtypes":["PolynomialRing"],"aliases":[],"extra_keys":[]}"#,
-            "\n",
-            r#"{"kind":"type","name":"PolynomialRing","parent":"Ring","ancestors":["Ring","Thing"],"subtypes":[],"aliases":[],"extra_keys":[]}"#,
-            "\n",
-            r#"{"kind":"type","name":"ZZ","parent":"Thing","aliases":[],"extra_keys":[]}"#,
-            "\n",
-            r#"{"kind":"function","name":"dim","methods":[{"domain":["$Core$Ring"],"typicalValue":"$Core$ZZ"}],"aliases":[],"extra_keys":[]}"#,
-        );
-        let builtins = ObjectRegistry::load(corpus);
-        let type_id = |name: &str| {
-            builtins
-                .resolve_type_id(&ObjectName::new(name))
-                .expect("test type should resolve")
-        };
-
-        // Exact match.
-        assert_eq!(
-            builtins.resolve_call_return_type_with_options(
-                &ObjectName::new("dim"),
-                &[Some(type_id("Ring").object().clone())],
-                &[],
-            ),
-            Some(type_id("ZZ"))
-        );
-        // Subtype dispatch: PolynomialRing has no own method, walks up to Ring's.
-        assert_eq!(
-            builtins.resolve_call_return_type_with_options(
-                &ObjectName::new("dim"),
-                &[Some(type_id("PolynomialRing").object().clone())],
-                &[],
-            ),
-            Some(type_id("ZZ"))
-        );
-        // No applicable method (Thing is a supertype, not a subtype) ⇒ silent.
-        assert_eq!(
-            builtins.resolve_call_return_type_with_options(
-                &ObjectName::new("dim"),
-                &[Some(type_id("Thing").object().clone())],
-                &[],
-            ),
-            None
-        );
-    }
-
-    #[test]
-    fn dispatch_domains_can_name_singleton_objects_as_well_as_types() {
-        let corpus = concat!(
-            r#"{"kind":"type","name":"Thing"}"#,
-            "\n",
-            r#"{"kind":"type","name":"ToricDivisor","parent":"Thing"}"#,
-            "\n",
-            r#"{"kind":"type","name":"SheafOfRings","parent":"Thing"}"#,
-            "\n",
-            r#"{"kind":"function","name":"OO"}"#,
-            "\n",
-            r#"{"kind":"function","name":"apply","methods":[{"domain":["OO","ToricDivisor"],"typicalValue":"SheafOfRings"}]}"#,
-        );
-        let knowledge = ObjectRegistry::load(corpus);
-        let oo = knowledge
-            .resolve_object(&ObjectName::new("OO"))
-            .expect("singleton dispatch object should resolve");
-        let divisor = knowledge
-            .resolve_object(&ObjectName::new("ToricDivisor"))
-            .expect("type dispatch object should resolve");
-        let sheaf = knowledge
-            .resolve_type_id(&ObjectName::new("SheafOfRings"))
-            .expect("codomain type should resolve");
-
-        assert_eq!(
-            knowledge.resolve_call_return_type_with_options(
-                &ObjectName::new("apply"),
-                &[Some(oo), Some(divisor)],
-                &[],
-            ),
-            Some(sheaf),
-        );
-    }
-
-    #[test]
-    fn resolves_real_gb_codomain_from_the_type_index() {
-        let builtins = ObjectRegistry::load(include_str!("./data/m2-index.jsonl"));
-        let type_id = |name: &str| {
-            builtins
-                .resolve_type_id(&ObjectName::new(name))
-                .expect("test type should resolve")
-        };
-        assert_eq!(
-            builtins.resolve_call_return_type_with_options(
-                &ObjectName::new("gb"),
-                &[Some(type_id("Ideal").object().clone())],
-                &[],
-            ),
-            Some(type_id("GroebnerBasis"))
-        );
-    }
 
     #[test]
     fn is_subtype_holds_for_the_immediate_parent_edge() {

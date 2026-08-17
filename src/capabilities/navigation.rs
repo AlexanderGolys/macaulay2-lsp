@@ -3,13 +3,17 @@
 
 use std::collections::HashMap;
 
+use m2_syn::Symbol;
+use tower_lsp::lsp_types::request::{
+    GotoDeclarationResponse, GotoImplementationResponse, GotoTypeDefinitionResponse,
+};
 use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
 use crate::document::{DocumentSnapshot, TargetSymbol};
-use crate::node_metadata::NodeKind;
+use crate::node_metadata::M2Node;
 use crate::object_registry::ObjectName;
-use crate::package_index::SourceResolver;
+use crate::package_index::{package_source_string, SourceResolver};
 use crate::record_lsp::LspKnowledge;
 use crate::source::SourceNavigation;
 use crate::workspace_index::{WorkspaceDefinitionKnowledge, WorkspaceSymbolKnowledge};
@@ -55,7 +59,21 @@ pub fn completion_response(
     position: Position,
     knowledge: &(impl LspKnowledge + ?Sized),
 ) -> Option<CompletionResponse> {
-    let prefix = symbol_prefix_at(document, position)?;
+    if let Some(prefix) = package_completion_prefix(document, position) {
+        let items = knowledge
+            .package_names_with_prefix(prefix, 80)
+            .into_iter()
+            .map(|label| CompletionItem {
+                label,
+                kind: Some(CompletionItemKind::MODULE),
+                detail: Some("Macaulay2 package".to_string()),
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        return Some(CompletionResponse::Array(items));
+    }
+
+    let prefix = symbol_prefix_at(document, position).unwrap_or_default();
     let analysis = document.analysis();
     let mut items = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -67,6 +85,17 @@ pub fn completion_response(
             items.push(CompletionItem {
                 label: name,
                 kind: Some(completion_item_kind(kind)),
+                ..Default::default()
+            });
+        }
+    }
+
+    for option in callable_option_completions(document, position, knowledge, &prefix) {
+        if seen.insert(option.clone()) {
+            items.push(CompletionItem {
+                label: option,
+                kind: Some(CompletionItemKind::PROPERTY),
+                detail: Some("Callable option".to_string()),
                 ..Default::default()
             });
         }
@@ -97,6 +126,45 @@ pub fn completion_response(
     }
 
     Some(CompletionResponse::Array(items))
+}
+
+fn package_completion_prefix(document: &DocumentSnapshot, position: Position) -> Option<&str> {
+    let node = document.node_at_position_minimal(position)?;
+    let string = node.enclosing_node(M2Node::is_string_literal)?;
+    package_source_string(string)
+}
+
+fn callable_option_completions(
+    document: &DocumentSnapshot,
+    position: Position,
+    knowledge: &(impl LspKnowledge + ?Sized),
+    prefix: &str,
+) -> Vec<String> {
+    let cursor = match document.byte_for_position(position) {
+        Some(cursor) => cursor,
+        None => return Vec::new(),
+    };
+    let node = match document.node_at_position_minimal(position) {
+        Some(node) => node,
+        None => return Vec::new(),
+    };
+    let Some((callable, _)) =
+        crate::capabilities::signature_help::enclosing_application(node, cursor)
+    else {
+        return Vec::new();
+    };
+    if !callable.is::<Symbol>() {
+        return Vec::new();
+    }
+    knowledge
+        .get_record(&ObjectName::new(callable.text()))
+        .and_then(|record| record.callable())
+        .into_iter()
+        .flat_map(|callable| &callable.options)
+        .map(|option| option.name.name())
+        .filter(|name| name.starts_with(prefix))
+        .map(str::to_string)
+        .collect()
 }
 
 /// Map an analysis symbol kind to the completion-item kind shown in the editor.
@@ -150,9 +218,31 @@ pub fn workspace_symbols_response(
         .collect()
 }
 
-/// Go-to-definition at `position`: package-source jump for an import string,
-/// else local binding, else a cross-file workspace definition, else the
-/// builtin/package record's source location.
+#[derive(Debug, Clone, Copy)]
+enum NavigationTarget {
+    Declaration,
+    Definition,
+}
+
+pub fn goto_declaration_response(
+    document: &DocumentSnapshot,
+    uri: &Url,
+    position: Position,
+    knowledge: &(impl LspKnowledge + ?Sized),
+    source_resolver: &SourceResolver,
+    workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
+) -> Option<GotoDeclarationResponse> {
+    goto_symbol_response(
+        document,
+        uri,
+        position,
+        knowledge,
+        source_resolver,
+        workspace_index,
+        NavigationTarget::Declaration,
+    )
+}
+
 pub fn goto_definition_response(
     document: &DocumentSnapshot,
     uri: &Url,
@@ -160,13 +250,31 @@ pub fn goto_definition_response(
     knowledge: &(impl LspKnowledge + ?Sized),
     source_resolver: &SourceResolver,
     workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
-    package_location: impl Fn(&str) -> Option<Location>,
 ) -> Option<GotoDefinitionResponse> {
-    let analysis = document.analysis();
+    goto_symbol_response(
+        document,
+        uri,
+        position,
+        knowledge,
+        source_resolver,
+        workspace_index,
+        NavigationTarget::Definition,
+    )
+}
+
+fn goto_symbol_response(
+    document: &DocumentSnapshot,
+    uri: &Url,
+    position: Position,
+    knowledge: &(impl LspKnowledge + ?Sized),
+    source_resolver: &SourceResolver,
+    workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
+    target: NavigationTarget,
+) -> Option<GotoDefinitionResponse> {
     let node = document.node_at_position_minimal(position)?;
     let documentation_reference = document.documentation_reference_at(position);
 
-    if let Some(string_node) = node.enclosing_matching(|kind| kind.is_string_literal()) {
+    if let Some(string_node) = node.enclosing_node(M2Node::is_string_literal) {
         if let Some(package_name) = crate::package_index::package_source_string(string_node) {
             if let Some(path) = source_resolver.resolve_package_file(package_name) {
                 if let Ok(uri) = Url::from_file_path(path) {
@@ -182,36 +290,215 @@ pub fn goto_definition_response(
     let node_text = if let Some(reference) = documentation_reference.as_ref() {
         reference.name(document.text())
     } else {
-        if node.kind != NodeKind::Symbol {
+        if !node.is::<Symbol>() {
             return None;
         }
         node.text()
     };
 
-    let local_definition = analysis.find_definition(node_text, position);
-    if let Some(range) = local_definition {
-        return Some(GotoDefinitionResponse::Scalar(Location {
+    let local_binding = match target {
+        NavigationTarget::Declaration => document.binding_at_position(position),
+        NavigationTarget::Definition => document.source_binding_at(node_text, position),
+    };
+    if let Some(binding) = local_binding {
+        let ranges = match target {
+            NavigationTarget::Declaration => vec![binding.range],
+            NavigationTarget::Definition => binding
+                .states
+                .iter()
+                .map(|state| state.span)
+                .collect::<Vec<_>>(),
+        };
+        return locations_response(ranges.into_iter().map(|range| Location {
             uri: uri.clone(),
             range,
         }));
     }
 
-    // Cross-file: a top-level definition of this name in another workspace file.
-    // User code outranks installed packages and builtins.
-    let workspace_locations = workspace_index.lookup(node_text, uri);
+    let workspace_locations = match target {
+        NavigationTarget::Declaration => workspace_index.declarations(node_text, uri),
+        NavigationTarget::Definition => workspace_index.definitions(node_text, uri),
+    };
     if !workspace_locations.is_empty() {
-        return Some(GotoDefinitionResponse::Array(workspace_locations));
+        return locations_response(workspace_locations);
     }
 
     if let Some((package, _)) =
         knowledge.get_record_with_package(&ObjectName(node_text.to_string()))
     {
-        if let Some(location) = package_location(&package) {
+        if let Some(location) = source_resolver.package_location(&package) {
             return Some(GotoDefinitionResponse::Scalar(location));
         }
     }
 
     None
+}
+
+pub fn goto_type_definition_response(
+    document: &DocumentSnapshot,
+    uri: &Url,
+    position: Position,
+    knowledge: &(impl LspKnowledge + ?Sized),
+    workspace_index: &(impl WorkspaceDefinitionKnowledge + ?Sized),
+    source_resolver: &SourceResolver,
+) -> Option<GotoTypeDefinitionResponse> {
+    let node = document.symbol_node_at_position(position)?;
+    let inferred_type = document
+        .binding_at_position(position)
+        .and_then(|binding| binding.state.inferred_type.as_ref())
+        .and_then(crate::typesystem::InferredType::single)
+        .cloned()
+        .or_else(|| {
+            document
+                .analysis()
+                .infer_expression_static_type(node, document, knowledge)
+        })?;
+    if inferred_type.name() == "Thing" {
+        return None;
+    }
+
+    if let Some(binding) = document.source_binding_at(inferred_type.name(), position) {
+        if binding.state.source_type.is_some() {
+            return locations_response([Location {
+                uri: uri.clone(),
+                range: binding.range,
+            }]);
+        }
+    }
+
+    let workspace_locations = workspace_index.type_definitions(inferred_type.name(), uri);
+    if !workspace_locations.is_empty() {
+        return locations_response(workspace_locations);
+    }
+
+    let (package, record) = knowledge.get_record_with_package(&inferred_type)?;
+    record.type_info()?;
+    source_resolver
+        .package_location(&package)
+        .map(GotoDefinitionResponse::Scalar)
+}
+
+pub fn goto_implementation_response(
+    document: &DocumentSnapshot,
+    position: Position,
+    uri: &Url,
+    knowledge: &(impl LspKnowledge + ?Sized),
+    source_resolver: &SourceResolver,
+) -> Option<GotoImplementationResponse> {
+    if let Some(function) = document.callable_at_position(position) {
+        let locations = document
+            .analysis()
+            .assignment_facts()
+            .iter()
+            .filter_map(|assignment| {
+                let crate::analysis::AssignmentFactKind::MethodInstallation(id) = assignment.kind
+                else {
+                    return None;
+                };
+                function.installations.contains(&id).then(|| Location {
+                    uri: uri.clone(),
+                    range: assignment.target_span,
+                })
+            })
+            .collect::<Vec<_>>();
+        if !locations.is_empty() {
+            return locations_response(locations);
+        }
+    }
+
+    let (name, _) = document.symbol_occurrence_at(position)?;
+    let (package, record) = knowledge.get_record_with_package(&ObjectName::new(name))?;
+    record
+        .callable()
+        .filter(|callable| !callable.methods.is_empty())?;
+    source_resolver
+        .package_location(&package)
+        .map(GotoDefinitionResponse::Scalar)
+}
+
+pub fn document_links_response(document: &DocumentSnapshot, uri: &Url) -> Vec<DocumentLink> {
+    let mut links = document
+        .documentation_references()
+        .iter()
+        .map(|reference| {
+            document_link(
+                reference.range(),
+                uri,
+                format!("Open `{}`", reference.name(document.text())),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    links.extend(
+        document
+            .root_node()
+            .descendants()
+            .filter(M2Node::is_string_literal)
+            .filter_map(|node| {
+                let package = package_source_string(node)?;
+                Some(document_link(
+                    document.range_for_node(node),
+                    uri,
+                    format!("Open package `{package}`"),
+                ))
+            }),
+    );
+    links.sort_by_key(|link| (link.range.start, link.range.end));
+    links.dedup_by_key(|link| link.range);
+    links
+}
+
+pub fn document_link_request(link: &DocumentLink) -> Option<TextDocumentPositionParams> {
+    serde_json::from_value(link.data.clone()?).ok()
+}
+
+pub fn resolve_document_link(
+    mut link: DocumentLink,
+    response: GotoDefinitionResponse,
+) -> DocumentLink {
+    let location = match response {
+        GotoDefinitionResponse::Scalar(location) => Some(location),
+        GotoDefinitionResponse::Array(locations) => locations.into_iter().next(),
+        GotoDefinitionResponse::Link(links) => links.into_iter().next().map(|link| Location {
+            uri: link.target_uri,
+            range: link.target_selection_range,
+        }),
+    };
+    if let Some(location) = location {
+        let mut target = location.uri;
+        if location.range.start != pos!() {
+            target.set_fragment(Some(&format!(
+                "L{},{}",
+                location.range.start.line + 1,
+                location.range.start.character + 1
+            )));
+        }
+        link.target = Some(target);
+        link.data = None;
+    }
+    link
+}
+
+fn document_link(range: TextRange, uri: &Url, tooltip: String) -> DocumentLink {
+    let request =
+        TextDocumentPositionParams::new(TextDocumentIdentifier::new(uri.clone()), range.start);
+    DocumentLink {
+        range,
+        target: None,
+        tooltip: Some(tooltip),
+        data: serde_json::to_value(request).ok(),
+    }
+}
+
+fn locations_response(
+    locations: impl IntoIterator<Item = Location>,
+) -> Option<GotoDefinitionResponse> {
+    let mut locations = locations.into_iter().collect::<Vec<_>>();
+    match locations.len() {
+        0 => None,
+        1 => Some(GotoDefinitionResponse::Scalar(locations.remove(0))),
+        _ => Some(GotoDefinitionResponse::Array(locations)),
+    }
 }
 
 /// Every in-file range referring to the same binding as the symbol at
@@ -615,7 +902,6 @@ mod tests {
                 &scoped,
                 &SourceResolver::new(Vec::new()),
                 &WorkspaceIndex::default(),
-                |_| None,
             ),
             None
         );
@@ -733,7 +1019,15 @@ mod tests {
         struct KnownGlobal;
 
         impl WorkspaceDefinitionKnowledge for KnownGlobal {
-            fn lookup(&self, _name: &str, _exclude: &Url) -> Vec<Location> {
+            fn declarations(&self, _name: &str, _exclude: &Url) -> Vec<Location> {
+                Vec::new()
+            }
+
+            fn definitions(&self, _name: &str, _exclude: &Url) -> Vec<Location> {
+                Vec::new()
+            }
+
+            fn type_definitions(&self, _name: &str, _exclude: &Url) -> Vec<Location> {
                 Vec::new()
             }
 

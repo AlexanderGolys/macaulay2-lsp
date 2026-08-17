@@ -2,12 +2,12 @@
 
 use tower_lsp::lsp_types::*;
 
-use crate::analysis::{Analysis, FunctionInfo, Method, MethodInstallation};
+use crate::analysis::{Analysis, CallStaticFacts, FunctionInfo, Method, MethodInstallation};
 use crate::document::DocumentSnapshot;
 use crate::meta::{BindingRole, Metadata};
 use crate::node_metadata::M2Node;
 use crate::object_registry::ObjectName;
-use crate::record_lsp::record_hover_with_package_and_usage;
+use crate::record_lsp::{record_hover_with_package_and_usage, signature_usage_from_facts};
 use crate::record_lsp::{LspKnowledge, SignatureUsage};
 use crate::source::SourceNavigation;
 
@@ -140,40 +140,49 @@ fn call_signature_usage_for_hover(
 ) -> Option<SignatureUsage> {
     let parent = node.parent()?;
 
-    let argument_types = if parent.is_space_application() {
+    let facts = if parent.is_space_application() {
         let callable = parent.child_by_field_name("left")?;
         if callable.id() != node.id() {
             return None;
         }
 
         let argument = parent.child_by_field_name("right")?;
-        let facts = analysis.infer_call_static_facts(argument, source, knowledge);
-        analysis.dispatch_argument_ids(&facts, source.position_for_node(parent), knowledge)
+        analysis.infer_call_static_facts(argument, source, knowledge)
     } else if parent
         .child_by_field_name("operator")
         .is_some_and(|operator| operator.id() == node.id())
     {
         let left = parent.child_by_field_name("left")?;
         let right = parent.child_by_field_name("right")?;
-        vec![
-            analysis
-                .infer_expression_static_type(left, source, knowledge)
-                .and_then(|name| knowledge.resolve_object(&name)),
-            analysis
-                .infer_expression_static_type(right, source, knowledge)
-                .and_then(|name| knowledge.resolve_object(&name)),
-        ]
+        CallStaticFacts {
+            argument_types: vec![
+                analysis.infer_expression_type(left, source, knowledge),
+                analysis.infer_expression_type(right, source, knowledge),
+            ],
+            literal_options: Vec::new(),
+        }
     } else {
         return None;
     };
 
-    knowledge.resolve_call_signature_usage(node_text, &argument_types)
+    let callable = ObjectName::new(node_text);
+    let signature_facts = analysis.infer_external_call_signature_facts(
+        &callable,
+        &facts,
+        source.position_for_node(parent),
+        knowledge,
+    )?;
+    signature_usage_from_facts(
+        knowledge,
+        knowledge.get_record(&callable)?,
+        &signature_facts,
+    )
 }
 
 /// Whether a hover over this node is meaningful: a symbol-like leaf or an
 /// operator token of an expression.
 fn hoverable_symbol_or_operator_node(node: M2Node) -> bool {
-    if node.kind.is_symbol_like() {
+    if node.is_symbol_like() {
         return true;
     }
 
@@ -441,7 +450,7 @@ mod tests {
         let tree = parser.parse_tree(text, None).expect("fixture should parse");
         let root = tree.root(text);
         let source = DocumentSource::new(text.to_string());
-        let analysis = Analysis::new_with_knowledge(root, &source, &scoped);
+        let analysis = Analysis::new_with_knowledge(root, None, &source, &scoped);
         let node = root
             .descendant_for_point_range(
                 tree_sitter::Point::new(0, 5),
@@ -482,7 +491,7 @@ mod tests {
         let tree = parser.parse_tree(text, None).expect("fixture should parse");
         let root = tree.root(text);
         let source = DocumentSource::new(text.to_string());
-        let analysis = Analysis::new_with_knowledge(root, &source, &scoped);
+        let analysis = Analysis::new_with_knowledge(root, None, &source, &scoped);
         let node = root
             .descendant_for_point_range(
                 tree_sitter::Point::new(2, 7),

@@ -3,11 +3,12 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
+use m2_syn::{ParenthesizedExpression, Sequence, SourceFile, Symbol};
 use tower_lsp::lsp_types::{Location, Position, Range as TextRange, Url};
 
 #[cfg(test)]
 use crate::node_metadata::M2Parser;
-use crate::node_metadata::{M2Node, NodeKind};
+use crate::node_metadata::{visit_source_nodes, M2Node};
 use crate::object_registry::ObjectName;
 use crate::source::SourceNavigation;
 
@@ -95,34 +96,21 @@ fn is_package_import_trigger(name: &str) -> bool {
 }
 
 pub fn package_source_string(node: M2Node<'_>) -> Option<&str> {
-    package_import(node).map(|(package_name, _)| package_name)
+    node.ancestors().find_map(|application| {
+        let (argument, package_name) = package_import(application)?;
+        (argument.id() == node.id()).then_some(package_name)
+    })
 }
 
-/// The indexed package name and complete source application that includes it.
-fn package_import(node: M2Node<'_>) -> Option<(&str, M2Node<'_>)> {
-    let package_name = node.string_literal_inner_text()?;
-    let parent = node.parent()?;
-
-    // A single parenthesized argument `loadPackage("Pkg")` is a
-    // `parenthesized_expression`; a multi-argument call wraps them in a
-    // `sequence`. Both sit between the string and the `callee ARG` application.
-    if matches!(
-        parent.kind,
-        NodeKind::Sequence | NodeKind::ParenthesizedExpression
-    ) {
-        if parent.kind == NodeKind::Sequence && !parent.is_first_collection_element(node) {
-            return None;
-        }
-
-        let application = parent.parent()?;
-        return binary_expression_left_symbol(application)
-            .filter(|name| is_package_import_trigger(name))
-            .map(|_| (package_name, application));
-    }
-
-    binary_expression_left_symbol(parent)
-        .filter(|name| is_package_import_trigger(name))
-        .map(|_| (package_name, parent))
+fn package_import<'tree>(application: M2Node<'tree>) -> Option<(M2Node<'tree>, &'tree str)> {
+    binary_expression_left_symbol(application).filter(|name| is_package_import_trigger(name))?;
+    let argument = application.child_by_field_name("right")?;
+    let argument = if argument.is::<Sequence>() || argument.is::<ParenthesizedExpression>() {
+        argument.collection_elements().next()?
+    } else {
+        argument
+    };
+    Some((argument, argument.string_literal_inner_text()?))
 }
 
 #[cfg(test)]
@@ -133,9 +121,11 @@ pub fn collect_imported_packages(text: &str) -> Vec<PackageImport> {
         return Vec::new();
     };
     let source = DocumentSource::new(text.to_string());
-    parser.parse(text).map_or_else(Vec::new, |root| {
-        collect_imported_packages_in_tree(root, &source)
-    })
+    let Some(tree) = parser.parse_tree(text, None) else {
+        return Vec::new();
+    };
+    let syntax = tree.typed_source_file(text, m2_syn::SourceId(0));
+    collect_imported_packages_in_tree(tree.root(text), syntax.as_ref(), &source)
 }
 
 /// Walk an already-parsed tree for package-import calls, reusing the caller's
@@ -143,19 +133,18 @@ pub fn collect_imported_packages(text: &str) -> Vec<PackageImport> {
 /// around, so per-version import collection costs one walk, not a re-parse.
 pub fn collect_imported_packages_in_tree(
     root: M2Node<'_>,
+    syntax: Option<&SourceFile>,
     source: &(impl SourceNavigation + ?Sized),
 ) -> Vec<PackageImport> {
     let mut packages = Vec::new();
-    for node in root.descendants() {
-        if node.kind.is_string_literal() {
-            if let Some((package_name, application)) = package_import(node) {
-                packages.push(PackageImport {
-                    package: ObjectName::new(package_name),
-                    effective_from: source.range_for_node(application).end,
-                });
-            }
+    visit_source_nodes(root, syntax, |application| {
+        if let Some((_, package_name)) = package_import(application) {
+            packages.push(PackageImport {
+                package: ObjectName::new(package_name),
+                effective_from: source.range_for_node(application).end,
+            });
         }
-    }
+    });
 
     packages
 }
@@ -169,7 +158,7 @@ fn binary_expression_left_symbol(node: M2Node<'_>) -> Option<&str> {
     }
 
     let left = node.child_by_field_name("left")?;
-    if left.kind != NodeKind::Symbol {
+    if !left.is::<Symbol>() {
         return None;
     }
 
@@ -238,7 +227,7 @@ mod import_trigger_tests {
         let root = parser.parse(text).expect("fixture should parse");
         let packages = root
             .descendants()
-            .filter(|node| node.kind.is_string_literal())
+            .filter(|node| node.is_string_literal())
             .filter_map(package_source_string)
             .collect::<Vec<_>>();
 

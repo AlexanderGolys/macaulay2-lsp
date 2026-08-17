@@ -1,8 +1,10 @@
 //! Versioned document snapshots that combine source text, parse tree, and
 //! analysis for LSP requests.
 
-use crate::macro_syntax::MacroSyntax;
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use crate::node_metadata::{M2Node, M2Parser, M2Tree};
+use m2_syn::{SourceFile, SourceId};
 use tower_lsp::lsp_types::{Position, Range as TextRange, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Point};
 
@@ -10,15 +12,18 @@ use crate::analysis::{Analysis, BindingView, FunctionInfo};
 use crate::documentation::{collect_documentation, DocumentationReference, DocumentationSnippet};
 use crate::object_registry::ObjectRegistry;
 use crate::package_index::collect_imported_packages_in_tree;
-use crate::source::{DocumentSource, DocumentSpan, SourceNavigation};
+use crate::source::{DocumentSource, SourceNavigation};
+
+static NEXT_SOURCE_ID: AtomicU64 = AtomicU64::new(1);
 
 /// One immutable source, syntax, and semantic-analysis snapshot served to LSP
 /// requests.
 #[derive(Debug)]
 pub struct DocumentSnapshot {
     source: DocumentSource,
-    macro_syntax: MacroSyntax,
+    source_id: SourceId,
     tree: M2Tree,
+    syntax: Option<SourceFile>,
     analysis: Analysis,
     object_registry: ObjectRegistry,
     documentation_snippets: Vec<DocumentationSnippet>,
@@ -45,19 +50,22 @@ pub struct TargetSymbol<'a> {
 impl DocumentSnapshot {
     pub fn from_text(text: String, knowledge_provider: &ObjectRegistry) -> Option<Self> {
         let source = DocumentSource::new(text);
+        let source_id = SourceId(NEXT_SOURCE_ID.fetch_add(1, Ordering::Relaxed));
         let mut parser = M2Parser::new()?;
-        let macro_syntax = MacroSyntax::scan(source.text());
-        let tree = parser.parse_tree(macro_syntax.parse_text(), None)?;
+        let tree = parser.parse_tree(source.text(), None)?;
+        let typed_ast = tree.typed_source_file(source.text(), source_id);
         let root = tree.root(source.text());
-        let imported_packages = collect_imported_packages_in_tree(root, &source);
+        let imported_packages =
+            collect_imported_packages_in_tree(root, typed_ast.as_ref(), &source);
         let knowledge = knowledge_provider.with_imports(&imported_packages);
-        let analysis = Analysis::new_with_knowledge(root, &source, &knowledge);
+        let analysis = Analysis::new_with_knowledge(root, typed_ast.as_ref(), &source, &knowledge);
         let (documentation_snippets, documentation_references) =
             collect_documentation(&source, root);
         Some(Self {
             source,
-            macro_syntax,
+            source_id,
             tree,
+            syntax: typed_ast,
             analysis,
             object_registry: knowledge,
             documentation_snippets,
@@ -87,17 +95,16 @@ impl DocumentSnapshot {
         SourceNavigation::text(self)
     }
 
-    pub fn is_macro_name_span(&self, span: &DocumentSpan) -> bool {
-        let bytes = span.bytes();
-        self.macro_syntax.is_macro_name(bytes.start, bytes.end)
-    }
-
     pub fn object_registry(&self) -> &ObjectRegistry {
         &self.object_registry
     }
 
     pub fn analysis(&self) -> &Analysis {
         &self.analysis
+    }
+
+    pub fn syntax(&self) -> Option<&SourceFile> {
+        self.syntax.as_ref()
     }
 
     pub fn diagnostics(&self) -> &[crate::diagnostic_registry::M2Diagnostic] {
@@ -210,7 +217,7 @@ impl DocumentSnapshot {
         for start in starts.into_iter().flatten() {
             let mut node = start;
             loop {
-                if node.kind.is_symbol_like() {
+                if node.is_symbol_like() {
                     return Some(node);
                 }
                 match node.parent() {
@@ -251,20 +258,18 @@ impl DocumentSnapshot {
             .replace_range(start_byte..old_end_byte, replacement);
 
         let mut parser = M2Parser::new()?;
-        let macro_syntax = MacroSyntax::scan(self.text());
-        let tree = if self.macro_syntax.has_macros() || macro_syntax.has_macros() {
-            parser.parse_tree(macro_syntax.parse_text(), None)?
-        } else {
-            parser.parse_tree(self.text(), Some(&edited_tree))?
-        };
+        let tree = parser.parse_tree(self.text(), Some(&edited_tree))?;
+        let typed_ast = tree.typed_source_file(self.text(), self.source_id);
         let root = tree.root(self.text());
-        let imported_packages = collect_imported_packages_in_tree(root, &self.source);
+        let imported_packages =
+            collect_imported_packages_in_tree(root, typed_ast.as_ref(), &self.source);
         let knowledge = knowledge_provider.with_imports(&imported_packages);
-        let analysis = Analysis::new_with_knowledge(root, &self.source, &knowledge);
+        let analysis =
+            Analysis::new_with_knowledge(root, typed_ast.as_ref(), &self.source, &knowledge);
         let (documentation_snippets, documentation_references) =
             collect_documentation(&self.source, root);
-        self.macro_syntax = macro_syntax;
         self.tree = tree;
+        self.syntax = typed_ast;
         self.analysis = analysis;
         self.object_registry = knowledge;
         self.documentation_snippets = documentation_snippets;
@@ -287,4 +292,78 @@ fn advance_point(start: Point, inserted_text: &str) -> Point {
     }
 
     Point::new(row, column)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn typed_first_pass_builds_scope_and_binding_graphs() {
+        let document = DocumentSnapshot::from_text(
+            "outer = 1\nlocalValue := 2\nf = x -> x\nfor i from 0 to 1 do i\n".to_string(),
+            &ObjectRegistry::default(),
+        )
+        .expect("the document should parse");
+
+        assert_eq!(document.analysis.binding_states().count(), 5);
+        assert_eq!(document.analysis.scope_count(), 5);
+    }
+
+    #[test]
+    fn typed_first_pass_handles_new_installations() {
+        let source = concat!(
+            "M = new Type of BasicList\n",
+            "new Type of BasicList from Function := (target, parent, convert) -> hashTable {}\n",
+            "new M from (ZZ, ZZ) := (target, left, right) -> {left, right}\n",
+            "new M := target -> {}\n",
+        );
+        let document = DocumentSnapshot::from_text(source.to_string(), &ObjectRegistry::default())
+            .expect("the document should parse");
+
+        assert_eq!(document.analysis.scope_count(), 4);
+    }
+
+    #[test]
+    fn document_keeps_working_when_typed_syntax_rejects_incomplete_source() {
+        let document =
+            DocumentSnapshot::from_text("value = (\n".to_string(), &ObjectRegistry::default())
+                .expect("Tree-sitter should retain an incomplete document");
+
+        assert!(document
+            .analysis
+            .bindings()
+            .any(|binding| binding.name.name() == "value"));
+        assert_eq!(document.text(), "value = (\n");
+    }
+
+    #[test]
+    fn incremental_changes_rebuild_analysis() {
+        let mut document =
+            DocumentSnapshot::from_text("value = 1\n".to_string(), &ObjectRegistry::default())
+                .expect("the document should parse");
+        let source_id = document.source_id;
+
+        document
+            .apply_changes(
+                &[TextDocumentContentChangeEvent {
+                    range: Some(TextRange::new(Position::new(0, 8), Position::new(0, 9))),
+                    range_length: None,
+                    text: "\"text\"".to_string(),
+                }],
+                &ObjectRegistry::default(),
+            )
+            .expect("the incremental change should parse");
+
+        assert_eq!(document.source_id, source_id);
+        let binding = document
+            .analysis
+            .binding_states()
+            .find(|binding| binding.name.name() == "value")
+            .expect("the edited binding should be analyzed");
+        assert_eq!(
+            binding.state.inferred_type,
+            Some(crate::typesystem::InferredType::exact("String"))
+        );
+    }
 }
