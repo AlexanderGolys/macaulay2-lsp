@@ -13,3 +13,6 @@ toZZ = (L) -> (
     d := apply(L, e -> denominator e);
     apply(L, e -> numerator e)
 );
+
+print "3\r2+2"
+-- नमस्ते  Здравствуйте

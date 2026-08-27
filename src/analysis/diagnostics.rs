@@ -3,9 +3,8 @@
 use super::*;
 use crate::diagnostic_declarations;
 use m2_syn::{
-    BreakStatement, ContinueStatement, FloatLiteral, ForLoop, IfStatement, IterationRange,
-    LambdaExpression, ParenthesizedExpression, PrefixExpression, QuoteExpression, ReturnStatement,
-    Symbol, Token, TryStatement, WhileLoop,
+    FloatLiteral, ForLoop, IfStatement, LambdaExpression, QuoteExpression, Symbol, Token,
+    TryStatement, WhileLoop,
 };
 
 macro_rules! run_check_for_phase {
@@ -622,10 +621,7 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) {
-        if !node.is::<ReturnStatement>()
-            && !node.is::<BreakStatement>()
-            && !node.is::<ContinueStatement>()
-        {
+        if !node.is_control_transfer() {
             return;
         }
         let target = self.control_transfer_target(node, source, knowledge);
@@ -633,11 +629,11 @@ impl Analysis {
             return;
         }
 
-        let message = if node.is::<ReturnStatement>() {
+        let message = if node.is_return_expr() {
             "`return` can only be used inside a function body"
-        } else if node.is::<BreakStatement>() {
+        } else if node.is_break_expr() {
             "`break` can only be used inside a loop body or an `apply`/`scan` callback"
-        } else if node.named_child(0).is_some()
+        } else if node.control_transfer_value().is_some()
             && matches!(
                 target,
                 Some(ControlTransferTarget::DoLoop(_) | ControlTransferTarget::LoopCallback { .. })
@@ -799,7 +795,7 @@ impl Analysis {
                 return;
             }
             let mut value = right;
-            while value.is::<ParenthesizedExpression>() {
+            while value.is_holder() {
                 let Some(inner) = value.final_value_child() else {
                     break;
                 };
@@ -914,7 +910,7 @@ fn is_function_option_context(option: M2Node<'_>) -> bool {
 }
 
 pub fn redundant_control_parentheses_inner(node: M2Node<'_>) -> Option<M2Node<'_>> {
-    if !node.is::<ParenthesizedExpression>() {
+    if !node.is_holder() {
         return None;
     }
     let parent = node.parent()?;
@@ -927,7 +923,7 @@ pub fn redundant_control_parentheses_inner(node: M2Node<'_>) -> Option<M2Node<'_
         is_field("condition")
     } else if parent.is::<TryStatement>() {
         is_field("value")
-    } else if parent.is::<IterationRange>() {
+    } else if parent.is_iteration_range() {
         ["iterated_collection", "range_start", "range_end"]
             .into_iter()
             .any(is_field)
@@ -973,7 +969,7 @@ pub fn if_null_branch_rewrite(if_node: M2Node<'_>) -> Option<String> {
     if is_null_value(else_branch) {
         return Some(format!(
             "if {} then {}",
-            condition.text(),
+            condition.text().trim_end(),
             then_branch.text()
         ));
     }
@@ -1074,7 +1070,7 @@ fn flatten_parenthesized_else_if_chain(if_node: M2Node<'_>) -> Option<String> {
 
 fn simplify_condition(node: M2Node<'_>) -> Option<String> {
     let original = node.text();
-    if !node.is::<PrefixExpression>() {
+    if !node.is_prefix_expr() {
         return None;
     }
     let operator = node.child_by_field_name("operator")?;
@@ -1090,7 +1086,7 @@ fn simplify_condition(node: M2Node<'_>) -> Option<String> {
 }
 
 fn unwrap_parentheses(node: M2Node<'_>) -> M2Node<'_> {
-    if node.is::<ParenthesizedExpression>() && node.child_count() == 3 {
+    if node.is_holder() && node.child_count() == 3 {
         if let Some(inner) = node.child(1) {
             return inner;
         }
@@ -1099,7 +1095,7 @@ fn unwrap_parentheses(node: M2Node<'_>) -> M2Node<'_> {
 }
 
 fn negated_condition_text(node: M2Node<'_>) -> String {
-    if node.is::<PrefixExpression>() {
+    if node.is_prefix_expr() {
         if let Some(operator) = node.child_by_field_name("operator") {
             if matches_token::<Token![not]>(operator.text()) {
                 if let Some(child) = node
@@ -1121,7 +1117,7 @@ fn negated_condition_text(node: M2Node<'_>) -> String {
         }
     }
 
-    if node.is::<BinaryExpression>() {
+    if node.is_binary_expr() {
         format!("not ({})", node.text())
     } else {
         format!("not {}", node.text())

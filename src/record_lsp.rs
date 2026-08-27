@@ -25,7 +25,7 @@ pub struct ResolvedSignature {
 pub trait LspKnowledge: TypeKnowledge {
     fn get_record_with_package(&self, name: &ObjectName) -> Option<(String, &Record)>;
 
-    fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)>;
+    fn records_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, &Record)>;
 
     fn package_names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<String>;
 
@@ -92,10 +92,6 @@ pub struct SignatureUsage {
 }
 
 impl ObjectRegistry {
-    pub fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<&str> {
-        visible_names(self.records_by_precedence(), prefix, limit, true)
-    }
-
     pub fn doc_markdown(&self, name: &ObjectName) -> Option<&str> {
         self.get_record(name)?.markdown()
     }
@@ -229,15 +225,12 @@ impl LspKnowledge for ObjectRegistry {
         Some((package, record))
     }
 
-    fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)> {
-        ObjectRegistry::names_with_prefix(self, prefix, limit)
+    fn records_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, &Record)> {
+        visible_records(self.records_by_precedence(), prefix, limit)
             .into_iter()
-            .map(|name| {
-                let package = ObjectRegistry::get_record(self, &ObjectName::new(name))
-                    .and_then(|record| self.package_name(&record.package))
-                    .map(str::to_string)
-                    .unwrap_or_else(|| "Core".to_string());
-                (package, name.to_string())
+            .map(|record| {
+                let package = self.package_name(&record.package).unwrap_or("Core");
+                (package.to_string(), record)
             })
             .collect()
     }
@@ -274,15 +267,12 @@ impl LspKnowledge for ObjectRegistryView<'_> {
         Some((package, record))
     }
 
-    fn names_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, String)> {
-        visible_names(self.records_by_precedence(), prefix, limit, true)
+    fn records_with_prefix(&self, prefix: &str, limit: usize) -> Vec<(String, &Record)> {
+        visible_records(self.records_by_precedence(), prefix, limit)
             .into_iter()
-            .map(|name| {
-                let package = self
-                    .get_record(&ObjectName::new(name))
-                    .and_then(|record| self.package_name(&record.package))
-                    .unwrap_or("Core");
-                (package.to_string(), name.to_string())
+            .map(|record| {
+                let package = self.package_name(&record.package).unwrap_or("Core");
+                (package.to_string(), record)
             })
             .collect()
     }
@@ -323,27 +313,35 @@ impl LspKnowledge for ObjectRegistryView<'_> {
     }
 }
 
-fn visible_names<'a>(
+fn visible_records<'a>(
+    records: impl Iterator<Item = &'a Record>,
+    prefix: &str,
+    limit: usize,
+) -> Vec<&'a Record> {
+    visible_records_matching(records, prefix, limit, true)
+}
+
+fn visible_records_matching<'a>(
     records: impl Iterator<Item = &'a Record>,
     query: &str,
     limit: usize,
     prefix: bool,
-) -> Vec<&'a str> {
+) -> Vec<&'a Record> {
     if limit == 0 {
         return Vec::new();
     }
     let folded = query.to_lowercase();
     let mut seen = HashSet::new();
     records
-        .map(|record| record.name.name())
-        .filter(|name| {
+        .filter(|record| {
+            let name = record.name.name();
             if prefix {
                 name.starts_with(query)
             } else {
                 name.to_lowercase().contains(&folded)
             }
         })
-        .filter(|name| seen.insert(*name))
+        .filter(|record| seen.insert(record.name.name()))
         .take(limit)
         .collect()
 }
@@ -901,11 +899,18 @@ mod tests {
             "{\"kind\":\"methodFunction\",\"name\":\"coefficient\"}\n",
         );
         let builtins = ObjectRegistry::load(corpus);
+        let names = |prefix| {
+            builtins
+                .records_with_prefix(prefix, 8)
+                .into_iter()
+                .map(|(_, record)| record.name.name())
+                .collect::<Vec<_>>()
+        };
 
-        assert_eq!(builtins.names_with_prefix("ab", 8), vec!["about"]);
-        assert_eq!(builtins.names_with_prefix("co", 8), vec!["coefficient"]);
-        assert_eq!(builtins.names_with_prefix("R", 8), vec!["Ring"]);
-        assert_eq!(builtins.names_with_prefix("Z", 8), vec!["ZZ"]);
+        assert_eq!(names("ab"), vec!["about"]);
+        assert_eq!(names("co"), vec!["coefficient"]);
+        assert_eq!(names("R"), vec!["Ring"]);
+        assert_eq!(names("Z"), vec!["ZZ"]);
     }
     use crate::object_registry::ObjectName;
     use crate::object_registry::ObjectRegistry;

@@ -4,10 +4,9 @@ use std::cmp::Ordering;
 
 use m2_syn::visit::{self, Visit};
 use m2_syn::{
-    AssignmentExpr, BindingPack, Collection, Component, ElseClause, Expr, ExpressionCell, ForLoop,
-    IfStatement, IterationRange, LambdaExpression, LambdaParameters, LoopBody, MutedCell,
-    MutedGroup, ParenthesizedExpression, Punctuated, SequenceCell, SourceFile, Spanned, Symbol,
-    ThenClause, Token, TryFallback, TryStatement, WhileLoop,
+    Assignment, AssignmentPack, AssignmentPackComponent, ElseClause, Expr, ForLoop, IfStatement,
+    LambdaExpression, LambdaParameters, LoopBody, ParallelAssignment, SimpleBinding, SourceFile,
+    Spanned, Symbol, ThenClause, Token, TryFallback, TryStatement, WhileLoop,
 };
 use tower_lsp::lsp_types::{Position, Range as TextRange};
 
@@ -356,7 +355,7 @@ impl<'source, Source: SourceNavigation + ?Sized> TypedWalker<'source, Source> {
             BindingEffect::Assign => self.context.assignment_scope,
         };
         self.bindings.push(BindingFact {
-            name: ObjectName::new(&symbol.text),
+            name: ObjectName::new(symbol.text()),
             target,
             value: value.and_then(|value| syntax_range(value, self.source)),
             definition: self.definition,
@@ -384,53 +383,45 @@ impl<'source, Source: SourceNavigation + ?Sized> TypedWalker<'source, Source> {
 }
 
 impl<'ast, Source: SourceNavigation + ?Sized> Visit<'ast> for TypedWalker<'_, Source> {
-    fn visit_expression_cell(&mut self, node: &'ast ExpressionCell) {
-        self.with_definition(node, |walker| visit::visit_expression_cell(walker, node));
+    fn visit_cell(&mut self, node: &'ast m2_syn::Cell) {
+        self.with_definition(node, |walker| visit::visit_cell(walker, node));
     }
 
-    fn visit_sequence_cell(&mut self, node: &'ast SequenceCell) {
-        self.with_definition(node, |walker| visit::visit_sequence_cell(walker, node));
-    }
-
-    fn visit_muted_cell(&mut self, node: &'ast MutedCell) {
-        self.with_definition(node, |walker| visit::visit_muted_cell(walker, node));
-    }
-
-    fn visit_assignment_expr(&mut self, node: &'ast AssignmentExpr) {
+    fn visit_assignment(&mut self, node: &'ast Assignment) {
         match node {
-            AssignmentExpr::Assignment(assignment) => self.bind_symbol(
-                &assignment.left,
-                Some(&assignment.right),
+            Assignment::SimpleBinding(SimpleBinding::GlobalBinding(binding)) => self.bind_symbol(
+                &binding.variable,
+                Some(&binding.value),
                 BindingRole::Ordinary,
                 BindingEffect::Assign,
             ),
-            AssignmentExpr::LocalAssignment(assignment) => self.bind_symbol(
-                &assignment.left,
-                Some(&assignment.right),
+            Assignment::SimpleBinding(SimpleBinding::LocalBinding(binding)) => self.bind_symbol(
+                &binding.variable,
+                Some(&binding.value),
                 BindingRole::Ordinary,
                 BindingEffect::Declare,
             ),
-            AssignmentExpr::StructuredBinding(assignment) => self.bind_symbols(
-                symbols_in_binding_pack(&assignment.left),
-                Some(&assignment.right),
+            Assignment::ParallelAssignment(ParallelAssignment::GlobalParallelAssignment(
+                assignment,
+            )) => self.bind_symbols(
+                symbols_in_assignment_pack(&assignment.argument_pack),
+                Some(&assignment.value),
                 BindingRole::Ordinary,
                 BindingEffect::Assign,
             ),
-            AssignmentExpr::LocalStructuredBinding(assignment) => self.bind_symbols(
-                symbols_in_binding_pack(&assignment.left),
-                Some(&assignment.right),
+            Assignment::ParallelAssignment(ParallelAssignment::LocalParallelAssignment(
+                assignment,
+            )) => self.bind_symbols(
+                symbols_in_assignment_pack(&assignment.argument_pack),
+                Some(&assignment.value),
                 BindingRole::Ordinary,
                 BindingEffect::Declare,
             ),
-            AssignmentExpr::BinaryAssignment(_)
-            | AssignmentExpr::BinaryInstallation(_)
-            | AssignmentExpr::PrefixAssignment(_)
-            | AssignmentExpr::PrefixInstallation(_)
-            | AssignmentExpr::PostfixAssignment(_)
-            | AssignmentExpr::PostfixInstallation(_)
-            | AssignmentExpr::EvaluatedAssignment(_) => {}
+            Assignment::EvaluatedAssignment(_)
+            | Assignment::Installation(_)
+            | Assignment::OperatorAssignment(_) => {}
         }
-        visit::visit_assignment_expr(self, node);
+        visit::visit_assignment(self, node);
     }
 
     fn visit_lambda_expression(&mut self, node: &'ast LambdaExpression) {
@@ -456,11 +447,11 @@ impl<'ast, Source: SourceNavigation + ?Sized> Visit<'ast> for TypedWalker<'_, So
             walker.visit_expr(&node.condition)
         });
         self.with_syntax_scope(&node.then_clause, ControlFlowScope::Branch, |walker| {
-            walker.visit_expr(&node.then_clause.value)
+            walker.visit_expr(&node.then_clause.expr)
         });
-        if let Some(clause) = node.else_clause.as_deref() {
+        if let Some(clause) = node.else_clause.as_ref() {
             self.with_syntax_scope(clause, ControlFlowScope::Branch, |walker| {
-                walker.visit_expr(&clause.value)
+                walker.visit_expr(&clause.expr)
             });
         }
     }
@@ -473,26 +464,15 @@ impl<'ast, Source: SourceNavigation + ?Sized> Visit<'ast> for TypedWalker<'_, So
                 BindingRole::Parameter,
                 BindingEffect::Declare,
             );
-            if let Some(range) = node.range.as_deref() {
-                walker.with_syntax_scope(range, ControlFlowScope::LoopClause, |walker| {
-                    visit::visit_iteration_range(walker, range)
+            if let Some(domain) = node.iteration_domain.as_ref() {
+                walker.with_syntax_scope(domain, ControlFlowScope::LoopClause, |walker| {
+                    walker.visit_iteration_domain(domain)
                 });
             }
-            if let Some(filter) = node.filter.as_deref() {
-                let range = syntax_range(filter, walker.source)
-                    .zip(
-                        node.when_keyword
-                            .as_ref()
-                            .and_then(|token| syntax_range(token, walker.source)),
-                    )
-                    .map(|(value, keyword)| TextRange::new(keyword.start, value.end));
-                if let Some(range) = range {
-                    walker.with_control_scope(range, ControlFlowScope::LoopClause, |walker| {
-                        walker.visit_expr(filter)
-                    });
-                } else {
-                    walker.visit_expr(filter);
-                }
+            if let Some(condition) = node.when_condition.as_ref() {
+                walker.with_syntax_scope(condition, ControlFlowScope::LoopClause, |walker| {
+                    walker.visit_when_condition(condition)
+                });
             }
             walker.with_syntax_scope(&node.body, ControlFlowScope::LoopClause, |walker| {
                 visit::visit_loop_body(walker, &node.body)
@@ -513,21 +493,21 @@ impl<'ast, Source: SourceNavigation + ?Sized> Visit<'ast> for TypedWalker<'_, So
         self.with_syntax_scope(&node.value, ControlFlowScope::Branch, |walker| {
             walker.visit_expr(&node.value)
         });
-        if let Some(clause) = node.then_clause.as_deref() {
+        if let Some(clause) = node.on_success.as_ref() {
             self.with_syntax_scope(clause, ControlFlowScope::Branch, |walker| {
-                walker.visit_expr(&clause.value)
+                walker.visit_expr(&clause.expr)
             });
         }
-        if let Some(fallback) = node.fallback.as_deref() {
+        if let Some(fallback) = node.fallback.as_ref() {
             match fallback {
-                TryFallback::ExceptClause(clause) => {
+                TryFallback::ExceptDo(clause) => {
                     self.with_syntax_scope(clause, ControlFlowScope::Branch, |walker| {
                         walker.visit_expr(&clause.value)
                     });
                 }
                 TryFallback::ElseClause(clause) => {
                     self.with_syntax_scope(clause, ControlFlowScope::Branch, |walker| {
-                        walker.visit_expr(&clause.value)
+                        walker.visit_expr(&clause.expr)
                     });
                 }
             }
@@ -537,39 +517,32 @@ impl<'ast, Source: SourceNavigation + ?Sized> Visit<'ast> for TypedWalker<'_, So
 
 fn symbols_in_lambda_parameters(parameters: &LambdaParameters) -> Vec<&Symbol> {
     match parameters {
-        LambdaParameters::Symbol(symbol) => vec![symbol],
-        LambdaParameters::ParenthesizedExpression(collection) => {
-            symbols_in_parenthesized(collection)
-        }
-        LambdaParameters::Sequence(collection) => {
-            symbols_in_components(&collection.muted, &collection.elements)
-        }
-        LambdaParameters::List(collection) => {
-            symbols_in_components(&collection.muted, &collection.elements)
-        }
-        LambdaParameters::Array(collection) => {
-            symbols_in_components(&collection.muted, &collection.elements)
-        }
-        LambdaParameters::AngleBarList(collection) => {
-            symbols_in_components(&collection.muted, &collection.elements)
-        }
+        LambdaParameters::Variadic(symbol) => vec![&symbol.0],
+        LambdaParameters::FixedArity(parameters) => parameters
+            .0
+            .contents
+            .iter()
+            .flat_map(|parameters| parameters.iter())
+            .collect(),
     }
 }
 
 fn typed_function_dispatch(parameters: &LambdaParameters) -> Dispatch {
     match parameters {
-        LambdaParameters::Symbol(_) => Dispatch::Variadic,
-        LambdaParameters::ParenthesizedExpression(_) => Dispatch::Fixed(1),
-        LambdaParameters::Sequence(collection) => Dispatch::Fixed(collection.elements.len()),
-        LambdaParameters::List(collection) => Dispatch::Fixed(collection.elements.len()),
-        LambdaParameters::Array(collection) => Dispatch::Fixed(collection.elements.len()),
-        LambdaParameters::AngleBarList(collection) => Dispatch::Fixed(collection.elements.len()),
+        LambdaParameters::Variadic(_) => Dispatch::Variadic,
+        LambdaParameters::FixedArity(parameters) => Dispatch::Fixed(
+            parameters
+                .0
+                .contents
+                .as_ref()
+                .map_or(0, m2_syn::Punctuated::len),
+        ),
     }
 }
 
 fn cst_function_dispatch(lambda: M2Node) -> Option<Dispatch> {
     let parameters = lambda.child_by_field_name("parameters")?;
-    if parameters.is::<ParenthesizedExpression>() {
+    if parameters.is_holder() {
         Some(Dispatch::Fixed(1))
     } else if parameters.is_collection_expression() {
         Some(Dispatch::Fixed(parameters.collection_elements().count()))
@@ -578,85 +551,28 @@ fn cst_function_dispatch(lambda: M2Node) -> Option<Dispatch> {
     }
 }
 
-fn symbols_in_binding_pack(binding: &BindingPack) -> Vec<&Symbol> {
-    match binding {
-        BindingPack::ParenthesizedExpression(collection) => symbols_in_parenthesized(collection),
-        BindingPack::Sequence(collection) => {
-            symbols_in_components(&collection.muted, &collection.elements)
-        }
-        BindingPack::List(collection) => {
-            symbols_in_components(&collection.muted, &collection.elements)
-        }
-        BindingPack::Array(collection) => {
-            symbols_in_components(&collection.muted, &collection.elements)
-        }
-        BindingPack::AngleBarList(collection) => {
-            symbols_in_components(&collection.muted, &collection.elements)
-        }
-    }
-}
-
-fn symbols_in_parenthesized(collection: &m2_syn::ParenthesizedExpression) -> Vec<&Symbol> {
-    let mut symbols = symbols_in_muted(&collection.muted);
-    if let Some(value) = collection.value.as_deref() {
-        collect_binding_symbols(value, &mut symbols);
-    }
-    symbols
-}
-
-fn symbols_in_components<'ast>(
-    muted: &'ast [MutedGroup],
-    elements: &'ast Punctuated<Component>,
-) -> Vec<&'ast Symbol> {
-    let mut symbols = symbols_in_muted(muted);
-    collect_component_symbols(elements, &mut symbols);
-    symbols
-}
-
-fn symbols_in_muted(muted: &[MutedGroup]) -> Vec<&Symbol> {
+fn symbols_in_assignment_pack(binding: &AssignmentPack) -> Vec<&Symbol> {
     let mut symbols = Vec::new();
-    for group in muted {
-        collect_component_symbols(&group.elements, &mut symbols);
+    if let Some(components) = &binding.0.contents {
+        collect_assignment_symbols(components, &mut symbols);
     }
     symbols
 }
 
-fn collect_component_symbols<'ast>(
-    components: &'ast Punctuated<Component>,
+fn collect_assignment_symbols<'ast>(
+    components: &'ast m2_syn::Punctuated<AssignmentPackComponent>,
     symbols: &mut Vec<&'ast Symbol>,
 ) {
     for component in components {
-        if let Component::Expr(expression) = component {
-            collect_binding_symbols(expression, symbols);
-        }
-    }
-}
-
-fn collect_binding_symbols<'ast>(expression: &'ast Expr, symbols: &mut Vec<&'ast Symbol>) {
-    match expression {
-        Expr::Symbol(symbol) => symbols.push(symbol),
-        Expr::Collection(collection) => match collection {
-            Collection::ParenthesizedExpression(collection) => {
-                symbols.extend(symbols_in_parenthesized(collection));
+        match component {
+            AssignmentPackComponent::Symbol(symbol) => symbols.push(symbol),
+            AssignmentPackComponent::AssignmentPack(pack) => {
+                if let Some(nested) = &pack.0.contents {
+                    collect_assignment_symbols(nested, symbols);
+                }
             }
-            Collection::Sequence(collection) => symbols.extend(symbols_in_components(
-                &collection.muted,
-                &collection.elements,
-            )),
-            Collection::List(collection) => symbols.extend(symbols_in_components(
-                &collection.muted,
-                &collection.elements,
-            )),
-            Collection::Array(collection) => symbols.extend(symbols_in_components(
-                &collection.muted,
-                &collection.elements,
-            )),
-            Collection::AngleBarList(collection) => symbols.extend(symbols_in_components(
-                &collection.muted,
-                &collection.elements,
-            )),
-        },
-        _ => {}
+            AssignmentPackComponent::Empty(_) | AssignmentPackComponent::OperatorExpr(_) => {}
+        }
     }
 }
 
@@ -788,10 +704,13 @@ pub(super) fn control_flow_scope(
         (is_field("condition") || child.is::<ThenClause>() || child.is::<ElseClause>())
             .then_some(ControlFlowScope::Branch)
     } else if parent.is::<TryStatement>() {
-        (is_field("value") || child.is::<ThenClause>() || child.is::<TryFallback>())
-            .then_some(ControlFlowScope::Branch)
+        (is_field("value")
+            || child.is::<ThenClause>()
+            || child.is::<ElseClause>()
+            || child.is_except_clause())
+        .then_some(ControlFlowScope::Branch)
     } else if parent.is::<ForLoop>() {
-        (child.is::<IterationRange>() || is_field("filter") || child.is::<LoopBody>())
+        (child.is_iteration_range() || is_field("filter") || child.is::<LoopBody>())
             .then_some(ControlFlowScope::LoopClause)
     } else if parent.is::<WhileLoop>() {
         (is_field("condition") || child.is::<LoopBody>()).then_some(ControlFlowScope::LoopClause)

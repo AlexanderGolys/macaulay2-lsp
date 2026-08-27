@@ -3,7 +3,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use m2_syn::{ParenthesizedExpression, Sequence, SourceFile, Symbol};
+use m2_syn::{Sequence, SourceFile, Symbol};
 use tower_lsp::lsp_types::{Location, Position, Range as TextRange, Url};
 
 #[cfg(test)]
@@ -96,21 +96,32 @@ fn is_package_import_trigger(name: &str) -> bool {
 }
 
 pub fn package_source_string(node: M2Node<'_>) -> Option<&str> {
-    node.ancestors().find_map(|application| {
-        let (argument, package_name) = package_import(application)?;
-        (argument.id() == node.id()).then_some(package_name)
-    })
+    is_package_import_string(node).then(|| node.string_literal_inner_text())?
+}
+
+pub fn is_package_import_string(node: M2Node<'_>) -> bool {
+    node.ancestors()
+        .find_map(|application| {
+            let argument = package_import_argument(application)?;
+            (argument.id() == node.id()).then_some(())
+        })
+        .is_some()
 }
 
 fn package_import<'tree>(application: M2Node<'tree>) -> Option<(M2Node<'tree>, &'tree str)> {
+    let argument = package_import_argument(application)?;
+    Some((argument, argument.string_literal_inner_text()?))
+}
+
+fn package_import_argument(application: M2Node<'_>) -> Option<M2Node<'_>> {
     binary_expression_left_symbol(application).filter(|name| is_package_import_trigger(name))?;
     let argument = application.child_by_field_name("right")?;
-    let argument = if argument.is::<Sequence>() || argument.is::<ParenthesizedExpression>() {
+    let argument = if argument.is::<Sequence>() || argument.is_holder() {
         argument.collection_elements().next()?
     } else {
         argument
     };
-    Some((argument, argument.string_literal_inner_text()?))
+    Some(argument)
 }
 
 #[cfg(test)]
@@ -124,7 +135,7 @@ pub fn collect_imported_packages(text: &str) -> Vec<PackageImport> {
     let Some(tree) = parser.parse_tree(text, None) else {
         return Vec::new();
     };
-    let syntax = tree.typed_source_file(text, m2_syn::SourceId(0));
+    let syntax = tree.typed_source_file(text);
     collect_imported_packages_in_tree(tree.root(text), syntax.as_ref(), &source)
 }
 

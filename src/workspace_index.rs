@@ -1,10 +1,9 @@
-//! A workspace-wide index of top-level (global) definitions across every `.m2`
-//! file under the project roots, so go-to-definition can jump into files the
-//! editor has not opened.
+//! A workspace-wide index of top-level (global) navigation facts across every
+//! `.m2` file under the project roots, including files the editor has not opened.
 //!
 //! M2's top-level symbols are global once loaded, so a name-keyed index of every
-//! file's global definitions is a faithful model: a name used in one file and
-//! defined at the top level of another resolves across the project.
+//! file's global facts is a faithful model: a name used in one file and defined
+//! or implemented at the top level of another resolves across the project.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,6 +12,7 @@ use std::sync::{Arc, RwLock};
 use dashmap::DashMap;
 use tower_lsp::lsp_types::{Location, Range as TextRange, Url};
 
+use crate::analysis::AssignmentFactKind;
 use crate::capabilities::document_symbols::{collect_workspace_symbols, WorkspaceSourceSymbol};
 use crate::document::DocumentSnapshot;
 use crate::object_registry::{ObjectName, ObjectRegistry};
@@ -26,8 +26,43 @@ struct DefLocation {
     is_declaration: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImplementationKind {
+    Lambda,
+    Method,
+}
+
+#[derive(Debug, Clone)]
+struct ImplementationLocation {
+    uri: Url,
+    range: TextRange,
+    kind: ImplementationKind,
+    requires_declaration: bool,
+}
+
 pub trait WorkspaceSymbolKnowledge {
     fn matching_symbols(&self, query: &str) -> Vec<WorkspaceSourceSymbol>;
+}
+
+pub trait WorkspaceImplementationKnowledge {
+    fn implementations(&self, name: &str, kind: ImplementationKind, exclude: &Url)
+        -> Vec<Location>;
+    fn has_method_declaration(&self, name: &str, exclude: &Url) -> bool;
+}
+
+impl<T: WorkspaceImplementationKnowledge + ?Sized> WorkspaceImplementationKnowledge for Arc<T> {
+    fn implementations(
+        &self,
+        name: &str,
+        kind: ImplementationKind,
+        exclude: &Url,
+    ) -> Vec<Location> {
+        self.as_ref().implementations(name, kind, exclude)
+    }
+
+    fn has_method_declaration(&self, name: &str, exclude: &Url) -> bool {
+        self.as_ref().has_method_declaration(name, exclude)
+    }
 }
 
 impl<T: WorkspaceSymbolKnowledge + ?Sized> WorkspaceSymbolKnowledge for Arc<T> {
@@ -66,12 +101,14 @@ impl<T: WorkspaceDefinitionKnowledge + ?Sized> WorkspaceDefinitionKnowledge for 
     }
 }
 
-/// Global definition index, keyed by symbol name, kept in sync with edits and
+/// Global navigation index, keyed by symbol name, kept in sync with edits and
 /// on-disk changes. Open documents are indexed from their live text; unopened
 /// files from disk.
 #[derive(Debug, Default)]
 pub struct WorkspaceIndex {
     definitions_by_name: DashMap<ObjectName, Vec<DefLocation>>,
+    implementations_by_name: DashMap<ObjectName, Vec<ImplementationLocation>>,
+    method_declarations_by_name: DashMap<ObjectName, Vec<Url>>,
     names_by_file: DashMap<Url, Vec<ObjectName>>,
     symbols_by_file: DashMap<Url, Vec<WorkspaceSourceSymbol>>,
     roots: RwLock<Vec<PathBuf>>,
@@ -110,7 +147,7 @@ impl WorkspaceIndex {
         }
     }
 
-    /// Replace the definitions recorded for `uri` with those parsed from `text`.
+    /// Replace the navigation facts recorded for `uri` with those parsed from `text`.
     pub fn index_file(&self, uri: &Url, text: &str, knowledge_provider: &ObjectRegistry) {
         self.remove_file(uri);
         let Some(snapshot) = DocumentSnapshot::from_text(text.to_string(), knowledge_provider)
@@ -118,14 +155,18 @@ impl WorkspaceIndex {
             return;
         };
         let definitions = top_level_definitions(&snapshot);
+        let implementations = top_level_implementations(&snapshot);
+        let method_declarations = top_level_method_declarations(&snapshot);
         let symbols = collect_workspace_symbols(&snapshot, uri);
         if !symbols.is_empty() {
             self.symbols_by_file.insert(uri.clone(), symbols);
         }
-        if definitions.is_empty() {
+        if definitions.is_empty() && implementations.is_empty() && method_declarations.is_empty() {
             return;
         }
-        let mut names = Vec::with_capacity(definitions.len());
+        let mut names = Vec::with_capacity(
+            definitions.len() + implementations.len() + method_declarations.len(),
+        );
         for (name, range, semantic_token_type, is_declaration) in definitions {
             let name = ObjectName::new(name);
             self.definitions_by_name
@@ -137,6 +178,27 @@ impl WorkspaceIndex {
                     semantic_token_type,
                     is_declaration,
                 });
+            names.push(name);
+        }
+        for (name, range, kind, requires_declaration) in implementations {
+            let name = ObjectName::new(name);
+            self.implementations_by_name
+                .entry(name.clone())
+                .or_default()
+                .push(ImplementationLocation {
+                    uri: uri.clone(),
+                    range,
+                    kind,
+                    requires_declaration,
+                });
+            names.push(name);
+        }
+        for name in method_declarations {
+            let name = ObjectName::new(name);
+            self.method_declarations_by_name
+                .entry(name.clone())
+                .or_default()
+                .push(uri.clone());
             names.push(name);
         }
         names.sort();
@@ -158,6 +220,26 @@ impl WorkspaceIndex {
             };
             if now_empty {
                 self.definitions_by_name.remove(&name);
+            }
+            let implementations_empty =
+                if let Some(mut locations) = self.implementations_by_name.get_mut(&name) {
+                    locations.retain(|location| &location.uri != uri);
+                    locations.is_empty()
+                } else {
+                    false
+                };
+            if implementations_empty {
+                self.implementations_by_name.remove(&name);
+            }
+            let declarations_empty =
+                if let Some(mut declarations) = self.method_declarations_by_name.get_mut(&name) {
+                    declarations.retain(|declaration| declaration != uri);
+                    declarations.is_empty()
+                } else {
+                    false
+                };
+            if declarations_empty {
+                self.method_declarations_by_name.remove(&name);
             }
         }
     }
@@ -195,6 +277,54 @@ impl WorkspaceSymbolKnowledge for WorkspaceIndex {
                 .then_with(|| left.location.range.start.cmp(&right.location.range.start))
         });
         symbols
+    }
+}
+
+impl WorkspaceImplementationKnowledge for WorkspaceIndex {
+    fn implementations(
+        &self,
+        name: &str,
+        kind: ImplementationKind,
+        exclude: &Url,
+    ) -> Vec<Location> {
+        let method_declarations = self
+            .method_declarations_by_name
+            .get(name)
+            .map(|declarations| declarations.clone())
+            .unwrap_or_default();
+        let mut locations =
+            self.implementations_by_name
+                .get(name)
+                .map_or_else(Vec::new, |locations| {
+                    locations
+                        .iter()
+                        .filter(|location| {
+                            &location.uri != exclude
+                                && location.kind == kind
+                                && (!location.requires_declaration
+                                    || method_declarations
+                                        .iter()
+                                        .any(|declaration| declaration != &location.uri))
+                        })
+                        .map(|location| Location {
+                            uri: location.uri.clone(),
+                            range: location.range,
+                        })
+                        .collect::<Vec<_>>()
+                });
+        locations.sort_by(|left, right| {
+            left.uri
+                .as_str()
+                .cmp(right.uri.as_str())
+                .then_with(|| left.range.start.cmp(&right.range.start))
+        });
+        locations
+    }
+
+    fn has_method_declaration(&self, name: &str, exclude: &Url) -> bool {
+        self.method_declarations_by_name
+            .get(name)
+            .is_some_and(|declarations| declarations.iter().any(|uri| uri != exclude))
     }
 }
 
@@ -294,6 +424,74 @@ fn top_level_definitions(
             )
         })
         .collect()
+}
+
+fn top_level_implementations(
+    snapshot: &DocumentSnapshot,
+) -> Vec<(String, TextRange, ImplementationKind, bool)> {
+    let analysis = snapshot.analysis();
+    let lambda_ranges = snapshot.lambda_value_ranges();
+    let mut implementations = analysis
+        .binding_states()
+        .filter(|binding| binding.state.scope_idx == 0)
+        .filter(|binding| {
+            binding
+                .state
+                .value_range
+                .is_some_and(|range| lambda_ranges.contains(&range))
+        })
+        .map(|binding| {
+            (
+                binding.name.name().to_string(),
+                binding.state.span,
+                ImplementationKind::Lambda,
+                false,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    implementations.extend(analysis.assignment_facts().iter().filter_map(|assignment| {
+        if assignment.scope_idx != 0 {
+            return None;
+        }
+        let AssignmentFactKind::MethodInstallation(id) = assignment.kind else {
+            return None;
+        };
+        let installation = analysis.method_installation(id)?;
+        if !installation.is_workspace_candidate() {
+            return None;
+        }
+        Some((
+            installation.method.head.name().name().to_string(),
+            assignment.target_span,
+            ImplementationKind::Method,
+            !installation.takes_effect(),
+        ))
+    }));
+    implementations.sort_by(|left, right| {
+        left.0
+            .cmp(&right.0)
+            .then_with(|| left.1.start.cmp(&right.1.start))
+    });
+    implementations.dedup();
+    implementations
+}
+
+fn top_level_method_declarations(snapshot: &DocumentSnapshot) -> Vec<String> {
+    let analysis = snapshot.analysis();
+    let mut declarations = analysis
+        .binding_states()
+        .filter(|binding| binding.state.scope_idx == 0)
+        .filter(|binding| {
+            analysis
+                .function_for_binding(*binding)
+                .is_some_and(|function| function.is_method_function())
+        })
+        .map(|binding| binding.name.name().to_string())
+        .collect::<Vec<_>>();
+    declarations.sort();
+    declarations.dedup();
+    declarations
 }
 
 #[cfg(test)]

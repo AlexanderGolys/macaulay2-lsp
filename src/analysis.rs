@@ -13,12 +13,10 @@ pub use diagnostics::{
 
 use m2_syn::visit::{self, Visit};
 use m2_syn::{
-    AdjacentExpression, AngleBarList, Array, BinaryExpression, BinaryOperator, BreakStatement,
-    ContinueStatement, ElseClause, Expr, ExpressionCell, FloatLiteral, ForLoop, IfStatement,
+    AngleBarList, Array, BinaryExpr, ElseClause, Expr, FloatLiteral, ForLoop, IfStatement,
     IntegerLiteral, LambdaExpression, List, LoopBody, NewStatement, OptionExpression,
-    ParenthesizedExpression, PostfixExpression, PrefixExpression, QuoteExpression,
-    RawStringLiteral, Reconstruct, ReturnStatement, Sequence, SequenceCell, SourceFile, Span,
-    Spanned, StringLiteral, Symbol, ThenClause, Token, WhileLoop,
+    QuoteExpression, RawStringLiteral, Reconstruct, Sequence, SourceFile, Spanned, StringLiteral,
+    Symbol, ThenClause, Token, WhileLoop,
 };
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
@@ -34,7 +32,8 @@ use crate::object_registry::{ObjectId, OperatorForm, TypeData, TypeId};
 use crate::semantic_token::{syntax_semantic_token_type, SourceSemanticRole, SourceSemanticToken};
 use crate::source::SourceNavigation;
 use crate::typesystem::{
-    InferredType, LiteralOption, PositionedTypeKnowledge, SubtypeEvidence, TypeKnowledge, TypeRole,
+    InferredType, LiteralOption, PositionedTypeKnowledge, SubtypeEvidence, Type, TypeKnowledge,
+    TypeRole,
 };
 use crate::util::TextRangeExt;
 use first_pass::{
@@ -62,11 +61,11 @@ pub struct Operator {
 
 impl Operator {
     fn from_expression(node: M2Node<'_>) -> Option<Self> {
-        let form = if node.is::<AdjacentExpression>() || node.is::<BinaryExpression>() {
+        let form = if node.is_adjacent_expr() || node.is_binary_expr() {
             OperatorForm::Binary
-        } else if node.is::<PrefixExpression>() {
+        } else if node.is_prefix_expr() {
             OperatorForm::Prefix
-        } else if node.is::<PostfixExpression>() {
+        } else if node.is_postfix_expr() {
             OperatorForm::Postfix
         } else {
             return None;
@@ -102,6 +101,15 @@ impl Operator {
 pub enum MethodHead {
     Function(ObjectName),
     Operator(Operator),
+}
+
+impl MethodHead {
+    pub fn name(&self) -> &ObjectName {
+        match self {
+            MethodHead::Function(name) => name,
+            MethodHead::Operator(operator) => &operator.token,
+        }
+    }
 }
 
 /// Identity of one method-installing assignment within an analysis snapshot.
@@ -158,12 +166,20 @@ pub struct MethodInstallation {
     pub rhs_lambda_dispatch: Option<Dispatch>,
     syntax: MethodInstallationSyntax,
     has_option_handler: bool,
+    effect: MethodInstallationEffect,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MethodInstallationSyntax {
     Classical,
     InstallMethod,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MethodInstallationEffect {
+    Rejected,
+    Unresolved,
+    Effective,
 }
 
 /// A lambda-body codomain that can safely drive an annotation quick fix.
@@ -204,6 +220,14 @@ impl MethodInstallation {
     pub fn expected_rhs_arity(&self) -> usize {
         self.expected_rhs_arity
     }
+
+    pub fn takes_effect(&self) -> bool {
+        self.effect == MethodInstallationEffect::Effective
+    }
+
+    pub fn is_workspace_candidate(&self) -> bool {
+        self.effect != MethodInstallationEffect::Rejected
+    }
 }
 
 /// Syntax-derived callable behavior used to decide whether method
@@ -233,6 +257,12 @@ pub struct FunctionInfo {
     pub dispatch: Option<Dispatch>,
     kind: LocalFunctionKind,
     accepts_options: bool,
+}
+
+impl FunctionInfo {
+    pub fn is_method_function(&self) -> bool {
+        self.kind == LocalFunctionKind::Method
+    }
 }
 
 /// Static facts computed for one call after separating positional arguments
@@ -333,34 +363,6 @@ fn source_range_key(range: TextRange) -> SourceRangeKey {
     ]
 }
 
-fn cst_node_at_span<'tree>(
-    root: M2Node<'tree>,
-    source: &(impl SourceNavigation + ?Sized),
-    span: Span,
-) -> Option<M2Node<'tree>> {
-    let byte = span.start_point().ok()?.byte;
-    let point = source.point_for_byte(byte);
-    root.descendant_for_point_range(point, point)
-}
-
-fn cst_operator_owner<'tree>(
-    root: M2Node<'tree>,
-    source: &(impl SourceNavigation + ?Sized),
-    span: Span,
-) -> Option<M2Node<'tree>> {
-    let mut node = cst_node_at_span(root, source, span)?;
-    while let Some(parent) = node.parent() {
-        if parent
-            .child_by_field_name("operator")
-            .is_some_and(|operator| operator.id() == node.id())
-        {
-            return Some(parent);
-        }
-        node = parent;
-    }
-    None
-}
-
 fn source_cell(node: M2Node<'_>) -> Option<M2Node<'_>> {
     let root = node.root();
     node.ancestors().find(|ancestor| {
@@ -371,7 +373,7 @@ fn source_cell(node: M2Node<'_>) -> Option<M2Node<'_>> {
 }
 
 fn is_value_cell(node: M2Node<'_>) -> bool {
-    node.is::<ExpressionCell>() || node.is::<SequenceCell>()
+    node.is_source_cell() && !node.is_muted_statement()
 }
 
 /// Canonical per-snapshot store of symbols, bindings, scopes, and their indexes.
@@ -481,14 +483,12 @@ impl<'tree> ControlTransferTarget<'tree> {
 
     pub fn accepts(self, transfer: M2Node<'_>) -> bool {
         match self {
-            Self::Function(_) => transfer.is::<ReturnStatement>(),
-            Self::ListLoop(_) => {
-                transfer.is::<BreakStatement>() || transfer.is::<ContinueStatement>()
-            }
-            Self::LoopCallback { .. } => transfer.is::<BreakStatement>(),
+            Self::Function(_) => transfer.is_return_expr(),
+            Self::ListLoop(_) => transfer.is_break_expr() || transfer.is_continue_expr(),
+            Self::LoopCallback { .. } => transfer.is_break_expr(),
             Self::DoLoop(_) => {
-                transfer.is::<BreakStatement>()
-                    || transfer.is::<ContinueStatement>() && transfer.named_child(0).is_none()
+                transfer.is_break_expr()
+                    || transfer.is_continue_expr() && transfer.control_transfer_value().is_none()
             }
         }
     }
@@ -557,22 +557,19 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<ControlTransferTarget<'tree>> {
-        if !transfer.is::<ReturnStatement>()
-            && !transfer.is::<BreakStatement>()
-            && !transfer.is::<ContinueStatement>()
-        {
+        if !transfer.is_control_transfer() {
             return None;
         }
 
         let mut direct_child = transfer;
         while let Some(parent) = direct_child.parent() {
-            if transfer.is::<ReturnStatement>() && parent.is::<LambdaExpression>() {
+            if transfer.is_return_expr() && parent.is::<LambdaExpression>() {
                 return parent
                     .child_by_field_name("body")
                     .is_some_and(|body| body.contains(transfer))
                     .then_some(ControlTransferTarget::Function(parent));
             }
-            if (transfer.is::<BreakStatement>() || transfer.is::<ContinueStatement>())
+            if (transfer.is_break_expr() || transfer.is_continue_expr())
                 && parent.is::<LambdaExpression>()
             {
                 let callable = direct_callback_callable(parent)?;
@@ -721,6 +718,16 @@ impl Analysis {
             .map(|(binding_id, _)| binding_id)
     }
 
+    pub fn future_assignment_binding_at(
+        &self,
+        name: &str,
+        position: Position,
+    ) -> Option<BindingView<'_>> {
+        let scope_idx = self.find_scope_at(position)?;
+        let binding_id = self.future_assignment_binding(name, scope_idx, position)?;
+        self.binding_anchor(binding_id)
+    }
+
     fn binding_anchor(&self, binding_id: BindingId) -> Option<BindingView<'_>> {
         let binding = self.binding(binding_id)?;
         let state = binding.states.first()?;
@@ -802,14 +809,12 @@ impl Analysis {
             .rev()
     }
 
-    /// Methods installed on `function` no later than `position`, with a later
-    /// installation of the same method identity shadowing an earlier one.
-    fn methods_for_at<'a>(
+    fn method_installations_for_at<'a>(
         &'a self,
-        function: &'a FunctionInfo,
+        function: &FunctionInfo,
         position: Position,
-    ) -> Vec<&'a Method> {
-        let mut methods = Vec::new();
+    ) -> Vec<&'a MethodInstallation> {
+        let mut installations = Vec::new();
         for installation in function
             .installations
             .iter()
@@ -817,15 +822,14 @@ impl Analysis {
             .filter_map(|id| self.method_installation(*id))
             .filter(|installation| installation.span.start <= position)
         {
-            if !methods
-                .iter()
-                .any(|method: &&Method| method.domain == installation.method.domain)
-            {
-                methods.push(&installation.method);
+            if !installations.iter().any(|installed: &&MethodInstallation| {
+                installed.method.domain == installation.method.domain
+            }) {
+                installations.push(installation);
             }
         }
-        methods.reverse();
-        methods
+        installations.reverse();
+        installations
     }
 
     pub fn method_installation(&self, id: MethodInstallationId) -> Option<&MethodInstallation> {
@@ -873,20 +877,14 @@ impl Analysis {
         })
     }
 
-    /// Local symbol names visible at `pos` whose name starts with `prefix`, from
-    /// the most-nested scope outward, de-duplicated (a nearer binding shadows an
-    /// outer one). Drives local-symbol completion.
-    pub fn in_scope_symbols(&self, prefix: &str, pos: Position) -> Vec<(String, SymbolKind)> {
+    pub fn in_scope_bindings(&self, prefix: &str, pos: Position) -> Vec<BindingView<'_>> {
         let mut seen = HashSet::new();
         let mut out = Vec::new();
         let mut current = self.find_scope_at(pos);
         while let Some(idx) = current {
             for binding in self.bindings_in_scope(idx) {
                 if binding.name.name().starts_with(prefix) && seen.insert(binding.name.clone()) {
-                    out.push((
-                        binding.name.name().to_string(),
-                        binding.state.presentation_kind,
-                    ));
+                    out.push(binding);
                 }
             }
             current = self.registry.scopes.parent(idx);
@@ -1105,10 +1103,21 @@ impl Analysis {
                 return;
             }
         };
+        let target_end = if target.is::<NewStatement>() {
+            assignment_parts(assignment)
+                .map(|(_, operator, _)| operator.start_byte())
+                .unwrap_or_else(|| target.trimmed_end_byte())
+        } else {
+            target.trimmed_end_byte()
+        };
+        let target_span = source.range_for_bytes(target.start_byte()..target_end);
+        let label = source.text()[target.start_byte()..target_end]
+            .trim_end()
+            .to_string();
         self.registry.assignment_facts.push(AssignmentFact {
-            label: target.text().to_string(),
+            label,
             span: source.range_for_node(assignment),
-            target_span: source.range_for_node(target),
+            target_span,
             value_span: value.map(|value| source.range_for_node(value)),
             scope_idx,
             kind,
@@ -1145,8 +1154,8 @@ impl Analysis {
         source: &(impl SourceNavigation + ?Sized),
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<(MethodInstallation, Vec<(TextRange, SourceSemanticRole)>)> {
-        let operator = node.binary_operator()?;
-        let left = node.child_by_field_name("left")?;
+        let (left, operator_node, right) = assignment_parts(node)?;
+        let operator = operator_node.text();
         let position = source.position_for_node(left);
         let (head, domain_nodes) = self.installation_shape(left, position, knowledge)?;
         let domain = domain_nodes
@@ -1159,9 +1168,8 @@ impl Analysis {
             .collect::<Vec<_>>();
         let operand_arity = domain.len();
         let span = source.range_for_node(node);
-        let right = node.child_by_field_name("right");
-        let rhs_lambda = right.and_then(assigned_lambda);
-        let codomain_node = right.and_then(method_codomain_annotation);
+        let rhs_lambda = assigned_lambda(right);
+        let codomain_node = method_codomain_annotation(right);
         let codomain = codomain_node
             .and_then(symbol_node_text)
             .map(ObjectName::new);
@@ -1188,6 +1196,7 @@ impl Analysis {
                     rhs_lambda_dispatch,
                     syntax: MethodInstallationSyntax::Classical,
                     has_option_handler: false,
+                    effect: MethodInstallationEffect::Rejected,
                 },
                 method_semantic_spans.clone(),
             ))
@@ -1211,6 +1220,7 @@ impl Analysis {
                             rhs_lambda_dispatch,
                             syntax: MethodInstallationSyntax::Classical,
                             has_option_handler: false,
+                            effect: MethodInstallationEffect::Rejected,
                         },
                         method_semantic_spans,
                     ))
@@ -1274,6 +1284,7 @@ impl Analysis {
                     .and_then(|lambda| self.registry.scopes.function_dispatch(lambda, source)),
                 syntax: MethodInstallationSyntax::InstallMethod,
                 has_option_handler: false,
+                effect: MethodInstallationEffect::Rejected,
             },
             method_semantic_spans,
         ))
@@ -1317,12 +1328,12 @@ impl Analysis {
         // `(T op S) := f` installs exactly like `T op S := f`. A final `muted`
         // child means the group evaluates to null and is not an installation
         // target.
-        if node.is::<ParenthesizedExpression>() {
+        if node.is_holder() {
             let inner = node.final_value_child()?;
             return self.installation_shape(inner, position, knowledge);
         }
         if node.is::<NewStatement>() {
-            let target_type = node.child_by_field_name("type")?;
+            let target_type = new_statement_value(node.child_by_field_name("type")?)?;
             symbol_node_text(target_type)?;
             let mut domain = vec![target_type];
             for value in [new_statement_parent(node), new_statement_instance(node)]
@@ -1339,7 +1350,7 @@ impl Analysis {
                 domain,
             ));
         }
-        if node.is::<AdjacentExpression>() || node.is::<BinaryExpression>() {
+        if node.is_adjacent_expr() || node.is_binary_expr() {
             let left = node.child_by_field_name("left")?;
             let right = node.child_by_field_name("right")?;
             let operator = Operator::from_expression(node)?;
@@ -1366,7 +1377,7 @@ impl Analysis {
                 symbol_node_text(right)?;
                 Some((MethodHead::Operator(operator), vec![left, right]))
             }
-        } else if node.is::<PrefixExpression>() || node.is::<PostfixExpression>() {
+        } else if node.is_prefix_expr() || node.is_postfix_expr() {
             let operand = node.child_by_field_name("operand")?;
             symbol_node_text(operand)?;
             Some((
@@ -1689,6 +1700,16 @@ impl Analysis {
             .then_some((method, installation))
     }
 
+    pub fn is_method_installation_callable(
+        &self,
+        node: M2Node,
+        source: &(impl SourceNavigation + ?Sized),
+    ) -> bool {
+        method_installation_assignment_for_callable_node(node)
+            .and_then(|assignment| self.installation_for(assignment, source))
+            .is_some()
+    }
+
     pub fn infer_call_static_facts(
         &self,
         node: M2Node,
@@ -1699,6 +1720,27 @@ impl Analysis {
             .find_scope_at(source.position_for_node(node))
             .unwrap_or(0);
         TypeChecker::new(self, knowledge).infer_call_facts(node, source, scope_idx, knowledge)
+    }
+
+    pub fn local_call_installations<'a>(
+        &'a self,
+        function: &'a FunctionInfo,
+        argument: M2Node,
+        position: Position,
+        source: &(impl SourceNavigation + ?Sized),
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Vec<&'a MethodInstallation> {
+        let facts = self.infer_call_static_facts(argument, source, knowledge);
+        TypeChecker::new(self, knowledge)
+            .local_call_candidate_installation_ids(
+                function,
+                &facts.argument_types,
+                position,
+                knowledge,
+            )
+            .into_iter()
+            .filter_map(|id| self.method_installation(id))
+            .collect()
     }
 
     pub fn infer_expression_static_type(
@@ -1742,8 +1784,7 @@ impl Analysis {
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<MethodCodomainDeduction> {
         self.installation_for(assignment, source)?;
-        let left = assignment.child_by_field_name("left")?;
-        let right = assignment.child_by_field_name("right")?;
+        let (left, _, right) = assignment_parts(assignment)?;
         let lambda = assigned_lambda(right)?;
         let body = lambda.child_by_field_name("body")?;
         let codomain = self.infer_expression_static_type(body, source, knowledge)?;
@@ -1778,7 +1819,7 @@ impl Analysis {
             codomain,
             annotated_codomain,
             diagnostic_range: annotation.map_or_else(
-                || source.range_for_node(left),
+                || source.range_for_bytes(left.start_byte()..left.trimmed_end_byte()),
                 |node| source.range_for_node(node),
             ),
             edit,
@@ -1792,7 +1833,7 @@ impl Analysis {
         scope_idx: usize,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<CallableObjectId> {
-        if value.is::<ParenthesizedExpression>() {
+        if value.is_holder() {
             return self.callable_object_for_value(
                 value.final_value_child()?,
                 source,
@@ -1888,7 +1929,8 @@ impl Analysis {
         self.retain_method_installation(
             installation,
             method_type_spans,
-            assignment.has_binary_operator::<Token![:=]>(),
+            assignment_parts(assignment)
+                .is_some_and(|(_, operator, _)| matches_token::<Token![:=]>(operator.text())),
             knowledge,
         )
     }
@@ -1913,7 +1955,7 @@ impl Analysis {
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<MethodInstallationId> {
         if attach {
-            self.attach_method_installation(&mut installation, knowledge);
+            installation.effect = self.attach_method_installation(&mut installation, knowledge);
         }
 
         for (range, role) in method_type_spans {
@@ -1929,22 +1971,26 @@ impl Analysis {
         &mut self,
         installation: &mut MethodInstallation,
         knowledge: &(impl TypeKnowledge + ?Sized),
-    ) {
+    ) -> MethodInstallationEffect {
         match &installation.method.head {
             MethodHead::Function(name) => {
-                if self.callable_head_kind(name.name(), installation.span.start, knowledge)
-                    != CallableHeadKind::MethodFunction
-                {
-                    return;
+                match self.callable_head_kind(name.name(), installation.span.start, knowledge) {
+                    CallableHeadKind::PlainFunction => {
+                        return MethodInstallationEffect::Rejected;
+                    }
+                    CallableHeadKind::Unknown => {
+                        return MethodInstallationEffect::Unresolved;
+                    }
+                    CallableHeadKind::MethodFunction => {}
                 }
                 let Some(object_id) = self
                     .get_binding_at(name.name(), installation.span.start)
                     .and_then(|binding| binding.state.object_id)
                 else {
-                    return;
+                    return MethodInstallationEffect::Effective;
                 };
                 let Some(function) = self.registry.callable_objects.get_mut(object_id.0) else {
-                    return;
+                    return MethodInstallationEffect::Effective;
                 };
                 if installation.method.codomain.is_none() {
                     installation
@@ -1953,6 +1999,7 @@ impl Analysis {
                         .clone_from(&function.typical_value);
                 }
                 function.installations.push(installation.id);
+                MethodInstallationEffect::Effective
             }
             MethodHead::Operator(operator) => {
                 let function = self
@@ -1967,6 +2014,7 @@ impl Analysis {
                         accepts_options: false,
                     });
                 function.installations.push(installation.id);
+                MethodInstallationEffect::Effective
             }
         }
     }
@@ -1991,8 +2039,7 @@ where
     Knowledge: PositionedTypeKnowledge + ?Sized,
 {
     fn register_option(&mut self, node: &OptionExpression) {
-        let Some(expression) = cst_operator_owner(self.root, self.source, node.operator.span())
-        else {
+        let Some(expression) = self.root.descendant_for_syntax(node) else {
             return;
         };
         let Some(left) = expression.child_by_field_name("left") else {
@@ -2005,25 +2052,11 @@ where
         );
     }
 
-    fn register_property(&mut self, node: &BinaryExpression) {
-        let property = matches!(
-            (&node.operator, node.right.as_ref()),
-            (
-                BinaryOperator::Hsh(_) | BinaryOperator::HshQsm(_),
-                Expr::StringLiteral(_) | Expr::RawStringLiteral(_)
-            ) | (
-                BinaryOperator::Dot(_) | BinaryOperator::DotQsm(_),
-                Expr::Symbol(_)
-            )
-        );
-        if !property {
-            return;
-        }
-        let Some(expression) = cst_operator_owner(self.root, self.source, node.operator.span())
-        else {
+    fn register_property(&mut self, node: &BinaryExpr) {
+        let Some(expression) = self.root.descendant_for_syntax(node) else {
             return;
         };
-        if let Some(property) = expression.child_by_field_name("right") {
+        if let Some(property) = expression.property_key() {
             self.analysis.register_source_semantic_role(
                 self.source.range_for_node(property),
                 SourceSemanticRole::PropertyKey,
@@ -2033,7 +2066,7 @@ where
 
     fn register_namespace<Syntax>(&mut self, syntax: &Syntax)
     where
-        Syntax: Reconstruct<m2_syn::treesitter::TreeSitterNode<'tree, 'tree>> + Spanned,
+        Syntax: Spanned,
     {
         let Some(node) = self.root.descendant_for_syntax(syntax) else {
             return;
@@ -2056,9 +2089,9 @@ where
         visit::visit_option_expression(self, node);
     }
 
-    fn visit_binary_expression(&mut self, node: &'ast BinaryExpression) {
+    fn visit_binary_expr(&mut self, node: &'ast BinaryExpr) {
         self.register_property(node);
-        visit::visit_binary_expression(self, node);
+        visit::visit_binary_expr(self, node);
     }
 
     fn visit_string_literal(&mut self, node: &'ast StringLiteral) {
@@ -2171,7 +2204,7 @@ fn method_declaration_typical_value(node: M2Node) -> Option<Option<ObjectName>> 
 /// Check if a binary expression is a call to the `method` function, catching
 /// cases where the tree structure doesn't perfectly match a space_application.
 fn is_method_call(node: M2Node) -> bool {
-    if !node.is::<AdjacentExpression>() && !node.is::<BinaryExpression>() {
+    if !node.is_adjacent_expr() && !node.is_binary_expr() {
         return false;
     }
     node.child_by_field_name("left")
@@ -2324,17 +2357,52 @@ fn clause_value(clause: M2Node) -> Option<M2Node> {
 }
 
 fn new_statement_parent(node: M2Node<'_>) -> Option<M2Node<'_>> {
-    node.child_by_field_name("parent")
+    new_statement_value(node.child_by_field_name("parent")?)
 }
 
 fn new_statement_instance(node: M2Node<'_>) -> Option<M2Node<'_>> {
-    node.child_by_field_name("instance")
+    new_statement_value(node.child_by_field_name("instance")?)
+}
+
+fn new_statement_value(node: M2Node<'_>) -> Option<M2Node<'_>> {
+    if node.is_assignment() {
+        node.child_by_field_name("left")
+    } else {
+        Some(node)
+    }
+}
+
+fn new_statement_installation_assignment(node: M2Node<'_>) -> Option<M2Node<'_>> {
+    node.is::<NewStatement>()
+        .then(|| {
+            ["type", "parent", "instance"]
+                .into_iter()
+                .filter_map(|field| node.child_by_field_name(field))
+                .find(|value| value.is_assignment())
+        })
+        .flatten()
+}
+
+fn assignment_parts(node: M2Node<'_>) -> Option<(M2Node<'_>, M2Node<'_>, M2Node<'_>)> {
+    if node.is::<NewStatement>() {
+        let assignment = new_statement_installation_assignment(node)?;
+        return Some((
+            node,
+            assignment.child_by_field_name("operator")?,
+            assignment.child_by_field_name("right")?,
+        ));
+    }
+    Some((
+        node.child_by_field_name("left")?,
+        node.child_by_field_name("operator")?,
+        node.child_by_field_name("right")?,
+    ))
 }
 
 fn direct_callback_callable(lambda: M2Node<'_>) -> Option<M2Node<'_>> {
     let mut argument = lambda;
     let mut parent = argument.parent()?;
-    while parent.is::<Sequence>() || parent.is::<ParenthesizedExpression>() {
+    while parent.is::<Sequence>() || parent.is_holder() {
         if parent.is::<Sequence>()
             && parent
                 .collection_elements()
@@ -2365,7 +2433,7 @@ fn direct_callback_callable(lambda: M2Node<'_>) -> Option<M2Node<'_>> {
 /// its own value. `()` and `(a, b)` are `Sequence` nodes, left untouched.
 fn parenthesized_value(node: M2Node) -> Option<M2Node> {
     let mut current = node;
-    while current.is::<ParenthesizedExpression>() {
+    while current.is_holder() {
         current = current.final_value_child()?;
     }
     Some(current)
@@ -2410,10 +2478,7 @@ fn call_like_left_symbol_for_argument<'tree>(
         if parent.is::<List>() && !allow_list_argument {
             return None;
         }
-        if !parent.is::<Sequence>()
-            && !parent.is::<List>()
-            && !parent.is::<ParenthesizedExpression>()
-        {
+        if !parent.is::<Sequence>() && !parent.is::<List>() && !parent.is_holder() {
             return None;
         }
 

@@ -1,10 +1,8 @@
 //! Versioned document snapshots that combine source text, parse tree, and
 //! analysis for LSP requests.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use crate::node_metadata::{M2Node, M2Parser, M2Tree};
-use m2_syn::{SourceFile, SourceId};
+use m2_syn::{LambdaExpression, SourceFile};
 use tower_lsp::lsp_types::{Position, Range as TextRange, TextDocumentContentChangeEvent};
 use tree_sitter::{InputEdit, Point};
 
@@ -14,14 +12,11 @@ use crate::object_registry::ObjectRegistry;
 use crate::package_index::collect_imported_packages_in_tree;
 use crate::source::{DocumentSource, SourceNavigation};
 
-static NEXT_SOURCE_ID: AtomicU64 = AtomicU64::new(1);
-
 /// One immutable source, syntax, and semantic-analysis snapshot served to LSP
 /// requests.
 #[derive(Debug)]
 pub struct DocumentSnapshot {
     source: DocumentSource,
-    source_id: SourceId,
     tree: M2Tree,
     syntax: Option<SourceFile>,
     analysis: Analysis,
@@ -50,10 +45,9 @@ pub struct TargetSymbol<'a> {
 impl DocumentSnapshot {
     pub fn from_text(text: String, knowledge_provider: &ObjectRegistry) -> Option<Self> {
         let source = DocumentSource::new(text);
-        let source_id = SourceId(NEXT_SOURCE_ID.fetch_add(1, Ordering::Relaxed));
         let mut parser = M2Parser::new()?;
         let tree = parser.parse_tree(source.text(), None)?;
-        let typed_ast = tree.typed_source_file(source.text(), source_id);
+        let typed_ast = tree.typed_source_file(source.text());
         let root = tree.root(source.text());
         let imported_packages =
             collect_imported_packages_in_tree(root, typed_ast.as_ref(), &source);
@@ -63,7 +57,6 @@ impl DocumentSnapshot {
             collect_documentation(&source, root);
         Some(Self {
             source,
-            source_id,
             tree,
             syntax: typed_ast,
             analysis,
@@ -122,6 +115,18 @@ impl DocumentSnapshot {
     pub fn source_binding_at(&self, name: &str, position: Position) -> Option<BindingView<'_>> {
         self.analysis
             .visible_source_binding_at(name, position, &self.object_registry.at(position))
+    }
+
+    pub fn future_assignment_binding_at(
+        &self,
+        name: &str,
+        position: Position,
+    ) -> Option<BindingView<'_>> {
+        self.analysis
+            .future_assignment_binding_at(name, position)
+            .filter(|binding| {
+                Analysis::source_binding_is_visible(*binding, &self.object_registry.at(position))
+            })
     }
 
     pub fn source_symbol_at(&self, name: &str, position: Position) -> Option<BindingView<'_>> {
@@ -188,6 +193,23 @@ impl DocumentSnapshot {
     pub fn callable_at_position(&self, position: Position) -> Option<&FunctionInfo> {
         let binding = self.binding_at_position(position)?;
         self.analysis.function_for_binding(binding)
+    }
+
+    pub fn lambda_value_ranges(&self) -> Vec<TextRange> {
+        self.root_node()
+            .descendants()
+            .filter(|node| {
+                let mut value = *node;
+                while value.is_holder() {
+                    let Some(inner) = value.final_value_child() else {
+                        return false;
+                    };
+                    value = inner;
+                }
+                value.is::<LambdaExpression>()
+            })
+            .map(|node| self.range_for_node(node))
+            .collect()
     }
 
     pub fn root_node(&self) -> M2Node<'_> {
@@ -259,7 +281,7 @@ impl DocumentSnapshot {
 
         let mut parser = M2Parser::new()?;
         let tree = parser.parse_tree(self.text(), Some(&edited_tree))?;
-        let typed_ast = tree.typed_source_file(self.text(), self.source_id);
+        let typed_ast = tree.typed_source_file(self.text());
         let root = tree.root(self.text());
         let imported_packages =
             collect_imported_packages_in_tree(root, typed_ast.as_ref(), &self.source);
@@ -342,8 +364,6 @@ mod tests {
         let mut document =
             DocumentSnapshot::from_text("value = 1\n".to_string(), &ObjectRegistry::default())
                 .expect("the document should parse");
-        let source_id = document.source_id;
-
         document
             .apply_changes(
                 &[TextDocumentContentChangeEvent {
@@ -355,7 +375,6 @@ mod tests {
             )
             .expect("the incremental change should parse");
 
-        assert_eq!(document.source_id, source_id);
         let binding = document
             .analysis
             .binding_states()

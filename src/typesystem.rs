@@ -10,6 +10,12 @@ use crate::object_registry::{
     ObjectKnowledge, ObjectName, ObjectRegistry, ObjectRegistryView, TypeId,
 };
 
+mod type_range;
+
+pub use type_range::{Type, TypeRange};
+
+pub type InferredType = TypeRange;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TypeRole {
     Boolean,
@@ -99,152 +105,6 @@ pub trait TypeKnowledge: ObjectKnowledge + PositionedTypeKnowledge {
 
     fn type_role_id(&self, role: TypeRole) -> Option<TypeId> {
         self.resolve_type_id(&role.object_name())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InferredType {
-    exact_points: Vec<ObjectName>,
-    upward_generators: Vec<ObjectName>,
-}
-
-impl InferredType {
-    pub fn diverges() -> Self {
-        Self {
-            exact_points: Vec::new(),
-            upward_generators: Vec::new(),
-        }
-    }
-
-    pub fn exact(name: &str) -> Self {
-        Self::exact_from_id(ObjectName::new(name))
-    }
-
-    pub fn exact_from_id(point: ObjectName) -> Self {
-        Self {
-            exact_points: vec![point],
-            upward_generators: Vec::new(),
-        }
-    }
-
-    pub fn upward(name: &str) -> Self {
-        Self::upward_from_id(ObjectName::new(name))
-    }
-
-    pub fn upward_from_id(generator: ObjectName) -> Self {
-        Self {
-            exact_points: Vec::new(),
-            upward_generators: vec![generator],
-        }
-    }
-
-    pub fn single(&self) -> Option<&ObjectName> {
-        match (
-            self.exact_points.as_slice(),
-            self.upward_generators.as_slice(),
-        ) {
-            ([only], []) | ([], [only]) => Some(only),
-            _ => None,
-        }
-    }
-
-    pub fn exact_points(&self) -> impl Iterator<Item = &ObjectName> {
-        self.exact_points.iter()
-    }
-
-    pub fn upward_generators(&self) -> impl Iterator<Item = &ObjectName> {
-        self.upward_generators.iter()
-    }
-
-    pub fn unknown() -> Self {
-        Self::upward("Thing")
-    }
-
-    pub fn label(&self) -> Option<String> {
-        (!self.exact_points.is_empty() || !self.upward_generators.is_empty()).then(|| {
-            self.exact_points
-                .iter()
-                .chain(&self.upward_generators)
-                .map(ObjectName::name)
-                .collect::<Vec<_>>()
-                .join(" | ")
-        })
-    }
-
-    pub fn subset_label(
-        &self,
-        has_strict_member_above: impl Fn(&ObjectName) -> bool,
-    ) -> Option<String> {
-        (!self.exact_points.is_empty() || !self.upward_generators.is_empty()).then(|| {
-            self.upward_generators
-                .iter()
-                .map(|generator| {
-                    if has_strict_member_above(generator) {
-                        format!("↑{}", generator.name())
-                    } else {
-                        generator.name().to_string()
-                    }
-                })
-                .chain(
-                    self.exact_points
-                        .iter()
-                        .map(|point| point.name().to_string()),
-                )
-                .collect::<Vec<_>>()
-                .join(" | ")
-        })
-    }
-
-    pub fn possibility_by(
-        &self,
-        candidate: &ObjectName,
-        evidence: impl Fn(&ObjectName, &ObjectName) -> SubtypeEvidence,
-    ) -> SubtypeEvidence {
-        let mut result = SubtypeEvidence::Disproven;
-        if self.exact_points.iter().any(|point| point == candidate) {
-            return SubtypeEvidence::Proven;
-        }
-        for generator in &self.upward_generators {
-            match evidence(candidate, generator) {
-                SubtypeEvidence::Proven => return SubtypeEvidence::Proven,
-                SubtypeEvidence::Unknown => result = SubtypeEvidence::Unknown,
-                SubtypeEvidence::Disproven => {}
-            }
-        }
-        result
-    }
-
-    pub fn join_by(self, other: Self, is_below: impl Fn(&ObjectName, &ObjectName) -> bool) -> Self {
-        let mut exact_points = self.exact_points;
-        for point in other.exact_points {
-            if !exact_points.contains(&point) {
-                exact_points.push(point);
-            }
-        }
-
-        let mut upward_generators = self.upward_generators;
-        for generator in other.upward_generators {
-            if !upward_generators.contains(&generator) {
-                upward_generators.push(generator);
-            }
-        }
-
-        let candidates = upward_generators.clone();
-        upward_generators.retain(|generator| {
-            !candidates
-                .iter()
-                .any(|other| other != generator && is_below(generator, other))
-        });
-        exact_points.retain(|point| {
-            !upward_generators
-                .iter()
-                .any(|generator| is_below(point, generator))
-        });
-
-        Self {
-            exact_points,
-            upward_generators,
-        }
     }
 }
 

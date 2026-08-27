@@ -1,5 +1,6 @@
 //! Configured parser and owned syntax-tree lifecycle.
 
+use m2_syn::SourceFile;
 use tree_sitter::{InputEdit, Parser, Tree};
 
 use super::M2Node;
@@ -62,24 +63,17 @@ impl M2Tree {
         M2Node::new(self.tree.root_node(), source)
     }
 
-    pub fn typed_source_file(
-        &self,
-        source: &str,
-        source_id: m2_syn::SourceId,
-    ) -> Option<m2_syn::SourceFile> {
+    pub fn typed_source_file(&self, source: &str) -> Option<SourceFile> {
         let root = self.tree.root_node();
         if root.has_error() {
             return None;
         }
-        let syntax: m2_syn::SourceFile = m2_syn::reconstruct(
-            m2_syn::treesitter::TreeSitterNode::new(root, source.as_bytes(), source_id),
-        )
-        .ok()?;
+        let syntax = m2_syn::parse_file(source).ok()?;
         let cell_count = (0..root.named_child_count())
             .filter_map(|index| root.named_child(index as u32))
             .filter(|child| !child.is_extra())
             .count();
-        (syntax.elements.len() == cell_count).then_some(syntax)
+        (syntax.cells.len() == cell_count).then_some(syntax)
     }
 
     /// Apply an incremental source edit before reparsing.

@@ -1,10 +1,8 @@
 //! Tree-sitter-guided formatting and folding ranges for Macaulay2 source.
 
 use m2_syn::{
-    BlockComment, ElseClause, ExceptClause, FloatLiteral, ForLoop, IfStatement, IntegerLiteral,
-    LambdaExpression, LineComment, LoopBody, ParenthesizedExpression, PostfixExpression,
-    PrefixExpression, RawStringLiteral, Sequence, StringLiteral, Symbol, ThenClause, Token,
-    TryStatement, WhileLoop,
+    ElseClause, FloatLiteral, ForLoop, IfStatement, IntegerLiteral, LambdaExpression, LoopBody,
+    RawStringLiteral, Sequence, StringLiteral, Symbol, ThenClause, Token, TryStatement, WhileLoop,
 };
 use tower_lsp::lsp_types::{
     DocumentFormattingOptions, FoldingRange, FoldingRangeKind, FoldingRangeProviderCapability,
@@ -281,7 +279,7 @@ fn format_control_flow(text: &str, options: &FormatOptions, newline: &'static st
     for clause in root.descendants().filter(|node| {
         node.is::<ThenClause>()
             || node.is::<ElseClause>()
-            || node.is::<ExceptClause>()
+            || node.is_except_clause()
             || node.is::<LoopBody>()
     }) {
         if !control_clause_breaks_are_parseable(clause, text) {
@@ -299,7 +297,7 @@ fn format_control_flow(text: &str, options: &FormatOptions, newline: &'static st
             }
             continue;
         }
-        if clause.is::<ExceptClause>() && clause.child_by_field_name("exception").is_some() {
+        if clause.is_except_clause() && clause.child_by_field_name("exception").is_some() {
             push_control_flow_break(
                 text,
                 same_line_horizontal_whitespace_start(text, clause.start_byte()),
@@ -321,7 +319,7 @@ fn format_control_flow(text: &str, options: &FormatOptions, newline: &'static st
             continue;
         };
 
-        if clause.is::<ElseClause>() || clause.is::<ExceptClause>() {
+        if clause.is::<ElseClause>() || clause.is_except_clause() {
             if !clause.is::<ElseClause>() || !keep_else_after_closer(clause, text, &mut edits) {
                 push_control_flow_break(
                     text,
@@ -331,7 +329,7 @@ fn format_control_flow(text: &str, options: &FormatOptions, newline: &'static st
                     &mut edits,
                 );
             }
-            if clause.is::<ExceptClause>() {
+            if clause.is_except_clause() {
                 continue;
             }
             if body.is::<IfStatement>()
@@ -448,7 +446,7 @@ fn control_clause_breaks_are_parseable(clause: M2Node<'_>, text: &str) -> bool {
 
     let has_alternative = layout_control
         .children()
-        .any(|child| child.is::<ElseClause>() || child.is::<ExceptClause>());
+        .any(|child| child.is::<ElseClause>() || child.is_except_clause());
     if !has_alternative {
         return true;
     }
@@ -885,12 +883,12 @@ fn collect_comment_fold_ranges(root: M2Node<'_>, line_leads: &[usize]) -> Vec<Fo
     for node in root.descendants() {
         let start = node.start_position();
         let end = node.end_position();
-        if node.is::<LineComment>()
+        if node.is_line_comment()
             && start.row == end.row
             && line_leads.get(start.row).copied() == Some(start.column)
         {
             line_comment_rows.push(start.row as u32);
-        } else if node.is::<BlockComment>() && start.row < end.row {
+        } else if node.is_block_comment() && start.row < end.row {
             ranges.push(FormatFoldRange {
                 start_line: start.row as u32,
                 end_line: end.row as u32,
@@ -1178,7 +1176,7 @@ fn is_clause_body_first_token(node: M2Node<'_>, row: usize) -> bool {
                 }
             }
         }
-        if parent.is::<ExceptClause>() {
+        if parent.is_except_clause() {
             let clause_body =
                 direct_keyword::<Token![do]>(parent).zip(parent.child_by_field_name("value"));
             if let Some((keyword, body)) = clause_body {
@@ -1444,13 +1442,13 @@ macro_rules! matches_tokens {
 
 /// Spacing rule for the operator `node` carries, keyed by the parent's kind so
 /// the same spelling can route differently in binary vs prefix context
-/// (`-` in `BinaryExpression` is `Spaced`, in `PrefixExpression` is `Prefix`).
+/// (`-` in `BinaryExpr` is `Spaced`, in `PrefixExpr` is `Prefix`).
 /// `LambdaExpression` shares the binary table: its `->` operator reads as a
 /// spaced binary operator.
 fn operator_spacing(parent: M2Node<'_>, operator: &str) -> OperatorSpacing {
     if parent.binary_operator().is_some() || parent.is::<LambdaExpression>() {
         binary_operator_spacing(operator)
-    } else if parent.is::<PrefixExpression>() {
+    } else if parent.is_prefix_expr() {
         prefix_operator_spacing(operator)
     } else {
         OperatorSpacing::None
@@ -1590,8 +1588,7 @@ fn is_parenthesized_call(node: M2Node<'_>) -> bool {
 
     // A call's argument list is a `sequence` (`f(a, b)`, `f()`) or, for a single
     // parenthesized argument, a `parenthesized_expression` (`f(x)`).
-    operator.is_implicit_application()
-        && (right.is::<Sequence>() || right.is::<ParenthesizedExpression>())
+    operator.is_implicit_application() && (right.is::<Sequence>() || right.is_holder())
 }
 
 /// Whether a parenthesized call `f(...)` is the head of a `:=` method install
@@ -1645,8 +1642,8 @@ fn is_adjacent_factor(node: M2Node<'_>) -> bool {
         || node.is::<StringLiteral>()
         || node.is::<RawStringLiteral>()
         || node.is_delimited_expression()
-        || node.is::<PrefixExpression>()
-        || node.is::<PostfixExpression>()
+        || node.is_prefix_expr()
+        || node.is_postfix_expr()
         || node.binary_operator().is_some()
 }
 

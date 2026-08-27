@@ -2,10 +2,7 @@
 
 use std::collections::HashMap;
 
-use m2_syn::{
-    AdjacentExpression, BinaryExpression, IfStatement, ParenthesizedExpression, StringLiteral,
-    Symbol, Token, TryStatement,
-};
+use m2_syn::{IfStatement, StringLiteral, Symbol, Token, TryStatement};
 use tower_lsp::lsp_types::Range as TextRange;
 use tower_lsp::lsp_types::*;
 
@@ -182,9 +179,8 @@ fn option_key_convention_action(context: &CodeActionContext<'_, '_>) -> Option<C
 
 fn redundant_control_parentheses_action(context: &CodeActionContext<'_, '_>) -> Option<CodeAction> {
     let diagnostic = diagnostic_at(context, DiagnosticKind::RedundantControlParentheses)?;
-    let parentheses = enclosing_node_with_range(context, diagnostic.range, |node| {
-        node.is::<ParenthesizedExpression>()
-    })?;
+    let parentheses =
+        enclosing_node_with_range(context, diagnostic.range, |node| node.is_holder())?;
     let inner = redundant_control_parentheses_inner(parentheses)?;
     let range = diagnostic.range;
     Some(
@@ -349,7 +345,7 @@ fn ambiguous_float_member_access_action(context: &CodeActionContext<'_, '_>) -> 
     let diagnostic = diagnostic_at(context, DiagnosticKind::AmbiguousFloatMemberAccess)?;
     let expression = context
         .cursor
-        .enclosing_node(|node| node.is::<AdjacentExpression>() || node.is::<BinaryExpression>())?;
+        .enclosing_node(|node| node.is_adjacent_expr() || node.is_binary_expr())?;
     let replacement = ambiguous_float_member_access_rewrite(expression)?;
 
     Some(

@@ -13,7 +13,7 @@ pub fn syntax_byte_range(syntax: &(impl Spanned + ?Sized)) -> Option<(usize, usi
 }
 
 fn span_byte_range(span: Span) -> Option<(usize, usize)> {
-    Some((span.start_point().ok()?.byte, span.end_point().ok()?.byte))
+    span.bounds()
 }
 
 pub fn matches_token<T: m2_syn::Token>(text: &str) -> bool {

@@ -7,7 +7,7 @@
 //! (local method records first, then the builtin/imported index), and report the
 //! active parameter as the number of completed arguments before the cursor.
 
-use m2_syn::{ParenthesizedExpression, Sequence, Symbol};
+use m2_syn::{Sequence, Symbol};
 use tower_lsp::lsp_types::{
     ParameterInformation, ParameterLabel, Position, SignatureHelp, SignatureInformation,
 };
@@ -95,7 +95,7 @@ fn active_parameter_index(argument_node: M2Node, cursor: usize) -> u32 {
 /// `(a, b)` sequence (peeling the parentheses), or the single bare argument of
 /// `f x`. Empty for `f ()`.
 fn argument_list(argument_node: M2Node) -> Vec<M2Node> {
-    let inner = if argument_node.is::<ParenthesizedExpression>() {
+    let inner = if argument_node.is_holder() {
         match argument_node.final_value_child() {
             Some(inner) => inner,
             None => return Vec::new(),

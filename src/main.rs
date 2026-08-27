@@ -42,6 +42,7 @@ mod typesystem;
 mod workspace_index;
 
 use capabilities::code_actions::available_code_actions;
+use capabilities::completion::{completion_options, completion_response};
 use capabilities::diagnostics::{publish_diagnostics, visible_diagnostics};
 use capabilities::document_highlight::{
     document_highlight_provider_capability, document_highlights,
@@ -54,7 +55,7 @@ use capabilities::formatting::{
 use capabilities::hover::hover_response;
 use capabilities::inlay_hints::{inlay_hint_provider_capability, inlay_hints_response};
 use capabilities::navigation::{
-    completion_response, document_link_request, document_links_response, global_reference_ranges,
+    document_link_request, document_links_response, global_reference_ranges,
     goto_declaration_response, goto_definition_response, goto_implementation_response,
     goto_type_definition_response, is_valid_m2_identifier, prepare_rename_range, reference_target,
     references_response, rename_edits, resolve_document_link, workspace_symbols_response,
@@ -311,15 +312,7 @@ impl LanguageServer for Backend {
                 document_formatting_provider: document_formatting_provider_capability(),
                 folding_range_provider: folding_range_provider_capability(),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
-                completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(
-                        ["$", "(", ",", "\""]
-                            .into_iter()
-                            .map(str::to_string)
-                            .collect(),
-                    ),
-                    ..Default::default()
-                }),
+                completion_provider: Some(completion_options()),
                 signature_help_provider: Some(SignatureHelpOptions {
                     trigger_characters: Some(vec!["(".to_string(), ",".to_string()]),
                     retrigger_characters: Some(vec![",".to_string()]),
@@ -817,7 +810,7 @@ impl LanguageServer for Backend {
                     position,
                     uri,
                     &knowledge.at(position),
-                    &self.source_resolver,
+                    &self.workspace_index,
                 )
             })
             .flatten())

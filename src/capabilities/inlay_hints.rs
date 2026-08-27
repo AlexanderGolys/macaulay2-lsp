@@ -2,9 +2,7 @@
 
 use std::collections::HashMap;
 
-use m2_syn::{
-    LambdaExpression, NewStatement, ParenthesizedExpression, ReturnStatement, Symbol, Token,
-};
+use m2_syn::{LambdaExpression, NewStatement, Symbol, Token};
 use tower_lsp::lsp_types::{
     InlayHint, InlayHintKind, InlayHintLabel, InlayHintServerCapabilities, OneOf, Position,
     Range as TextRange,
@@ -116,8 +114,8 @@ fn lambda_return_type_hints(
         .values()
         .filter_map(|(node, _)| {
             let node = *node;
-            if node.is::<ReturnStatement>() {
-                let value = node.final_value_child()?;
+            if node.is_return_expr() {
+                let value = node.control_transfer_value()?;
                 let view = knowledge.at(document.position_for_node(value));
                 analysis.control_transfer_target(node, document, &view)?;
                 Some(value)
@@ -141,10 +139,10 @@ fn lambda_return_type_hints(
 
 fn lambda_final_value(lambda: M2Node<'_>) -> Option<M2Node<'_>> {
     let mut value = lambda.child_by_field_name("body")?;
-    while value.is::<ParenthesizedExpression>() {
+    while value.is_holder() {
         value = value.final_value_child()?;
     }
-    (!value.is::<ReturnStatement>()).then_some(value)
+    (!value.is_return_expr()).then_some(value)
 }
 
 fn label_text(label: &InlayHintLabel) -> &str {
@@ -489,7 +487,7 @@ fn is_self_describing_value(node: M2Node<'_>) -> bool {
 }
 
 fn parenthesized_value(mut node: M2Node<'_>) -> M2Node<'_> {
-    while node.is::<ParenthesizedExpression>() {
+    while node.is_holder() {
         let Some(value) = node.final_value_child() else {
             break;
         };

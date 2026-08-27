@@ -1,6 +1,6 @@
 //! In-document highlighting for resolved symbols and compound-statement words.
 
-use m2_syn::{ForLoop, LambdaExpression, MutedCell, PrefixExpression, WhileLoop};
+use m2_syn::{ForLoop, LambdaExpression, WhileLoop};
 
 use crate::capabilities::navigation::{reference_ranges_resolved, unbound_reference_ranges};
 use crate::document::DocumentSnapshot;
@@ -124,7 +124,7 @@ fn semicolon_expression_highlight(
         return None;
     }
     let muted = semicolon.parent()?;
-    if !muted.is::<MutedCell>() {
+    if !muted.is_muted_statement() {
         return None;
     }
     let expression = muted
@@ -161,7 +161,7 @@ fn semicolon_expression_highlight(
 /// Every selected range comes from the CST; this deliberately does not scan the
 /// source to rediscover token boundaries.
 fn expression_boundary_markers(expression: M2Node<'_>) -> Vec<M2Node<'_>> {
-    if expression.is::<PrefixExpression>() {
+    if expression.is_prefix_expr() {
         let mut markers = expression
             .child_by_field_name("operator")
             .into_iter()

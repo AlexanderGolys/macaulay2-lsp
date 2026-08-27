@@ -5,12 +5,10 @@ use std::ops::Deref;
 
 use m2_syn::visit::{self, Visit};
 use m2_syn::{
-    AdjacentExpression, AngleBarList, Array, AssignmentExpr, BinaryExpression, BinaryOperator,
-    BreakStatement, ContinueStatement, DebugClause, EmptyComponent, FloatLiteral, ForLoop,
-    IfStatement, IntegerLiteral, LambdaExpression, List, LoopBody, MutedCell, NakedSequence,
-    NewStatement, OptionExpression, ParenthesizedExpression, PostfixExpression, PrefixExpression,
-    QuoteExpression, RawStringLiteral, ReturnStatement, Sequence, Spanned, StringLiteral, Token,
-    TryStatement, WhileLoop,
+    AdjacentExpr, AngleBarList, Array, Assignment, EvaluatedAssignment, FloatLiteral, ForLoop,
+    IfStatement, Installation, IntegerLiteral, LambdaExpression, List, LoopBody, NewStatement,
+    OperatorAssignment, OptionExpression, ParallelAssignment, QuoteExpression, RawStringLiteral,
+    Sequence, SimpleBinding, StringLiteral, Token, TryStatement, WhileLoop,
 };
 
 use super::*;
@@ -200,17 +198,15 @@ impl Analysis {
     fn enrich_assignment_node(
         &mut self,
         node: M2Node,
-        syntax: Option<&AssignmentExpr>,
+        syntax: Option<&Assignment>,
         source: &(impl SourceNavigation + ?Sized),
         scope_idx: usize,
         knowledge_provider: &(impl PositionedTypeKnowledge + ?Sized),
     ) {
-        let left = node.child_by_field_name("left");
-        let operator = node.child_by_field_name("operator");
-        let right = node.child_by_field_name("right");
-        let (Some(left), Some(operator)) = (left, operator) else {
+        let Some((left, operator, value)) = assignment_parts(node) else {
             return;
         };
+        let right = Some(value);
         let knowledge = knowledge_provider.at_position(source.position_for_node(node));
         let installation_id = self.record_method_installation(node, source, &knowledge);
         let inferred_type = right.map(|right| {
@@ -255,8 +251,9 @@ impl Analysis {
                 self.callable_object_for_value(right, source, scope_idx, &knowledge)
             });
 
-        if matches_token::<Token![:=]>(operator.text())
-            || matches_token::<Token![=]>(operator.text())
+        if !left.is::<NewStatement>()
+            && (matches_token::<Token![:=]>(operator.text())
+                || matches_token::<Token![=]>(operator.text()))
         {
             self.enrich_definitions(
                 left,
@@ -333,7 +330,7 @@ where
     Source: SourceNavigation + ?Sized,
     Knowledge: PositionedTypeKnowledge + ?Sized,
 {
-    fn visit_assignment_expr(&mut self, node: &'ast AssignmentExpr) {
+    fn visit_assignment(&mut self, node: &'ast Assignment) {
         if let Some(assignment) = self.root.descendant_for_syntax(node) {
             let scope_idx = self
                 .analysis
@@ -347,46 +344,39 @@ where
                 self.knowledge_provider,
             );
         }
-        visit::visit_assignment_expr(self, node);
+        visit::visit_assignment(self, node);
     }
 
     fn visit_lambda_expression(&mut self, node: &'ast LambdaExpression) {
-        if let Some(lambda) = cst_operator_owner(self.root, self.source, node.operator.span()) {
+        if let Some(lambda) = self.root.descendant_for_syntax(node) {
             self.analysis.enrich_lambda_node(lambda, self.source);
         }
         visit::visit_lambda_expression(self, node);
     }
 
-    fn visit_adjacent_expression(&mut self, node: &'ast AdjacentExpression) {
+    fn visit_adjacent_expr(&mut self, node: &'ast AdjacentExpr) {
         if let Some(call) = self.root.descendant_for_syntax(node) {
             self.record_install_method_call(call);
         }
-        visit::visit_adjacent_expression(self, node);
-    }
-
-    fn visit_binary_expression(&mut self, node: &'ast BinaryExpression) {
-        if matches!(&node.operator, BinaryOperator::Space(_)) {
-            if let Some(call) = self.root.descendant_for_syntax(node) {
-                self.record_install_method_call(call);
-            }
-        }
-        visit::visit_binary_expression(self, node);
+        visit::visit_adjacent_expr(self, node);
     }
 }
 
-fn assignment_value(node: &AssignmentExpr) -> &Expr {
+fn assignment_value(node: &Assignment) -> &Expr {
     match node {
-        AssignmentExpr::Assignment(node) => &node.right,
-        AssignmentExpr::LocalAssignment(node) => &node.right,
-        AssignmentExpr::BinaryAssignment(node) => &node.right,
-        AssignmentExpr::BinaryInstallation(node) => &node.right,
-        AssignmentExpr::PrefixAssignment(node) => &node.right,
-        AssignmentExpr::PrefixInstallation(node) => &node.right,
-        AssignmentExpr::PostfixAssignment(node) => &node.right,
-        AssignmentExpr::PostfixInstallation(node) => &node.right,
-        AssignmentExpr::StructuredBinding(node) => &node.right,
-        AssignmentExpr::LocalStructuredBinding(node) => &node.right,
-        AssignmentExpr::EvaluatedAssignment(node) => &node.right,
+        Assignment::SimpleBinding(SimpleBinding::GlobalBinding(node)) => &node.value,
+        Assignment::SimpleBinding(SimpleBinding::LocalBinding(node)) => &node.value,
+        Assignment::ParallelAssignment(ParallelAssignment::GlobalParallelAssignment(node)) => {
+            &node.value
+        }
+        Assignment::ParallelAssignment(ParallelAssignment::LocalParallelAssignment(node)) => {
+            &node.value
+        }
+        Assignment::EvaluatedAssignment(EvaluatedAssignment { value, .. }) => value,
+        Assignment::Installation(Installation::MethodInstallation(node)) => &node.function,
+        Assignment::Installation(Installation::OperatorInstallation(node)) => &node.function,
+        Assignment::Installation(Installation::NewInstallation(node)) => &node.function,
+        Assignment::OperatorAssignment(OperatorAssignment { value_expr, .. }) => value_expr,
     }
 }
 
@@ -396,10 +386,12 @@ impl<Knowledge: PositionedTypeKnowledge + ?Sized> TypeChecker<'_, '_, Knowledge>
         type_id: TypeId,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
-        knowledge
-            .type_name(&type_id)
-            .cloned()
-            .map_or_else(InferredType::unknown, InferredType::upward_from_id)
+        let Some(name) = knowledge.type_name(&type_id).cloned() else {
+            return InferredType::unknown();
+        };
+        Type::from_id(name.clone(), type_id, knowledge)
+            .map(InferredType::upward_type)
+            .unwrap_or_else(|| InferredType::upward_from_id(name))
     }
 
     fn resolve_dispatch_identity_at(
@@ -592,9 +584,9 @@ fn type_substitution(node: M2Node<'_>) -> TypeSubstitution<'_> {
         node if node.is::<List>() => exact("List"),
         node if node.is::<Array>() => exact("Array"),
         node if node.is::<AngleBarList>() => exact("AngleBarList"),
-        node if node.is::<Sequence>() || node.is::<NakedSequence>() => exact("Sequence"),
-        node if node.is::<EmptyComponent>() || node.is::<MutedCell>() => exact("Nothing"),
-        node if node.is::<ParenthesizedExpression>() => parenthesized_value(node)
+        node if node.is_sequence() => exact("Sequence"),
+        node if node.is_nothing_value() => exact("Nothing"),
+        node if node.is_holder() => parenthesized_value(node)
             .map(Follow)
             .unwrap_or_else(|| exact("Nothing")),
         node if node.is::<StringLiteral>() || node.is::<RawStringLiteral>() => {
@@ -604,15 +596,15 @@ fn type_substitution(node: M2Node<'_>) -> TypeSubstitution<'_> {
         node if node.is::<FloatLiteral>() => exact("RR"),
         node if node.is::<QuoteExpression>() => exact("Symbol"),
         node if node.is::<m2_syn::Symbol>() => Symbol(node),
-        node if node.is::<AssignmentExpr>() => node
+        node if node.is_assignment() => node
             .child_by_field_name("right")
             .map(Follow)
             .unwrap_or(Unknown),
         node if node.is::<OptionExpression>() => exact("Option"),
-        node if node.is::<AdjacentExpression>()
-            || node.is::<BinaryExpression>()
-            || node.is::<PrefixExpression>()
-            || node.is::<PostfixExpression>() =>
+        node if node.is_adjacent_expr()
+            || node.is_binary_expr()
+            || node.is_prefix_expr()
+            || node.is_postfix_expr() =>
         {
             Dispatch(node)
         }
@@ -658,18 +650,11 @@ fn type_substitution(node: M2Node<'_>) -> TypeSubstitution<'_> {
             }
         }
         node if node.is::<WhileLoop>() => exact("Nothing"),
-        node if node.is::<ReturnStatement>()
-            || node.is::<BreakStatement>()
-            || node.is::<ContinueStatement>() =>
-        {
-            node.named_children()
-                .next()
-                .map(Follow)
-                .unwrap_or_else(|| exact("Nothing"))
-        }
-        node if node.is::<DebugClause>() => {
-            node.named_children().next().map(Follow).unwrap_or(Unknown)
-        }
+        node if node.is_control_transfer() => node
+            .control_transfer_value()
+            .map(Follow)
+            .unwrap_or_else(|| exact("Nothing")),
+        node if node.is_debug_expr() => node.named_children().next().map(Follow).unwrap_or(Unknown),
         _ => Unknown,
     }
 }
@@ -684,7 +669,10 @@ impl<Knowledge: PositionedTypeKnowledge + ?Sized> TypeChecker<'_, '_, Knowledge>
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
         match substitution {
-            TypeSubstitution::Exact(type_name) => InferredType::exact_from_id(type_name),
+            TypeSubstitution::Exact(type_name) => self
+                .resolve_type_at(&type_name, position, knowledge)
+                .map(InferredType::exact_type)
+                .unwrap_or_else(|| InferredType::exact_from_id(type_name)),
             TypeSubstitution::Follow(node) => self.type_of(node, source, scope_idx),
             TypeSubstitution::Union(substitutions) => substitutions.into_iter().fold(
                 InferredType::diverges(),
@@ -705,13 +693,11 @@ impl<Knowledge: PositionedTypeKnowledge + ?Sized> TypeChecker<'_, '_, Knowledge>
             ),
             TypeSubstitution::Symbol(node) => self.symbol_type(node, source, scope_idx, knowledge),
             TypeSubstitution::Dispatch(node)
-                if node.is::<AdjacentExpression>() || node.is::<BinaryExpression>() =>
+                if node.is_adjacent_expr() || node.is_binary_expr() =>
             {
                 self.binary_expression_type(node, source, scope_idx, knowledge)
             }
-            TypeSubstitution::Dispatch(node)
-                if node.is::<PrefixExpression>() || node.is::<PostfixExpression>() =>
-            {
+            TypeSubstitution::Dispatch(node) if node.is_prefix_expr() || node.is_postfix_expr() => {
                 self.unary_operator_type(node, source, scope_idx, knowledge)
             }
             TypeSubstitution::Dispatch(_) => InferredType::unknown(),
@@ -726,9 +712,9 @@ impl<Knowledge: PositionedTypeKnowledge + ?Sized> TypeChecker<'_, '_, Knowledge>
         position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> InferredType {
-        left.join_by(right, |child, parent| {
-            self.is_subtype(child, parent, position, knowledge)
-        })
+        let left = left.resolved_by(|name| self.resolve_type_at(name, position, knowledge));
+        let right = right.resolved_by(|name| self.resolve_type_at(name, position, knowledge));
+        left | right
     }
 
     /// A symbol's type, in precedence order: an in-scope user binding (which
@@ -1208,14 +1194,62 @@ impl<Knowledge: PositionedTypeKnowledge + ?Sized> TypeChecker<'_, '_, Knowledge>
         position: Position,
         knowledge: &(impl TypeKnowledge + ?Sized),
     ) -> Option<InferredType> {
-        let methods = self.methods_for_at(function, position);
-        let signatures = methods
+        let candidates =
+            self.local_call_candidate_installations(function, argument_types, position, knowledge);
+        if candidates.is_empty() {
+            function
+                .typical_value
+                .clone()
+                .map(InferredType::upward_from_id)
+        } else {
+            Some(
+                candidates
+                    .into_iter()
+                    .fold(InferredType::diverges(), |result, installation| {
+                        let inferred = installation
+                            .method
+                            .codomain
+                            .as_ref()
+                            .or(function.typical_value.as_ref())
+                            .cloned()
+                            .map_or_else(InferredType::unknown, InferredType::upward_from_id);
+                        self.join_types(result, inferred, position, knowledge)
+                    }),
+            )
+        }
+    }
+
+    pub fn local_call_candidate_installation_ids(
+        &self,
+        function: &FunctionInfo,
+        argument_types: &[InferredType],
+        position: Position,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Vec<MethodInstallationId> {
+        self.local_call_candidate_installations(function, argument_types, position, knowledge)
+            .into_iter()
+            .map(|installation| installation.id)
+            .collect()
+    }
+
+    fn local_call_candidate_installations(
+        &self,
+        function: &FunctionInfo,
+        argument_types: &[InferredType],
+        position: Position,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Vec<&MethodInstallation> {
+        let installations = self
+            .analysis
+            .method_installations_for_at(function, position);
+        let signatures = installations
             .iter()
             .enumerate()
-            .filter_map(|(signature_index, method)| {
+            .filter_map(|(signature_index, installation)| {
                 Some(ResolvedDispatchDomain {
                     signature_index,
-                    slots: method
+                    slots: installation
+                        .method
                         .domain
                         .iter()
                         .map(|name| {
@@ -1228,27 +1262,10 @@ impl<Knowledge: PositionedTypeKnowledge + ?Sized> TypeChecker<'_, '_, Knowledge>
             .collect::<Vec<_>>();
         let candidates =
             self.dispatch_candidate_indices(&signatures, argument_types, position, knowledge);
-        if candidates.is_empty() {
-            function
-                .typical_value
-                .clone()
-                .map(InferredType::upward_from_id)
-        } else {
-            Some(
-                candidates
-                    .into_iter()
-                    .fold(InferredType::diverges(), |result, candidate| {
-                        let method = methods[candidate];
-                        let inferred = method
-                            .codomain
-                            .as_ref()
-                            .or(function.typical_value.as_ref())
-                            .cloned()
-                            .map_or_else(InferredType::unknown, InferredType::upward_from_id);
-                        self.join_types(result, inferred, position, knowledge)
-                    }),
-            )
-        }
+        candidates
+            .into_iter()
+            .map(|candidate| installations[candidate])
+            .collect()
     }
 
     pub fn is_subtype(
@@ -1300,6 +1317,23 @@ impl<Knowledge: PositionedTypeKnowledge + ?Sized> TypeChecker<'_, '_, Knowledge>
     ) -> Option<TypeId> {
         self.resolve_source_type_id(name, position)
             .or_else(|| knowledge.resolve_type_id(name))
+    }
+
+    fn resolve_type_at(
+        &self,
+        name: &ObjectName,
+        position: Position,
+        knowledge: &(impl TypeKnowledge + ?Sized),
+    ) -> Option<Type> {
+        let type_id = self.resolve_type_id_at(name, position, knowledge)?;
+        Type::from_id(
+            name.clone(),
+            type_id,
+            &SourceTypeOrder {
+                source: &self.registry.source_types,
+                external: knowledge,
+            },
+        )
     }
 }
 

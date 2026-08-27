@@ -371,7 +371,7 @@ dependencies = [
 
 [[package]]
 name = "m2-ls"
-version = "0.1.1"
+version = "1.0.0"
 dependencies = [
  "dashmap",
  "m2-syn",
@@ -387,19 +387,20 @@ dependencies = [
 
 [[package]]
 name = "m2-syn"
-version = "0.1.0"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "360bd5cd828893819af99e97854a81f8b4f3c6d09c98dd14ed18edf961f2dd6f"
 dependencies = [
  "m2-syn-macros",
- "proc-macro2",
- "quote",
- "syn 2.0.114",
  "tree-sitter",
  "tree-sitter-macaulay2",
 ]
 
 [[package]]
 name = "m2-syn-macros"
-version = "0.1.0"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f06b99cfc6c7c8b0ce38a97ba3bee47d2bd11884cb5635c69e3baba8b341a66"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -859,9 +860,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.26.9"
+version = "0.26.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dab76d0b724ba557954125188cf0633a1ca43199ced82d95c7b9c32cc3de1f3"
+checksum = "17ebdd3a5a7e28a1890b876fdbd0c3c0fe0a6336cffaa104f11b9f720c9daa29"
 dependencies = [
  "cc",
  "regex",
@@ -879,7 +880,9 @@ checksum = "009994f150cc0cd50ff54917d5bc8bffe8cad10ca10d81c34da2ec421ae61782"
 
 [[package]]
 name = "tree-sitter-macaulay2"
-version = "6.0.0"
+version = "6.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94b07e735f326d8de2bc8751514759fa78ea3b5f473901e225f0cc93f215f713"
 dependencies = [
  "cc",
  "tree-sitter",

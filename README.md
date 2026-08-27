@@ -8,8 +8,8 @@ A language server for [Macaulay2](https://macaulay2.com/), built on
 Tree-sitter syntax analysis plus a generated database of Macaulay2 builtin
 metadata (types, methods, options, documentation).
 
-**Status: alpha.** The core capabilities below are implemented and tested, but
-the type system and some heuristics are still evolving. Expect rough edges.
+**Status: stable.** The core capabilities below are implemented and tested.
+Type inference remains conservative where runtime behavior cannot be proven.
 
 ## Features
 
@@ -19,8 +19,8 @@ the type system and some heuristics are still evolving. Expect rough edges.
   operators, no-effect installs, `=` vs `:=`, arity), parallel-assignment
   arity, and option-key conventions. Diagnostic messages double as M2-idiom
   hints.
-- Completion for local symbols, Macaulay2 keywords, builtins, and imported
-  package names.
+- Contextual completion for package imports, types after `new`, callable
+  options, and symbol prefixes with only a few possible endings.
 - Hover documentation, signatures, and inferred types for both local
   symbols and indexed builtin/imported-package objects.
 - Signature help for builtin and local methods with active-parameter tracking.

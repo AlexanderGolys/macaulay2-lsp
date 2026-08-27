@@ -1,6 +1,6 @@
 [package]
 name = "m2-ls"
-version = "0.1.1"
+version = "1.0.0"
 authors = ["Alexander Golys <alexandergolys@gmail.com>"]
 description = "Language server for Macaulay2"
 edition = "2021"
@@ -10,6 +10,7 @@ repository = "https://github.com/AlexanderGolys/m2-ls"
 readme = "README.md"
 keywords = ["macaulay2", "lsp", "language-server", "tree-sitter"]
 categories = ["development-tools"]
+exclude = [".agents/"]
 
 [dependencies]
 tower-lsp = "0.20"
@@ -18,7 +19,7 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dashmap = "5"
-m2-syn = { path = "../m2-syn" }
+m2-syn = "0.2.0"
 tree-sitter = "0.26.9"
-tree-sitter-macaulay2 = { version = "6.0.0", path = "../tree-sitter-macaulay2" }
+tree-sitter-macaulay2 = "6.1.1"
 ropey = "1.6.1"

@@ -105,10 +105,7 @@ mod descendants_tests {
     //! every migrated call site relies on (parent before children, source order
     //! across siblings, root yielded exactly once, empty file safe).
     use super::*;
-    use m2_syn::{
-        DebugClause, EmptyComponent, MutedCell, NakedSequence, ParenthesizedExpression,
-        QuoteExpression, Sequence, SourceFile, Symbol,
-    };
+    use m2_syn::{QuoteExpression, Sequence, SourceFile, Symbol};
 
     #[test]
     fn descendants_visit_parent_before_children_in_source_order() {
@@ -184,21 +181,19 @@ mod descendants_tests {
             .is_modifier_token());
 
         assert_eq!(
-            root.descendants()
-                .filter(|node| node.is::<DebugClause>())
-                .count(),
+            root.descendants().filter(M2Node::is_debug_expr).count(),
             2,
             "both `step` and `finish` are debug clauses"
         );
 
         let parens = root
             .descendants()
-            .find(|node| node.is::<ParenthesizedExpression>())
+            .find(M2Node::is_holder)
             .expect("parenthesized expression is present");
         assert!(parens
             .named_children()
             .next()
-            .is_some_and(|child| child.is::<MutedCell>()));
+            .is_some_and(|child| child.is_muted_statement()));
         assert!(
             parens.final_value_child().is_none(),
             "a grouping ending in a muted expression has no value child"
@@ -213,7 +208,7 @@ mod descendants_tests {
         assert_eq!(
             elements
                 .iter()
-                .filter(|element| element.is::<EmptyComponent>())
+                .filter(|element| element.is_empty_component())
                 .count(),
             3,
             "empty comma slots are explicit empty-component nodes"
@@ -221,7 +216,7 @@ mod descendants_tests {
 
         let naked = root
             .descendants()
-            .find(|node| node.is::<NakedSequence>())
+            .find(M2Node::is_expr_pack)
             .expect("top-level comma expression is a naked sequence");
         assert_eq!(naked.collection_elements().count(), 2);
     }

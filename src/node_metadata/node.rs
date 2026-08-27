@@ -5,12 +5,10 @@ use std::{collections::HashSet, iter};
 use m2_syn::treesitter::TreeSitterNode;
 use m2_syn::visit::{self, Visit};
 use m2_syn::{
-    AdjacentExpression, AngleBarList, Array, BlockComment, BreakStatement, Collection,
-    ContinueStatement, ElseClause, EmptyComponent, ExceptClause, Expr, FloatLiteral, ForLoop,
-    IfStatement, IntegerLiteral, IterationRange, LineComment, List, LoopBody, MutedCell,
-    MutedGroup, NakedSequence, NewStatement, ParenthesizedExpression, QuoteExpression,
-    RawStringLiteral, Reconstruct, ReturnStatement, Sequence, SourceFile, SourceId, Spanned,
-    StringLiteral, Symbol, ThenClause, Token, TryStatement, WhileLoop,
+    AngleBarList, Array, Cell, Collection, ElseClause, Empty, Expr, ExprPack, FloatLiteral,
+    ForLoop, IfStatement, IntegerLiteral, List, LoopBody, NewStatement, QuoteExpression,
+    RawStringLiteral, Reconstruct, Sequence, SourceFile, Spanned, Statement, StringLiteral, Symbol,
+    ThenClause, Token, TryStatement, WhileLoop,
 };
 use tree_sitter::{Node, Point};
 
@@ -66,10 +64,7 @@ where
         }
     }
 
-    fn record<Syntax>(&mut self, syntax: &Syntax)
-    where
-        Syntax: Reconstruct<TreeSitterNode<'tree, 'tree>> + Spanned,
-    {
+    fn record<Syntax: Spanned + ?Sized>(&mut self, syntax: &Syntax) {
         if let Some(node) = self.root.descendant_for_syntax(syntax) {
             if self.seen.insert(node.id()) {
                 (self.visit)(node);
@@ -97,24 +92,24 @@ where
         visit::visit_symbol(self, node);
     }
 
-    fn visit_naked_sequence(&mut self, node: &'ast NakedSequence) {
+    fn visit_expr_pack(&mut self, node: &'ast ExprPack) {
         self.record(node);
-        visit::visit_naked_sequence(self, node);
+        visit::visit_expr_pack(self, node);
     }
 
-    fn visit_muted_cell(&mut self, node: &'ast MutedCell) {
+    fn visit_cell(&mut self, node: &'ast Cell) {
         self.record(node);
-        visit::visit_muted_cell(self, node);
+        visit::visit_cell(self, node);
     }
 
-    fn visit_muted_group(&mut self, node: &'ast MutedGroup) {
+    fn visit_statement(&mut self, node: &'ast Statement) {
         self.record(node);
-        visit::visit_muted_group(self, node);
+        visit::visit_statement(self, node);
     }
 
-    fn visit_empty_component(&mut self, node: &'ast EmptyComponent) {
+    fn visit_empty(&mut self, node: &'ast Empty) {
         self.record(node);
-        visit::visit_empty_component(self, node);
+        visit::visit_empty(self, node);
     }
 }
 
@@ -131,11 +126,7 @@ impl<'tree> M2Node<'tree> {
     where
         T: Reconstruct<TreeSitterNode<'tree, 'tree>>,
     {
-        T::matches(&TreeSitterNode::new(
-            self.node,
-            self.source.as_bytes(),
-            SourceId(0),
-        ))
+        T::matches(&TreeSitterNode::new(self.node, self.source.as_bytes()))
     }
 
     pub fn is_symbol_like(&self) -> bool {
@@ -167,29 +158,52 @@ impl<'tree> M2Node<'tree> {
     }
 
     pub fn is_delimited_expression(&self) -> bool {
-        self.is_collection_expression() || self.is::<ParenthesizedExpression>()
+        self.is_collection_expression() || self.is_holder()
     }
 
     pub fn is_parameter_container(&self) -> bool {
-        self.is::<Sequence>() || self.is::<List>() || self.is::<ParenthesizedExpression>()
+        self.is::<Sequence>() || self.is::<List>() || self.is_holder()
     }
 
     pub fn is_sequence(&self) -> bool {
-        self.is::<Sequence>() || self.is::<NakedSequence>()
+        self.is::<Sequence>() || self.is_expr_pack()
+    }
+
+    pub fn is_expr_pack(&self) -> bool {
+        self.raw_kind() == "naked_sequence"
     }
 
     pub fn is_nothing_value(&self) -> bool {
-        self.is::<MutedCell>() || self.is::<EmptyComponent>()
+        self.is_muted_statement() || self.is_empty_component()
     }
 
     pub fn is_comment(&self) -> bool {
-        self.is::<LineComment>() || self.is::<BlockComment>()
+        matches!(self.raw_kind(), "line_comment" | "block_comment")
+    }
+
+    pub fn is_line_comment(&self) -> bool {
+        self.raw_kind() == "line_comment"
+    }
+
+    pub fn is_block_comment(&self) -> bool {
+        self.raw_kind() == "block_comment"
     }
 
     pub fn is_control_transfer(&self) -> bool {
-        self.is::<ReturnStatement>()
-            || self.is::<BreakStatement>()
-            || self.is::<ContinueStatement>()
+        matches!(
+            self.raw_kind(),
+            "return_statement" | "break_statement" | "continue_statement"
+        )
+    }
+
+    pub fn control_transfer_value(&self) -> Option<M2Node<'tree>> {
+        self.named_children().next().or_else(|| {
+            let parent = self.parent()?;
+            let left = parent.child_by_field_name("left")?;
+            (parent.is_space_application() && left.id() == self.id())
+                .then(|| parent.child_by_field_name("right"))
+                .flatten()
+        })
     }
 
     pub fn is_keyword_statement(&self) -> bool {
@@ -201,11 +215,70 @@ impl<'tree> M2Node<'tree> {
     }
 
     pub fn is_keyword_clause(&self) -> bool {
-        self.is::<IterationRange>()
+        self.is_iteration_range()
             || self.is::<LoopBody>()
             || self.is::<ThenClause>()
             || self.is::<ElseClause>()
-            || self.is::<ExceptClause>()
+            || self.is_except_clause()
+    }
+
+    pub fn is_holder(&self) -> bool {
+        self.raw_kind() == "parenthesized_expression"
+    }
+
+    pub fn is_muted_statement(&self) -> bool {
+        self.raw_kind() == "muted"
+    }
+
+    pub fn is_empty_component(&self) -> bool {
+        self.raw_kind() == "empty_component"
+    }
+
+    pub fn is_source_cell(&self) -> bool {
+        matches!(self.raw_kind(), "cell" | "muted")
+    }
+
+    pub fn is_iteration_range(&self) -> bool {
+        self.raw_kind() == "iteration_range"
+    }
+
+    pub fn is_except_clause(&self) -> bool {
+        self.raw_kind() == "except_clause"
+    }
+
+    pub fn is_debug_expr(&self) -> bool {
+        self.raw_kind() == "debug_clause"
+    }
+
+    pub fn is_return_expr(&self) -> bool {
+        self.raw_kind() == "return_statement"
+    }
+
+    pub fn is_break_expr(&self) -> bool {
+        self.raw_kind() == "break_statement"
+    }
+
+    pub fn is_continue_expr(&self) -> bool {
+        self.raw_kind() == "continue_statement"
+    }
+
+    pub fn is_prefix_expr(&self) -> bool {
+        self.raw_kind() == "prefix_expression"
+    }
+
+    pub fn is_postfix_expr(&self) -> bool {
+        self.raw_kind() == "postfix_expression"
+    }
+
+    pub fn is_binary_expr(&self) -> bool {
+        self.raw_kind() == "binary_expression" && !self.is_adjacent_expr()
+    }
+
+    pub fn is_adjacent_expr(&self) -> bool {
+        self.raw_kind() == "binary_expression"
+            && self
+                .child_by_field_name("operator")
+                .is_some_and(|operator| operator.is_implicit_application())
     }
 
     pub fn closing_delimiter_width(&self) -> usize {
@@ -238,7 +311,7 @@ impl<'tree> M2Node<'tree> {
     /// The implicit-application operator: the `SPACE` token tree-sitter inserts
     /// between a function and its juxtaposed argument (`sin x`, `f(x)`).
     pub fn is_implicit_application(&self) -> bool {
-        self.is::<Token![SPACE]>()
+        self.raw_kind() == "SPACE"
     }
 
     pub fn has_binary_operator<T: m2_syn::Token>(&self) -> bool {
@@ -315,14 +388,14 @@ impl<'tree> M2Node<'tree> {
     /// against operator spellings is reading code, not node-type names, so it is
     /// safe and rename-stable.
     pub fn binary_operator(&self) -> Option<&'tree str> {
-        if self.is::<AdjacentExpression>() {
-            return Some(super::token_spelling::<Token![SPACE]>());
+        if self.is_adjacent_expr() {
+            return Some("SPACE");
         }
         self.child_by_field_name("left")?;
         self.child_by_field_name("right")?;
         self.child_by_field_name("operator").map(|operator| {
             if operator.is_implicit_application() {
-                super::token_spelling::<Token![SPACE]>()
+                "SPACE"
             } else {
                 operator.text()
             }
@@ -358,7 +431,7 @@ impl<'tree> M2Node<'tree> {
     /// An implicit application `f x` / `f(x)`: a binary expression whose operator
     /// is the inserted `SPACE` token.
     pub fn is_space_application(&self) -> bool {
-        self.is::<AdjacentExpression>() || self.has_binary_operator::<Token![SPACE]>()
+        self.is_adjacent_expr()
     }
 }
 
@@ -396,8 +469,10 @@ impl<'tree> M2Node<'tree> {
     }
 
     pub fn child_by_field_name(&self, name: &str) -> Option<M2Node<'tree>> {
+        let requested_name = name;
         let name = match (self.raw_kind(), name) {
             ("new_statement", "type") => "class",
+            ("structured_binding" | "local_structured_binding", "left") => "binding_pack",
             ("quote_expression", "symbol") => "token",
             _ => name,
         };
@@ -405,6 +480,12 @@ impl<'tree> M2Node<'tree> {
         self.node
             .child_by_field_name(name)
             .map(|node| M2Node::new(node, source))
+            .or_else(|| {
+                (self.raw_kind() == "binary_expression" && requested_name == "left")
+                    .then(|| self.node.child_by_field_name("left_operand"))
+                    .flatten()
+                    .map(|node| M2Node::new(node, source))
+            })
             .or_else(|| {
                 (self.raw_kind() == "quote_expression" && name == "specifier")
                     .then(|| self.children().find(M2Node::is_modifier_token))
@@ -483,14 +564,20 @@ impl<'tree> M2Node<'tree> {
     /// Return the smallest descendant spanning the requested point range.
     pub fn descendant_for_point_range(&self, start: Point, end: Point) -> Option<M2Node<'tree>> {
         let source = self.source;
-        self.node
-            .descendant_for_point_range(start, end)
-            .map(|node| M2Node::new(node, source))
+        let node = if start == end {
+            let next = Point::new(start.row, start.column.saturating_add(1));
+            self.node
+                .descendant_for_point_range(start, next)
+                .or_else(|| self.node.descendant_for_point_range(start, end))
+        } else {
+            self.node.descendant_for_point_range(start, end)
+        };
+        node.map(|node| M2Node::new(node, source))
     }
 
     pub fn descendant_for_syntax<Syntax>(&self, syntax: &Syntax) -> Option<M2Node<'tree>>
     where
-        Syntax: Reconstruct<TreeSitterNode<'tree, 'tree>> + Spanned,
+        Syntax: Spanned + ?Sized,
     {
         let (start, end) = super::syntax_byte_range(syntax)?;
         let source = self.source;
@@ -498,12 +585,10 @@ impl<'tree> M2Node<'tree> {
             .node
             .descendant_for_byte_range(start, end)
             .map(|node| M2Node::new(node, source))?;
-        loop {
-            if node.is::<Syntax>() && node.start_byte() <= start && node.end_byte() >= end {
-                return Some(node);
-            }
+        while !node.node.is_named() {
             node = node.parent()?;
         }
+        Some(node)
     }
 
     /// The semantic element slots of a comma-delimited collection.
@@ -514,7 +599,7 @@ impl<'tree> M2Node<'tree> {
     /// syntax extras rather than elements, so both are skipped here.
     pub fn collection_elements(&self) -> impl Iterator<Item = M2Node<'tree>> + '_ {
         self.named_children()
-            .filter(|child| !child.is::<MutedCell>() && !child.is_comment())
+            .filter(|child| !child.is_muted_statement() && !child.is_comment())
     }
 
     /// The final value directly produced by a grouping/cell node.
@@ -526,7 +611,7 @@ impl<'tree> M2Node<'tree> {
         self.named_children()
             .filter(|child| !child.is_comment())
             .last()
-            .filter(|child| !child.is::<MutedCell>())
+            .filter(|child| !child.is_muted_statement())
     }
 
     pub fn is_first_collection_element(&self, child: M2Node<'_>) -> bool {
@@ -592,6 +677,10 @@ impl<'tree> M2Node<'tree> {
 
     pub fn end_byte(&self) -> usize {
         self.node.end_byte()
+    }
+
+    pub fn trimmed_end_byte(&self) -> usize {
+        self.start_byte() + self.text().trim_end().len()
     }
 
     pub fn id(&self) -> SyntaxNodeId {

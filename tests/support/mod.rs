@@ -532,7 +532,12 @@ impl DocumentSession {
                 document_position(&self.workspace.uri, cursor),
             )
             .await;
-        response_array(&response)
+        let items = response
+            .as_array()
+            .or_else(|| response["items"].as_array())
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        items
             .iter()
             .filter_map(|item| item["label"].as_str().map(str::to_string))
             .collect()

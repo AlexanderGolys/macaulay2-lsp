@@ -1326,11 +1326,11 @@ async fn inferred_binding_types_flow_to_hover_across_language_constructs() {
         ),
         (
             "f = method()\nf ZZ := String => x -> \"\"\nf RR := Boolean => x -> true\nargument := if condition then 1 else 2.0\nresult := f argument\nresult\n",
-            vec![(5, 0, "String | Boolean")],
+            vec![(5, 0, "Boolean | String")],
         ),
         (
             "argument := if condition then 1 else 2.0\nresult := argument + argument\nresult\n",
-            vec![(2, 0, "ZZ | RR")],
+            vec![(2, 0, "RR | ZZ")],
         ),
         (
             "x = 1\nx = x + 1\nx\n",
@@ -1382,17 +1382,17 @@ async fn inferred_binding_types_flow_to_hover_across_language_constructs() {
     for (source, expected) in [
         (
             "joined := if condition then 1 else 2.0\njoined\n",
-            "ZZ | RR",
+            "RR | ZZ",
         ),
         ("joined := if condition then 1\njoined\n", "ZZ?"),
         ("joined := if condition then null else 1\njoined\n", "ZZ?"),
         (
             "joined := try unknownName then 1 else 2.0\njoined\n",
-            "ZZ | RR",
+            "RR | ZZ",
         ),
         (
             "joined := if condition then 1 else if other then 2.0\njoined\n",
-            "ZZ | RR | Nothing",
+            "Nothing | RR | ZZ",
         ),
         ("fallback := try 1\nfallback\n", "ZZ?"),
     ] {
@@ -1493,6 +1493,75 @@ async fn callable_aliases_reinstall_methods_and_reassignments_remain_source_orde
 }
 
 #[tokio::test]
+async fn declarations_use_binding_identity_then_fall_back_to_the_first_unbound_reference() {
+    let source = concat!(
+        "future\n",
+        "future = 1\n",
+        "future\n",
+        "f = name -> name\n",
+        "g = name -> name\n",
+        "unassigned\n",
+        "h = unassigned -> unassigned\n",
+        "unassigned\n",
+        "ZZ\n",
+        "ZZ\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+
+    for occurrence in [0, 2] {
+        let declaration = session
+            .request_at("textDocument/declaration", "future", occurrence)
+            .await;
+        assert_eq!(declaration["range"]["start"], position(source, "future", 1));
+    }
+    let future_definitions = session
+        .request_at("textDocument/definition", "future", 0)
+        .await;
+    assert_eq!(
+        future_definitions["range"]["start"],
+        position(source, "future", 1)
+    );
+
+    for (occurrence, declaration_occurrence) in [(1, 0), (3, 2)] {
+        let declaration = session
+            .request_at("textDocument/declaration", "name", occurrence)
+            .await;
+        assert_eq!(
+            declaration["range"]["start"],
+            position(source, "name", declaration_occurrence)
+        );
+    }
+
+    let local_declaration = session
+        .request_at("textDocument/declaration", "unassigned", 2)
+        .await;
+    assert_eq!(
+        local_declaration["range"]["start"],
+        position(source, "unassigned", 1)
+    );
+
+    for occurrence in [0, 3] {
+        let declaration = session
+            .request_at("textDocument/declaration", "unassigned", occurrence)
+            .await;
+        assert_eq!(
+            declaration["range"]["start"],
+            position(source, "unassigned", 0)
+        );
+    }
+
+    let indexed_declaration = session
+        .request_at("textDocument/declaration", "ZZ", 1)
+        .await;
+    assert_eq!(
+        indexed_declaration["range"]["start"],
+        position(source, "ZZ", 0)
+    );
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
 async fn type_definitions_and_method_implementations_use_analysis_facts() {
     let source = concat!(
         "Token = new Type\n",
@@ -1524,6 +1593,152 @@ async fn type_definitions_and_method_implementations_use_analysis_facts() {
                 .expect("implementation line"))
             .collect::<Vec<_>>(),
         [4, 5]
+    );
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn implementations_are_workspace_scoped_method_installations_or_lambda_assignments() {
+    let source = concat!(
+        "p = method()\n",
+        "p(ZZ) := x -> x\n",
+        "p(QQ) := x -> x\n",
+        "p\n",
+        "p 1\n",
+        "f = x -> x\n",
+        "f = x -> x + 1\n",
+        "f = 1\n",
+        "f\n",
+        "colonLambda := (x -> x)\n",
+        "colonLambda\n",
+        "outer = x -> x\n",
+        "g = outer -> (\n",
+        "    outer = y -> y;\n",
+        "    outer\n",
+        ")\n",
+        "outer\n",
+        "workspaceLambda\n",
+        "workspaceMethod\n",
+        "ghost\n",
+        "ideal\n",
+    );
+    let related = concat!(
+        "workspaceLambda := (x -> x)\n",
+        "workspaceMethod = method()\n",
+        "workspaceMethod(ZZ) := x -> x\n",
+        "p(RR) := x -> x\n",
+        "ghost(ZZ) := x -> x\n",
+    );
+    let mut session = DocumentSession::open_with_related(source, related).await;
+
+    let methods = session
+        .request_at("textDocument/implementation", "p", 3)
+        .await;
+    let methods = response_array(&methods);
+    assert_eq!(methods.len(), 3);
+    assert_eq!(
+        methods
+            .iter()
+            .filter(|location| location["uri"] == session.uri())
+            .map(|location| location["range"]["start"].clone())
+            .collect::<Vec<_>>(),
+        [position(source, "p", 1), position(source, "p", 2)]
+    );
+    assert!(methods.iter().any(
+        |location| location["uri"] != session.uri() && location["range"]["start"]["line"] == 3
+    ));
+
+    let pinned_method = session
+        .request_at("textDocument/implementation", "p", 4)
+        .await;
+    assert_eq!(pinned_method["range"]["start"], position(source, "p", 1));
+
+    let lambdas = session
+        .request_at("textDocument/implementation", "f", 3)
+        .await;
+    assert_eq!(
+        response_array(&lambdas)
+            .iter()
+            .map(|location| location["range"]["start"].clone())
+            .collect::<Vec<_>>(),
+        [position(source, "f", 0), position(source, "f", 1)]
+    );
+
+    let colon_lambda = session
+        .request_at("textDocument/implementation", "colonLambda", 1)
+        .await;
+    assert_eq!(
+        colon_lambda["range"]["start"],
+        position(source, "colonLambda", 0)
+    );
+
+    let local_lambda = session
+        .request_at("textDocument/implementation", "outer", 3)
+        .await;
+    assert_eq!(local_lambda["range"]["start"], position(source, "outer", 2));
+    let global_lambda = session
+        .request_at("textDocument/implementation", "outer", 4)
+        .await;
+    assert_eq!(
+        global_lambda["range"]["start"],
+        position(source, "outer", 0)
+    );
+
+    for (name, implementation_line) in [("workspaceLambda", 0), ("workspaceMethod", 2)] {
+        let implementation = session
+            .request_at("textDocument/implementation", name, 0)
+            .await;
+        assert_ne!(implementation["uri"], session.uri());
+        assert_eq!(
+            implementation["range"]["start"]["line"],
+            implementation_line
+        );
+    }
+
+    let library_implementation = session
+        .request_at("textDocument/implementation", "ideal", 0)
+        .await;
+    assert!(library_implementation.is_null());
+
+    let invalid_installation = session
+        .request_at("textDocument/implementation", "ghost", 0)
+        .await;
+    assert!(invalid_installation.is_null());
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn workspace_method_declarations_validate_live_unresolved_installations() {
+    let source = "p(ZZ) := x -> x\np\n";
+    let mut session = DocumentSession::open_with_related(source, "p = method()\n").await;
+
+    let implementation = session
+        .request_at("textDocument/implementation", "p", 1)
+        .await;
+    assert_eq!(implementation["uri"], session.uri());
+    assert_eq!(implementation["range"]["start"], position(source, "p", 0));
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn method_calls_exclude_installations_that_occur_later() {
+    let source = "p = method()\np 1\np(ZZ) := x -> x\np\n";
+    let mut session = DocumentSession::open(source).await;
+
+    let call_implementation = session
+        .request_at("textDocument/implementation", "p", 1)
+        .await;
+    assert!(call_implementation.is_null());
+
+    let method_implementations = session
+        .request_at("textDocument/implementation", "p", 3)
+        .await;
+    assert_eq!(
+        method_implementations["range"]["start"],
+        position(source, "p", 2)
     );
 
     session.shutdown().await;
@@ -1575,9 +1790,37 @@ async fn document_links_resolve_and_completion_surfaces_contextual_choices() {
             }),
         )
         .await;
-    assert!(response_array(&empty_slot)
-        .iter()
-        .any(|item| item["label"] == "while"));
+    assert!(empty_slot.is_null());
+
+    session.shutdown().await;
+}
+
+#[tokio::test]
+async fn completion_patterns_filter_known_symbols_by_runtime_type() {
+    let source = concat!(
+        "LocalType = new Type\n",
+        "plain = Loc\n",
+        "constructed = new Loc\n",
+    );
+    let mut session = DocumentSession::open(source).await;
+
+    let plain = session.completion_labels("plain = Loc", 0).await;
+    assert!(plain.iter().any(|label| label == "Local"), "got {plain:?}");
+    assert!(
+        plain.iter().any(|label| label == "LocalDictionary"),
+        "got {plain:?}"
+    );
+
+    let constructed = session.completion_labels("constructed = new Loc", 0).await;
+    assert!(
+        constructed.iter().any(|label| label == "LocalType"),
+        "got {constructed:?}"
+    );
+    assert!(
+        constructed.iter().any(|label| label == "LocalDictionary"),
+        "got {constructed:?}"
+    );
+    assert!(!constructed.iter().any(|label| label == "Local"));
 
     session.shutdown().await;
 }
@@ -1733,11 +1976,11 @@ async fn expression_type_hints_render_complete_inferred_subsets() {
     let hints = inlay_labels_by_line(&mut session).await;
 
     assert!(
-        hints.contains(&(0, "↑List | ZZ".to_string())),
+        hints.contains(&(0, "ZZ | ↑List".to_string())),
         "missing upper-set and exact-point union: {hints:?}"
     );
     assert!(
-        hints.contains(&(1, "ZZ | String".to_string())),
+        hints.contains(&(1, "String | ZZ".to_string())),
         "missing exact-point union: {hints:?}"
     );
 
@@ -1968,9 +2211,9 @@ async fn scopes_bindings_and_callable_metadata_drive_editor_capabilities() {
         "outside := 1\n",
         "f = parameter -> (\n",
         "  inside := parameter;\n",
-        "  ins\n",
+        "  inside\n",
         ")\n",
-        "out\n",
+        "outside\n",
         "[a, [b, c]] = [1, {2, 3}]\n",
         "p = method(Binary => true, TypicalValue => List)\n",
         "p(ZZ,ZZ) := p(List,ZZ) := (i,j) -> {i,j}\n",
@@ -1979,9 +2222,9 @@ async fn scopes_bindings_and_callable_metadata_drive_editor_capabilities() {
     );
     let mut session = DocumentSession::open(source).await;
 
-    let local_completions = session.completion_labels("ins", 1).await;
+    let local_completions = session.completion_labels("inside", 1).await;
     assert!(local_completions.iter().any(|label| label == "inside"));
-    let global_completions = session.completion_labels("out", 1).await;
+    let global_completions = session.completion_labels("outside", 1).await;
     assert!(global_completions.iter().any(|label| label == "outside"));
     assert!(!global_completions.iter().any(|label| label == "inside"));
 
